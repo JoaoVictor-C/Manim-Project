@@ -41,6 +41,7 @@ from ..core.schema import TEXT_TYPES, Project
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .build_service import BuildService
 from .canvas import CanvasWidget
+from .canvas_tools import MoveTool
 from .document import Document
 from .layers_panel import LayersPanel
 from .properties_panel import PropertiesPanel
@@ -123,6 +124,8 @@ class MainWindow(QMainWindow):
         self.layers.layerSelected.connect(self.selection.select_layer)
         self.timeline.clipSelected.connect(self.selection.set)
         self.selection.changed.connect(self._on_selection_changed)
+        self.move_tool = MoveTool(self.canvas, self.document, self.selection, lambda: self.t, self.seek, self)
+        self.move_tool.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.timeline.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.builds.pendingChanged.connect(self._on_pending_changed)
 
@@ -238,7 +241,8 @@ class MainWindow(QMainWindow):
             self.properties.show_layer(layer_id)
         else:
             self.properties.show_nothing()
-        self.canvas.update()
+        self.canvas.selected_layer = layer_id
+        self.refresh()
 
     def _on_pending_changed(self) -> None:
         if self.builds.busy:
