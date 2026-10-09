@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -44,6 +44,7 @@ from .canvas import CanvasWidget
 from .document import Document
 from .layers_panel import LayersPanel
 from .properties_panel import PropertiesPanel
+from .selection import Selection
 from .timeline.view import TimelineView
 from .worker_process import make_worker
 
@@ -117,8 +118,11 @@ class MainWindow(QMainWindow):
         self.properties_dock = self._dock(
             "Properties", self.properties, Qt.DockWidgetArea.RightDockWidgetArea
         )
-        self.layers.layerSelected.connect(self.properties.show_layer)
-        self.timeline.clipSelected.connect(self._on_clip_selected)
+        # One selection for every view (ADR 0016): views report, then follow it.
+        self.selection = Selection(self.document, self)
+        self.layers.layerSelected.connect(self.selection.select_layer)
+        self.timeline.clipSelected.connect(self.selection.set)
+        self.selection.changed.connect(self._on_selection_changed)
         self.timeline.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.builds.pendingChanged.connect(self._on_pending_changed)
 
@@ -222,9 +226,19 @@ class MainWindow(QMainWindow):
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
 
-    def _on_clip_selected(self, layer_id: str, clip_id: str) -> None:
-        self.layers.select(layer_id)
-        self.properties.show_clip(layer_id, clip_id)
+    def _on_selection_changed(self) -> None:
+        layer_id, clip_id = self.selection.layer_id, self.selection.clip_id
+        with QSignalBlocker(self.layers.list):
+            self.layers.select(layer_id)
+        self.layers.update_buttons()
+        self.timeline.set_selected(layer_id, clip_id)
+        if clip_id is not None:
+            self.properties.show_clip(layer_id, clip_id)
+        elif layer_id is not None:
+            self.properties.show_layer(layer_id)
+        else:
+            self.properties.show_nothing()
+        self.canvas.update()
 
     def _on_pending_changed(self) -> None:
         if self.builds.busy:

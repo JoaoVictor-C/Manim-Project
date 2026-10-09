@@ -152,6 +152,13 @@ class TimelineView(QGraphicsView):
         self._drag = None
         self.sync()
 
+    def set_selected(self, layer_id: str | None, clip_id: str | None) -> None:
+        """Highlight a clip chosen elsewhere (the shared selection), or none."""
+        selected = (layer_id, clip_id) if layer_id and clip_id else None
+        if selected != self.selected:
+            self.selected = selected
+            self.sync()
+
     def rows(self) -> list[Layer]:
         """Layers in row order: the front-most (last in the project) first."""
         return list(reversed(self.project.layers)) if self.project is not None else []
