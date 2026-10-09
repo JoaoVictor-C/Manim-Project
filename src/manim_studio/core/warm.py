@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 
+from .parts import build_spec
 from .schema import TEXT_TYPES, Project, Spec
 
 CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entry
@@ -33,13 +34,18 @@ def key_spec(key: str) -> Spec:
 
 
 def needs_warm(old: Project, new: Project, warmed: set[str] | frozenset[str]) -> set[str]:
-    """Keys of text objects that ``new`` adds or changes and that are not yet warm."""
-    old_specs = {layer.id: layer.spec for layer in old.layers}
+    """Keys of text objects that ``new`` adds or changes and that are not yet warm.
+
+    Objects are compared by what they are built from: a root's spec plus its
+    parts' marker spans (ADR 0012), so adding a part warms the new build.
+    """
+    old_specs = {root.id: build_spec(old, root.id) for root in old.roots()}
     keys = set()
-    for layer in new.layers:
-        if old_specs.get(layer.id) == layer.spec:
+    for root in new.roots():
+        spec = build_spec(new, root.id)
+        if old_specs.get(root.id) == spec:
             continue
-        key = warm_key(layer.spec)
+        key = warm_key(spec)
         if key is not None and key not in warmed:
             keys.add(key)
     return keys

@@ -142,25 +142,43 @@ class Lifetime(BaseModel):
 
 
 TrackName = Literal["position", "scale", "rotation", "opacity"]
+PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
+
+
+class PartKey(BaseModel):
+    """The ``occurrence``-th match of ``tex`` in the parent's text (``core/parts.py``)."""
+
+    tex: str = Field(min_length=1)
+    occurrence: int = Field(default=0, ge=0)
 
 
 class Layer(BaseModel):
     id: str
     name: str = ""
-    spec: Spec
+    spec: Spec | None = None  # roots only; a part draws glyphs of its root (ADR 0012)
+    parent_id: str | None = None
+    part: PartKey | None = None
     base: Transform2D = Field(default_factory=Transform2D)
     lifetime: Lifetime = Field(default_factory=Lifetime)
     tracks: dict[TrackName, list[Keyframe]] = Field(default_factory=dict)
     clips: list[Clip] = Field(default_factory=list)
 
+    @property
+    def is_part(self) -> bool:
+        return self.parent_id is not None
+
     @model_validator(mode="after")
     def _lane_rules(self) -> Layer:
+        if self.parent_id is None and (self.spec is None or self.part is not None):
+            raise ValueError(f"layer {self.id!r}: a layer without a parent needs a spec and no part key")
+        if self.parent_id is not None and (self.part is None or self.spec is not None):
+            raise ValueError(f"layer {self.id!r}: a part layer needs a part key and no spec")
         ids = [c.id for c in self.clips]
         if len(set(ids)) != len(ids):
             raise ValueError(
                 f"layer {self.id!r}: duplicate clip ids {sorted({i for i in ids if ids.count(i) > 1})}"
             )
-        if self.spec.type in RASTER_TYPES:
+        if self.spec is not None and self.spec.type in RASTER_TYPES:
             for clip in self.clips:
                 if clip.info.vector_only:
                     raise ValueError(
@@ -192,6 +210,7 @@ class Project(BaseModel):
         duplicates = {i for i in ids if ids.count(i) > 1}
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
+        self._tree_rules()
         targeted: dict[str, str] = {}
         for layer in self.layers:
             for clip in layer.clips:
@@ -211,12 +230,85 @@ class Project(BaseModel):
                 targeted[clip.to_layer] = layer.id
         return self
 
+    def _tree_rules(self) -> None:
+        """ADR 0012: parts hang under MathTex/Tex roots; no clip overlaps an ancestor's clip."""
+        by_id = {layer.id: layer for layer in self.layers}
+        for layer in self.layers:
+            if layer.parent_id is None:
+                continue
+            if layer.parent_id not in by_id:
+                raise ValueError(f"layer {layer.id!r}: parent {layer.parent_id!r} is missing")
+            seen, node = {layer.id}, by_id[layer.parent_id]
+            while node.parent_id is not None:
+                if node.id in seen:
+                    raise ValueError(f"layer {layer.id!r}: its parents form a cycle")
+                seen.add(node.id)
+                node = by_id[node.parent_id]
+            if node.spec.type not in PART_PARENT_TYPES:
+                raise ValueError(
+                    f"layer {layer.id!r}: parts are only supported on MathTex and Tex, not {node.spec.type}"
+                )
+        has_children = {layer.parent_id for layer in self.layers if layer.parent_id}
+        tree = has_children | {layer.id for layer in self.layers if layer.parent_id}
+        for layer in self.layers:
+            for clip in layer.clips:
+                if clip.to_layer and (layer.id in tree or clip.to_layer in tree):
+                    raise ValueError(
+                        f"clip {clip.id!r} on layer {layer.id!r}: "
+                        "morphs are not supported on layers with parts yet"
+                    )
+            node = layer
+            while node.parent_id is not None:
+                node = by_id[node.parent_id]
+                for clip in layer.clips:
+                    for other in node.clips:
+                        if clip.start < other.end - 1e-9 and other.start < clip.end - 1e-9:
+                            raise ValueError(
+                                f"clip {clip.id!r} on {layer.id!r} overlaps clip {other.id!r} "
+                                f"on {node.id!r}, which contains it"
+                            )
+
     def morph_sources(self) -> dict[str, Clip]:
         """target layer id -> the morph clip that hands off to it (ADR 0005)."""
         return {clip.to_layer: clip for layer in self.layers for clip in layer.clips if clip.to_layer}
 
     def lifetime(self, layer_id: str) -> tuple[float, float]:
-        return infer_lifetime(self.layer(layer_id), self.morph_sources().get(layer_id))
+        """When a layer is visible; a part's lifetime is clamped to its parent's (ADR 0012)."""
+        layer = self.layer(layer_id)
+        start, end = infer_lifetime(layer, self.morph_sources().get(layer_id))
+        if layer.parent_id is not None:
+            parent_start, parent_end = self.lifetime(layer.parent_id)
+            start, end = max(start, parent_start), min(end, parent_end)
+        return start, end
+
+    # -- the layer tree (ADR 0012) ---------------------------------------------
+
+    def children(self, layer_id: str) -> list[Layer]:
+        return [layer for layer in self.layers if layer.parent_id == layer_id]
+
+    def descendants(self, layer_id: str) -> list[Layer]:
+        """Parts under ``layer_id``, parents before children, siblings in list order."""
+        out = []
+        for child in self.children(layer_id):
+            out.append(child)
+            out.extend(self.descendants(child.id))
+        return out
+
+    def ancestors(self, layer_id: str) -> list[Layer]:
+        """Parent first, root last."""
+        out, layer = [], self.layer(layer_id)
+        while layer.parent_id is not None:
+            layer = self.layer(layer.parent_id)
+            out.append(layer)
+        return out
+
+    def root_of(self, layer_id: str) -> Layer:
+        """The object layer a part belongs to (the layer itself for a root)."""
+        layer = self.layer(layer_id)
+        return self.ancestors(layer_id)[-1] if layer.parent_id is not None else layer
+
+    def roots(self) -> list[Layer]:
+        return [layer for layer in self.layers if layer.parent_id is None]
 
     def layer(self, layer_id: str) -> Layer:
         for layer in self.layers:
