@@ -131,3 +131,14 @@ def test_adding_a_layer_selects_it_everywhere(window) -> None:
     window.layers.add_object("Dot")
     new_id = window.project.layers[-1].id
     assert views(window) == (new_id, None, (new_id, None))
+
+
+def test_a_key_selection_falls_back_to_its_layer_when_the_keys_go(selection) -> None:
+    doc = selection.document
+    doc.apply(edits.set_key(doc.project, "b", "rotation", 0.2, 30.0), "Key")
+    selection.set_key("b", 0.2)
+    assert (selection.layer_id, selection.clip_id, selection.key_time) == ("b", None, 0.2)
+    selection.set("b", None, 0.2)
+    assert len(selection.events) == 1  # unchanged
+    doc.apply(edits.remove_keys(doc.project, "b", 0.2), "Delete keys")
+    assert (selection.layer_id, selection.key_time) == ("b", None)

@@ -126,6 +126,8 @@ class MainWindow(QMainWindow):
         self.selection = Selection(self.document, self)
         self.layers.layerSelected.connect(self.selection.select_layer)
         self.timeline.clipSelected.connect(self.selection.set)
+        self.timeline.keySelected.connect(self.selection.set_key)
+        self.properties.keyMoved.connect(self.selection.set_key)
         self.selection.changed.connect(self._on_selection_changed)
         self.move_tool = MoveTool(self.canvas, self.document, self.selection, lambda: self.t, self.seek, self)
         self.move_tool.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
@@ -241,11 +243,14 @@ class MainWindow(QMainWindow):
 
     def _on_selection_changed(self) -> None:
         layer_id, clip_id = self.selection.layer_id, self.selection.clip_id
+        key_time = self.selection.key_time
         with QSignalBlocker(self.layers.list):
             self.layers.select(layer_id)
         self.layers.update_buttons()
-        self.timeline.set_selected(layer_id, clip_id)
-        if clip_id is not None:
+        self.timeline.set_selected(layer_id, clip_id, key_time)
+        if key_time is not None:
+            self.properties.show_key(layer_id, key_time)
+        elif clip_id is not None:
             self.properties.show_clip(layer_id, clip_id)
         elif layer_id is not None:
             self.properties.show_layer(layer_id)

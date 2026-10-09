@@ -204,3 +204,46 @@ def test_nothing_goes_after_a_morph_or_into_a_gap_under_a_frame() -> None:
         ],
     )
     assert place_new_clip(tight, 1.005, duration=DURATION, fps=FPS) is None
+
+
+# -- keyframes (P2b) ------------------------------------------------------------------
+
+
+def keyed_lane() -> Layer:
+    from manim_studio.core.schema import Keyframe
+
+    return Layer(
+        id="k",
+        spec=Spec(type="Square"),
+        tracks={
+            "position": [
+                Keyframe(t=0.5, value=(0, 0)),
+                Keyframe(t=1.0, value=(1, 0)),
+                Keyframe(t=2.0, value=(2, 0)),
+            ],
+            "rotation": [Keyframe(t=0.0, value=0.0), Keyframe(t=1.01, value=90.0)],
+        },
+    )
+
+
+def test_key_times_merge_properties_within_half_a_frame() -> None:
+    from manim_studio.ui.timeline.model import key_times
+
+    assert key_times(keyed_lane(), FPS) == [
+        (0.0, ("rotation",)),
+        (0.5, ("position",)),
+        (1.0, ("position", "rotation")),
+        (2.0, ("position",)),
+    ]
+
+
+def test_moving_keys_is_clamped_by_each_moved_property() -> None:
+    from manim_studio.ui.timeline.model import drag_keys, key_bounds
+
+    lo, hi = key_bounds(keyed_lane(), 1.0, DURATION, FPS)
+    assert (lo, hi) == pytest.approx((0.5 + 1 / FPS, 2.0 - 1 / FPS))  # position's neighbours are tighter
+    moved = drag_keys(keyed_lane(), 1.0, 0.2, duration=DURATION, fps=FPS, scale=SCALE)
+    assert moved == pytest.approx(0.5 + 1 / FPS)
+    assert (
+        drag_keys(keyed_lane(), 1.0, 1.47, duration=DURATION, fps=FPS, scale=SCALE, candidates=[1.5]) == 1.5
+    )

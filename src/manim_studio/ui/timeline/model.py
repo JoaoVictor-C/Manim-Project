@@ -199,3 +199,50 @@ def place_new_clip(
         return None
     start = _clamp(quantize(t, fps), lo, hi - frame)
     return start, min(length, hi - start)
+
+
+# -- keyframes (P2b) ------------------------------------------------------------------
+
+
+def key_times(layer: Layer, fps: int) -> list[tuple[float, tuple[str, ...]]]:
+    """Key times merged across properties (within half a frame), with the properties keyed at each."""
+    keys = sorted((key.t, prop) for prop, track in layer.tracks.items() for key in track)
+    merged: list[tuple[float, list[str]]] = []
+    for t, prop in keys:
+        if merged and t - merged[-1][0] < 0.5 / fps:
+            merged[-1][1].append(prop)
+        else:
+            merged.append((t, [prop]))
+    return [(t, tuple(sorted(set(props)))) for t, props in merged]
+
+
+def key_bounds(layer: Layer, t: float, duration: float, fps: int) -> tuple[float, float]:
+    """Where the keys at ``t`` may move: more than a frame from each moved property's neighbours."""
+    frame = 1.0 / fps
+    lo, hi = 0.0, duration
+    for track in layer.tracks.values():
+        times = [key.t for key in track]
+        if not any(abs(k - t) < 0.5 * frame for k in times):
+            continue
+        before = [k for k in times if k < t - 0.5 * frame]
+        after = [k for k in times if k > t + 0.5 * frame]
+        if before:
+            lo = max(lo, before[-1] + frame)
+        if after:
+            hi = min(hi, after[0] - frame)
+    return lo, max(lo, hi)
+
+
+def drag_keys(
+    layer: Layer,
+    t: float,
+    proposed: float,
+    *,
+    duration: float,
+    fps: int,
+    scale: TimeScale,
+    candidates: Iterable[float] = (),
+    snapping: bool = True,
+) -> float:
+    """New time for the keys at ``t`` dragged to ``proposed``: snap, then clamp."""
+    return _clamp(snap(proposed, candidates, scale, fps, snapping), *key_bounds(layer, t, duration, fps))

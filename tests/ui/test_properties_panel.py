@@ -311,3 +311,28 @@ def test_auto_key_from_a_field_animates_from_the_layer_start(panel) -> None:
     panel.fields["base.rotation"].commit(45.0)
     keys = layer(panel, "dot").tracks["rotation"]
     assert [(k.t, k.value) for k in keys] == [(0.0, 0.0), (pytest.approx(0.6), 45.0)]
+
+
+# -- key view (P2b.3) -------------------------------------------------------------------
+
+
+def test_key_view_edits_values_and_easing(panel) -> None:
+    panel.show_key("ball", 1.0)  # ball: scale keyed at 0 s and 1 s
+    assert set(panel.fields) == {"keys.time", "keys.scale.value", "keys.scale.ease"}
+    assert "Keys at 1 s" in panel.title.text()
+    assert not panel.fields["keys.scale.ease"].widget.isEnabled()  # the last key: nothing follows it
+    panel.fields["keys.scale.value"].commit(3.0)
+    assert layer(panel, "ball").tracks["scale"][1].value == 3.0
+    panel.show_key("ball", 0.0)
+    assert panel.fields["keys.scale.ease"].widget.isEnabled()
+    panel.fields["keys.scale.ease"].commit(Easing(name="linear"))
+    assert layer(panel, "ball").tracks["scale"][0].ease == Easing(name="linear")
+
+
+def test_key_view_retimes_and_reports_the_new_time(panel) -> None:
+    moved = []
+    panel.keyMoved.connect(lambda *a: moved.append(a))
+    panel.show_key("ball", 1.0)
+    panel.fields["keys.time"].commit(0.6)
+    assert [k.t for k in layer(panel, "ball").tracks["scale"]] == [0, pytest.approx(0.6)]
+    assert moved == [("ball", pytest.approx(0.6))]

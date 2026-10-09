@@ -12,7 +12,10 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
   turn, so a slow frame drops positions instead of queueing them (ADR 0009);
 * Ctrl+wheel zooms about the cursor;
 * right-click adds a clip at that time (or deletes the clip under the cursor);
-  Delete removes the selected clip (S2.6).
+  Delete removes the selected clip (S2.6);
+* keyframes (P2b): one diamond per key time on the bottom of the row; click
+  selects, drag retimes every key at that time, Delete removes them; the row
+  menu adds a key at the playhead. Diamonds win over clip bars within 5 px.
 """
 
 from __future__ import annotations
@@ -21,8 +24,9 @@ from dataclasses import dataclass
 
 from pydantic import ValidationError
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
+    QGraphicsPolygonItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
@@ -32,10 +36,20 @@ from PySide6.QtWidgets import (
 )
 
 from ...core import adapter, edits
+from ...core.evaluator import layer_transform
 from ...core.schema import CLIP_KIND_INFO, Clip, Layer, Project, infer_lifetime
 from ...logging_config import get_logger
 from ..document import Document
-from .model import Edge, TimeScale, drag_move, drag_trim, place_new_clip, snap_candidates
+from .model import (
+    Edge,
+    TimeScale,
+    drag_keys,
+    drag_move,
+    drag_trim,
+    key_times,
+    place_new_clip,
+    snap_candidates,
+)
 
 log = get_logger(__name__)
 
@@ -44,6 +58,10 @@ RULER_HEIGHT = 26
 HEADER_WIDTH = 140
 EDGE_PX = 6
 CLIP_MARGIN = 4
+KEY_HALF = 4.5  # diamond half size, px
+KEY_GRAB_PX = 5.0
+KEY_OFFSET = ROW_HEIGHT - 6  # diamond centre below the row top
+TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
 
 CATEGORY_COLORS = {"content": "#3b82f6", "emphasis": "#f59e0b", "morph": "#a855f7"}
 LIFETIME_COLOR = QColor(255, 255, 255, 28)
@@ -73,6 +91,31 @@ class ClipItem(QGraphicsRectItem):
         if rect.width() > 24:
             painter.setPen(QColor("#ffffff"))
             painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.kind)
+
+
+class KeyItem(QGraphicsPolygonItem):
+    """Every key of one layer at one time (P2b)."""
+
+    def __init__(
+        self, layer_id: str, t: float, props: tuple[str, ...], center: QPointF, selected: bool
+    ) -> None:
+        h = KEY_HALF
+        diamond = QPolygonF([QPointF(0, -h), QPointF(h, 0), QPointF(0, h), QPointF(-h, 0)])
+        super().__init__(diamond)
+        self.setPos(center)
+        self.layer_id, self.t, self.props, self.selected = layer_id, t, props, selected
+        self.setBrush(QBrush(QColor("#fde047") if selected else QColor("#e5e7eb")))
+        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 160), 1.5 if selected else 1))
+        self.setToolTip(f"{t:g} s: {', '.join(props)}")
+        self.setZValue(3)
+
+
+@dataclass
+class _KeyDrag:
+    layer_id: str
+    t: float
+    press_x: float
+    base: Project
 
 
 class LayerHeader(QWidget):
@@ -112,6 +155,7 @@ class _Drag:
 class TimelineView(QGraphicsView):
     seekRequested = Signal(float)
     clipSelected = Signal(str, str)  # layer id, clip id
+    keySelected = Signal(str, float)  # layer id, key time
     message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -130,7 +174,10 @@ class TimelineView(QGraphicsView):
         self.scale = TimeScale(px_per_second=120.0)
         self.playhead = 0.0
         self.selected: tuple[str, str] | None = None
+        self.selected_key: tuple[str, float] | None = None
         self._drag: _Drag | None = None
+        self._key_drag: _KeyDrag | None = None
+        self._last_key_t = 0.0
         self._scrubbing = False
         self._pending: tuple[float, bool] | None = None  # (scene x, snapping)
         self._apply_scheduled = False
@@ -149,14 +196,17 @@ class TimelineView(QGraphicsView):
 
     def _on_reset(self) -> None:
         self.selected = None
+        self.selected_key = None
         self._drag = None
+        self._key_drag = None
         self.sync()
 
-    def set_selected(self, layer_id: str | None, clip_id: str | None) -> None:
-        """Highlight a clip chosen elsewhere (the shared selection), or none."""
+    def set_selected(self, layer_id: str | None, clip_id: str | None, key_time: float | None = None) -> None:
+        """Highlight a clip or a key time chosen elsewhere (the shared selection), or none."""
         selected = (layer_id, clip_id) if layer_id and clip_id else None
-        if selected != self.selected:
-            self.selected = selected
+        selected_key = (layer_id, key_time) if layer_id and key_time is not None else None
+        if (selected, selected_key) != (self.selected, self.selected_key):
+            self.selected, self.selected_key = selected, selected_key
             self.sync()
 
     def rows(self) -> list[Layer]:
@@ -212,8 +262,16 @@ class TimelineView(QGraphicsView):
                     ROW_HEIGHT - 2 * CLIP_MARGIN,
                 )
                 scene.addItem(ClipItem(layer.id, clip, rect, self.selected == (layer.id, clip.id)))
+            for t, props in key_times(layer, project.canvas.fps):
+                selected = self.selected_key is not None and self.selected_key[0] == layer.id
+                selected = selected and abs(self.selected_key[1] - t) < 0.5 / project.canvas.fps
+                center = QPointF(self.scale.x(t), top + KEY_OFFSET)
+                scene.addItem(KeyItem(layer.id, t, props, center, selected))
         self.header.update()
         self.viewport().update()
+
+    def key_items(self) -> list[KeyItem]:
+        return [item for item in self.scene().items() if isinstance(item, KeyItem)]
 
     def clip_items(self) -> list[ClipItem]:
         return [item for item in self.scene().items() if isinstance(item, ClipItem)]
@@ -300,9 +358,19 @@ class TimelineView(QGraphicsView):
             self._scrubbing = True
             self._scrub(pos.x())
             return
+        key = self._key_hit(pos)
+        if key is not None:
+            self.selected, self.selected_key = None, (key.layer_id, key.t)
+            self.keySelected.emit(key.layer_id, key.t)
+            self._last_key_t = key.t
+            self._key_drag = _KeyDrag(key.layer_id, key.t, self.mapToScene(pos.toPoint()).x(), self.project)
+            self.document.begin_preview()
+            self.sync()
+            return
         item, edge = self._hit(pos)
         if item is None:
             return
+        self.selected_key = None
         self.selected = (item.layer_id, item.clip_id)
         self.clipSelected.emit(item.layer_id, item.clip_id)
         base = self.project
@@ -316,7 +384,7 @@ class TimelineView(QGraphicsView):
         if self._scrubbing:
             self._scrub(pos.x())
             return
-        if self._drag is None:
+        if self._drag is None and self._key_drag is None:
             self._update_cursor(pos)
             return
         snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
@@ -329,6 +397,16 @@ class TimelineView(QGraphicsView):
         if self._scrubbing:
             self._scrubbing = False
             return
+        if self._key_drag is not None:
+            self.apply_pending()
+            drag, self._key_drag = self._key_drag, None
+            moved = self.project is not drag.base
+            self.document.commit_preview("Move keys")
+            if moved:  # keep the moved keys selected
+                self.selected_key = (drag.layer_id, self._last_key_t)
+                self.sync()
+                self.keySelected.emit(drag.layer_id, self._last_key_t)
+            return
         if self._drag is None:
             super().mouseReleaseEvent(event)
             return
@@ -338,14 +416,20 @@ class TimelineView(QGraphicsView):
         self.document.commit_preview(f"{verb} clip")
 
     def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape and self._drag is not None:
+        if event.key() == Qt.Key.Key_Escape and (self._drag is not None or self._key_drag is not None):
             self._drag = None
+            self._key_drag = None
             self._pending = None
             self.document.cancel_preview()
             return
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace) and self._drag is None and self.selected:
-            self.delete_clip(*self.selected)
-            return
+        deleting = event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
+        if deleting and self._drag is None and self._key_drag is None:
+            if self.selected_key:
+                self.delete_keys(*self.selected_key)
+                return
+            if self.selected:
+                self.delete_clip(*self.selected)
+                return
         super().keyPressEvent(event)
 
     # -- adding and deleting clips (S2.6) ------------------------------------------
@@ -357,10 +441,15 @@ class TimelineView(QGraphicsView):
 
     def context_menu(self, pos: QPointF) -> QMenu | None:
         """The right-click menu for a viewport position (built separately so it can be tested)."""
-        if self.project is None or self._drag is not None:
+        if self.project is None or self._drag is not None or self._key_drag is not None:
             return None
-        item, _edge = self._hit(pos)
         menu = QMenu(self)
+        key = self._key_hit(pos)
+        if key is not None:
+            layer_id, t = key.layer_id, key.t
+            menu.addAction(f"Delete keys at {t:g} s", lambda: self.delete_keys(layer_id, t))
+            return menu
+        item, _edge = self._hit(pos)
         if item is not None:
             layer_id, clip_id = item.layer_id, item.clip_id
             menu.addAction(f"Delete {item.kind} clip", lambda: self.delete_clip(layer_id, clip_id))
@@ -369,6 +458,7 @@ class TimelineView(QGraphicsView):
         if layer is None:
             return None
         t = self.scale.t(self.mapToScene(pos.toPoint()).x())
+        self._add_key_menu(menu, layer)
         add = menu.addMenu("Add clip")
         placement = place_new_clip(
             layer, t, duration=self.project.canvas.duration, fps=self.project.canvas.fps
@@ -401,6 +491,50 @@ class TimelineView(QGraphicsView):
                         lambda k=kind, to=target.id: self.add_clip(layer.id, k, start, length, to_layer=to),
                     )
         return menu
+
+    # -- keyframes (P2b) ---------------------------------------------------------
+
+    def _key_hit(self, pos: QPointF) -> KeyItem | None:
+        """The diamond nearest the cursor within KEY_GRAB_PX (they win over clip bars)."""
+        scene = self.mapToScene(pos.toPoint())
+        near = [
+            (abs(item.pos().x() - scene.x()), item)
+            for item in self.key_items()
+            if abs(item.pos().x() - scene.x()) <= KEY_GRAB_PX
+            and abs(item.pos().y() - scene.y()) <= KEY_GRAB_PX
+        ]
+        return min(near, key=lambda pair: pair[0])[1] if near else None
+
+    def _add_key_menu(self, menu: QMenu, layer: Layer) -> None:
+        tracked = [prop for prop in TRANSFORM_PROPS if layer.tracks.get(prop)]
+        if tracked:
+            menu.addAction("Add key at playhead", lambda: self.add_keys(layer.id, tracked))
+            return
+        sub = menu.addMenu("Add key at playhead")
+        for prop in TRANSFORM_PROPS:
+            sub.addAction(prop.capitalize(), lambda p=prop: self.add_keys(layer.id, [p]))
+
+    def add_keys(self, layer_id: str, props: list[str]) -> None:
+        """Key ``props`` at the playhead frame, holding their current values."""
+        fps = self.project.canvas.fps
+        t = round(self.playhead * fps) / fps
+        before = self.project
+
+        def op(project: Project) -> edits.Edit:
+            values = layer_transform(project.layer(layer_id), t)
+            for prop in props:
+                project = edits.set_key(project, layer_id, prop, t, getattr(values, prop)).project
+            return edits.Edit(project, *edits.classify(before, project))
+
+        self._apply(op, "Add key")
+        self.selected, self.selected_key = None, (layer_id, t)
+        self.sync()
+        self.keySelected.emit(layer_id, t)
+
+    def delete_keys(self, layer_id: str, t: float) -> None:
+        if self.selected_key is not None and self.selected_key[0] == layer_id:
+            self.selected_key = None
+        self._apply(lambda p: edits.remove_keys(p, layer_id, t), "Delete keys")
 
     def _morph_targets(self, layer: Layer) -> list[Layer]:
         taken = self.project.morph_sources()
@@ -450,6 +584,9 @@ class TimelineView(QGraphicsView):
     def apply_pending(self) -> None:
         """Preview the latest drag position (coalesced: earlier ones are dropped)."""
         self._apply_scheduled = False
+        if self._key_drag is not None and self._pending is not None:
+            self._apply_key_drag()
+            return
         if self._drag is None or self._pending is None:
             return
         scene_x, snapping = self._pending
@@ -473,6 +610,32 @@ class TimelineView(QGraphicsView):
             start, end = drag_trim(layer, drag.clip_id, drag.mode, edge_t, **common)
             edit = edits.trim_clip(base, drag.layer_id, drag.clip_id, start=start, end=end)
         self.document.preview(edit)
+
+    def _apply_key_drag(self) -> None:
+        scene_x, snapping = self._pending
+        self._pending = None
+        drag, base = self._key_drag, self._key_drag.base
+        canvas = base.canvas
+        layer = base.layer(drag.layer_id)
+        others = [t for t, _ in key_times(layer, canvas.fps) if abs(t - drag.t) >= 0.5 / canvas.fps]
+        candidates = [*snap_candidates(base, self.playhead), *others]
+        proposed = drag.t + self.scale.seconds(scene_x - drag.press_x)
+        t = drag_keys(
+            layer,
+            drag.t,
+            proposed,
+            duration=canvas.duration,
+            fps=canvas.fps,
+            scale=self.scale,
+            candidates=candidates,
+            snapping=snapping,
+        )
+        if abs(t - drag.t) < 0.5 / canvas.fps:
+            self._last_key_t = drag.t
+            self.document.preview(edits.Edit(base, "timing", frozenset()))
+            return
+        self._last_key_t = round(t * canvas.fps) / canvas.fps
+        self.document.preview(edits.retime_keys(base, drag.layer_id, drag.t, t))
 
 
 def _tick_step(px_per_second: float) -> float:

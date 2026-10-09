@@ -107,6 +107,37 @@ def set_animated(
     return edits.clear_track(project, layer_id, prop, at())
 
 
+def _keyed_props(layer: Layer, t: float, fps: int) -> tuple[str, ...]:
+    return tuple(prop for prop, track in layer.tracks.items() if any(abs(k.t - t) < 0.5 / fps for k in track))
+
+
+def _key_at(layer: Layer, prop: str, t: float, fps: int):
+    return next(k for k in layer.tracks[prop] if abs(k.t - t) < 0.5 / fps)
+
+
+def _is_last_key(layer: Layer, prop: str, t: float, fps: int) -> bool:
+    return all(k.t < t + 0.5 / fps for k in layer.tracks[prop])
+
+
+def _set_key_value(project: Project, layer_id: str, value: Any, prop: str, t: float) -> edits.Edit:
+    value = tuple(value) if isinstance(value, list) else value
+    return edits.set_key(project, layer_id, prop, t, value)
+
+
+def _set_key_ease(project: Project, layer_id: str, value: Easing, prop: str, t: float) -> edits.Edit:
+    return edits.set_key_ease(project, layer_id, t, value, props=[prop])
+
+
+def _key_value_field(prop: str, commit: Callable[[Any], None]) -> Field:
+    if prop == "position":
+        return PointField(commit)
+    if prop == "scale":
+        return FloatField(commit, 0.01, 100, 0.05, 3)
+    if prop == "rotation":
+        return FloatField(commit, -3600, 3600, 1, 1, suffix=" deg")
+    return FloatField(commit, 0, 1, 0.05, 2)
+
+
 def set_lifetime(project: Project, layer_id: str, key: str, value: float | None) -> edits.Edit:
     if not _has(project, layer_id):
         raise edits.EditError(f"no layer {layer_id!r}")
@@ -124,6 +155,7 @@ def _has(project: Project, layer_id: str) -> bool:
 
 class PropertiesPanel(QWidget):
     message = Signal(str)
+    keyMoved = Signal(str, float)  # the shown keys were retimed: layer id, new time
 
     def __init__(self, builds: BuildService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -131,10 +163,12 @@ class PropertiesPanel(QWidget):
         self.document = builds.document
         self.layer_id: str | None = None
         self.clip_id: str | None = None
+        self.key_time: float | None = None
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
         self._generation = 0  # bumped on every rebuild: old widgets can no longer commit
+        self._shown_props: tuple[str, ...] = ()  # keys view: the properties keyed at key_time
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
 
@@ -165,15 +199,15 @@ class PropertiesPanel(QWidget):
     # -- selection ----------------------------------------------------------------
 
     def show_nothing(self) -> None:
-        self.layer_id = self.clip_id = None
+        self.layer_id = self.clip_id = self.key_time = None
         self._rebuild()
-        self.title.setText("Select a layer or a clip.")
+        self.title.setText("Select a layer, a clip or a keyframe.")
 
     def show_layer(self, layer_id: str) -> None:
         if not layer_id or not _has(self.project, layer_id):
             self.show_nothing()
             return
-        self.layer_id, self.clip_id = layer_id, None
+        self.layer_id, self.clip_id, self.key_time = layer_id, None, None
         self._rebuild()
         layer = self.project.layer(layer_id)
         self._section(
@@ -191,9 +225,23 @@ class PropertiesPanel(QWidget):
         if not _has(self.project, layer_id) or self._clip(layer_id, clip_id) is None:
             self.show_nothing()
             return
-        self.layer_id, self.clip_id = layer_id, clip_id
+        self.layer_id, self.clip_id, self.key_time = layer_id, clip_id, None
         self._rebuild()
         self._clip_section(self.project.layer(layer_id), self._clip(layer_id, clip_id))
+        self.body_layout.addStretch(1)
+        self.refresh()
+
+    def show_key(self, layer_id: str, t: float) -> None:
+        """The keys of a layer at one time (P2b): their time, values and easing."""
+        if not _has(self.project, layer_id):
+            self.show_nothing()
+            return
+        if not _keyed_props(self.project.layer(layer_id), t, self.project.canvas.fps):
+            self.show_layer(layer_id)
+            return
+        self.layer_id, self.clip_id, self.key_time = layer_id, None, t
+        self._rebuild()
+        self._key_section(self.project.layer(layer_id), t)
         self.body_layout.addStretch(1)
         self.refresh()
 
@@ -210,6 +258,11 @@ class PropertiesPanel(QWidget):
         if self.clip_id is not None and self._clip(self.layer_id, self.clip_id) is None:
             self.show_layer(self.layer_id)
             return
+        if self.key_time is not None:
+            keyed = _keyed_props(layer, self.key_time, self.project.canvas.fps)
+            if keyed != self._shown_props:  # keys moved away or properties changed: rebuild or fall back
+                self.show_key(self.layer_id, self.key_time)
+                return
         self._update_title(layer)
         for path, field in self.fields.items():
             if field.has_focus() and not force:
@@ -221,7 +274,9 @@ class PropertiesPanel(QWidget):
 
     def _update_title(self, layer: Layer) -> None:
         name = layer.name or layer.id
-        if self.clip_id is None:
+        if self.key_time is not None:
+            self.title.setText(f"<b>Keys at {self.key_time:g} s</b> on {name}")
+        elif self.clip_id is None:
             self.title.setText(f"<b>{name}</b> - {layer.spec.type}")
         else:
             clip = self._clip(layer.id, self.clip_id)
@@ -265,7 +320,54 @@ class PropertiesPanel(QWidget):
 
     def _key(self, path: str) -> Hashable:
         """The supersede key: one waiting edit per field of this layer or clip."""
+        if self.key_time is not None:
+            return (self.layer_id, "keys", self.key_time, path)
         return (self.layer_id, path) if self.clip_id is None else (self.layer_id, self.clip_id, path)
+
+    def _key_section(self, layer: Layer, t: float) -> None:
+        fps = self.project.canvas.fps
+        props = _keyed_props(layer, t, fps)
+        self._shown_props = props
+        duration = self.project.canvas.duration
+        self._register("keys.time", lambda layer: t)
+        time_field = FloatField(self._retime_commit(t), 0, duration, 1 / fps, 3, suffix=" s")
+        rows: list = [("Time", "keys.time", time_field)]
+        for prop in props:
+            label = prop.capitalize()
+            value_path, ease_path = f"keys.{prop}.value", f"keys.{prop}.ease"
+            self._register(value_path, lambda layer, p=prop: _key_at(layer, p, t, fps).value)
+            self._register(ease_path, lambda layer, p=prop: _key_at(layer, p, t, fps).ease)
+            set_value = partial(_set_key_value, prop=prop, t=t)
+            value_field = _key_value_field(prop, self._op(value_path, set_value, f"Change {prop} key"))
+            set_ease = partial(_set_key_ease, prop=prop, t=t)
+            ease_field = ChoiceField(self._op(ease_path, set_ease, "Change easing"), _ease_choices(keys=True))
+            if _is_last_key(layer, prop, t, fps):
+                ease_field.widget.setEnabled(False)
+                ease_field.widget.setToolTip("Last key: no motion follows it, so its easing has no effect")
+            else:
+                ease_field.widget.setToolTip(f"How {prop} moves from this key to the next")
+            rows.append((label, value_path, value_field))
+            rows.append(("  easing", ease_path, ease_field))
+        self._section("Keyframes", rows)
+
+    def _retime_commit(self, t: float) -> Callable[[Any], None]:
+        layer_id, generation = self.layer_id, self._generation
+
+        def commit(value: Any) -> None:
+            if generation != self._generation or value is None:
+                return
+            try:
+                self.builds.submit(
+                    partial(edits.retime_keys, layer_id=layer_id, t_from=t, t_to=value), "Move keys"
+                )
+            except (edits.EditError, ValidationError) as exc:
+                self.message.emit(f"Move keys: {_first_error(exc)}")
+                self.refresh(force=True)
+                return
+            fps = self.project.canvas.fps
+            self.keyMoved.emit(layer_id, round(value * fps) / fps)
+
+        return commit
 
     def _object_section(self, layer: Layer) -> None:
         rows = []
@@ -434,8 +536,9 @@ def _param_field(param: Param, commit: Callable[[Any], None]) -> Field:
     return TextField(commit, "default" if param.name == "font" else "")
 
 
-def _ease_choices() -> list[tuple[str, Easing | None]]:
-    choices: list[tuple[str, Easing | None]] = [("Animation default", None)]
+def _ease_choices(keys: bool = False) -> list[tuple[str, Easing | None]]:
+    """Clips may keep their animation's own easing (None); keys always have one."""
+    choices: list[tuple[str, Easing | None]] = [] if keys else [("Animation default", None)]
     choices += [(name.replace("_", " "), Easing(name=name)) for name in adapter.EASE_NAMES]
     choices += [(label, Easing(name=None, bezier=b)) for label, b in adapter.BEZIER_PRESETS.items()]
     return choices
