@@ -65,7 +65,10 @@ def _render(project_path: Path, output: Path, cache_dir: Path | None = None, mod
             print(f"\rframe {done}/{total}", end="", flush=True)
 
     start = time.perf_counter()
-    result = export_video(project, output, progress)
+    try:
+        result = export_video(project, output, progress)
+    except OSError as exc:
+        return _fail(f"cannot write {output}: {exc.strerror or exc}")
     if mode == "json":
         if result.warning:
             _emit({"warning": result.warning})
