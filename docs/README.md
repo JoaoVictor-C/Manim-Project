@@ -5,6 +5,7 @@
 | [architecture.md](architecture.md) | how the system is built: modules, dependency rules, data flow |
 | [project-format.md](project-format.md) | the project JSON format |
 | [roadmap.md](roadmap.md) | what is done and what comes next |
+| [plans/](plans/s1-timeline.md) | implementation plans per slice (S1 timeline) |
 | [deviations.md](deviations.md) | where output deliberately differs from vanilla Manim |
 | [adr/](adr/README.md) | architecture decision records — why things are the way they are |
 | [dev/setup.md](dev/setup.md) | installing, running, Windows troubleshooting |

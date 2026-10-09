@@ -24,6 +24,8 @@ All notable changes to this project are documented here. The format follows
 - Tests: 45 → 200 (images, schema, adapter, easing, lifetime, export, CLI,
   logging, editor behaviour, seeded property tests); coverage 77 % → 93 %; `pytest-cov`.
 
+- S1 timeline plan (`docs/plans/s1-timeline.md`), proposed ADRs 0013–0014, benchmarks B10–B14.
+
 ### Changed
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so
   documents validate without importing Manim; `adapter.ANIMATION_CLASSES` maps kinds to Manim.

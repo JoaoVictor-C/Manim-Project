@@ -67,3 +67,23 @@ left open, so ADRs can cite it.
   bugs, fixed; D3 and D5 were not defects (tests pass). Also found: CLI tracebacks
   on bad input, Pillow 13 incompatibility (pinned). Suite: 45 → 200 tests,
   coverage 77 % → 93 %, 11 s.
+
+## Session 4 — S1 timeline plan · 2026-10-09
+
+- **Tool / profile:** Terza, `balanced`; 2 iterations, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** S1 scope, measured costs (B10–B11 taken for the session, B5/B6
+  invalidation, Cairo draw), schema rules, ADRs 0004/0005/0008/0009.
+- **Decisions:** immutable snapshots + `core/edits.py` + Qt `Document` with
+  `QUndoStack` now (→ ADR 0014); clamp drag semantics with snapping; pure
+  timeline geometry model + thin `QGraphicsView`; coalesced drag application;
+  a new **timing** edit kind that keeps caches, with morph entries keyed by baked
+  transforms (→ ADR 0013). Plan: [../plans/s1-timeline.md](../plans/s1-timeline.md).
+- **Critiques that changed the plan:** an unmeasured morph drag → measured at
+  94 ms (B12); the proposed half-resolution draft → measured, no help (B12),
+  which led to the timing kind (B13); a reorder through start values would fool
+  a naive "timing" diff → order must be unchanged; keyframed morph partners →
+  transform-keyed cache measured (B14); trims of a morph clip need the canvas
+  end as a bound.
+- **Left open:** dragging a morph while its partner is mid-motion (~105 ms/step,
+  coalesced, documented).

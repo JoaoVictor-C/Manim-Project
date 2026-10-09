@@ -77,3 +77,30 @@ Eager checkpoint cost per idle slice ≤ 24.4 ms. → ADR 0009.
 ### B9 — Export throughput · 2026-10-09
 `manim-studio render examples/euler.json`: 210 frames, 1280×720 @ 30 fps,
 **≈ 12 s** wall time including the first LaTeX compile.
+
+### B10 — Document copy and validation cost · 2026-10-09
+Median of 200. 3-layer Euler demo / 20-layer stress / 100-layer, 400-clip project:
+deep copy 0.09 / 0.51 / **3.15 ms**; full re-validate 0.02 / 0.12 / **0.87 ms**;
+structural edit of one layer + validating it **0.02 ms**; `Project.model_validate`
+over 20 existing layers 0.02 ms. → ADR 0014 (immutable snapshots, validate every edit).
+
+### B11 — Timeline widget repaint · 2026-10-09
+`QGraphicsView` with 400 clip rectangles: move one item and repaint a 1200×300
+viewport — **0.17 ms** median (0.26 ms p95). → the timeline is not a bottleneck.
+
+### B12 — Clip drag cost with clip-class invalidation · 2026-10-09
+Stress scene + a `TransformMatchingShapes` morph between two MathTex layers; per
+drag step: `invalidate(layer)` + evaluate + Cairo 960×540. Morph clip spanning the
+playhead: **94.3 ms** median (147.1 max). Same with a 480×270 draft render:
+**93.9 ms** — drawing is not the cost, `begin()` is. → ADR 0013.
+
+### B13 — Timing-only edits that keep caches (prototype) · 2026-10-09
+Same scene, adopting the edited document without dropping caches: Write-clip drag
+**21.2 ms**, morph-clip drag **16.3 ms** per step; frames identical to a freshly
+built evaluator (max diff 0, 12 positions each). → ADR 0013.
+
+### B14 — Morph with keyframed partners, transform-keyed cache (prototype) · 2026-10-09
+Source layer has position keyframes over 0–1 s; morph cache keyed by baked
+start/end transforms. Dragging the morph where partners are settled (start
+2.0–2.2 s): **15.4 ms** per step. Dragging while the source is mid-motion (start
+0.3–0.5 s): **104.8 ms** (re-begins each step). → ADR 0013, known slow path.
