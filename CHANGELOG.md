@@ -115,6 +115,10 @@ All notable changes to this project are documented here. The format follows
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
+- Export dialog (S4.3-S4.4): File > Export Video... (Ctrl+E) exports the scene
+  as it is (saved or not) in the background — "Starting...", frame progress and
+  time left, Cancel, Open folder; quitting during an export asks first. The UI
+  stays responsive (B26: p99 14 ms timer lateness).
 - S4 export plan (`docs/plans/s4-export.md`), proposed ADR 0017, benchmark B25.
 - S3 acceptance (`tests/ui/test_acceptance_s3.py`): move an object on the
   canvas, undo, redo, and animate it by moving it with keyframes on; benchmark
