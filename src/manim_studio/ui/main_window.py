@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -38,9 +38,11 @@ from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.schema import Project
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
+from .build_service import BuildService
 from .canvas import CanvasWidget
 from .document import Document
 from .timeline.view import TimelineView
+from .worker_process import make_worker
 
 log = get_logger(__name__)
 
@@ -63,6 +65,9 @@ class MainWindow(QMainWindow):
         self.evaluator: Evaluator | None = None
         self.t = 0.0
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
+        # Every panel edit goes through the build service (ADR 0015).
+        self.builds = BuildService(self.document, make_worker(adapter.cache_dir(), self), self)
+        self.builds.failed.connect(self._on_build_failed)
 
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)
@@ -177,6 +182,13 @@ class MainWindow(QMainWindow):
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
+
+    def _on_build_failed(self, text: str, message: str) -> None:
+        self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.builds.client.stop()
+        super().closeEvent(event)
 
     def _update_title(self) -> None:
         name = self.path.name if self.path else "untitled"

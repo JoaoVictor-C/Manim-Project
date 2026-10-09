@@ -18,10 +18,12 @@ so what you see is what you export ([ADR 0002](adr/0002-editor-owns-manims-clock
 ```
 src/manim_studio/
 ├── cli.py               entry point: `manim-studio render | edit`
+├── worker.py            build worker process: warms Manim's text cache (ADR 0015)
 ├── logging_config.py    console + rotating file logging (ADR 0011)
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
 │   ├── edits.py         edits → new validated snapshot + edit kind (ADR 0013, 0014)
+│   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)
@@ -30,6 +32,8 @@ src/manim_studio/
 │   └── qt_paths.py      Manim geometry → QPainterPath (hit-testing, outlines)
 └── ui/                  PySide6
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
+    ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
+    ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
     ├── timeline/
     │   ├── model.py     pure geometry: TimeScale, snapping, clamping (no Qt)
     │   └── view.py      QGraphicsView: rows, clip bars, ruler, playhead, drags
@@ -60,6 +64,15 @@ project.json ─► Project (schema) ─► Evaluator.frame(t) ─► [Mobject �
 UI command ─► edited Project ─► invalidate(layer_ids, edit class)      └─► qt_paths (selection, hit-test)
 ```
 
+### Processes
+
+The editor runs one helper process, the **build worker** (`python -m
+manim_studio.worker`). New Text/Tex/MathTex objects take 0.5–1.3 s to build the
+first time and cannot be built in a thread without freezing the UI (B17, B18);
+the worker builds them, Manim's disk cache keeps the result, and the edit is
+committed once the editor's own build will be a cache hit (ADR 0015).
+Export will run as a second process (`manim-studio render`, S4).
+
 ## Core concepts
 
 | concept | meaning | where |
@@ -70,6 +83,7 @@ UI command ─► edited Project ─► invalidate(layer_ids, edit class)      �
 | Checkpoint | cached state of a layer after a clip | ADR 0002 |
 | Edit kind | timing / transform / clip / spec, computed by `core/edits.py` — decides what `Evaluator.apply` drops | ADR 0008, 0013 |
 | Allow-list | clip kinds × mobject types verified random-access-safe | ADR 0007 |
+| Warm key | disk-cache identity of a text object; an edit building a cold key waits for the worker | ADR 0015 |
 
 The document format is specified in [project-format.md](project-format.md).
 

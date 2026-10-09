@@ -44,6 +44,7 @@ class _SnapshotCommand(QUndoCommand):
 class Document(QObject):
     changed = Signal(object, object, str)  # project, frozenset of layer ids, edit kind
     reset = Signal(object)  # a new project replaced the old one (open)
+    dragFinished = Signal()  # a drag was committed or cancelled
 
     def __init__(self, project: Project, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -96,9 +97,11 @@ class Document(QObject):
         """End the drag: one undo step from the drag start to the current snapshot."""
         before = self._drag_start
         self._drag_start = None
-        if before is None or before is self._project:
-            return  # no drag, or nothing changed
-        self.undo_stack.push(_SnapshotCommand(self, before, self._project, text, applied=True))
+        if before is None:
+            return
+        if before is not self._project:
+            self.undo_stack.push(_SnapshotCommand(self, before, self._project, text, applied=True))
+        self.dragFinished.emit()
 
     def cancel_preview(self) -> None:
         """End the drag and restore the snapshot it started from."""
@@ -106,6 +109,7 @@ class Document(QObject):
         self._drag_start = None
         if before is not None:
             self._set(before)
+            self.dragFinished.emit()
 
     # -- internal -------------------------------------------------------------
 

@@ -43,4 +43,4 @@ need one.
 | [0012](0012-layer-tree-and-part-layers.md) | Layer tree and part layers | Proposed |
 | [0013](0013-timing-edits-keep-caches.md) | Edit kinds: timing edits keep caches | Accepted |
 | [0014](0014-document-snapshots-and-undo.md) | Document snapshots and undo | Accepted |
-| [0015](0015-build-worker-warm-then-commit.md) | Build worker: warm Manim's disk cache, then commit | Proposed |
+| [0015](0015-build-worker-warm-then-commit.md) | Build worker: warm Manim's disk cache, then commit | Accepted |
