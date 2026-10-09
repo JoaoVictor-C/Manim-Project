@@ -216,3 +216,103 @@ def test_arrows_are_only_claimed_with_a_selection(window) -> None:
     assert not window.move_tool.wants_key(event)  # Left/Right step frames as before
     window.selection.set("dot")
     assert window.move_tool.wants_key(event)
+
+
+# -- scale and rotate handles (P2a.2) ------------------------------------------------
+
+
+def handles(window):
+    """The selected layer's handle positions in canvas pixels: (corners, knob)."""
+    from manim_studio.ui.gizmo import KNOB_OFFSET_PX
+
+    box = window.canvas.outline.box
+    to_px = window.canvas.units_transform()
+    corners = [to_px.map(QPointF(*c)) for c in box.corners]
+    knob = to_px.map(QPointF(*box.knob(KNOB_OFFSET_PX / window.canvas.px_per_unit())))
+    return corners, knob
+
+
+def test_dragging_a_corner_scales_about_the_layer_position(window, qt_app) -> None:
+    window.selection.set("dot")  # circle radius 0.5 at (1, 0)
+    corners, _ = handles(window)
+    top_right = corners[2]
+    pivot = px(window, 1.0, 0.0)
+    target = pivot + (top_right - pivot) * 2  # twice as far from the pivot
+    drag(window, top_right, target, qt_app)
+    layer = window.project.layer("dot")
+    assert layer.base.scale == pytest.approx(2.0, abs=0.02)
+    assert layer.base.position == (1.0, 0.0)  # the pivot did not move
+    assert window.document.undo_stack.undoText() == "Scale layer"
+
+
+def test_dragging_the_knob_rotates_and_shift_snaps(window, qt_app) -> None:
+    window.selection.set("big")  # square at the origin
+    _, knob = handles(window)
+    pivot = px(window, 0.0, 0.0)
+    radius = (knob - pivot).manhattanLength()
+    left = QPointF(pivot.x() - radius, pivot.y())  # a quarter turn counter-clockwise
+    drag(window, knob, left, qt_app)
+    assert window.project.layer("big").base.rotation == pytest.approx(90, abs=1)
+    assert window.document.undo_stack.undoText() == "Rotate layer"
+    window.document.undo_stack.undo()
+    _, knob = handles(window)
+    near = QPointF(pivot.x() - radius * 0.38, pivot.y() - radius * 0.92)  # about 22 degrees
+    drag(window, knob, near, qt_app, Qt.KeyboardModifier.ShiftModifier)
+    assert window.project.layer("big").base.rotation == pytest.approx(15)  # 22 degrees -> 15
+
+
+def test_handles_follow_a_rotated_object(window, qt_app) -> None:
+    from manim_studio.core import edits
+
+    window.document.apply(edits.update_layer(window.project, "big", base={"rotation": 45}), "Rotate")
+    window.selection.set("big")
+    corners, _ = handles(window)
+    centre = px(window, 0.0, 0.0)
+    # a 4x4 square turned 45 degrees: its corners are 2*sqrt(2) from the centre along the axes
+    distances = sorted(
+        round((c - centre).manhattanLength() / window.canvas.px_per_unit(), 1) for c in corners
+    )
+    assert distances == [pytest.approx(2.8, abs=0.1)] * 4
+
+
+def test_rotating_a_keyed_rotation_sets_a_key(window, qt_app) -> None:
+    from manim_studio.core import edits
+
+    window.document.apply(edits.set_key(window.project, "big", "rotation", 0.0, 0.0), "Key")
+    window.seek(1.0)
+    window.selection.set("big")
+    _, knob = handles(window)
+    pivot = px(window, 0.0, 0.0)
+    radius = (knob - pivot).manhattanLength()
+    drag(window, knob, QPointF(pivot.x() - radius, pivot.y()), qt_app)
+    keys = window.project.layer("big").tracks["rotation"]
+    assert [k.t for k in keys] == [0.0, 1.0]
+    assert keys[1].value == pytest.approx(90, abs=1)
+    assert window.project.layer("big").base.rotation == 0.0
+
+
+def test_auto_key_turns_a_drag_into_an_animation(window, qt_app) -> None:
+    window.move_tool.auto_key = lambda: True
+    window.seek(2.0)
+    drag(window, px(window, 1.0, 0.0), px(window, 2.0, 0.0), qt_app)
+    keys = window.project.layer("dot").tracks["position"]
+    assert [(k.t, k.value) for k in keys] == [
+        (0.0, (1.0, 0.0)),
+        (2.0, pytest.approx((2.0, 0.0), abs=0.02)),
+    ]
+
+
+def test_keyed_fields_follow_the_playhead(window) -> None:
+    window.selection.set("keyed")  # position keyed (-5, 2) at 0 s -> (-3, 2) at 2 s
+    window.seek(0.0)
+    assert window.properties.fields["base.position"].x.value() == pytest.approx(-5.0)
+    window.seek(2.0)
+    assert window.properties.fields["base.position"].x.value() == pytest.approx(-3.0)
+
+
+def test_the_auto_key_menu_drives_canvas_edits(window, qt_app) -> None:
+    assert not window.auto_key_action.isChecked()
+    window.auto_key_action.setChecked(True)
+    window.seek(1.0)
+    drag(window, px(window, 1.0, 0.0), px(window, 1.0, 1.0), qt_app)
+    assert [k.t for k in window.project.layer("dot").tracks["position"]] == [0.0, 1.0]

@@ -35,7 +35,8 @@ src/manim_studio/
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
     ├── selection.py     the one selection shared by every view (ADR 0016)
-    ├── canvas_tools.py  click to select, drag/nudge to move, stopwatch rule (ADR 0016)
+    ├── canvas_tools.py  click to select; move, scale, rotate, nudge; stopwatch rule (ADR 0016, 0018)
+    ├── gizmo.py         handle geometry: oriented box, scale/angle from drags (pure)
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart

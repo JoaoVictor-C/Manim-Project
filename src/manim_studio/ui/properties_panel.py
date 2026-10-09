@@ -19,6 +19,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
     QVBoxLayout,
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from ..core import adapter, edits
 from ..core.adapter import Param
+from ..core.evaluator import layer_transform
 from ..core.schema import CLIP_KIND_INFO, RASTER_TYPES, Easing, Layer, Project
 from .build_service import BuildService
 from .fields import (
@@ -77,6 +79,21 @@ def set_base(project: Project, layer_id: str, name: str, value: Any) -> edits.Ed
     return edits.update_layer(project, layer_id, base=base)
 
 
+def set_transform(
+    project: Project,
+    layer_id: str,
+    name: str,
+    value: Any,
+    at: Callable[[], float],
+    auto_key: Callable[[], bool],
+) -> edits.Edit:
+    """A transform field: base, key at the playhead, or auto-key (ADR 0016, ADR 0018)."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    value = tuple(value) if isinstance(value, list) else value
+    return edits.set_property(project, layer_id, name, value, at(), auto_key=auto_key())
+
+
 def set_animated(
     project: Project, layer_id: str, prop: str, value: bool, at: Callable[[], float]
 ) -> edits.Edit:
@@ -119,6 +136,7 @@ class PropertiesPanel(QWidget):
         self._keys: dict[str, Hashable] = {}
         self._generation = 0  # bumped on every rebuild: old widgets can no longer commit
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
+        self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
 
         self.title = QLabel()
         self.title.setWordWrap(True)
@@ -198,11 +216,8 @@ class PropertiesPanel(QWidget):
                 continue
             waiting, value = self.builds.pending_value(self._keys[path])
             field.set_value(value if waiting else self._getters[path](layer), pending=waiting)
-            if path.startswith("base."):  # a keyframed property is edited through its keys
-                prop = path.split(".", 1)[1]
-                keyed = bool(layer.tracks.get(prop))
-                field.widget.setEnabled(not keyed)
-                field.widget.setToolTip(f"{prop.capitalize()} is animated by keyframes" if keyed else "")
+            if path.startswith("base.") and layer.tracks.get(path.split(".", 1)[1]):
+                field.widget.setToolTip("Keyed: a change sets a key at the playhead frame")
 
     def _update_title(self, layer: Layer) -> None:
         name = layer.name or layer.id
@@ -232,9 +247,16 @@ class PropertiesPanel(QWidget):
         form = QFormLayout(box)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        for label, path, field in rows:
-            form.addRow(label, field.widget)
-            self.fields[path] = field
+        for label, *parts in rows:
+            # (label, path, field) or (label, [(path, field), ...]) for several fields on one row
+            parts = [tuple(parts)] if len(parts) == 2 else parts[0]
+            row = QWidget()
+            line = QHBoxLayout(row)
+            line.setContentsMargins(0, 0, 0, 0)
+            for path, field in parts:
+                line.addWidget(field.widget, 1 if len(parts) == 1 or path.startswith("base.") else 0)
+                self.fields[path] = field
+            form.addRow(label, row if len(parts) > 1 else parts[0][1].widget)
         self.body_layout.addWidget(box)
 
     def _register(self, path: str, getter: Callable[[Layer], Any]) -> None:
@@ -278,17 +300,24 @@ class PropertiesPanel(QWidget):
             ("opacity", "Opacity", lambda c: FloatField(c, 0, 1, 0.05, 2)),
         ):
             path = f"base.{name}"
-            self._register(path, lambda layer, n=name: getattr(layer.base, n))
-            field = field_type(self._op(path, partial(set_base, name=name), f"Change {label.lower()}"))
-            rows.append((label, path, field))
-            if name == "position":
-                key_path = "keys.position"
-                self._register(key_path, lambda layer: bool(layer.tracks.get("position")))
-                op = partial(set_animated, prop="position", at=lambda: self.playhead())
-                toggle = BoolField(self._op(key_path, op, "Animate position"), "Keyframes")
-                toggle.widget.setToolTip("On: moving it on the canvas sets a key at the playhead")
-                rows.append(("", key_path, toggle))
+            self._register(path, lambda layer, n=name: self._transform_value(layer, n))
+            op = partial(
+                set_transform, name=name, at=lambda: self.playhead(), auto_key=lambda: self.auto_key()
+            )
+            field = field_type(self._op(path, op, f"Change {label.lower()}"))
+            key_path = f"keys.{name}"
+            self._register(key_path, lambda layer, n=name: bool(layer.tracks.get(n)))
+            animate = partial(set_animated, prop=name, at=lambda: self.playhead())
+            toggle = BoolField(self._op(key_path, animate, f"Animate {label.lower()}"), "Keys")
+            toggle.widget.setToolTip(f"Keyframes for {label.lower()}: on = changes set a key at the playhead")
+            rows.append((label, [(path, field), (key_path, toggle)]))
         self._section("Transform", rows)
+
+    def _transform_value(self, layer: Layer, name: str):
+        """A keyed property shows its value at the playhead; otherwise its base value."""
+        if layer.tracks.get(name):
+            return getattr(layer_transform(layer, self.playhead()), name)
+        return getattr(layer.base, name)
 
     def _lifetime_section(self) -> None:
         duration = self.project.canvas.duration

@@ -118,8 +118,8 @@ def test_transform_and_keyframed_properties(panel) -> None:
     panel.show_layer("ball")
     panel.fields["base.position"].commit((1.0, -0.5))
     assert layer(panel, "ball").base.position == (1.0, -0.5)
-    assert not panel.fields["base.scale"].widget.isEnabled()  # animated by keyframes
-    assert panel.fields["base.rotation"].widget.isEnabled()
+    assert panel.fields["keys.scale"].widget.isChecked()  # scale is keyframed
+    assert not panel.fields["keys.rotation"].widget.isChecked()
 
 
 def test_lifetime_explicit_and_auto(panel) -> None:
@@ -263,11 +263,10 @@ def test_stopwatch_on_adds_one_key_holding_the_current_value(panel) -> None:
     panel.document.apply(
         edits.update_layer(panel.project, "box", base=Transform2D(position=(1.0, 2.0))), "Move layer"
     )
-    assert panel.fields["base.position"].widget.isEnabled()
     panel.fields["keys.position"].widget.setChecked(True)
     track = layer(panel, "box").tracks["position"]
     assert [(k.t, k.value) for k in track] == [(pytest.approx(0.4), (1.0, 2.0))]
-    assert not panel.fields["base.position"].widget.isEnabled()  # moved through keys now
+    assert "Keyed" in panel.fields["base.position"].widget.toolTip()  # edited through keys now
     assert undo_texts(panel)[-1] == "Animate position"
 
 
@@ -282,6 +281,33 @@ def test_stopwatch_off_keeps_the_value_at_the_playhead(panel) -> None:
     box = layer(panel, "box")
     assert "position" not in box.tracks
     assert box.base.position[0] == pytest.approx(1.0, abs=0.2)  # where it was at 0.5 s (smooth ease)
-    assert panel.fields["base.position"].widget.isEnabled()
+    assert panel.fields["base.position"].widget.toolTip() == ""
     doc.undo_stack.undo()
     assert len(layer(panel, "box").tracks["position"]) == 2
+
+
+# -- keyable transform fields and auto-key (P2a.3-P2a.4, ADR 0018) -----------------------
+
+
+def test_every_transform_property_has_a_keys_toggle(panel) -> None:
+    panel.show_layer("box")
+    assert {"keys.position", "keys.scale", "keys.rotation", "keys.opacity"} <= set(panel.fields)
+
+
+def test_editing_a_keyed_field_sets_a_key_at_the_playhead(panel) -> None:
+    panel.playhead = lambda: 0.4  # ball's scale is keyed 1.0 at 0 s and 2.0 at 1 s
+    panel.show_layer("ball")
+    assert 1.0 < panel.fields["base.scale"].widget.value() < 2.0  # the eased value at 0.4 s
+    panel.fields["base.scale"].commit(3.0)
+    keys = layer(panel, "ball").tracks["scale"]
+    assert [(k.t, k.value) for k in keys] == [(0, 1.0), (pytest.approx(0.4), 3.0), (1, 2.0)]
+    assert layer(panel, "ball").base.scale == 1.0
+
+
+def test_auto_key_from_a_field_animates_from_the_layer_start(panel) -> None:
+    panel.playhead = lambda: 0.6
+    panel.auto_key = lambda: True
+    panel.show_layer("dot")  # no clips: visible from 0 s
+    panel.fields["base.rotation"].commit(45.0)
+    keys = layer(panel, "dot").tracks["rotation"]
+    assert [(k.t, k.value) for k in keys] == [(0.0, 0.0), (pytest.approx(0.6), 45.0)]

@@ -170,6 +170,34 @@ def set_key(project: Project, layer_id: str, prop: str, t: float, value: Any) ->
     return _replace_layer(project, layer_id, {"tracks": {**layer.tracks, prop: track}})
 
 
+def set_property(
+    project: Project, layer_id: str, prop: str, value: Any, t: float, auto_key: bool = False
+) -> Edit:
+    """Change a transform property the way the editor does (ADR 0016, ADR 0018).
+
+    * keyed property: a key at ``t`` (frame-quantized);
+    * untracked, auto-key off: the base value;
+    * untracked, auto-key on: a new track animating from the old value at the
+      layer's start to ``value`` at ``t`` (one key when ``t`` is the start).
+    """
+    layer = _layer(project, layer_id)
+    if layer.tracks.get(prop):
+        return set_key(project, layer_id, prop, t, value)
+    if not auto_key:
+        base = layer.base.model_dump()
+        base[prop] = value
+        return update_layer(project, layer_id, base=base)
+    fps = project.canvas.fps
+    start = round(project.lifetime(layer_id)[0] * fps) / fps
+    t = round(t * fps) / fps
+    if t <= start + 0.5 / fps:
+        return set_key(project, layer_id, prop, t, value)
+    with_old = set_key(project, layer_id, prop, start, getattr(layer.base, prop)).project
+    final = set_key(with_old, layer_id, prop, t, value).project
+    kind, layer_ids = classify(project, final)
+    return Edit(final, kind, layer_ids)
+
+
 def clear_track(project: Project, layer_id: str, prop: str, at: float) -> Edit:
     """Remove ``prop``'s keyframes, keeping the value they give at ``at`` as the base."""
     from .evaluator import layer_transform  # sampling rules live with the evaluator (imports Manim)

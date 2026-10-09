@@ -7,7 +7,9 @@
   it; a click on nothing clears the selection;
 * drag: move the selected object, previewed live and recorded as one undo step
   ("Move layer"); Shift locks the dominant axis; Escape cancels;
-* arrow keys: nudge 1 px (Shift: 10 px); a held key is one undo step.
+* arrow keys: nudge 1 px (Shift: 10 px); a held key is one undo step;
+* handles (P2a): a corner scales about the layer position (Shift: steps of
+  10 %), the knob rotates about it (Shift: 15 degree steps).
 
 The stopwatch rule decides what a move edits: a layer with position keyframes
 gets a key at the playhead (snapped to the nearest frame first, so preview and
@@ -31,6 +33,7 @@ from ..core.schema import Layer, Project
 from ..render.hit_test import hit_layers
 from .canvas import CanvasWidget
 from .document import Document
+from .gizmo import GRAB_PX, KNOB_OFFSET_PX, angle_delta, handle_at, scale_from, snap_angle
 from .selection import Selection
 
 NUDGE_PX = 1.0
@@ -46,10 +49,18 @@ ARROWS = {
 @dataclass
 class _Drag:
     layer_id: str
+    prop: str  # "position", "scale" or "rotation"
     press: np.ndarray  # cursor at press, Manim units
-    start: tuple[float, float]  # the position being edited, at press
-    key_time: float | None  # the frame the key goes to; None = base position
+    start: object  # the property's value at press
+    pivot: np.ndarray  # the layer position: scaling and rotating happen about it
+    key_time: float | None  # the frame a key goes to; None = base value (ADR 0016)
     base: Project  # snapshot at press
+    previous: np.ndarray | None = None  # rotation: last cursor point, to sum angle deltas
+    turned: float = 0.0  # rotation: total angle swept so far
+
+
+VERBS = {"position": "Move", "scale": "Scale", "rotation": "Rotate"}
+DEGREES = "\N{DEGREE SIGN}"
 
 
 class MoveTool(QObject):
@@ -67,8 +78,9 @@ class MoveTool(QObject):
         super().__init__(parent)
         self.canvas, self.document, self.selection = canvas, document, selection
         self.playhead, self.seek = playhead, seek
+        self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
         self._drag: _Drag | None = None
-        self._pending: tuple[np.ndarray, bool] | None = None
+        self._pending: tuple[np.ndarray, bool, QPointF] | None = None
         self._scheduled = False
         canvas.tool = self
 
@@ -82,28 +94,34 @@ class MoveTool(QObject):
         if self._drag is not None or self.document.dragging:
             return
         point = self.canvas.to_units(pos)
+        current = self.selection.layer_id
+        alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
+        handle = None if alt else self._handle_under(point)
+        if handle is not None:  # 1. a handle of the selected layer
+            self._start_drag(current, "scale" if handle == "scale" else "rotation", point)
+            return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
         hits = hit_layers(layers, point, self.canvas.px_per_unit())
-        current = self.selection.layer_id
-        if modifiers & Qt.KeyboardModifier.AltModifier:
+        if alt:
             if hits:  # cycle behind the current selection
                 index = hits.index(current) + 1 if current in hits else 0
                 self.selection.select_layer(hits[index % len(hits)])
             return
-        if current is not None and self._inside_selected_box(point):
+        if current is not None and self._inside_selected_box(point):  # 2. the selected box
             target = current
-        elif hits:
+        elif hits:  # 3. whatever is under the cursor
             target = hits[0]
-        else:
+        else:  # 4. empty canvas
             self.selection.clear()
             return
         self.selection.select_layer(target)
-        self._start_drag(target, point)
+        self._start_drag(target, "position", point)
 
     def move(self, pos: QPointF, modifiers: Qt.KeyboardModifier) -> None:
         if self._drag is None:
             return
-        self._pending = (self.canvas.to_units(pos), bool(modifiers & Qt.KeyboardModifier.ShiftModifier))
+        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        self._pending = (self.canvas.to_units(pos), shift, QPointF(pos))
         if not self._scheduled:
             self._scheduled = True
             QTimer.singleShot(0, self.apply_pending)
@@ -112,27 +130,42 @@ class MoveTool(QObject):
         if self._drag is None:
             return
         self.apply_pending()
+        verb = VERBS[self._drag.prop]
         self._drag = None
-        self.document.commit_preview("Move layer")
+        self.canvas.readout = None
+        self.document.commit_preview(f"{verb} layer")
 
     def cancel(self) -> None:
         if self._drag is not None:
             self._drag = None
             self._pending = None
+            self.canvas.readout = None
             self.document.cancel_preview()
 
     def apply_pending(self) -> None:
         """Preview the latest cursor position (coalesced, as timeline drags are)."""
         self._scheduled = False
-        if self._drag is None or self._pending is None:
+        drag = self._drag
+        if drag is None or self._pending is None:
             return
-        point, constrain = self._pending
+        point, shift, pos = self._pending
         self._pending = None
-        delta = point - self._drag.press
-        if constrain:
-            delta[np.argmin(np.abs(delta))] = 0.0
-        value = (self._drag.start[0] + float(delta[0]), self._drag.start[1] + float(delta[1]))
-        self.document.preview(self._edit(self._drag.base, self._drag.layer_id, value, self._drag.key_time))
+        readout = None
+        if drag.prop == "position":
+            delta = point - drag.press
+            if shift:
+                delta[np.argmin(np.abs(delta))] = 0.0
+            value = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
+        elif drag.prop == "scale":
+            value = scale_from(drag.pivot, drag.press, point, drag.start, snap=shift)
+            readout = f"{value * 100:.0f} %"
+        else:
+            drag.turned += angle_delta(drag.pivot, drag.previous, point)
+            drag.previous = point
+            value = snap_angle(drag.start + drag.turned, shift)
+            readout = f"{value:.0f}{DEGREES}"
+        self.canvas.readout = (pos, readout) if readout else None
+        self.document.preview(self._edit(drag.base, drag.layer_id, drag.prop, value, drag.key_time))
 
     # -- keyboard ------------------------------------------------------------------
 
@@ -148,27 +181,29 @@ class MoveTool(QObject):
         layer = self.project.layer(self.selection.layer_id)
         step = NUDGE_SHIFT_PX if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else NUDGE_PX
         dx, dy = (d * step / self.canvas.px_per_unit() for d in ARROWS[event.key()])
-        key_time = self._key_time(layer)
-        x, y = self._position(layer, key_time)
-        edit = self._edit(self.project, layer.id, (x + dx, y + dy), key_time)
+        key_time = self._key_time(layer, "position")
+        x, y = self._value(layer, "position", key_time)
+        edit = self._edit(self.project, layer.id, "position", (x + dx, y + dy), key_time)
         self.document.apply(edit, "Nudge layer", merge_key=("nudge", layer.id), merge=event.isAutoRepeat())
         return True
 
     # -- rules ---------------------------------------------------------------------
 
-    def _start_drag(self, layer_id: str, point: np.ndarray) -> None:
+    def _start_drag(self, layer_id: str, prop: str, point: np.ndarray) -> None:
         layer = self.project.layer(layer_id)
         if self._morph_playing(layer_id):
-            self.message.emit("This object is morphing here: move the playhead outside the morph to move it.")
+            self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
             return
-        key_time = self._key_time(layer)
-        start = self._position(layer, key_time)
-        self._drag = _Drag(layer_id, point, start, key_time, self.project)
+        key_time = self._key_time(layer, prop)
+        start = self._value(layer, prop, key_time)
+        at = key_time if key_time is not None else self.playhead()
+        pivot = np.array(layer_transform(layer, at).position, dtype=float)
+        self._drag = _Drag(layer_id, prop, point, start, pivot, key_time, self.project, previous=point)
         self.document.begin_preview()
 
-    def _key_time(self, layer: Layer) -> float | None:
+    def _key_time(self, layer: Layer, prop: str) -> float | None:
         """None for base edits; else the playhead's frame, moving the playhead onto it."""
-        if not layer.tracks.get("position"):
+        if not layer.tracks.get(prop) and not self.auto_key():
             return None
         fps = self.project.canvas.fps
         t = self.playhead()
@@ -177,18 +212,18 @@ class MoveTool(QObject):
             self.seek(frame_t)
         return frame_t
 
-    def _position(self, layer: Layer, key_time: float | None) -> tuple[float, float]:
-        if key_time is None:
-            return tuple(layer.base.position)
-        return tuple(layer_transform(layer, key_time).position)
-
     @staticmethod
-    def _edit(project: Project, layer_id: str, value, key_time: float | None) -> edits.Edit:
-        if key_time is not None:
-            return edits.set_key(project, layer_id, "position", key_time, value)
-        base = project.layer(layer_id).base.model_dump()
-        base["position"] = value
-        return edits.update_layer(project, layer_id, base=base)
+    def _value(layer: Layer, prop: str, key_time: float | None):
+        """Where the gesture starts: the value at the key's frame when keyed, else the base."""
+        if layer.tracks.get(prop) and key_time is not None:
+            value = getattr(layer_transform(layer, key_time), prop)
+        else:
+            value = getattr(layer.base, prop)
+        return tuple(value) if isinstance(value, (tuple, list)) else float(value)
+
+    def _edit(self, project: Project, layer_id: str, prop: str, value, key_time: float | None) -> edits.Edit:
+        at = key_time if key_time is not None else self.playhead()
+        return edits.set_property(project, layer_id, prop, value, at, auto_key=key_time is not None)
 
     def _morph_playing(self, layer_id: str) -> bool:
         t = self.playhead()
@@ -198,10 +233,19 @@ class MoveTool(QObject):
                     return True
         return False
 
-    def _inside_selected_box(self, point: np.ndarray) -> bool:
+    def _selected_outline(self):
         outline = self.canvas.outline
         if outline is None or self.canvas.selected_layer != self.selection.layer_id:
-            return False
-        margin = 4.0 / self.canvas.px_per_unit()
-        box = outline.bounds.adjusted(-margin, -margin, margin, margin)
-        return box.contains(QPointF(float(point[0]), float(point[1])))
+            return None
+        return outline
+
+    def _handle_under(self, point: np.ndarray):
+        outline = self._selected_outline()
+        if outline is None:
+            return None
+        ppu = self.canvas.px_per_unit()
+        return handle_at(outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu)
+
+    def _inside_selected_box(self, point: np.ndarray) -> bool:
+        outline = self._selected_outline()
+        return outline is not None and outline.box.contains(point, margin=4.0 / self.canvas.px_per_unit())
