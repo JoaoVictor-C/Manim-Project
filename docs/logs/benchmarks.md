@@ -219,3 +219,10 @@ group's glyphs are the same objects as the root's, so regions are glyph
 indices. Nested spans work (`x^2` → 3, 4 and `x` → 3). A marker right after `^`
 fails LaTeX ("Missing { inserted"); braced (`^{...}`) it is identical.
 `substrings_to_isolate` marks every occurrence of a key. → ADR 0012.
+
+### B29 — Frame cost of an object with parts · 2026-10-09
+`benchmarks/bench_part_frames.py`: `a^2 + b^2 = c^2` (font size 96) at
+1280x720@30 with Write, warm caches, 120 frames. Plain: evaluate **0.63 ms**,
+evaluate + render **9.2 ms** per frame. With three parts (Split terms), an
+Indicate, a FadeOut and a keyed move: evaluate **3.8 ms**, evaluate + render
+**12.6 ms**. Well inside the 33 ms frame budget → P2c.2 accepted.

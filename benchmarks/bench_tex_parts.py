@@ -89,38 +89,55 @@ def main() -> None:
         for i, key in enumerate(parts):
             start = marked_tex.find(key, cursor)
             mark = OPEN.format(f"p{i}")
-            marked_tex = marked_tex[:start] + mark + key + CLOSE + marked_tex[start + len(key):]
+            marked_tex = marked_tex[:start] + mark + key + CLOSE + marked_tex[start + len(key) :]
             spans.append(f"p{i}")
             cursor = start + len(mark) + len(key) + len(CLOSE)
         marked, t_marked = timed(lambda: m.MathTex(marked_tex + tag))  # noqa: B023
         isolated_parts = {
-            p: [len(isolated.id_to_vgroup_dict[i].family_members_with_points())
-                for s, i in isolated.matched_strings_and_ids if s == p]
+            p: [
+                len(isolated.id_to_vgroup_dict[i].family_members_with_points())
+                for s, i in isolated.matched_strings_and_ids
+                if s == p
+            ]
             for p in parts
         }
         print(tex)
         print(f"  build: whole {t_whole:.0f} ms, isolated {t_isolated:.0f} ms, span-marked {t_marked:.0f} ms")
-        print(f"  glyphs: whole {len(whole.family_members_with_points())}, "
-              f"isolated {len(isolated.family_members_with_points())}, marked {len(marked.family_members_with_points())}")
+        counts = [len(x.family_members_with_points()) for x in (whole, isolated, marked)]
+        print(f"  glyphs: whole {counts[0]}, isolated {counts[1]}, marked {counts[2]}")
         print(f"  at rest vs whole: isolated {diff(whole, isolated)}; marked {diff(whole, marked)}")
         print(f"  mid Write/Create/DrawBorderThenFill vs whole: marked {mid_animation_diff(whole, marked)}")
         print(f"  substrings_to_isolate, glyphs per occurrence: {isolated_parts}")
-        print(f"  span markers, glyph indices: "
-              f"{ {p: glyph_indices(marked, marked.id_to_vgroup_dict[s]) for p, s in zip(parts, spans, strict=True)} }")
+        marked_parts = {
+            p: glyph_indices(marked, marked.id_to_vgroup_dict[s]) for p, s in zip(parts, spans, strict=True)
+        }
+        print(f"  span markers, glyph indices: {marked_parts}")
 
     tex, tag = r"\int_0^1 x^2\,dx = \frac{1}{3}", fresh_tag()
     whole = m.MathTex(tex + tag)
     i = tex.index("^1") + 1
-    nested = m.MathTex(tex.replace("x^2", OPEN.format("xsq") + OPEN.format("x") + "x" + CLOSE + "^2" + CLOSE, 1) + tag)
-    print("nested spans x^2 > x:", glyph_indices(nested, nested.id_to_vgroup_dict["xsq"]),
-          glyph_indices(nested, nested.id_to_vgroup_dict["x"]), "at rest", diff(whole, nested))
+    nested = m.MathTex(
+        tex.replace("x^2", OPEN.format("xsq") + OPEN.format("x") + "x" + CLOSE + "^2" + CLOSE, 1) + tag
+    )
+    print(
+        "nested spans x^2 > x:",
+        glyph_indices(nested, nested.id_to_vgroup_dict["xsq"]),
+        glyph_indices(nested, nested.id_to_vgroup_dict["x"]),
+        "at rest",
+        diff(whole, nested),
+    )
     try:
-        m.MathTex(tex[:i] + OPEN.format("sup") + tex[i] + CLOSE + tex[i + 1:] + tag)
+        m.MathTex(tex[:i] + OPEN.format("sup") + tex[i] + CLOSE + tex[i + 1 :] + tag)
         print("span right after ^: builds")
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         print(f"span right after ^: fails ({type(error).__name__})")
-    braced = m.MathTex(tex[:i] + "{" + OPEN.format("sup") + tex[i] + CLOSE + "}" + tex[i + 1:] + tag)
-    print("braced span after ^:", glyph_indices(braced, braced.id_to_vgroup_dict["sup"]), "at rest", diff(whole, braced))
+    braced = m.MathTex(tex[:i] + "{" + OPEN.format("sup") + tex[i] + CLOSE + "}" + tex[i + 1 :] + tag)
+    print(
+        "braced span after ^:",
+        glyph_indices(braced, braced.id_to_vgroup_dict["sup"]),
+        "at rest",
+        diff(whole, braced),
+    )
 
 
 if __name__ == "__main__":
