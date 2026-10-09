@@ -454,3 +454,61 @@ def test_auto_key_animates_from_the_layer_start_to_the_new_value() -> None:
 def test_auto_key_at_the_layer_start_writes_one_key() -> None:
     edit = edits.set_property(two_clip_project(), "b", "scale", 2.0, t=0.2, auto_key=True)
     assert [(k.t, k.value) for k in edit.project.layer("b").tracks["scale"]] == [(pytest.approx(0.2), 2.0)]
+
+
+# -- key editing (P2b) ---------------------------------------------------------------
+
+
+def posed_project() -> Project:
+    """Position keyed at 0, 0.4, 0.8 s; rotation keyed at 0.4 s only (CANVAS: 15 fps)."""
+    return Project(
+        canvas=CANVAS,
+        layers=[
+            Layer(
+                id="a",
+                spec=SQUARE,
+                tracks={
+                    "position": [
+                        Keyframe(t=0.0, value=(0.0, 0.0)),
+                        Keyframe(t=0.4, value=(1.0, 0.0), ease=Easing(name="linear")),
+                        Keyframe(t=0.8, value=(2.0, 0.0)),
+                    ],
+                    "rotation": [Keyframe(t=0.4, value=45.0)],
+                },
+            )
+        ],
+    )
+
+
+def test_retime_moves_every_property_keyed_at_that_time() -> None:
+    edit = edits.retime_keys(posed_project(), "a", 0.4, 0.6)
+    layer = edit.project.layer("a")
+    assert [k.t for k in layer.tracks["position"]] == [0.0, pytest.approx(0.6), 0.8]
+    assert layer.tracks["position"][1].ease == Easing(name="linear")  # the key keeps its ease
+    assert [k.t for k in layer.tracks["rotation"]] == [pytest.approx(0.6)]
+    assert edit.kind == "transform"
+
+
+def test_retime_onto_another_key_is_refused() -> None:
+    with pytest.raises(edits.EditError, match="already has a key"):
+        edits.retime_keys(posed_project(), "a", 0.4, 0.8)
+    with pytest.raises(edits.EditError, match="no keys"):
+        edits.retime_keys(posed_project(), "a", 0.2, 0.3)
+
+
+def test_remove_keys_keeps_a_last_value_as_the_base() -> None:
+    edit = edits.remove_keys(posed_project(), "a", 0.4)
+    layer = edit.project.layer("a")
+    assert [k.t for k in layer.tracks["position"]] == [0.0, 0.8]
+    assert "rotation" not in layer.tracks
+    assert layer.base.rotation == 45.0  # its only key became the base: nothing jumps
+
+
+def test_set_key_ease_on_chosen_properties() -> None:
+    ease = Easing(name=None, bezier=(0.1, 0.0, 0.2, 1.0))
+    edit = edits.set_key_ease(posed_project(), "a", 0.4, ease, props=["rotation"])
+    layer = edit.project.layer("a")
+    assert layer.tracks["rotation"][0].ease == ease
+    assert layer.tracks["position"][1].ease == Easing(name="linear")
+    both = edits.set_key_ease(posed_project(), "a", 0.4, ease).project.layer("a")
+    assert both.tracks["position"][1].ease == ease

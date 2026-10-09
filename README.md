@@ -44,6 +44,11 @@ rotate it (Shift snaps to 10 % / 15°). With **Keys** on for a property
 **Edit > Auto-key** on, the first change already animates — move the playhead,
 pose the object, and it moves there over time.
 
+Keyframes show as diamonds on each timeline row: click one to see its values
+and easing in Properties, drag it to retime, press Delete to remove it, or
+right-click a row to add a key at the playhead. Any easing list ends in
+**Custom curve...**, which opens a curve editor with two draggable handles.
+
 The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics
 until it has been built.

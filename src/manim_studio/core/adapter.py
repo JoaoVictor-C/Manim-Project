@@ -220,6 +220,35 @@ BEZIER_PRESETS: dict[str, tuple[float, float, float, float]] = {
     "Overshoot": (0.34, 1.56, 0.64, 1.0),
 }
 
+# Cubic beziers fitted to the named eases (B27, benchmarks/fit_ease_beziers.py): where
+# the curve editor starts when a named ease is edited. Max error <= 0.025; eases that
+# no cubic bezier can follow (double_smooth, ease_out_bounce, ease_out_elastic,
+# there_and_back) are absent, so the editor refuses them.
+EASE_BEZIER_FITS: dict[str, tuple[float, float, float, float]] = {
+    "linear": (0.0, 0.0, 1.0, 1.0),
+    "smooth": (0.615, -0.016, 0.385, 1.016),
+    "rush_into": (0.557, 0.034, 0.7, 0.229),
+    "rush_from": (0.3, 0.771, 0.444, 0.966),
+    "ease_in_sine": (0.392, -0.008, 0.76, 0.631),
+    "ease_out_sine": (0.241, 0.37, 0.609, 1.008),
+    "ease_in_out_sine": (0.362, -0.002, 0.638, 1.002),
+    "ease_in_cubic": (0.416, -0.014, 0.7, 0.108),
+    "ease_out_cubic": (0.3, 0.892, 0.584, 1.013),
+    "ease_in_out_cubic": (0.616, -0.058, 0.384, 1.058),
+    "ease_in_back": (0.433, -0.063, 0.682, -0.452),
+    "ease_out_back": (0.318, 1.452, 0.567, 1.064),
+    "ease_in_out_back": (0.742, -0.518, 0.258, 1.518),
+}
+
+
+def ease_as_bezier(ease: Easing | None) -> tuple[float, float, float, float] | None:
+    """The bezier the curve editor starts from, or None if the ease cannot be edited as one."""
+    if ease is None:
+        return None
+    if ease.bezier is not None:
+        return tuple(ease.bezier)
+    return EASE_BEZIER_FITS.get(ease.name or "linear")
+
 
 def cubic_bezier(x1: float, y1: float, x2: float, y2: float) -> Callable[[float], float]:
     """CSS cubic-bezier(x1, y1, x2, y2) as a Manim rate function."""

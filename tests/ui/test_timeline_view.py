@@ -14,9 +14,9 @@ from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
-from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec
+from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
 from manim_studio.ui.document import Document
-from manim_studio.ui.timeline.view import ROW_HEIGHT, RULER_HEIGHT, ClipItem, TimelineView
+from manim_studio.ui.timeline.view import KEY_OFFSET, ROW_HEIGHT, RULER_HEIGHT, ClipItem, TimelineView
 
 pytestmark = pytest.mark.ui
 FPS = 30
@@ -325,3 +325,103 @@ def test_delete_key_removes_the_selected_clip(view, qt_app) -> None:
 def test_deleting_a_morph_ends_the_target_hand_off(view) -> None:
     view.delete_clip("b", "m")
     assert view.project.lifetime("c")[0] == 0.0  # no longer born from the morph
+
+
+# -- keyframes on the timeline (P2b.2) ------------------------------------------------
+
+
+@pytest.fixture
+def keyed(qt_app):
+    """Layer a: position keyed at 1.0 (inside clip c1? no: c1 is 0.5-1.5) and 2.5 s; rotation at 1.0 s."""
+    base = project()
+    layer_a = base.layer("a").model_copy(
+        update={
+            "tracks": {
+                "position": [Keyframe(t=1.0, value=(0.0, 0.0)), Keyframe(t=2.5, value=(2.0, 0.0))],
+                "rotation": [Keyframe(t=1.0, value=30.0)],
+            }
+        }
+    )
+    doc = Document(base.model_copy(update={"layers": [layer_a, *base.layers[1:]]}))
+    v = TimelineView()
+    v.resize(1000, 200)
+    v.set_document(doc)
+    v.show()
+    qt_app.processEvents()
+    yield v
+    v.close()
+
+
+def key_point(view, t: float, layer_id: str = "a") -> QPointF:
+    row = view.row_of(layer_id)
+    return QPointF(view.mapFromScene(QPointF(view.scale.x(t), RULER_HEIGHT + row * ROW_HEIGHT + KEY_OFFSET)))
+
+
+def keys_of(view, layer_id: str = "a") -> dict:
+    return {prop: [k.t for k in track] for prop, track in view.project.layer(layer_id).tracks.items()}
+
+
+def test_one_diamond_per_key_time(keyed) -> None:
+    items = sorted(keyed.key_items(), key=lambda item: item.t)
+    assert [(item.t, item.props) for item in items] == [(1.0, ("position", "rotation")), (2.5, ("position",))]
+
+
+def test_diamonds_win_over_the_clip_bar_under_them(keyed) -> None:
+    selected = []
+    keyed.keySelected.connect(lambda *a: selected.append(a))
+    pos = key_point(keyed, 1.0)  # inside clip c1 (0.5-1.5)
+    press(keyed, pos)
+    release(keyed, pos)
+    assert selected == [("a", 1.0)] and keyed.selected is None
+    assert keyed.document.undo_stack.count() == 0
+    assert clip(keyed, "a", "c1").start == 0.5
+
+
+def test_dragging_a_diamond_moves_every_key_at_that_time(keyed, qt_app) -> None:
+    start = key_point(keyed, 1.0)
+    end = QPointF(start.x() + keyed.scale.px_per_second * 0.5, start.y())
+    press(keyed, start)
+    move(keyed, end)
+    qt_app.processEvents()
+    release(keyed, end)
+    assert keys_of(keyed) == {"position": [pytest.approx(1.5), 2.5], "rotation": [pytest.approx(1.5)]}
+    assert keyed.document.undo_stack.undoText() == "Move keys"
+    assert keyed.selected_key == ("a", pytest.approx(1.5))
+    keyed.document.undo_stack.undo()
+    assert keys_of(keyed) == {"position": [1.0, 2.5], "rotation": [1.0]}
+
+
+def test_dragging_keys_stops_before_a_neighbour(keyed, qt_app) -> None:
+    start = key_point(keyed, 1.0)
+    end = QPointF(start.x() + keyed.scale.px_per_second * 3, start.y())
+    press(keyed, start)
+    move(keyed, end)
+    release(keyed, end)
+    assert keys_of(keyed)["position"] == [pytest.approx(2.5 - 1 / FPS), 2.5]
+
+
+def test_delete_removes_the_selected_keys(keyed) -> None:
+    pos = key_point(keyed, 1.0)
+    press(keyed, pos)
+    release(keyed, pos)
+    QApplication.sendEvent(
+        keyed, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+    )
+    assert keys_of(keyed) == {"position": [2.5]}
+    assert keyed.project.layer("a").base.rotation == 30.0  # the last rotation key became the base
+    assert [c.id for c in keyed.project.layer("a").clips] == ["c1", "c2"]  # the clip was not deleted
+
+
+def test_row_menu_adds_keys_at_the_playhead(keyed) -> None:
+    keyed.set_playhead(2.0)
+    action(keyed.context_menu(point(keyed, 2.0, "a")), "Add key at playhead").trigger()
+    assert keys_of(keyed)["position"] == [1.0, 2.0, 2.5]
+    assert keys_of(keyed)["rotation"] == [1.0, 2.0]
+    assert keyed.selected_key == ("a", 2.0)
+    action(keyed.context_menu(point(keyed, 3.0, "b")), "Add key at playhead", "Scale").trigger()
+    assert keys_of(keyed, "b") == {"scale": [2.0]}
+
+
+def test_right_click_on_a_diamond_deletes_its_keys(keyed) -> None:
+    action(keyed.context_menu(key_point(keyed, 2.5)), "Delete keys at 2.5 s").trigger()
+    assert keys_of(keyed)["position"] == [1.0]

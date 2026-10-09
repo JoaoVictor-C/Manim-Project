@@ -22,6 +22,7 @@ wrong. This module has no Qt dependency (coding standards rule 1).
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -210,6 +211,75 @@ def clear_track(project: Project, layer_id: str, prop: str, at: float) -> Edit:
     base[prop] = value
     tracks = {name: keys for name, keys in layer.tracks.items() if name != prop}
     return _replace_layer(project, layer_id, {"tracks": tracks, "base": base})
+
+
+def retime_keys(project: Project, layer_id: str, t_from: float, t_to: float) -> Edit:
+    """Move every key at ``t_from`` (any property, within half a frame) to ``t_to`` (P2b)."""
+    layer = _layer(project, layer_id)
+    fps = project.canvas.fps
+    t_to = round(t_to * fps) / fps
+    tracks, moved = {}, False
+    for prop, track in layer.tracks.items():
+        index = _key_index(track, t_from, fps)
+        if index is None:
+            tracks[prop] = track
+            continue
+        others = [key for i, key in enumerate(track) if i != index]
+        if any(abs(key.t - t_to) < 0.5 / fps for key in others):
+            raise EditError(f"{prop} already has a key at {t_to:g} s")
+        key = track[index]
+        tracks[prop] = [*others, Keyframe(t=t_to, value=key.value, ease=key.ease)]
+        moved = True
+    if not moved:
+        raise EditError(f"layer {layer_id!r} has no keys at {t_from:g} s")
+    return _replace_layer(project, layer_id, {"tracks": tracks})
+
+
+def remove_keys(project: Project, layer_id: str, t: float) -> Edit:
+    """Remove every key at ``t``; a property losing its last key keeps that value as its base."""
+    layer = _layer(project, layer_id)
+    fps = project.canvas.fps
+    tracks, base, removed = {}, layer.base.model_dump(), False
+    for prop, track in layer.tracks.items():
+        index = _key_index(track, t, fps)
+        if index is None:
+            tracks[prop] = track
+            continue
+        removed = True
+        if len(track) == 1:
+            base[prop] = track[0].value  # nothing jumps when the track disappears
+        else:
+            tracks[prop] = [key for i, key in enumerate(track) if i != index]
+    if not removed:
+        raise EditError(f"layer {layer_id!r} has no keys at {t:g} s")
+    return _replace_layer(project, layer_id, {"tracks": tracks, "base": base})
+
+
+def set_key_ease(
+    project: Project, layer_id: str, t: float, ease: Easing, props: Iterable[str] | None = None
+) -> Edit:
+    """Set the ease of the keys at ``t`` (the motion from them to the next key)."""
+    layer = _layer(project, layer_id)
+    fps = project.canvas.fps
+    wanted = set(props) if props is not None else None
+    tracks, changed = dict(layer.tracks), False
+    for prop, track in layer.tracks.items():
+        index = _key_index(track, t, fps)
+        if index is None or (wanted is not None and prop not in wanted):
+            continue
+        key = track[index]
+        tracks[prop] = [*track[:index], Keyframe(t=key.t, value=key.value, ease=ease), *track[index + 1 :]]
+        changed = True
+    if not changed:
+        raise EditError(f"layer {layer_id!r} has no keys at {t:g} s")
+    return _replace_layer(project, layer_id, {"tracks": tracks})
+
+
+def _key_index(track: list[Keyframe], t: float, fps: int) -> int | None:
+    for i, key in enumerate(track):
+        if abs(key.t - t) < 0.5 / fps:
+            return i
+    return None
 
 
 def _reaches_target(ease: Easing) -> bool:

@@ -170,8 +170,14 @@ class BoolField(Field):
 class ChoiceField(Field):
     """A list of ``(label, value)``; values may be any comparable objects."""
 
-    def __init__(self, on_commit: Commit, choices: Sequence[tuple[str, Any]] = ()) -> None:
+    def __init__(
+        self,
+        on_commit: Commit,
+        choices: Sequence[tuple[str, Any]] = (),
+        label_for: Callable[[Any], str] = str,
+    ) -> None:
         super().__init__(on_commit)
+        self.label_for = label_for  # how a value that is not among the choices is shown
         box = QComboBox()
         self.widget = box
         self.set_choices(choices)
@@ -186,7 +192,7 @@ class ChoiceField(Field):
 
     def _show(self, value: Any) -> None:
         if value not in self._values:
-            self.widget.addItem(str(value), value)  # e.g. a rate function set in JSON
+            self.widget.addItem(self.label_for(value), value)  # e.g. a custom curve, or set in JSON
             self._values.append(value)
         self.widget.setCurrentIndex(self._values.index(value))
 
