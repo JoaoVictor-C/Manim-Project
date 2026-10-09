@@ -29,7 +29,9 @@ times are seconds.
 |---|---|---|
 | `id` | string | unique; referenced by `to_layer` |
 | `name` | string | display name |
-| `spec` | Spec | the Manim object |
+| `spec` | Spec | the Manim object; `null` on a part layer |
+| `parent_id` | string | part layers only: the object (or part) it belongs to |
+| `part` | `{"tex": s, "occurrence": n}` | part layers only: the `n`-th match (from 0) of `tex` in the parent's text |
 | `base` | Transform2D | static transform when a track has no keyframes |
 | `lifetime` | `{"in": s, "out": s}` | optional; inferred from clips when absent (below) |
 | `tracks` | `{property: Keyframe[]}` | `position`, `scale`, `rotation`, `opacity` |
@@ -39,7 +41,21 @@ times are seconds.
 introducer (Create, Write, FadeIn, …), else from 0 — or from the end of the
 morph that targets this layer. Hidden after the first remover (FadeOut,
 Uncreate, …) or morph clip on its lane. The lifetime gates everything: a clip
-outside the layer's lifetime does not make it visible.
+outside the layer's lifetime does not make it visible. A part's lifetime is
+clamped to its parent's.
+
+**Part layers** (ADR 0012) animate a piece of a `MathTex`/`Tex` object — one
+term of an equation. A part has no spec; it draws the glyphs of its key's span
+and moves with its parent (its own transform pivots on its centre). Its clips
+may not overlap clips of its ancestors; sibling parts may animate at the same
+time. A key that no longer matches after a text edit leaves the part
+*orphaned*: kept, but drawn nowhere. Morph clips are not allowed on objects
+with parts yet.
+
+```json
+{ "id": "b", "name": "b^2", "parent_id": "eq", "part": { "tex": "b^2", "occurrence": 0 },
+  "clips": [{ "id": "i", "kind": "Indicate", "start": 1.0, "duration": 1.0 }] }
+```
 
 ## Spec
 

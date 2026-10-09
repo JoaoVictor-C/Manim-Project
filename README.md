@@ -49,6 +49,13 @@ and easing in Properties, drag it to retime, press Delete to remove it, or
 right-click a row to add a key at the playhead. Any easing list ends in
 **Custom curve...**, which opens a curve editor with two draggable handles.
 
+**Parts** animate a piece of an equation on its own: select a MathTex or Tex
+layer and use **Parts > Add part...** (type the TeX of the term, e.g. `b^2`) or
+**Parts > Split into terms**. Parts sit under their equation in the Layers
+panel and the timeline, get their own clips (Indicate a term, fade one out) and
+keyframes, and move with the equation. On the canvas a click selects the whole
+equation; double-click a term to select it, Esc to go back up.
+
 The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics
 until it has been built.

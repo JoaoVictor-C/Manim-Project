@@ -205,3 +205,24 @@ family ≤ 0.0032, smooth 0.004, ease_in/out_back 0.006, ease_in_out_back 0.0215
 Not representable: double_smooth 0.092, ease_out_bounce 0.140, ease_out_elastic
 0.636, there_and_back 1.0. The fit takes ~1.4 s per ease (23.5 s for 17) → the
 results ship as a table (`adapter.EASE_BEZIER_FITS`), rechecked by a test.
+
+### B28 — Addressing parts of an equation · 2026-10-09
+`benchmarks/bench_tex_parts.py`, three equations (`e^{i\pi} + 1 = 0`,
+`a^2 + b^2 = c^2`, `\int_0^1 x^2\,dx = \frac{1}{3}`), fresh LaTeX each build.
+Building with `substrings_to_isolate` or with the editor's own span markers
+(`\special{dvisvgm:raw <g id=...>}` around exactly one span) costs the same as a
+plain build (4.1-4.4 s cold, all three), keeps the glyph count, and renders
+**pixel-identical** (max diff 0) at rest and during Write, Create and
+DrawBorderThenFill at alpha 0.3 and 0.6. Each marker group holds exactly the
+chosen glyphs (`\frac{1}{3}` → glyphs 8, 9, 10; only the chosen `1`), and the
+group's glyphs are the same objects as the root's, so regions are glyph
+indices. Nested spans work (`x^2` → 3, 4 and `x` → 3). A marker right after `^`
+fails LaTeX ("Missing { inserted"); braced (`^{...}`) it is identical.
+`substrings_to_isolate` marks every occurrence of a key. → ADR 0012.
+
+### B29 — Frame cost of an object with parts · 2026-10-09
+`benchmarks/bench_part_frames.py`: `a^2 + b^2 = c^2` (font size 96) at
+1280x720@30 with Write, warm caches, 120 frames. Plain: evaluate **0.63 ms**,
+evaluate + render **9.2 ms** per frame. With three parts (Split terms), an
+Indicate, a FadeOut and a keyed move: evaluate **3.8 ms**, evaluate + render
+**12.6 ms**. Well inside the 33 ms frame budget → P2c.2 accepted.

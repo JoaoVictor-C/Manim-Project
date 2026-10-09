@@ -19,6 +19,7 @@ import manim as m
 from manim.utils import rate_functions
 
 from ..logging_config import get_logger
+from . import parts
 from .schema import CLIP_KIND_INFO, RASTER_TYPES, TEXT_TYPES, Easing, Spec
 
 log = get_logger(__name__)
@@ -153,8 +154,10 @@ def _build_cached(spec_json: str) -> m.Mobject:
         if param.kind == "point" and param.name in params:
             x, y = params[param.name][:2]
             params[param.name] = (x, y, 0.0)  # documents are 2D
+    spans = params.pop(parts.SPANS_PARAM, None)
     if spec.type in TEXT_TYPES:
-        mob = cls(params.pop("text", ""), **params)
+        text = params.pop("text", "")
+        mob = cls(parts.mark(text, spans) if spans else text, **params)
     elif spec.type == "ImageMobject":
         mob = cls(params.pop("path"), **params)
     else:
@@ -162,6 +165,28 @@ def _build_cached(spec_json: str) -> m.Mobject:
     _apply_style(mob, spec.style)
     mob.move_to(m.ORIGIN)
     return mob
+
+
+def part_regions(spec: Spec) -> list[tuple[int, ...]]:
+    """Glyph indices (into ``family_members_with_points()``) of each marker group.
+
+    ``spec`` carries ``parts.SPANS_PARAM``; entry ``i`` belongs to the part at
+    ``Resolution.order[i]``. Indices hold for every copy of the built object.
+    """
+    return list(_regions_cached(spec.model_dump_json()))
+
+
+@lru_cache(maxsize=256)
+def _regions_cached(spec_json: str) -> tuple[tuple[int, ...], ...]:
+    mob = _build_cached(spec_json)
+    count = len(Spec.model_validate_json(spec_json).params.get(parts.SPANS_PARAM, ()))
+    index = {id(leaf): i for i, leaf in enumerate(mob.family_members_with_points())}
+    regions = []
+    for i in range(count):
+        group = mob.id_to_vgroup_dict.get(parts.marker_id(i))
+        leaves = group.family_members_with_points() if group is not None else []
+        regions.append(tuple(sorted(index[id(leaf)] for leaf in leaves if id(leaf) in index)))
+    return tuple(regions)
 
 
 def _apply_style(mob: m.Mobject, style: dict[str, Any]) -> None:

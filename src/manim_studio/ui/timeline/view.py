@@ -37,25 +37,29 @@ from PySide6.QtWidgets import (
 
 from ...core import adapter, edits
 from ...core.evaluator import layer_transform
-from ...core.schema import CLIP_KIND_INFO, Clip, Layer, Project, infer_lifetime
+from ...core.schema import CLIP_KIND_INFO, Clip, Layer, Project
 from ...logging_config import get_logger
 from ..document import Document
 from .model import (
     Edge,
     TimeScale,
+    depth,
     drag_keys,
     drag_move,
     drag_trim,
     key_times,
+    obstacles,
     place_new_clip,
     snap_candidates,
 )
+from .model import rows as row_layers
 
 log = get_logger(__name__)
 
 ROW_HEIGHT = 28
 RULER_HEIGHT = 26
 HEADER_WIDTH = 140
+INDENT_PX = 14  # per level of part layers (ADR 0012)
 EDGE_PX = 6
 CLIP_MARGIN = 4
 KEY_HALF = 4.5  # diamond half size, px
@@ -138,7 +142,11 @@ class LayerHeader(QWidget):
             if y + ROW_HEIGHT < RULER_HEIGHT:
                 continue
             text = layer.name or layer.id
-            painter.drawText(QRectF(8, y, HEADER_WIDTH - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, text)
+            indent = INDENT_PX * depth(project, layer)
+            if indent:
+                text = "\u21b3 " + text
+            rect = QRectF(8 + indent, y, HEADER_WIDTH - 12 - indent, ROW_HEIGHT)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, text)
         painter.fillRect(0, 0, HEADER_WIDTH, RULER_HEIGHT, RULER_BACKGROUND)
 
 
@@ -210,8 +218,8 @@ class TimelineView(QGraphicsView):
             self.sync()
 
     def rows(self) -> list[Layer]:
-        """Layers in row order: the front-most (last in the project) first."""
-        return list(reversed(self.project.layers)) if self.project is not None else []
+        """Layers in row order: the front-most object first, each followed by its parts."""
+        return row_layers(self.project) if self.project is not None else []
 
     def row_of(self, layer_id: str) -> int:
         return [layer.id for layer in self.rows()].index(layer_id)
@@ -240,10 +248,9 @@ class TimelineView(QGraphicsView):
         width = self.scale.x(project.canvas.duration)
         height = RULER_HEIGHT + len(project.layers) * ROW_HEIGHT
         scene.setSceneRect(0, 0, width + 40, height)
-        sources = project.morph_sources()
         for row, layer in enumerate(self.rows()):
             top = RULER_HEIGHT + row * ROW_HEIGHT
-            start, end = infer_lifetime(layer, sources.get(layer.id))
+            start, end = project.lifetime(layer.id)
             end = min(end, project.canvas.duration)
             if end > start:
                 band = scene.addRect(
@@ -461,14 +468,21 @@ class TimelineView(QGraphicsView):
         self._add_key_menu(menu, layer)
         add = menu.addMenu("Add clip")
         placement = place_new_clip(
-            layer, t, duration=self.project.canvas.duration, fps=self.project.canvas.fps
+            layer,
+            t,
+            duration=self.project.canvas.duration,
+            fps=self.project.canvas.fps,
+            obstacles=obstacles(self.project, layer.id),
         )
         if placement is None:
             add.setEnabled(False)
             add.setTitle("Add clip (no room here)")
             return menu
         start, length = placement
-        kinds = adapter.allowed_clip_kinds(layer.spec.type)
+        in_tree = layer.is_part or bool(self.project.children(layer.id))
+        kinds = adapter.allowed_clip_kinds(self.project.root_of(layer.id).spec.type)
+        if in_tree:  # morphs are not supported on objects with parts yet (ADR 0012)
+            kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "morph"]
         targets = self._morph_targets(layer)
         for category, title in (
             ("content", "Appear / disappear"),
@@ -538,7 +552,14 @@ class TimelineView(QGraphicsView):
 
     def _morph_targets(self, layer: Layer) -> list[Layer]:
         taken = self.project.morph_sources()
-        return [other for other in self.rows() if other.id != layer.id and other.id not in taken]
+        return [
+            other
+            for other in self.rows()
+            if other.id != layer.id
+            and other.id not in taken
+            and not other.is_part
+            and not self.project.children(other.id)
+        ]
 
     def add_clip(
         self, layer_id: str, kind: str, start: float, length: float, to_layer: str | None = None
@@ -601,6 +622,7 @@ class TimelineView(QGraphicsView):
             "scale": self.scale,
             "candidates": snap_candidates(base, self.playhead, exclude=(drag.layer_id, drag.clip_id)),
             "snapping": snapping,
+            "obstacles": obstacles(base, drag.layer_id),
         }
         if drag.mode is None:
             start = drag_move(layer, drag.clip_id, drag.clip.start + delta, **common)

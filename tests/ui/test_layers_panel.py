@@ -13,7 +13,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 
-from manim_studio.core import adapter
+from manim_studio.core import adapter, edits
 from manim_studio.core.schema import Clip, Layer, Project, Spec
 from manim_studio.ui.build_service import BuildService
 from manim_studio.ui.document import Document
@@ -63,7 +63,7 @@ def undo_texts(panel) -> list[str]:
 
 def test_list_is_front_to_back_with_names(panel) -> None:
     assert panel.ids_front_to_back() == ["front", "mid", "back"]
-    assert [panel.list.item(r).text() for r in range(3)] == ["front", "Ball", "back"]
+    assert [item.text(0) for item in panel.items()] == ["front", "Ball", "back"]
 
 
 def test_library_menu_lists_every_type_in_sections(panel) -> None:
@@ -137,10 +137,10 @@ def test_dropping_a_row_reorders(panel) -> None:
 
 
 def test_rename_through_the_list(panel) -> None:
-    item = panel.list.item(2)  # "back"
-    item.setText("Background")
+    item = panel.items()[2]  # "back"
+    item.setText(0, "Background")
     assert panel.project.layer("back").name == "Background"
-    panel.list.item(2).setText("  ")  # blank -> back to the id
+    panel.items()[2].setText(0, "  ")  # blank -> back to the id
     assert panel.project.layer("back").name == ""
     assert undo_texts(panel) == ["Rename layer", "Rename layer"]
 
@@ -158,3 +158,106 @@ def test_opening_another_project_resets_the_list(panel) -> None:
     panel.document.replace(Project(canvas=CANVAS, layers=[Layer(id="solo", spec=Spec(type="Dot"))]))
     assert panel.ids_front_to_back() == ["solo"]
     assert panel.selected_id() is None
+
+
+# -- part layers (P2c.3) ----------------------------------------------------------------
+
+EQ = "a^2 + b^2 = c^2"
+
+
+@pytest.fixture
+def eq_panel(qt_app):
+    eq = Layer(id="eq", spec=Spec(type="MathTex", params={"text": EQ}))
+    doc = Document(Project(canvas=CANVAS, layers=[Layer(id="sq", spec=Spec(type="Square")), eq]))
+    worker = FakeWorker()
+    widget = LayersPanel(BuildService(doc, worker))
+    widget.worker = worker
+    widget.messages = []
+    widget.message.connect(widget.messages.append)
+    widget.show()
+    yield widget
+    widget.close()
+
+
+def test_add_part_asks_for_a_key_and_nests_the_part_under_its_object(eq_panel) -> None:
+    eq_panel.select("eq")
+    asked = []
+    eq_panel.ask_part = lambda parent_id: asked.append(parent_id) or ("b^2", 0)
+    eq_panel.add_part()
+    eq_panel.worker.reply_all()  # the object is rebuilt with the part's marker (warm gate)
+    assert asked == ["eq"]
+    part = eq_panel.project.layer("part-1")
+    assert (part.parent_id, part.part.tex, part.name) == ("eq", "b^2", "b^2")
+    top = eq_panel.list.topLevelItem(0)
+    assert top.data(0, Qt.ItemDataRole.UserRole) == "eq" and top.child(0).text(0) == "b^2"
+    assert eq_panel.ids_front_to_back() == ["eq", "part-1", "sq"]
+    assert eq_panel.selected_id() == "part-1"
+    assert undo_texts(eq_panel) == ["Add part"]
+
+
+def test_split_into_terms_is_one_undo_step_and_skips_existing_parts(eq_panel) -> None:
+    eq_panel.select("eq")
+    eq_panel.ask_part = lambda _parent: ("b^2", 0)
+    eq_panel.add_part()
+    eq_panel.worker.reply_all()
+    eq_panel.select("eq")
+    eq_panel.split_terms()
+    eq_panel.worker.reply_all()
+    assert [c.part.tex for c in eq_panel.project.children("eq")] == ["b^2", "a^2", "c^2"]
+    assert undo_texts(eq_panel) == ["Add part", "Split into terms"]
+    eq_panel.select("eq")
+    eq_panel.split_terms()
+    assert eq_panel.messages == ["Split into terms: no terms left to split"]
+
+
+def test_a_part_cannot_be_reordered_and_parts_are_only_offered_for_tex(eq_panel) -> None:
+    eq_panel.select("sq")
+    assert not eq_panel.part_button.isEnabled()
+    eq_panel.select("eq")
+    assert eq_panel.part_button.isEnabled()
+    eq_panel.ask_part = lambda _parent: ("c^2", 0)
+    eq_panel.add_part()  # selects the new part
+    eq_panel.worker.reply_all()
+    assert not eq_panel.up_button.isEnabled() and not eq_panel.down_button.isEnabled()
+    eq_panel.shift_selected(-1)
+    assert eq_panel.ids_front_to_back() == ["eq", "part-1", "sq"]
+    assert eq_panel.part_button.isEnabled()  # parts of parts
+
+
+def test_an_orphaned_part_is_labelled(eq_panel) -> None:
+    eq_panel.select("eq")
+    eq_panel.ask_part = lambda _parent: ("c^2", 0)
+    eq_panel.add_part()
+    eq_panel.worker.reply_all()
+    retyped = edits.update_layer(eq_panel.project, "eq", spec=Spec(type="MathTex", params={"text": "x"}))
+    eq_panel.document.apply(retyped, "Edit")
+    item = eq_panel.items()[1]
+    assert item.text(0) == "c^2 (not found)"
+    assert "not in the text" in item.toolTip(0)
+
+
+def test_the_context_menu_offers_parts_on_equations(eq_panel) -> None:
+    eq_panel.select("eq")
+    texts = [a.text() for a in eq_panel.context_menu("eq").actions() if a.text()]
+    assert texts == ["Add part...", "Split into terms", "Delete"]
+    eq_panel.select("sq")
+    assert [a.text() for a in eq_panel.context_menu("sq").actions() if a.text()] == ["Delete"]
+
+
+def test_the_part_dialog_says_whether_a_part_resolves(eq_panel) -> None:
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    from manim_studio.ui.layers_panel import PartDialog
+
+    dialog = PartDialog(eq_panel.project, "eq")
+    ok = dialog.buttons.button(QDialogButtonBox.StandardButton.Ok)
+    assert not ok.isEnabled()
+    dialog.tex.setText("2")
+    assert ok.isEnabled() and dialog.status.text() == "Matches 3 times."
+    assert dialog.occurrence.maximum() == 3
+    dialog.occurrence.setValue(3)
+    assert dialog.key() == ("2", 2)
+    dialog.tex.setText("2 + b")
+    assert not ok.isEnabled() and "superscript" in dialog.status.text()
+    dialog.tex.setText("z")
+    assert dialog.status.text() == "'z' is not in the text"

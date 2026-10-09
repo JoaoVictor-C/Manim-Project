@@ -121,6 +121,17 @@ All notable changes to this project are documented here. The format follows
   to add keys at the playhead. Properties shows a selected key's time, values
   and easing (disabled on a last key, where no motion follows). `edits.retime_keys`,
   `remove_keys`, `set_key_ease`; `Selection.key_time`.
+- Part layers (P2c, ADR 0012): animate the terms of an equation as their own
+  layers. A part is `{tex, occurrence}` under a MathTex/Tex object, resolved to
+  one exact span that the adapter marks with its own dvisvgm group (identical
+  output, B28); unresolvable parts are kept but not drawn. The evaluator treats
+  an object with parts as a tree (checkpoints by finished clips, clips on their
+  layer's glyphs, transforms composed with the parent's; B29). Layers panel
+  tree with **Add part...** and **Split into terms**; part rows on the timeline;
+  a part's key in Properties; root-first canvas clicks, double-click to drill
+  in, Esc to back out; part gizmos pivot on the part; a warning when a text
+  edit may move a part's match. `core/parts.py`; `edits.add_part`, `add_parts`;
+  `Project.children/descendants/ancestors/root_of`; `Evaluator.layer_frame`.
 - Easing curve editor (P2b): "Custom curve..." in every easing list opens a
   graph with two bezier handles and presets; named Manim eases start from a
   fitted bezier (`adapter.EASE_BEZIER_FITS`, B27) and the four that are not

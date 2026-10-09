@@ -26,7 +26,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .schema import Clip, Easing, Keyframe, Layer, Project, Spec
+from . import parts
+from .schema import Clip, Easing, Keyframe, Layer, PartKey, Project, Spec
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
 _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec": 3}
@@ -93,26 +94,95 @@ def add_layer(
 
 
 def remove_layer(project: Project, layer_id: str) -> Edit:
-    """Delete a layer, and the morph clip that turns another layer into it (ADR 0005)."""
+    """Delete a layer with its parts, and morph clips that turn another layer into one of them."""
     _layer(project, layer_id)
+    gone = {layer_id} | {d.id for d in project.descendants(layer_id)}
     layers = []
     for layer in project.layers:
-        if layer.id == layer_id:
+        if layer.id in gone:
             continue
-        if any(c.to_layer == layer_id for c in layer.clips):
+        if any(c.to_layer in gone for c in layer.clips):
             data = layer.model_dump(by_alias=True)
-            data["clips"] = [c for c in data["clips"] if c["to_layer"] != layer_id]
+            data["clips"] = [c for c in data["clips"] if c["to_layer"] not in gone]
             layer = Layer.model_validate(data)
         layers.append(layer)
     return _replace_layers(project, layers)
 
 
 def move_layer(project: Project, layer_id: str, index: int) -> Edit:
-    """Change a layer's z-order: ``index`` 0 is the back, ``len(layers) - 1`` the front."""
+    """Change an object's z-order: ``index`` 0 is the back of the objects (roots), the last the front.
+
+    An object moves together with its parts, which always follow it (ADR 0012).
+    """
     layer = _layer(project, layer_id)
-    layers = [other for other in project.layers if other.id != layer_id]
-    layers.insert(max(0, min(index, len(layers))), layer)
-    return _replace_layers(project, layers)
+    if layer.is_part:
+        raise EditError(f"{layer_id!r} is a part: parts are drawn with their object")
+    roots = [root for root in project.roots() if root.id != layer_id]
+    roots.insert(max(0, min(index, len(roots))), layer)
+    return _replace_layers(project, [x for root in roots for x in (root, *project.descendants(root.id))])
+
+
+# -- parts (P2c, ADR 0012) ------------------------------------------------------------
+
+
+def add_part(
+    project: Project,
+    parent_id: str,
+    tex: str,
+    occurrence: int = 0,
+    *,
+    name: str = "",
+    layer_id: str | None = None,
+) -> Edit:
+    """Add a part layer: the ``occurrence``-th ``tex`` in the parent's text.
+
+    Raises ``EditError`` with the reason when the part would not resolve (not in
+    the text, inside a script, overlapping another part, ...).
+    """
+    return add_parts(project, parent_id, [(tex, occurrence)], names=[name], layer_ids=[layer_id])
+
+
+def add_parts(
+    project: Project,
+    parent_id: str,
+    keys: Iterable[tuple[str, int]],
+    *,
+    names: Iterable[str] | None = None,
+    layer_ids: Iterable[str | None] | None = None,
+) -> Edit:
+    """Add several parts in one edit (one undo step, one rebuild), e.g. from ``parts.split_terms``."""
+    _layer(project, parent_id)
+    keys = list(keys)
+    if not keys:
+        raise EditError("no parts to add")
+    names = list(names) if names is not None else [""] * len(keys)
+    layer_ids = list(layer_ids) if layer_ids is not None else [None] * len(keys)
+    taken = {layer.id for layer in project.layers}
+    new_layers = []
+    for (tex, occurrence), name, layer_id in zip(keys, names, layer_ids, strict=True):
+        layer_id = layer_id or _free_id("part", taken)
+        taken.add(layer_id)
+        new_layers.append(
+            Layer(
+                id=layer_id,
+                name=name or tex,
+                parent_id=parent_id,
+                part=PartKey(tex=tex, occurrence=occurrence),
+            )
+        )
+    block = [parent_id, *(d.id for d in project.descendants(parent_id))]
+    at = max(i for i, layer in enumerate(project.layers) if layer.id in block) + 1
+    layers = [*project.layers[:at], *new_layers, *project.layers[at:]]
+    try:
+        edit = _replace_layers(project, layers)
+    except ValueError as error:
+        raise EditError(str(error)) from None
+    root_id = edit.project.root_of(parent_id).id
+    resolution = parts.resolve(edit.project, root_id)
+    for layer in new_layers:
+        if layer.id in resolution.orphans:
+            raise EditError(f"cannot add part {layer.part.tex!r}: {resolution.orphans[layer.id]}")
+    return edit
 
 
 def add_clip(
@@ -314,6 +384,14 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
     for layer_id in old_layers.keys() | new_layers.keys():
         a, b = old_layers.get(layer_id), new_layers.get(layer_id)
         layer_kind = "clip" if a is None or b is None else _layer_kind(a, b)
+        if (
+            layer_kind != "spec"
+            and a is not None
+            and b is not None
+            and b.parent_id is None
+            and parts.build_spec(old, layer_id) != parts.build_spec(new, layer_id)
+        ):
+            layer_kind = "spec"  # its parts changed: the object is rebuilt with other markers
         if layer_kind is None:
             continue
         touched.add(layer_id)
@@ -325,7 +403,7 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
 def _layer_kind(a: Layer, b: Layer) -> EditKind | None:
     if a == b:
         return None
-    if a.spec != b.spec:
+    if a.spec != b.spec or a.part != b.part or a.parent_id != b.parent_id:
         return "spec"
     if [c.id for c in a.clips] != [c.id for c in b.clips]:
         return "clip"  # added, removed or reordered: predecessors changed

@@ -23,6 +23,7 @@ src/manim_studio/
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
 │   ├── edits.py         edits → new validated snapshot + edit kind (ADR 0013, 0014)
+│   ├── parts.py         part layers: keys → exact TeX spans, markers, split terms (ADR 0012)
 │   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)

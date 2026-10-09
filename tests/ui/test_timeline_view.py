@@ -425,3 +425,54 @@ def test_row_menu_adds_keys_at_the_playhead(keyed) -> None:
 def test_right_click_on_a_diamond_deletes_its_keys(keyed) -> None:
     action(keyed.context_menu(key_point(keyed, 2.5)), "Delete keys at 2.5 s").trigger()
     assert keys_of(keyed)["position"] == [1.0]
+
+
+# -- part layers (P2c.3) ----------------------------------------------------------------
+
+
+@pytest.fixture
+def tree_view(qt_app):
+    from manim_studio.core.schema import PartKey
+
+    eq = Layer(
+        id="eq",
+        spec=Spec(type="MathTex", params={"text": "a + b = c"}),
+        clips=[Clip(id="w", kind="Write", start=0.0, duration=1.0)],
+    )
+    b = Layer(
+        id="b",
+        parent_id="eq",
+        part=PartKey(tex="b"),
+        clips=[Clip(id="f", kind="FadeIn", start=2.0, duration=1.0)],
+    )
+    sq = Layer(id="sq", spec=Spec(type="Square"))
+    v = TimelineView()
+    v.resize(1000, 200)
+    v.set_document(Document(Project(canvas=Canvas(duration=6.0, fps=FPS), layers=[eq, b, sq])))
+    v.show()
+    qt_app.processEvents()
+    yield v
+    v.close()
+
+
+def test_part_rows_follow_their_object_with_the_clamped_lifetime(tree_view) -> None:
+    assert [layer.id for layer in tree_view.rows()] == ["sq", "eq", "b"]
+    from PySide6.QtWidgets import QGraphicsRectItem
+
+    top = RULER_HEIGHT + 2 * ROW_HEIGHT + 2
+    bands = [
+        item.rect()
+        for item in tree_view.scene().items()
+        if isinstance(item, QGraphicsRectItem) and not isinstance(item, ClipItem) and item.rect().top() == top
+    ]
+    assert len(bands) == 1 and bands[0].left() == pytest.approx(tree_view.scale.x(2.0))
+
+
+def test_the_clip_menu_on_a_part_has_no_morphs_and_respects_the_object_clips(tree_view) -> None:
+    menu = tree_view.context_menu(point(tree_view, 0.5, "b"))  # inside the object's Write
+    assert action(menu, "Add clip (no room here)") is not None
+    menu = tree_view.context_menu(point(tree_view, 4.0, "b"))
+    titles = [a.text() for a in action(menu, "Add clip").menu().actions()]
+    assert titles == ["Appear / disappear", "Emphasis"]
+    action(menu, "Add clip", "Emphasis", "Indicate").trigger()
+    assert [c.kind for c in tree_view.project.layer("b").clips] == ["FadeIn", "Indicate"]

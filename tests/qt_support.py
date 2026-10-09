@@ -27,3 +27,9 @@ class FakeWorker(WorkerClient):
         request_id = next(i for i, k in self.requests.items() if k == key)
         del self.requests[request_id]
         self.replied.emit(request_id, ok, error)
+
+    def reply_all(self, ok: bool = True) -> None:
+        """Answer every outstanding request (oldest first)."""
+        for request_id in list(self.requests):
+            del self.requests[request_id]
+            self.replied.emit(request_id, ok, "")

@@ -34,9 +34,13 @@ Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`
 (93 % at the last count; the suite runs in about 60 s, a third of it real
 subprocesses — the build worker and the renderer — and LaTeX).
 
-`ui/test_acceptance_p2a.py` and `ui/test_acceptance_p2b.py` are the Phase 2
-acceptance tests (scale/rotate and auto-key; keyframes on the timeline and the
-curve editor). `ui/test_curve_editor.py` rechecks every fitted ease against Manim.
+`ui/test_acceptance_p2a.py`, `ui/test_acceptance_p2b.py` and
+`ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
+auto-key; keyframes on the timeline and the curve editor; terms of an equation
+as part layers, with the exported video checked against hand-built Manim).
+`ui/test_curve_editor.py` rechecks every fitted ease against Manim;
+`core/test_part_layers.py` checks frames of objects with parts against the same
+animations played on the glyphs by hand.
 
 `ui/test_export_dialog.py` holds the S4 acceptance test (export while editing;
 the video shows the scene as it was when Export was pressed), and

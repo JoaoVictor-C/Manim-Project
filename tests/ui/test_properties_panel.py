@@ -356,3 +356,42 @@ def test_cancelling_the_curve_editor_changes_nothing(panel) -> None:
     panel.fields["clip.ease"].commit("custom-curve")
     assert panel.project is before
     assert panel.fields["clip.ease"].widget.currentText() == "Animation default"
+
+
+# -- part layers (P2c.3) ----------------------------------------------------------------
+
+
+@pytest.fixture
+def part_panel(qt_app):
+    from manim_studio.core.schema import PartKey
+
+    eq = Layer(id="eq", spec=Spec(type="MathTex", params={"text": "a^2 + b^2 = c^2"}))
+    part = Layer(id="b", name="b^2", parent_id="eq", part=PartKey(tex="b^2"))
+    doc = Document(Project(canvas=CANVAS, layers=[eq, part]))
+    worker = FakeWorker()
+    widget = PropertiesPanel(BuildService(doc, worker))
+    widget.worker = worker
+    widget.messages = []
+    widget.message.connect(widget.messages.append)
+    widget.show()
+    yield widget
+    widget.close()
+
+
+def test_a_part_shows_its_key_and_transform_but_no_object_or_style(part_panel) -> None:
+    part_panel.show_layer("b")
+    assert {"part.tex", "part.occurrence", "base.position", "lifetime.in"} <= set(part_panel.fields)
+    assert not any(path.startswith(("params.", "style.")) for path in part_panel.fields)
+    assert part_panel.fields["part.tex"].widget.text() == "b^2"
+    assert part_panel.fields["part.occurrence"].widget.value() == 1
+    assert "part of eq" in part_panel.title.text()
+
+
+def test_editing_a_part_key_retargets_it_or_is_refused(part_panel) -> None:
+    part_panel.show_layer("b")
+    part_panel.fields["part.tex"].commit("c^2")
+    part_panel.worker.reply_all()  # the object is rebuilt with the new marker
+    assert part_panel.project.layer("b").part.tex == "c^2"
+    part_panel.fields["part.occurrence"].commit(2)  # there is one c^2
+    assert part_panel.project.layer("b").part.occurrence == 0
+    assert part_panel.messages and "occurs 1 time, not 2" in part_panel.messages[-1]
