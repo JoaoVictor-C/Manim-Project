@@ -87,3 +87,28 @@ left open, so ADRs can cite it.
   end as a bound.
 - **Left open:** dragging a morph while its partner is mid-motion (~105 ms/step,
   coalesced, documented).
+
+## Session 5 — S2 panels plan · 2026-10-09
+
+- **Tool / profile:** Terza, `balanced`; 3 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** S2 scope from the roadmap, measured build costs (B17, B18 taken for
+  the session), edit/undo architecture (ADR 0013, 0014), allow-list (ADR 0007),
+  schema rules for morphs.
+- **Decisions:** a persistent build worker and warm-then-commit (→ ADR 0015);
+  properties generated from a hand-curated `adapter.MOBJECT_PARAMS`, committed
+  on `editingFinished`, one undo step per field; layers dock with a morph-cascade
+  delete; timeline context menu for clips. Plan:
+  [../plans/s2-panels.md](../plans/s2-panels.md).
+- **Critiques that changed the plan:** "only the text is slow" → measured (B19):
+  `font_size`/`color`/style are cache-neutral but the Text font is not, so the
+  key keeps every unmeasured param; replies racing with edits and undo → pending
+  changes are operations re-run on the current snapshot, latest wins; worker
+  hangs and crashes → timeout, restart, startup queue; "Add MathTex layer" is not
+  a field change → the gate is keyed by the specs an edit builds, not by UI
+  operation; re-sending per field duplicated builds → one request per key;
+  pending structural edits → re-runnable operations; a refresh would clobber a
+  pending field → the panel shows pending values; large images → measured (B20),
+  stay synchronous.
+- **Left open:** opening a project with many unseen strings is slow once
+  (synchronous, documented).

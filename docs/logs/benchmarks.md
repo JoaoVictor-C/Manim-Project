@@ -120,3 +120,28 @@ event-loop turn (edit + validation + evaluator + Cairo canvas + timeline rebuild
 Write-clip drag **24.1 ms** median (25.4 p90); morph drag **19.2 ms** (19.8 p90);
 same with a keyframed morph source (settled): 24.1 / 19.3 ms. Within the 33 ms
 budget → S1 accepted.
+
+### B17 — Building text objects: first time vs Manim's disk cache · 2026-10-09
+Building through `adapter.build_mobject` with the in-memory cache cleared. A new
+string: MathTex **1287 ms**, Tex **1238 ms**, Text **557 ms**. The same string
+again (disk cache only): **11–18 ms**. Shapes for comparison: Circle/Square/Star
+0.4 ms, Arrow 1.6 ms. → ADR 0015.
+
+### B18 — Building text off the UI thread: thread vs process · 2026-10-09
+Thread: MathTex 1312 ms total, worst UI-thread stall **11 ms** (LaTeX is a
+subprocess); Text 567 ms total, worst stall **375 ms** (manimpango holds the
+GIL). Separate process: startup + `import manim` **3–4 s** each time; afterwards
+the editor process builds the same Text in **32 ms** and MathTex in **16 ms**
+(disk cache shared across processes). → persistent worker, ADR 0015.
+
+### B19 — Which params create new text cache entries · 2026-10-09
+Changing one thing on an already-cached object (in-memory cache cleared). Text:
+same string 27 ms, `font_size` 31 ms, `color` param 27 ms, style 26 ms, **font
+269 ms**, new string 558 ms. MathTex: same 10 ms, `font_size` 9 ms, `color` 9 ms,
+style 9 ms, new string 1261 ms. → warm key = params minus `font_size`/`color`,
+style excluded (ADR 0015).
+
+### B20 — Large image layer build · 2026-10-09
+ImageMobject from a 4000×4000 RGBA PNG (1.4 MB, gradient): **197 ms** and
+**199 ms** cold; from the adapter's in-memory spec cache (copy) **16 ms**. Image
+edits stay synchronous (no disk cache for the worker to warm).
