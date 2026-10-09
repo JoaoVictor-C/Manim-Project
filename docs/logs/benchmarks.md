@@ -226,3 +226,18 @@ fails LaTeX ("Missing { inserted"); braced (`^{...}`) it is identical.
 evaluate + render **9.2 ms** per frame. With three parts (Split terms), an
 Indicate, a FadeOut and a keyed move: evaluate **3.8 ms**, evaluate + render
 **12.6 ms**. Well inside the 33 ms frame budget → P2c.2 accepted.
+
+### B30 — Code layers: capture, cache and compositing · 2026-10-09
+`benchmarks/bench_code_layer.py`, 1280x720@30, an orbit scene (ValueTracker,
+updater, TracedPath; 3 s). Capturing a real `Scene` through a `CairoRenderer`
+subclass that keeps frames (no video encode): 90 frames in **0.6-0.7 s**
+(~7 ms/frame), transparent background (0.6 % of pixels non-transparent). Per
+frame: raw 3.7 MB; PNG (level 1) 55 kB, encode 70 ms, decode 18 ms; zlib
+(level 1) of the raw array **34 kB**, encode 40 ms, decode **13 ms**.
+Compositing one cached frame into a 5.2 ms editor frame: full-frame
+`ImageMobject` 214-304 ms; numpy float blend 175 ms; cropped integer numpy
+blend 28 ms; a cropped premultiplied crop painted with **Cairo** between two
+capture runs **no measurable cost** (5.2 ms total), max channel error 1.5.
+A fresh process per render: Python up 0.2-0.3 s, Manim imported at **5.8-7.8 s**,
+first frame at 6.6-8.7 s, done at 7.2-9.3 s — the import is ~85 % of the wait.
+→ ADR 0019.

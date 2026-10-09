@@ -199,3 +199,22 @@ left open, so ADRs can cite it.
   one-token spans; a count-only retarget warning misses swaps → compare the
   span's text and neighbours too; after Split terms the root would be
   unreachable on the canvas → root-first click, double-click to drill in.
+
+## Session 11 — P2d code layers plan · 2026-10-09
+
+- **Tool / profile:** Terza, `balanced`; 3 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** the agreed escape hatch (code layers), the build worker and export
+  process designs (ADR 0015, 0017), measurement B30.
+- **Decisions:** code in `Spec(type="Code")`; rendering only in single-use warm
+  spare processes; cropped premultiplied zlib frames in the editor's cache
+  dir; Cairo compositing; hash-based trust with a prompt on open (→ ADR 0019).
+  Plan: [../plans/p2d-code-layers.md](../plans/p2d-code-layers.md).
+- **Critiques that changed the plan:** a cold process per render → measured
+  6.6-8.7 s to the first frame, almost all Manim's import → warm single-use
+  spares (isolation kept); "trusted because typed this session" misses undo,
+  paste and shared files → trust by hash at render time; unbounded cache →
+  size cap with the open project's keys kept; the renderer assumes mobjects →
+  a `CodeFrame` mobject; several layers queued behind one spare → up to two
+  spares; export could run untrusted code → `--trust-code` only when all
+  layers are trusted.
