@@ -189,3 +189,10 @@ output path. `os.replace` onto a file held open by another handle raises
 **PermissionError** (succeeds once closed). A child process printing without
 `flush`, read through a pipe, delivers its first line only **at exit** (0.98 s
 for three lines 0.3 s apart). → ADR 0017.
+
+### B26 — S4 acceptance: the editor during an export · 2026-10-09
+`benchmarks/bench_export_ui.py`: `MainWindow` offscreen with `examples/euler.json`,
+export started from the dialog (210 frames, 1280x720, 5.6 s including the
+renderer's start-up), a 16 ms `QTimer` on the UI thread: lateness median
+**0.0 ms**, p99 **14 ms**, max **50 ms** (one tick, at process start) over 343
+ticks. The UI does not freeze → S4 accepted.

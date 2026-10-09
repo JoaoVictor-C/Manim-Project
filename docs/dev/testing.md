@@ -31,8 +31,13 @@ tests/
 ```
 
 Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`
-(93 % at the last count; the suite runs in about 30 s, a third of it LaTeX and
-the real build worker).
+(93 % at the last count; the suite runs in about 60 s, a third of it real
+subprocesses — the build worker and the renderer — and LaTeX).
+
+`ui/test_export_dialog.py` holds the S4 acceptance test (export while editing;
+the video shows the scene as it was when Export was pressed), and
+`ui/test_export_job.py` runs the real renderer (progress before exit, cancel,
+errors).
 
 `ui/test_acceptance_s3.py` is the S3 acceptance test: move an object on the
 canvas with real mouse events, undo, redo; then animate it with the stopwatch.

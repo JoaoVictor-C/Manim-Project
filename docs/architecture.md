@@ -36,6 +36,8 @@ src/manim_studio/
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
     ├── selection.py     the one selection shared by every view (ADR 0016)
     ├── canvas_tools.py  click to select, drag/nudge to move, stopwatch rule (ADR 0016)
+    ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
+    ├── export_dialog.py File > Export Video: progress, cancel, open folder
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
     ├── timeline/
     │   ├── model.py     pure geometry: TimeScale, snapping, clamping (no Qt)
@@ -74,7 +76,8 @@ manim_studio.worker`). New Text/Tex/MathTex objects take 0.5–1.3 s to build th
 first time and cannot be built in a thread without freezing the UI (B17, B18);
 the worker builds them, Manim's disk cache keeps the result, and the edit is
 committed once the editor's own build will be a cache hit (ADR 0015).
-Export will run as a second process (`manim-studio render`, S4).
+Exports run as a second process (`manim-studio render --progress json`), so the
+editor keeps working while a video renders (ADR 0017).
 
 ## Core concepts
 

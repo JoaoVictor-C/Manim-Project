@@ -42,6 +42,7 @@ def _no_unsaved_changes_dialog(request, monkeypatch):
     from manim_studio.ui.main_window import MainWindow
 
     monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
+    monkeypatch.setattr(MainWindow, "ask_stop_export", lambda self: "stop")
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

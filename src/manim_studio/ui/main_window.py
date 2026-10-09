@@ -43,6 +43,7 @@ from .build_service import BuildService
 from .canvas import CanvasWidget
 from .canvas_tools import MoveTool
 from .document import Document
+from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
 from .properties_panel import PropertiesPanel
 from .selection import Selection
@@ -66,6 +67,7 @@ class MainWindow(QMainWindow):
         self.document.changed.connect(self._on_changed)
         self.document.undo_stack.cleanChanged.connect(self._update_title)
         self._has_project = False
+        self.export_dialog: ExportDialog | None = None
         self.path: Path | None = None
         self.evaluator: Evaluator | None = None
         self.t = 0.0
@@ -149,6 +151,7 @@ class MainWindow(QMainWindow):
             ("&Open...", QKeySequence.StandardKey.Open, self.open_dialog),
             ("&Save", QKeySequence.StandardKey.Save, self.save),
             ("Save &As...", QKeySequence.StandardKey.SaveAs, self.save_as),
+            ("&Export Video...", QKeySequence("Ctrl+E"), self.show_export_dialog),
         ):
             action = QAction(text, self)
             action.setShortcut(shortcut)
@@ -255,11 +258,54 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        exporting = self.export_dialog is not None and self.export_dialog.running
+        if exporting and self.ask_stop_export() != "stop":
+            event.ignore()
+            return
         if not self.confirm_discard():
             event.ignore()
             return
+        if exporting:
+            self.export_dialog.cancel()
+        if self.export_dialog is not None:
+            self.export_dialog.close()
         self.builds.client.stop()
         super().closeEvent(event)
+
+    # -- export (S4, ADR 0017) -------------------------------------------------------
+
+    def show_export_dialog(self) -> None:
+        if self.project is None:
+            self.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        if self.export_dialog is None:
+            name = self.path.stem if self.path else "untitled"
+            folder = self.path.parent if self.path else Path.cwd()
+            self.export_dialog = ExportDialog(
+                lambda: self.document.project, folder / "out" / f"{name}.mp4", adapter.cache_dir(), self
+            )
+            self.export_dialog.stateChanged.connect(self._on_export_state)
+        self.export_dialog.show()
+        self.export_dialog.raise_()
+        self.export_dialog.activateWindow()
+
+    def _on_export_state(self, text: str) -> None:
+        if text:
+            self.statusBar().showMessage(f"Export: {text}")
+        elif self.statusBar().currentMessage().startswith("Export: "):
+            self.statusBar().clearMessage()
+
+    def ask_stop_export(self) -> str:
+        """An export is running: "stop" it and quit, or "cancel" quitting."""
+        buttons = QMessageBox.StandardButton
+        answer = QMessageBox.question(
+            self,
+            "Export running",
+            "A video is being exported. Stop it and quit?",
+            buttons.Yes | buttons.No,
+            buttons.No,
+        )
+        return "stop" if answer == buttons.Yes else "cancel"
 
     # -- unsaved changes ----------------------------------------------------------
 

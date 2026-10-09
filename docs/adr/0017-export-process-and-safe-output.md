@@ -1,6 +1,6 @@
 # 0017. Exports run in a process and replace the output only when complete
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented in S4, 2026-10-09)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 

@@ -7,8 +7,8 @@ exactly what gets exported.
 
 **Status:** early development (0.1). The core engine, video export, the
 previewer, an editable timeline with undo, panels to build a scene without JSON
-(layers, object library, properties) and moving objects on the canvas work; an
-export dialog is next. See the [roadmap](docs/roadmap.md).
+(layers, object library, properties), moving objects on the canvas and
+exporting from the editor work. See the [roadmap](docs/roadmap.md).
 
 ## Quick start (Windows)
 
@@ -44,7 +44,11 @@ The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics
 until it has been built.
 
-Render it to video:
+**File > Export Video...** (Ctrl+E) renders what you see (saved or not) to MP4
+in the background, with progress and Cancel; an existing video is only
+replaced once the new one is complete.
+
+Or render from the command line:
 
 ```bash
 uv run manim-studio render examples/euler.json out/euler.mp4
