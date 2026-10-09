@@ -70,6 +70,10 @@ All notable changes to this project are documented here. The format follows
   library sections, `adapter.default_spec()` new objects; 2D `point` params are
   lifted to 3D for Manim. A test proves every exposed param changes the object.
   The editor pre-warms the library's text defaults at startup.
+- Layers dock (S2.4): the layer list front-to-back, an Add menu with the object
+  library, Delete (with the morph cascade), Up/Down and drag-to-reorder for
+  z-order, double-click to rename; each action is one undo step through the
+  build service, and a new MathTex appears when the worker has built it.
 - `Document.dragFinished` signal; `adapter.cache_dir()`; `schema.TEXT_TYPES`, `schema.RASTER_TYPES`.
 
 ### Changed
