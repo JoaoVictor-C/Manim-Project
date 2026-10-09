@@ -116,26 +116,28 @@ def test_a_missing_python_makes_the_client_unavailable(make, qt_app) -> None:
 
 @pytest.mark.latex
 def test_real_worker_warms_the_cache_for_this_process(real_worker, qt_app) -> None:
-    """B18 end to end: after the worker built them, this process builds them far faster than cold."""
+    """B18 end to end: the worker writes the disk-cache entries this process then reads."""
     worker = real_worker
     worker.replies.clear()
     specs = [
         Spec(type="Text", params={"text": f"warm {uuid.uuid4().hex[:8]}"}),
         Spec(type="MathTex", params={"text": rf"\sqrt{{{uuid.uuid4().int % 10**9}}}"}),
     ]
+    before = {path for path in CACHE.rglob("*.svg")}
     for i, spec in enumerate(specs, 1):
         worker.request(i, warm_key(spec))
     wait_until(qt_app, lambda: len(worker.replies) == 2, timeout=60)
     assert [ok for _, ok, _ in worker.replies] == [True, True], worker.replies
-    # Compare with cold builds in this same run: absolute times vary several-fold with
-    # machine load (a cold Text took 0.56 s in B17 and 2.4 s on a busy machine).
-    cold_specs = [
-        Spec(type="Text", params={"text": f"cold {uuid.uuid4().hex[:8]}"}),
-        Spec(type="MathTex", params={"text": rf"\sqrt[3]{{{uuid.uuid4().int % 10**9}}}"}),
-    ]
-    for warm, cold in zip(specs, cold_specs, strict=True):
-        warm_ms, cold_ms = build_ms(warm), build_ms(cold)
-        assert warm_ms < cold_ms / 3, f"{warm.type}: warm {warm_ms:.0f} ms vs cold {cold_ms:.0f} ms"
+    written = {path for path in CACHE.rglob("*.svg")} - before
+    assert {path.parent.name for path in written} == {"texts", "Tex"}, written
+    # Reading them back is a cache hit: for LaTeX (seconds cold) that is far faster.
+    # Text is not timed: a cold Text can take as little as 0.2 s, close to a warm read.
+    cold = Spec(type="MathTex", params={"text": rf"\sqrt[3]{{{uuid.uuid4().int % 10**9}}}"})
+    warm_ms, cold_ms = build_ms(specs[1]), build_ms(cold)
+    assert warm_ms < cold_ms / 3, f"MathTex: warm {warm_ms:.0f} ms vs cold {cold_ms:.0f} ms"
+    files = len({path for path in CACHE.rglob("*.svg")})
+    build_ms(specs[0])
+    assert len({path for path in CACHE.rglob("*.svg")}) == files  # the warmed Text: nothing new written
 
 
 def build_ms(spec: Spec) -> float:

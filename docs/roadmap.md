@@ -28,7 +28,7 @@ timeline and canvas, with the real build worker and renderer.
 
 ## Phase 2
 
-- **P2c** — [plan](plans/p2c-part-layers.md): part layers (ADR 0012) — animate
+- ✅ **P2c** — [plan](plans/p2c-part-layers.md): part layers (ADR 0012) — animate
   the terms of an equation as their own layers
 - TransformMatchingTex between equations with parts
 - Code layers: a layer holding user-written Manim code, rendered into a frame

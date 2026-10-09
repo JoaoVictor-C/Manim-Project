@@ -60,18 +60,22 @@ def centre(window, layer_id: str) -> tuple[float, float]:
 
 
 def glyph(window, layer_id: str) -> tuple[float, float]:
-    """A point on the ink of the layer's first glyph (its centre may be a hole, as in "b")."""
+    """The point on the ink of the layer's first glyph nearest its centre.
+
+    The centre itself may be a hole (as in "b"); points near the edge of a small
+    part may fall on a gizmo handle instead.
+    """
     from manim_studio.render.hit_test import hit_layers
 
     layers = window.evaluator.frame_layers(window.t)
     leaf = dict(layers)[layer_id].family_members_with_points()[0]
     (x0, y0, _), (x1, y1, _) = leaf.get_corner((-1, -1, 0)), leaf.get_corner((1, 1, 0))
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     ppu = window.canvas.px_per_unit()
-    for fy in (0.5, 0.3, 0.7):
-        for i in range(1, 20):
-            point = (x0 + (x1 - x0) * i / 20, y0 + (y1 - y0) * fy)
-            if hit_layers(layers, point, ppu)[:1] == [layer_id]:
-                return point
+    grid = [(x0 + (x1 - x0) * i / 20, y0 + (y1 - y0) * j / 20) for i in range(1, 20) for j in range(1, 20)]
+    for point in sorted(grid, key=lambda p: (p[0] - cx) ** 2 + (p[1] - cy) ** 2):
+        if hit_layers(layers, point, ppu)[:1] == [layer_id]:
+            return point
     raise AssertionError(f"no ink found for {layer_id}")
 
 

@@ -1,9 +1,9 @@
 # P2c — Part layers (terms of an equation): implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_p2c.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 10](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
-- **Evidence:** benchmark B28 in [../logs/benchmarks.md](../logs/benchmarks.md)
+- **Evidence:** benchmarks B28, B29 in [../logs/benchmarks.md](../logs/benchmarks.md)
 - **ADR:** [0012 — Layer tree and part layers](../adr/0012-layer-tree-and-part-layers.md)
 
 ## Goal
@@ -90,3 +90,22 @@ moving a part outside its root's z slot.
 | P2c.3 | layers tree, timeline rows, Add part dialog, Split terms | edits through the UI, one undo step each |
 | P2c.4 | canvas drill-in, part pivot, Properties part view, orphan/retarget messages | click/double-click/Esc; gizmo on a part |
 | P2c.5 | acceptance + docs | write, indicate, move, fade a term; export checked |
+
+## Outcome
+
+Done on 2026-10-09. Differences from the plan:
+
+- A sibling may not *contain* another sibling either (not only cross it): their
+  shared glyphs would be drawn twice. Only a part's ancestors share its glyphs.
+- The retarget warning compares the match count and the nearest character on
+  the part's left; text appended after a part does not trip it.
+- Clip drags and new clips on a row respect *obstacles*: the clips of the
+  layer's ancestors and parts (`timeline.model.obstacles`), so the subtree
+  overlap rule is never broken mid-drag.
+- `Evaluator.layer_frame` gives a layer's pivot, world rotation and the map
+  from a world move to its own position: dragging a part under a rotated or
+  scaled object moves it under the cursor.
+- An object with parts costs 3.8 ms per frame to evaluate (0.6 ms without),
+  12.6 ms with rendering at 1280x720 (B29).
+- Known limit: on a small part the gizmo's corner handles sit close to its
+  glyphs, so a press near its edge scales instead of moving it.
