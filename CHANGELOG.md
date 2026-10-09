@@ -115,6 +115,9 @@ All notable changes to this project are documented here. The format follows
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
+- Phase 1 complete: `tests/ui/test_acceptance_v1.py` writes an equation, moves
+  it, morphs it into a second equation, fades it out and exports MP4 through
+  the UI alone.
 - Export dialog (S4.3-S4.4): File > Export Video... (Ctrl+E) exports the scene
   as it is (saved or not) in the background — "Starting...", frame progress and
   time left, Cancel, Open folder; quitting during an export asks first. The UI

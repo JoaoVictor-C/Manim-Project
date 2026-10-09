@@ -8,7 +8,9 @@ exactly what gets exported.
 **Status:** early development (0.1). The core engine, video export, the
 previewer, an editable timeline with undo, panels to build a scene without JSON
 (layers, object library, properties), moving objects on the canvas and
-exporting from the editor work. See the [roadmap](docs/roadmap.md).
+exporting from the editor work — enough to write an equation, move it, morph
+it into another, fade it out and export the video without touching code or
+JSON. See the [roadmap](docs/roadmap.md).
 
 ## Quick start (Windows)
 

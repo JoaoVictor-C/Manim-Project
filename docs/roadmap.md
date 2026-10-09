@@ -12,7 +12,7 @@ Each slice ends with something runnable and its tests. Order decided in
 - Benchmarks B1–B9
 - **S0 previewer**: `manim-studio edit` — open/save, scrub, play, step, idle checkpoints
 
-## Phase 1 — editor MVP
+## Phase 1 — editor MVP ✅ (2026-10-09)
 
 | slice | scope | done when |
 |---|---|---|
@@ -22,7 +22,9 @@ Each slice ends with something runnable and its tests. Order decided in
 | ✅ **S4 export dialog** — [plan](plans/s4-export.md) | `QProcess` running `manim-studio render`, progress, cancel | export from the UI without freezing it (`tests/ui/test_export_dialog.py`; B26) |
 
 **Smallest useful v1:** write an equation, move it, morph it into a second
-equation, fade it out, export MP4 — without touching code or JSON.
+equation, fade it out, export MP4 — without touching code or JSON. ✅ Reached:
+`tests/ui/test_acceptance_v1.py` does exactly this through the menus, panels,
+timeline and canvas, with the real build worker and renderer.
 
 ## Phase 2
 
