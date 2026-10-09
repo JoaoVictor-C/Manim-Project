@@ -21,6 +21,7 @@ src/manim_studio/
 ├── logging_config.py    console + rotating file logging (ADR 0011)
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
+│   ├── edits.py         edits → new validated snapshot + edit kind (ADR 0013, 0014)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)
@@ -63,7 +64,7 @@ UI command ─► edited Project ─► invalidate(layer_ids, edit class)      �
 | Clip | a Manim animation on a layer's lane; categories content / emphasis / morph | ADR 0004, 0005 |
 | Keyframes | position, scale, rotation, opacity applied after clips | ADR 0004 |
 | Checkpoint | cached state of a layer after a clip | ADR 0002 |
-| Edit class | transform-only / clip / spec — decides what `invalidate` drops | ADR 0008 |
+| Edit kind | timing / transform / clip / spec, computed by `core/edits.py` — decides what `Evaluator.apply` drops | ADR 0008, 0013 |
 | Allow-list | clip kinds × mobject types verified random-access-safe | ADR 0007 |
 
 The document format is specified in [project-format.md](project-format.md).

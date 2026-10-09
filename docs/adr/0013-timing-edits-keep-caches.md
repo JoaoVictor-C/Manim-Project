@@ -1,6 +1,6 @@
 # 0013. Edit kinds: timing edits keep caches
 
-- **Status:** Proposed (implement in S1.1)
+- **Status:** Accepted (implemented in S1.1, 2026-10-09)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 - **Extends:** [0008](0008-incremental-invalidation-edit-classes.md)
@@ -43,5 +43,10 @@ and the order of clip ids on every lane is unchanged.
 
 - Benchmarks B11–B14 in [../logs/benchmarks.md](../logs/benchmarks.md); the
   prototype matched a freshly built evaluator pixel for pixel (max diff 0).
-- To be added in S1.1: spy test (no `make_animation` calls on timing edits),
-  reorder ⇒ clip test, keyframed-morph test, property test over random edits.
+- Benchmark B15 (real implementation): 15–22 ms per drag step.
+- `tests/core/test_edits.py`: a spy on `adapter.make_animation` proves timing
+  edits never re-begin; reorder ⇒ clip; keyframed morphs rebuild only when their
+  baked transforms change; all compared against a fresh evaluator.
+- `tests/core/test_properties.py::test_random_edits_match_fresh_evaluator`:
+  random edits through the API. Mutation-checked: a classifier that calls every
+  edit "timing" makes it fail with stale frames.

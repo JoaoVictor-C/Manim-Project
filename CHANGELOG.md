@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `core/edits.py` (S1.1): `move_clip`, `trim_clip`, `update_clip`, `update_layer`
+  return validated snapshots plus an edit kind computed by diffing; `Evaluator.apply(edit)`.
+- Edit kind **timing** keeps every evaluator cache; morph animations are reused
+  while their baked start/end transforms are unchanged (ADR 0013). Clip drags on
+  the stress scene: 94 ms → 15–22 ms per step (B15).
 - MIT license.
 - Project structure: `cli.py`, `logging_config.py`, `ui/` (canvas split from main window),
   `benchmarks/`, tests split into `core/`, `render/`, `ui/` with shared `support.py`.
@@ -27,6 +32,7 @@ All notable changes to this project are documented here. The format follows
 - S1 timeline plan (`docs/plans/s1-timeline.md`), proposed ADRs 0013–0014, benchmarks B10–B14.
 
 ### Changed
+- `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so
   documents validate without importing Manim; `adapter.ANIMATION_CLASSES` maps kinds to Manim.
 - `pillow<13` pinned: Manim 0.22 uses an argument Pillow 13 removes.

@@ -11,6 +11,10 @@ produce the frame at any time ``t`` in any order:
 * keyframed layer transforms are applied to a throwaway copy, never in place.
 
 The frame at ``t`` is therefore a pure function of (project, t).
+
+Edits are applied with ``invalidate`` / ``apply`` and an edit kind (ADR 0008,
+ADR 0013): timing and transform edits keep every cache, clip and spec edits drop
+the affected layers' caches.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ import numpy as np
 
 from ..logging_config import get_logger
 from . import adapter
+from .edits import Edit, EditKind
 from .schema import Clip, Keyframe, Layer, Project, Transform2D
 
 log = get_logger(__name__)
@@ -33,6 +38,7 @@ log = get_logger(__name__)
 class _Active:
     anim: m.Animation
     drawn: m.Mobject
+    baked: tuple[Transform2D, Transform2D] | None = None  # morphs: world transforms at start/end
 
 
 class Evaluator:
@@ -71,28 +77,28 @@ class Evaluator:
     def compute_checkpoint(self, layer: Layer, index: int) -> None:
         self._state_before(layer, index)
 
-    def invalidate(self, project: Project, layer_ids: set[str], transform_only: bool = False) -> None:
-        """Adopt an edited ``project`` and drop caches of the changed layers only.
+    def apply(self, edit: Edit) -> None:
+        """Adopt an ``Edit`` from ``core.edits`` (its kind was computed by diffing)."""
+        self.invalidate(edit.project, set(edit.layer_ids), edit.kind)
 
-        Morph partners are invalidated too: a morph clip reads both ends.
-        Rebuilding the whole evaluator costs 100-200 ms; this keeps edits cheap.
+    def invalidate(self, project: Project, layer_ids: set[str], kind: EditKind = "clip") -> None:
+        """Adopt an edited ``project`` and drop only the caches the edit can affect.
 
-        ``transform_only`` is for edits to position/scale/rotation/opacity (gizmo
-        drags, keyframes): layer transforms are applied after clips on scratch
-        proxies, so only morph clips, which bake both ends' transforms, go stale.
+        Rebuilding the whole evaluator costs 100-200 ms (B3); this keeps edits cheap.
+
+        * ``timing`` / ``transform``: nothing is dropped. Begun animations and
+          checkpoints depend on the preceding clips, kind, params and ease, never
+          on *when* a clip plays, and layer transforms are applied afterwards on
+          scratch proxies. Morphs bake both ends' world transforms, so they are
+          re-begun lazily when those transforms differ (``_morph_at``).
+        * ``clip`` / ``spec``: the layers' checkpoints, active clips and proxies,
+          plus morph partners (a morph reads both ends); ``spec`` also rebuilds the
+          base object when its spec changed.
         """
-        if transform_only:
+        if kind in ("timing", "transform"):
             self.project = project
             self._index_morphs()
-            stale = {
-                (layer.id, clip.id)
-                for layer in project.layers
-                for clip in layer.clips
-                if clip.to_layer and (layer.id in layer_ids or clip.to_layer in layer_ids)
-            }
-            for key in stale:
-                self._active.pop(key, None)
-            log.debug("invalidate transform-only %s: %d morph clips dropped", layer_ids, len(stale))
+            log.debug("invalidate %s %s: caches kept", kind, layer_ids)
             return
         old_partners = {
             layer.id: {c.to_layer for c in layer.clips if c.to_layer} for layer in self.project.layers
@@ -196,16 +202,23 @@ class Evaluator:
         return self._active[key]
 
     def _morph_at(self, layer: Layer, index: int, clip: Clip, alpha: float) -> m.Mobject:
-        """Morphs are world-space hand-offs: A at clip start -> B at clip end."""
+        """Morphs are world-space hand-offs: A at clip start -> B at clip end (ADR 0005).
+
+        The begun animation bakes both ends' world transforms, so it is reused
+        only while those transforms are unchanged (ADR 0013): moving a morph whose
+        partners are static or settled costs no new ``begin()``.
+        """
         key = (layer.id, clip.id)
-        if key not in self._active:
-            target_layer = self.project.layer(clip.to_layer)
+        target_layer = self.project.layer(clip.to_layer)
+        baked = (self.transform_at(layer, clip.start), self.transform_at(target_layer, clip.end))
+        cached = self._active.get(key)
+        if cached is None or cached.baked != baked:
             # _to_world may return shared buffers; the animation mutates its inputs.
             source = self._to_world(self._state_before(layer, index), layer, clip.start).copy()
             target = self._to_world(self._base_mobject(target_layer), target_layer, clip.end).copy()
             anim = adapter.make_animation(clip.kind, source, clip.ease, clip.params, target)
             anim.begin()
-            self._active[key] = _Active(anim, anim.mobject)
+            self._active[key] = _Active(anim, anim.mobject, baked)
         active = self._active[key]
         active.anim.interpolate(alpha)
         return active.drawn

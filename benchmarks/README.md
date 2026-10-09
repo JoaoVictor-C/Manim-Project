@@ -4,6 +4,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 
 | script | measures |
 |---|---|
+| `bench_edits.py` | one timeline drag step through the edit API (Write clip, morphs) — B15 |
 | `bench_preview.py` | evaluator, QPainter and Cairo time per frame on the stress scene (20 MathTex, 3 concurrent Writes, 10 keyframed layers) at 960×540 |
 
 ```bash

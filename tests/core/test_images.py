@@ -111,7 +111,7 @@ def test_image_transform_only_invalidation(image_spec: Spec) -> None:
         evaluator.frame(t)
     edited = project.model_copy(deep=True)
     edited.layers[0].tracks["position"] = [Keyframe(t=0, value=(1.0, -1.0))]
-    evaluator.invalidate(edited, {"img"}, transform_only=True)
+    evaluator.invalidate(edited, {"img"}, kind="transform")
     assert_evaluators_agree(evaluator, Evaluator(edited))
 
 

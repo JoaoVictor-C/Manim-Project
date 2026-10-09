@@ -41,5 +41,5 @@ need one.
 | [0010](0010-python-round-trip-is-export-only.md) | Python round-trip is one-way export | Accepted |
 | [0011](0011-logging.md) | Logging: console plus per-user rotating file | Accepted |
 | [0012](0012-layer-tree-and-part-layers.md) | Layer tree and part layers | Proposed |
-| [0013](0013-timing-edits-keep-caches.md) | Edit kinds: timing edits keep caches | Proposed |
+| [0013](0013-timing-edits-keep-caches.md) | Edit kinds: timing edits keep caches | Accepted |
 | [0014](0014-document-snapshots-and-undo.md) | Document snapshots and undo | Proposed |

@@ -30,8 +30,8 @@ def test_clip_edit_matches_fresh_evaluator() -> None:
     assert_evaluators_agree(evaluator, Evaluator(edited))
 
 
-@pytest.mark.parametrize("transform_only", [False, True])
-def test_morph_target_edit_refreshes_source(transform_only: bool) -> None:
+@pytest.mark.parametrize("kind", ["clip", "transform"])
+def test_morph_target_edit_refreshes_source(kind: str) -> None:
     """Moving the morph TARGET must refresh the source layer's morph clip."""
     layers = [
         Layer(
@@ -46,7 +46,7 @@ def test_morph_target_edit_refreshes_source(transform_only: bool) -> None:
 
     edited = project.model_copy(deep=True)
     edited.layers[1].base = Transform2D(position=(2.5, 1.0), scale=0.5)
-    evaluator.invalidate(edited, {"b"}, transform_only=transform_only)
+    evaluator.invalidate(edited, {"b"}, kind=kind)
     assert_evaluators_agree(evaluator, Evaluator(edited))
 
 
@@ -59,7 +59,7 @@ def test_transform_only_edit_keeps_active_clip() -> None:
 
     edited = project.model_copy(deep=True)
     edited.layers[0].base = Transform2D(position=(1.0, -1.0), rotation=30.0)
-    evaluator.invalidate(edited, {"a"}, transform_only=True)
+    evaluator.invalidate(edited, {"a"}, kind="transform")
     assert_evaluators_agree(evaluator, Evaluator(edited))
 
 

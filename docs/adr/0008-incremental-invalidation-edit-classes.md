@@ -1,6 +1,6 @@
 # 0008. Incremental invalidation with edit classes
 
-- **Status:** Accepted
+- **Status:** Accepted; extended by [0013](0013-timing-edits-keep-caches.md) (the API now takes `kind=`)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 

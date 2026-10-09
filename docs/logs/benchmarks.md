@@ -104,3 +104,10 @@ Source layer has position keyframes over 0–1 s; morph cache keyed by baked
 start/end transforms. Dragging the morph where partners are settled (start
 2.0–2.2 s): **15.4 ms** per step. Dragging while the source is mid-motion (start
 0.3–0.5 s): **104.8 ms** (re-begins each step). → ADR 0013, known slow path.
+
+### B15 — Drag step through the edit API (S1.1 implementation) · 2026-10-09
+`benchmarks/bench_edits.py`: `edits.move_clip` + `Evaluator.apply` + evaluate +
+Cairo 960×540 on the stress scene + a MathTex morph. Write-clip drag **21.7 ms**;
+morph drag with static partners **15.0 ms**; with keyframed partners that have
+settled **14.9 ms**; while the source is mid-motion **105.8 ms** (known slow
+path). Confirms the B13/B14 prototype numbers. → ADR 0013 accepted.

@@ -15,6 +15,7 @@ import random
 
 import pytest
 
+from manim_studio.core import edits
 from manim_studio.core.evaluator import Evaluator
 from manim_studio.core.schema import (
     CLIP_KIND_INFO,
@@ -111,29 +112,40 @@ def test_frames_are_order_independent(seed: int) -> None:
         assert max_diff(scrambled[t], fresh) <= 1, f"seed={seed} t={t}"
 
 
+def random_edit(rng: random.Random, project: Project) -> edits.Edit:
+    """One random edit through the public edit API, kept valid by construction."""
+    layer = rng.choice(project.layers)
+    movable = [c for c in layer.clips]
+    op = rng.choice(["move", "trim", "base", "ease"] if movable else ["base"])
+    if op == "base":
+        base = Transform2D(position=(rng.uniform(-2, 2), rng.uniform(-1, 1)), rotation=rng.uniform(-90, 90))
+        return edits.update_layer(project, layer.id, base=base)
+    index = rng.randrange(len(movable))
+    clip = movable[index]
+    lo = layer.clips[index - 1].end if index > 0 else 0.0
+    hi = layer.clips[index + 1].start if index + 1 < len(layer.clips) else CANVAS.duration
+    if op == "move":
+        return edits.move_clip(project, layer.id, clip.id, rng.uniform(lo, hi - clip.duration))
+    if op == "trim":
+        end = rng.uniform(clip.start + 0.05, hi)
+        return edits.trim_clip(project, layer.id, clip.id, end=end)
+    return edits.update_clip(project, layer.id, clip.id, ease=rng.choice(EASES))
+
+
 @pytest.mark.parametrize("seed", SEEDS)
 def test_random_edits_match_fresh_evaluator(seed: int) -> None:
+    """ADR 0013: applying an Edit with its computed kind renders like a rebuilt evaluator."""
     rng = random.Random(1000 + seed)
     project = random_project(rng)
     evaluator = Evaluator(project)
     render_all(evaluator, TIMES)  # warm every cache
-
-    edited = project.model_copy(deep=True)
-    layer = rng.choice(edited.layers)
-    transform_only = rng.random() < 0.5 or not layer.clips
-    if transform_only:
-        layer.base = Transform2D(
-            position=(rng.uniform(-2, 2), rng.uniform(-1, 1)), rotation=rng.uniform(-90, 90)
-        )
-    else:
-        clip = rng.choice([c for c in layer.clips if c.info.category != "morph"] or layer.clips)
-        shifted = clip.model_copy(update={"ease": rng.choice(EASES)})
-        layer.clips = [shifted if c is clip else c for c in layer.clips]
-    edited = Project.model_validate(edited.model_dump(by_alias=True))
-    evaluator.invalidate(edited, {layer.id}, transform_only=transform_only)
-
-    got = render_all(evaluator, TIMES)
-    camera = make_camera(CANVAS)
-    fresh = Evaluator(edited)
-    for t in TIMES:
-        assert max_diff(got[t], render_frame(camera, fresh.frame(t))) <= 1, f"seed={seed} t={t}"
+    for _ in range(3):
+        edit = random_edit(rng, project)
+        evaluator.apply(edit)
+        project = edit.project
+        got = render_all(evaluator, TIMES)
+        camera = make_camera(CANVAS)
+        fresh = Evaluator(project)
+        for t in TIMES:
+            diff = max_diff(got[t], render_frame(camera, fresh.frame(t)))
+            assert diff <= 1, f"seed={seed} kind={edit.kind} t={t}"
