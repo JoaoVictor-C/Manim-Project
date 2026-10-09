@@ -34,6 +34,16 @@ def qt_app():
     return widgets.QApplication.instance() or widgets.QApplication([])
 
 
+@pytest.fixture(autouse=True)
+def _no_unsaved_changes_dialog(request, monkeypatch):
+    """Editor windows closed with unsaved edits must not block on a modal question."""
+    if "ui" not in request.keywords:
+        return
+    from manim_studio.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if shutil.which("latex") is None:
         skip = pytest.mark.skip(reason="LaTeX not found (install MiKTeX or TeX Live)")
