@@ -171,3 +171,12 @@ cannot follow the cursor → drags refused during a morph. A filled Square at th
 first frame of its FadeIn has its full geometry but fill and stroke alpha
 **0.0** (0.001 one frame later) → hit-testing is gated on alpha > 0.02. Of the 17
 easings the panel offers, only `there_and_back` does not end at 1. → ADR 0016.
+
+### B24 — S3 acceptance: canvas drag in the editor window · 2026-10-09
+`benchmarks/bench_canvas_drag.py`: `MainWindow` offscreen at 1280x820 with both
+docks (canvas 616x346), stress scene + MathTex morph, idle checkpoints done,
+playhead at 1.5 s; synthetic mouse drags on the canvas, timed from the
+mouse-move event to the end of its event-loop turn (edit + validation +
+evaluator + Cairo render + outline + panels). Static layer (base position):
+**18.4 ms** median (19.7 p90); keyframed layer (key at the playhead): **18.5 ms**
+(19.4 p90). Within the 33 ms budget → S3 accepted.

@@ -6,9 +6,9 @@ Effects or Premiere: layers, a timeline of animation clips, keyframes and easing
 exactly what gets exported.
 
 **Status:** early development (0.1). The core engine, video export, the
-previewer, an editable timeline with undo, and panels to build a scene without
-JSON (layers, object library, properties) work; canvas interaction is next. See
-the [roadmap](docs/roadmap.md).
+previewer, an editable timeline with undo, panels to build a scene without JSON
+(layers, object library, properties) and moving objects on the canvas work; an
+export dialog is next. See the [roadmap](docs/roadmap.md).
 
 ## Quick start (Windows)
 
@@ -34,6 +34,12 @@ Delete) to remove it.
 In the Layers panel: **Add** creates an object from the library (shapes, Text,
 MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
 (Ctrl+] / Ctrl+[) or dragging changes the stacking order; double-click renames.
+On the canvas: click an object to select it (Alt+click: the one behind), drag
+to move it (Shift: one axis, Escape cancels), arrow keys nudge it (Shift: 10 px).
+With **Keyframes** on for its position (Properties > Transform), moving it sets
+a key at the playhead instead — move the playhead, move the object, and it
+animates.
+
 The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics
 until it has been built.

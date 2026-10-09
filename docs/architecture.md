@@ -29,10 +29,13 @@ src/manim_studio/
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)
 ├── render/
 │   ├── cairo_export.py  Manim Cairo camera → frames → PyAV/libx264
-│   └── qt_paths.py      Manim geometry → QPainterPath (hit-testing, outlines)
+│   ├── qt_paths.py      Manim geometry → QPainterPath (outlines)
+│   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
+    ├── selection.py     the one selection shared by every view (ADR 0016)
+    ├── canvas_tools.py  click to select, drag/nudge to move, stopwatch rule (ADR 0016)
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
     ├── timeline/
     │   ├── model.py     pure geometry: TimeScale, snapping, clamping (no Qt)
