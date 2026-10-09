@@ -16,6 +16,7 @@ from PySide6.QtGui import QColor, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDoubleSpinBox,
@@ -153,6 +154,17 @@ class LongTextField(Field):
     def _show(self, value: Any) -> None:
         if self.widget.toPlainText() != value:
             self.widget.setPlainText("" if value is None else str(value))
+
+
+class BoolField(Field):
+    def __init__(self, on_commit: Commit, text: str = "") -> None:
+        super().__init__(on_commit)
+        box = QCheckBox(text)
+        box.toggled.connect(self.commit)
+        self.widget = box
+
+    def _show(self, value: Any) -> None:
+        self.widget.setChecked(bool(value))
 
 
 class ChoiceField(Field):

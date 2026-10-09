@@ -30,6 +30,7 @@ from ..core.adapter import Param
 from ..core.schema import CLIP_KIND_INFO, RASTER_TYPES, Easing, Layer, Project
 from .build_service import BuildService
 from .fields import (
+    BoolField,
     ChoiceField,
     ColorField,
     Field,
@@ -76,6 +77,19 @@ def set_base(project: Project, layer_id: str, name: str, value: Any) -> edits.Ed
     return edits.update_layer(project, layer_id, base=base)
 
 
+def set_animated(
+    project: Project, layer_id: str, prop: str, value: bool, at: Callable[[], float]
+) -> edits.Edit:
+    """The stopwatch (ADR 0016): on = one key at the playhead holding the current value
+    (nothing moves); off = drop the keys, keeping the value at the playhead."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    layer = project.layer(layer_id)
+    if value:
+        return edits.set_key(project, layer_id, prop, at(), getattr(layer.base, prop))
+    return edits.clear_track(project, layer_id, prop, at())
+
+
 def set_lifetime(project: Project, layer_id: str, key: str, value: float | None) -> edits.Edit:
     if not _has(project, layer_id):
         raise edits.EditError(f"no layer {layer_id!r}")
@@ -104,6 +118,7 @@ class PropertiesPanel(QWidget):
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
         self._generation = 0  # bumped on every rebuild: old widgets can no longer commit
+        self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
 
         self.title = QLabel()
         self.title.setWordWrap(True)
@@ -183,6 +198,11 @@ class PropertiesPanel(QWidget):
                 continue
             waiting, value = self.builds.pending_value(self._keys[path])
             field.set_value(value if waiting else self._getters[path](layer), pending=waiting)
+            if path.startswith("base."):  # a keyframed property is edited through its keys
+                prop = path.split(".", 1)[1]
+                keyed = bool(layer.tracks.get(prop))
+                field.widget.setEnabled(not keyed)
+                field.widget.setToolTip(f"{prop.capitalize()} is animated by keyframes" if keyed else "")
 
     def _update_title(self, layer: Layer) -> None:
         name = layer.name or layer.id
@@ -260,10 +280,14 @@ class PropertiesPanel(QWidget):
             path = f"base.{name}"
             self._register(path, lambda layer, n=name: getattr(layer.base, n))
             field = field_type(self._op(path, partial(set_base, name=name), f"Change {label.lower()}"))
-            if name in layer.tracks:
-                field.widget.setEnabled(False)
-                field.widget.setToolTip(f"{label} is animated by keyframes")
             rows.append((label, path, field))
+            if name == "position":
+                key_path = "keys.position"
+                self._register(key_path, lambda layer: bool(layer.tracks.get("position")))
+                op = partial(set_animated, prop="position", at=lambda: self.playhead())
+                toggle = BoolField(self._op(key_path, op, "Animate position"), "Keyframes")
+                toggle.widget.setToolTip("On: moving it on the canvas sets a key at the playhead")
+                rows.append(("", key_path, toggle))
         self._section("Transform", rows)
 
     def _lifetime_section(self) -> None:

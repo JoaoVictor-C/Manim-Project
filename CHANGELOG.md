@@ -102,6 +102,10 @@ All notable changes to this project are documented here. The format follows
   step. Layers with position keyframes get a key at the playhead (snapped to the
   frame); others get their base position changed. Morphing layers cannot be
   dragged while their morph plays.
+- Stopwatch toggle (S3.6): Properties > Transform > Keyframes turns position
+  keyframes on (one key at the playhead holding the current value) or off
+  (keeps the value at the playhead as the base). Base fields of a keyframed
+  property are disabled live.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
   benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes

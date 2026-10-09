@@ -15,7 +15,7 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from manim_studio.core import adapter, edits
-from manim_studio.core.schema import Clip, Easing, Keyframe, Layer, Project, Spec
+from manim_studio.core.schema import Clip, Easing, Keyframe, Layer, Project, Spec, Transform2D
 from manim_studio.core.warm import warm_key
 from manim_studio.ui.build_service import BuildService
 from manim_studio.ui.document import Document
@@ -252,3 +252,36 @@ def test_opening_another_project_clears_the_panel(panel) -> None:
     panel.show_layer("ball")
     panel.document.replace(project())
     assert panel.layer_id is None
+
+
+# -- stopwatch (S3.6, ADR 0016) ------------------------------------------------------
+
+
+def test_stopwatch_on_adds_one_key_holding_the_current_value(panel) -> None:
+    panel.playhead = lambda: 0.4  # frame 6 at 15 fps
+    panel.show_layer("box")
+    panel.document.apply(
+        edits.update_layer(panel.project, "box", base=Transform2D(position=(1.0, 2.0))), "Move layer"
+    )
+    assert panel.fields["base.position"].widget.isEnabled()
+    panel.fields["keys.position"].widget.setChecked(True)
+    track = layer(panel, "box").tracks["position"]
+    assert [(k.t, k.value) for k in track] == [(pytest.approx(0.4), (1.0, 2.0))]
+    assert not panel.fields["base.position"].widget.isEnabled()  # moved through keys now
+    assert undo_texts(panel)[-1] == "Animate position"
+
+
+def test_stopwatch_off_keeps_the_value_at_the_playhead(panel) -> None:
+    doc = panel.document
+    doc.apply(edits.set_key(panel.project, "box", "position", 0.0, (0.0, 0.0)), "Key")
+    doc.apply(edits.set_key(panel.project, "box", "position", 1.0, (2.0, 0.0)), "Key")
+    panel.playhead = lambda: 0.5
+    panel.show_layer("box")
+    assert panel.fields["keys.position"].widget.isChecked()
+    panel.fields["keys.position"].widget.setChecked(False)
+    box = layer(panel, "box")
+    assert "position" not in box.tracks
+    assert box.base.position[0] == pytest.approx(1.0, abs=0.2)  # where it was at 0.5 s (smooth ease)
+    assert panel.fields["base.position"].widget.isEnabled()
+    doc.undo_stack.undo()
+    assert len(layer(panel, "box").tracks["position"]) == 2
