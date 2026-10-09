@@ -72,9 +72,11 @@ class Document(QObject):
     # -- committed edits ------------------------------------------------------
 
     def apply(self, edit: edits.Edit, text: str) -> None:
-        """Commit ``edit`` as one undo step."""
+        """Commit ``edit`` as one undo step (none if it changes nothing)."""
         if self.dragging:
             raise RuntimeError("finish or cancel the drag before applying another edit")
+        if edit.project == self._project:
+            return
         self.undo_stack.push(_SnapshotCommand(self, self._project, edit.project, text, applied=False))
 
     # -- drags ---------------------------------------------------------------

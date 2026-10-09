@@ -102,6 +102,8 @@ dialog in the editor):
 
 - `schema_version` must be supported; layer ids are unique.
 - Clips: known `kind`; `start ≥ 0`; `duration > 0`; no overlap on a lane.
+- Clip ids are unique within a layer; image layers refuse vector-only kinds
+  (Create, Write, DrawBorderThenFill, Wiggle, ...).
 - Morph clips must have `to_layer`; other clips must not. The target must exist,
   must not be the layer itself, and may be the target of only one morph.
 - Nothing may follow a morph on the same lane (the layer has handed off — ADR 0005).

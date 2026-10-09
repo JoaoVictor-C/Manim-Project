@@ -19,6 +19,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validator, model_validator
 
 SCHEMA_VERSION = 1
+TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
+RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "morph"]
@@ -153,6 +155,17 @@ class Layer(BaseModel):
 
     @model_validator(mode="after")
     def _lane_rules(self) -> Layer:
+        ids = [c.id for c in self.clips]
+        if len(set(ids)) != len(ids):
+            raise ValueError(
+                f"layer {self.id!r}: duplicate clip ids {sorted({i for i in ids if ids.count(i) > 1})}"
+            )
+        if self.spec.type in RASTER_TYPES:
+            for clip in self.clips:
+                if clip.info.vector_only:
+                    raise ValueError(
+                        f"layer {self.id!r}: {clip.kind} needs a vector object, not {self.spec.type}"
+                    )
         ordered = sorted(self.clips, key=lambda c: c.start)
         for a, b in itertools.pairwise(ordered):
             if b.start < a.end - 1e-9:

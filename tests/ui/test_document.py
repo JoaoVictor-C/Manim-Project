@@ -89,6 +89,13 @@ def test_commit_without_change_records_nothing(doc) -> None:
     assert not doc.dragging
 
 
+def test_an_edit_that_changes_nothing_records_nothing(doc) -> None:
+    doc.apply(edits.move_layer(doc.project, "a", 0), "Reorder layers")
+    doc.apply(edits.update_layer(doc.project, "a", name=""), "Rename layer")
+    assert doc.undo_stack.count() == 0
+    assert doc.events == []
+
+
 def test_cancel_restores_the_drag_start(doc) -> None:
     before = doc.project
     doc.begin_preview()

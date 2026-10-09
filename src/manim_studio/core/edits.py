@@ -21,10 +21,11 @@ wrong. This module has no Qt dependency (coding standards rule 1).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .schema import Clip, Layer, Project
+from .schema import Clip, Easing, Layer, Project, Spec
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
 _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec": 3}
@@ -75,6 +76,82 @@ def update_layer(project: Project, layer_id: str, **fields: Any) -> Edit:
     """Change top-level fields of a layer (``base``, ``tracks``, ``spec``, ``lifetime``, ...)."""
     _layer(project, layer_id)
     return _replace_layer(project, layer_id, fields)
+
+
+# -- structure: layers and clips (S2) ---------------------------------------------
+
+
+def add_layer(
+    project: Project, spec: Spec, *, index: int | None = None, name: str = "", layer_id: str | None = None
+) -> Edit:
+    """Insert a new layer; by default on top (drawn last). Its id is ``<type>-<n>`` unless given."""
+    layer = Layer(id=layer_id or new_layer_id(project, spec.type), name=name, spec=spec)
+    layers = list(project.layers)
+    layers.insert(len(layers) if index is None else index, layer)
+    return _replace_layers(project, layers)
+
+
+def remove_layer(project: Project, layer_id: str) -> Edit:
+    """Delete a layer, and the morph clip that turns another layer into it (ADR 0005)."""
+    _layer(project, layer_id)
+    layers = []
+    for layer in project.layers:
+        if layer.id == layer_id:
+            continue
+        if any(c.to_layer == layer_id for c in layer.clips):
+            data = layer.model_dump(by_alias=True)
+            data["clips"] = [c for c in data["clips"] if c["to_layer"] != layer_id]
+            layer = Layer.model_validate(data)
+        layers.append(layer)
+    return _replace_layers(project, layers)
+
+
+def move_layer(project: Project, layer_id: str, index: int) -> Edit:
+    """Change a layer's z-order: ``index`` 0 is the back, ``len(layers) - 1`` the front."""
+    layer = _layer(project, layer_id)
+    layers = [other for other in project.layers if other.id != layer_id]
+    layers.insert(max(0, min(index, len(layers))), layer)
+    return _replace_layers(project, layers)
+
+
+def add_clip(
+    project: Project,
+    layer_id: str,
+    kind: str,
+    start: float,
+    duration: float,
+    *,
+    to_layer: str | None = None,
+    ease: Easing | None = None,
+    clip_id: str | None = None,
+) -> Edit:
+    """Add a clip to a layer's lane (validated: no overlap, nothing after a morph)."""
+    layer = _layer(project, layer_id)
+    clip = Clip(
+        id=clip_id or new_clip_id(layer, kind),
+        kind=kind,
+        start=start,
+        duration=duration,
+        to_layer=to_layer,
+        ease=ease,
+    )
+    return _replace_layer(project, layer_id, {"clips": [*layer.clips, clip]})
+
+
+def remove_clip(project: Project, layer_id: str, clip_id: str) -> Edit:
+    _clip(project, layer_id, clip_id)
+    clips = [c for c in project.layer(layer_id).clips if c.id != clip_id]
+    return _replace_layer(project, layer_id, {"clips": clips})
+
+
+def new_layer_id(project: Project, type_name: str) -> str:
+    """``<type>-<n>`` with the smallest free ``n`` (e.g. ``mathtex-1``)."""
+    return _free_id(type_name, {layer.id for layer in project.layers})
+
+
+def new_clip_id(layer: Layer, kind: str) -> str:
+    """``<kind>-<n>`` with the smallest free ``n`` on this layer's lane."""
+    return _free_id(kind, {clip.id for clip in layer.clips})
 
 
 # -- classification -------------------------------------------------------------
@@ -152,7 +229,12 @@ def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> E
     # Rebuilt from data so the layer's validators run; model_copy(update=) would skip them.
     data = {**old_layer.model_dump(by_alias=True), **_dump(fields)}
     new_layer = Layer.model_validate(data)
-    layers = [new_layer if layer.id == layer_id else layer for layer in project.layers]
+    return _replace_layers(
+        project, [new_layer if layer.id == layer_id else layer for layer in project.layers]
+    )
+
+
+def _replace_layers(project: Project, layers: list[Layer]) -> Edit:
     # Unchanged layers are reused as-is; the project-level validator still runs.
     new_project = Project.model_validate(
         {"schema_version": project.schema_version, "canvas": project.canvas, "layers": layers}
@@ -162,4 +244,20 @@ def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> E
 
 
 def _dump(fields: dict[str, Any]) -> dict[str, Any]:
-    return {k: v.model_dump(by_alias=True) if hasattr(v, "model_dump") else v for k, v in fields.items()}
+    return {k: _plain(v) for k, v in fields.items()}
+
+
+def _plain(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(by_alias=True)
+    if isinstance(value, list):
+        return [_plain(v) for v in value]
+    return value
+
+
+def _free_id(prefix: str, taken: set[str]) -> str:
+    stem = re.sub(r"[^a-z0-9]+", "-", prefix.lower()).strip("-") or "item"
+    n = 1
+    while f"{stem}-{n}" in taken:
+        n += 1
+    return f"{stem}-{n}"

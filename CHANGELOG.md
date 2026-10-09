@@ -47,6 +47,16 @@ All notable changes to this project are documented here. The format follows
 - Lifetime inference is a pure function (`schema.infer_lifetime`, `Project.lifetime`)
   shared by the evaluator and the timeline.
 
+- S2 panels plan (`docs/plans/s2-panels.md`), proposed ADR 0015 (build worker,
+  warm-then-commit), benchmarks B17–B20.
+- Structural edits (S2.1): `add_layer` (id `<type>-<n>`, on top), `remove_layer`
+  (also removes the morph clip into the deleted layer), `move_layer` (z-order, a
+  cache-keeping timing edit), `add_clip`, `remove_clip`, `new_layer_id`,
+  `new_clip_id`. The random-edit property test now mixes them in.
+- Validation: duplicate clip ids on a lane and vector-only clip kinds on image
+  layers are rejected.
+- `Document.apply` records nothing for an edit that changes nothing.
+
 ### Changed
 - `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so
