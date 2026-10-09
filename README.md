@@ -6,8 +6,9 @@ Effects or Premiere: layers, a timeline of animation clips, keyframes and easing
 exactly what gets exported.
 
 **Status:** early development (0.1). The core engine, video export, the
-previewer and an editable timeline with undo work; panels to build scenes
-without JSON are next. See the [roadmap](docs/roadmap.md).
+previewer, an editable timeline with undo, and panels to build a scene without
+JSON (layers, object library, properties) work; canvas interaction is next. See
+the [roadmap](docs/roadmap.md).
 
 ## Quick start (Windows)
 

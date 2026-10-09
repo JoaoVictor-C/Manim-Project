@@ -82,6 +82,8 @@ All notable changes to this project are documented here. The format follows
   revert with the reason in the status bar; new LaTeX shows in italics until
   the worker has built it. Selecting a layer or a timeline clip shows it.
 - `adapter.EASE_NAMES`, `adapter.BEZIER_PRESETS`.
+- File > New (S2.7). S2 acceptance: a MathTex layer with a Write clip is built
+  from an empty project through the panels and the timeline alone.
 - Timeline clips (S2.6): right-click a row to add a clip at that time (1 s,
   shortened to fit the gap; morphs pick a layer that is not yet a target; not
   offered after a morph), right-click a clip to delete it, Delete key removes

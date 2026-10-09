@@ -1,10 +1,10 @@
 # S2 — Panels: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-09) — acceptance test `tests/ui/test_acceptance_s2.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 5](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B17–B20 in [../logs/benchmarks.md](../logs/benchmarks.md)
-- **Proposed ADR:** [0015 build worker and warm-then-commit](../adr/0015-build-worker-warm-then-commit.md)
+- **ADR:** [0015 build worker and warm-then-commit](../adr/0015-build-worker-warm-then-commit.md)
 
 ## Goal
 
@@ -126,3 +126,21 @@ top). Selecting a layer selects it in the properties panel.
 | S2.5 | Properties dock | edits through widgets; pending text survives an unrelated edit |
 | S2.6 | Timeline add/delete clip | context menu + Delete key; morph target menu |
 | S2.7 | Acceptance + docs | "MathTex + Write without JSON" through the widgets; export renders it |
+
+## Outcome
+
+All steps done on 2026-10-09; 407 tests (about 30–38 s). Differences from the
+plan, found while building it:
+
+- **File > New** was missing — without it "no JSON" was impossible (S2.7).
+- **Timeline rows** now list the front-most layer first, like the Layers panel
+  (found from a screenshot of the finished docks, S2.6).
+- The schema now rejects duplicate clip ids on a lane and vector-only kinds on
+  image layers (S2.1): both would have reached the evaluator from the new panels.
+- `\frac{x}{` is valid LaTeX inside Manim's `align*` wrapper, so error tests use
+  an undefined command (S2.2).
+- The worker's cache dir must match the editor's: a test that re-pointed Manim's
+  cache made the editor miss the warmed entry (S2.2).
+
+Left for later: a prompt for unsaved changes on New/Open/quit; keyframe editing
+(S3 gizmo); clip params (ADR 0007).
