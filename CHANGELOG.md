@@ -95,6 +95,13 @@ All notable changes to this project are documented here. The format follows
 - Shared selection (S3.3, `ui/selection.py`): one layer/clip selection for the
   canvas, Layers panel, timeline and Properties; deleted clips fall back to
   their layer, deleted layers clear it.
+- Canvas editing (S3.4-S3.5, `ui/canvas_tools.py`): click selects the
+  front-most object (Alt+click: the one behind), the selection is outlined with
+  its box and anchor; drag moves it (one undo step, Shift = one axis, Escape
+  cancels); arrow keys nudge 1 px / 10 px with Shift, a held key is one undo
+  step. Layers with position keyframes get a key at the playhead (snapped to the
+  frame); others get their base position changed. Morphing layers cannot be
+  dragged while their morph plays.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
   benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes
