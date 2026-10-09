@@ -247,3 +247,61 @@ def test_moving_keys_is_clamped_by_each_moved_property() -> None:
     assert (
         drag_keys(keyed_lane(), 1.0, 1.47, duration=DURATION, fps=FPS, scale=SCALE, candidates=[1.5]) == 1.5
     )
+
+
+# -- part layers (P2c.3) ----------------------------------------------------------------
+
+
+def tree_project() -> Project:
+    from manim_studio.core.schema import PartKey
+
+    eq = Layer(
+        id="eq",
+        spec=Spec(type="MathTex", params={"text": "a + b = c"}),
+        clips=[Clip(id="w", kind="Write", start=0.0, duration=1.0)],
+    )
+    b = Layer(
+        id="b",
+        parent_id="eq",
+        part=PartKey(tex="b"),
+        clips=[Clip(id="i", kind="Indicate", start=2.0, duration=1.0)],
+    )
+    c = Layer(
+        id="c",
+        parent_id="eq",
+        part=PartKey(tex="c"),
+        clips=[Clip(id="f", kind="FadeOut", start=2.5, duration=1.0)],
+    )
+    sq = Layer(id="sq", spec=Spec(type="Square"))
+    return Project(canvas=Canvas(duration=5.0), layers=[eq, b, c, sq])
+
+
+def test_rows_put_parts_under_their_object() -> None:
+    from manim_studio.ui.timeline.model import depth, rows
+
+    project = tree_project()
+    assert [layer.id for layer in rows(project)] == ["sq", "eq", "b", "c"]
+    assert [depth(project, layer) for layer in rows(project)] == [0, 0, 1, 1]
+
+
+def test_a_part_clip_moves_around_its_ancestors_clips_but_not_its_siblings() -> None:
+    from manim_studio.ui.timeline.model import move_bounds, obstacles
+
+    project = tree_project()
+    assert [c.id for c in obstacles(project, "b")] == ["w"]  # not the sibling's FadeOut
+    assert [c.id for c in obstacles(project, "eq")] == ["i", "f"]
+    lo, hi = move_bounds(project.layer("b"), "i", 5.0, obstacles(project, "b"))
+    assert (lo, hi) == (1.0, 4.0)
+    lo, hi = move_bounds(project.layer("eq"), "w", 5.0, obstacles(project, "eq"))
+    assert (lo, hi) == (0.0, 1.0)  # the object's Write may not run into its parts' clips
+
+
+def test_new_clips_on_a_part_avoid_ancestor_clips() -> None:
+    from manim_studio.ui.timeline.model import obstacles, place_new_clip
+
+    project = tree_project()
+    b, block = project.layer("b"), obstacles(project, "b")
+    assert place_new_clip(b, 0.5, duration=5.0, fps=10, obstacles=block) is None  # inside the Write
+    assert place_new_clip(b, 1.2, duration=5.0, fps=10, obstacles=block) == (1.2, 0.8)
+    eq = project.layer("eq")
+    assert place_new_clip(eq, 2.2, duration=5.0, fps=10, obstacles=obstacles(project, "eq")) is None

@@ -1,7 +1,8 @@
 """Properties dock (S2.5): edit the selected layer or clip.
 
 The object section is generated from ``adapter.MOBJECT_PARAMS``; style, the
-layer transform, lifetime and clip timing are fixed sections. Each finished
+layer transform, lifetime and clip timing are fixed sections. A part layer
+(ADR 0012) shows its key (TeX and occurrence) instead of an object section. Each finished
 field edit is one operation submitted to the ``BuildService`` (ADR 0015) with
 the field as its supersede key, so typing a new equation never freezes the UI
 and the field keeps showing what was typed while it builds. Clip params stay
@@ -26,10 +27,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits
+from ..core import adapter, edits, parts
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
-from ..core.schema import CLIP_KIND_INFO, RASTER_TYPES, Easing, Layer, Project
+from ..core.schema import CLIP_KIND_INFO, RASTER_TYPES, Easing, Layer, PartKey, Project
 from .build_service import BuildService
 from .curve_editor import ease_label, edit_curve
 from .fields import (
@@ -148,6 +149,20 @@ def set_lifetime(project: Project, layer_id: str, key: str, value: float | None)
     return edits.update_layer(project, layer_id, lifetime=lifetime)
 
 
+def set_part_key(project: Project, layer_id: str, name: str, value: Any) -> edits.Edit:
+    """Change a part's TeX or occurrence (1-based in the panel); refused if it would not resolve."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    layer = project.layer(layer_id)
+    key = layer.part.model_dump()
+    key[name] = int(value) - 1 if name == "occurrence" else str(value)
+    edit = edits.update_layer(project, layer_id, part=PartKey(**key))
+    orphans = parts.resolve(edit.project, edit.project.root_of(layer_id).id).orphans
+    if layer_id in orphans:
+        raise edits.EditError(orphans[layer_id])
+    return edit
+
+
 def _has(project: Project, layer_id: str) -> bool:
     return any(layer.id == layer_id for layer in project.layers)
 
@@ -217,9 +232,12 @@ class PropertiesPanel(QWidget):
         self._section(
             "Layer", [("Name", "name", TextField(self._layer_op("name", self._set_name), layer.id))]
         )
-        self._object_section(layer)
-        if layer.spec.type not in RASTER_TYPES:
-            self._style_section()
+        if layer.is_part:
+            self._part_section()
+        else:
+            self._object_section(layer)
+            if layer.spec.type not in RASTER_TYPES:
+                self._style_section()
         self._transform_section(layer)
         self._lifetime_section()
         self.body_layout.addStretch(1)
@@ -280,6 +298,11 @@ class PropertiesPanel(QWidget):
         name = layer.name or layer.id
         if self.key_time is not None:
             self.title.setText(f"<b>Keys at {self.key_time:g} s</b> on {name}")
+        elif self.clip_id is None and layer.is_part:
+            parent = self.project.layer(layer.parent_id)
+            orphans = parts.resolve(self.project, self.project.root_of(layer.id).id).orphans
+            note = f"<br><i>Not drawn: {orphans[layer.id]}</i>" if layer.id in orphans else ""
+            self.title.setText(f"<b>{name}</b> - part of {parent.name or parent.id}{note}")
         elif self.clip_id is None:
             self.title.setText(f"<b>{name}</b> - {layer.spec.type}")
         else:
@@ -306,16 +329,16 @@ class PropertiesPanel(QWidget):
         form = QFormLayout(box)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        for label, *parts in rows:
+        for label, *cells in rows:
             # (label, path, field) or (label, [(path, field), ...]) for several fields on one row
-            parts = [tuple(parts)] if len(parts) == 2 else parts[0]
+            cells = [tuple(cells)] if len(cells) == 2 else cells[0]
             row = QWidget()
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
-            for path, field in parts:
-                line.addWidget(field.widget, 1 if len(parts) == 1 or path.startswith("base.") else 0)
+            for path, field in cells:
+                line.addWidget(field.widget, 1 if len(cells) == 1 or path.startswith("base.") else 0)
                 self.fields[path] = field
-            form.addRow(label, row if len(parts) > 1 else parts[0][1].widget)
+            form.addRow(label, row if len(cells) > 1 else cells[0][1].widget)
         self.body_layout.addWidget(box)
 
     def _register(self, path: str, getter: Callable[[Layer], Any]) -> None:
@@ -401,6 +424,18 @@ class PropertiesPanel(QWidget):
             rows.append((param.title, path, _param_field(param, commit)))
         self._section(layer.spec.type, rows)
 
+    def _part_section(self) -> None:
+        """The part's key: which piece of its parent's TeX it is (ADR 0012)."""
+        self._register("part.tex", lambda layer: layer.part.tex)
+        self._register("part.occurrence", lambda layer: layer.part.occurrence + 1)
+        tex = TextField(
+            self._op("part.tex", partial(set_part_key, name="tex"), "Change part"), "TeX of the part"
+        )
+        occurrence = IntField(
+            self._op("part.occurrence", partial(set_part_key, name="occurrence"), "Change part"), 1, 999
+        )
+        self._section("Part", [("TeX", "part.tex", tex), ("Occurrence", "part.occurrence", occurrence)])
+
     def _style_section(self) -> None:
         rows = []
         for key, label, make in (
@@ -461,7 +496,7 @@ class PropertiesPanel(QWidget):
         morph = clip.info.category == "morph"
         kinds = [
             k
-            for k in adapter.allowed_clip_kinds(layer.spec.type)
+            for k in adapter.allowed_clip_kinds(self.project.root_of(layer.id).spec.type)
             if (CLIP_KIND_INFO[k].category == "morph") == morph
         ]
 

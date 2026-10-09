@@ -157,12 +157,16 @@ def test_real_worker_reports_latex_errors(real_worker, qt_app) -> None:
     assert error == "LaTeX error: Undefined control sequence.", error
 
 
+@pytest.mark.latex
 def test_real_worker_restarts_after_a_crash_and_finishes_the_request(real_worker, qt_app) -> None:
     worker = real_worker
     worker.replies.clear()
     wait_until(qt_app, lambda: worker.ready, timeout=60)
     first_pid = worker.pid
-    worker.request(3, '{"type": "Circle"}')
+    # A fresh LaTeX build takes seconds, so the kill always lands while it is outstanding
+    # (a Circle could be answered before the kill, and then nothing restarts).
+    slow = Spec(type="MathTex", params={"text": rf"\sqrt{{{uuid.uuid4().int % 10**9}}}"})
+    worker.request(3, warm_key(slow))
     worker._process.kill()  # the worker dies while the request is outstanding
     wait_until(qt_app, lambda: worker.replies, timeout=60)
     assert worker.replies == [(3, True, "")]

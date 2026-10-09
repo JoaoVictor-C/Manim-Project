@@ -5,7 +5,8 @@ so it can be tested headless:
 
 * ``TimeScale`` — time <-> x, zooming about a point;
 * ``quantize`` / ``snap`` — frame grid, then the nearest candidate within a pixel radius;
-* ``move_bounds`` / ``trim_bounds`` — where a clip may go on its lane;
+* ``move_bounds`` / ``trim_bounds`` — where a clip may go on its lane (and around
+  its obstacles: clips of the layer's ancestors and parts, ADR 0012);
 * ``drag_move`` / ``drag_trim`` — the full rule: propose, snap, clamp.
 
 Clamping (never rejecting) keeps every intermediate drag state valid, so the
@@ -84,26 +85,45 @@ def snap_candidates(project: Project, playhead: float, exclude: tuple[str, str] 
     return sorted(points)
 
 
-def _neighbours(layer: Layer, clip_id: str) -> tuple[Clip | None, Clip, Clip | None]:
-    for i, clip in enumerate(layer.clips):
-        if clip.id == clip_id:
-            prev = layer.clips[i - 1] if i > 0 else None
-            nxt = layer.clips[i + 1] if i + 1 < len(layer.clips) else None
-            return prev, clip, nxt
-    raise KeyError(clip_id)
+def obstacles(project: Project, layer_id: str) -> list[Clip]:
+    """Clips a clip of ``layer_id`` may not overlap besides its own lane (ADR 0012).
+
+    Those of the layer's ancestors and of its parts; sibling parts may overlap.
+    """
+    related = [*project.ancestors(layer_id), *project.descendants(layer_id)]
+    return [clip for layer in related for clip in layer.clips]
 
 
-def move_bounds(layer: Layer, clip_id: str, duration: float) -> tuple[float, float]:
+def _neighbours(
+    layer: Layer, clip_id: str, obstacles: Iterable[Clip] = ()
+) -> tuple[Clip | None, Clip, Clip | None]:
+    """The clip and what bounds it: the latest clip ending before it, the earliest starting after."""
+    clip = next((c for c in layer.clips if c.id == clip_id), None)
+    if clip is None:
+        raise KeyError(clip_id)
+    others = [c for c in layer.clips if c.id != clip_id] + list(obstacles)
+    before = [c for c in others if c.end <= clip.start + 1e-9]
+    after = [c for c in others if c.start >= clip.end - 1e-9]
+    prev = max(before, key=lambda c: c.end, default=None)
+    nxt = min(after, key=lambda c: c.start, default=None)
+    return prev, clip, nxt
+
+
+def move_bounds(
+    layer: Layer, clip_id: str, duration: float, obstacles: Iterable[Clip] = ()
+) -> tuple[float, float]:
     """Allowed range for the clip's start when moving it (its length is kept)."""
-    prev, clip, nxt = _neighbours(layer, clip_id)
+    prev, clip, nxt = _neighbours(layer, clip_id, obstacles)
     lo = max(0.0, prev.end if prev else 0.0)
     hi = min(duration, nxt.start if nxt else duration) - clip.duration
     return lo, max(lo, hi)
 
 
-def trim_bounds(layer: Layer, clip_id: str, edge: Edge, duration: float, fps: int) -> tuple[float, float]:
+def trim_bounds(
+    layer: Layer, clip_id: str, edge: Edge, duration: float, fps: int, obstacles: Iterable[Clip] = ()
+) -> tuple[float, float]:
     """Allowed range for one edge; the clip never gets shorter than one frame."""
-    prev, clip, nxt = _neighbours(layer, clip_id)
+    prev, clip, nxt = _neighbours(layer, clip_id, obstacles)
     frame = 1.0 / fps
     if edge == "start":
         return max(0.0, prev.end if prev else 0.0), clip.end - frame
@@ -132,12 +152,14 @@ def drag_move(
     scale: TimeScale,
     candidates: Iterable[float] = (),
     snapping: bool = True,
+    obstacles: Iterable[Clip] = (),
 ) -> float:
     """New start for a moved clip.
 
     Either edge may snap; if both can, the one needing the smaller shift wins.
     Otherwise the start is frame-quantized. The result is clamped to the lane.
     """
+    obstacles = list(obstacles)
     clip = _neighbours(layer, clip_id)[1]
     start = quantize(proposed_start, fps)
     if snapping:
@@ -151,7 +173,7 @@ def drag_move(
             options.append(hit - clip.duration)
         if options:
             start = min(options, key=lambda s: abs(s - proposed_start))
-    return _clamp(start, *move_bounds(layer, clip_id, duration))
+    return _clamp(start, *move_bounds(layer, clip_id, duration, obstacles))
 
 
 def drag_trim(
@@ -165,17 +187,35 @@ def drag_trim(
     scale: TimeScale,
     candidates: Iterable[float] = (),
     snapping: bool = True,
+    obstacles: Iterable[Clip] = (),
 ) -> tuple[float, float]:
     """New (start, end) after dragging one edge: snap the edge, then clamp."""
     clip = _neighbours(layer, clip_id)[1]
     value = _clamp(
-        snap(proposed, candidates, scale, fps, snapping), *trim_bounds(layer, clip_id, edge, duration, fps)
+        snap(proposed, candidates, scale, fps, snapping),
+        *trim_bounds(layer, clip_id, edge, duration, fps, obstacles),
     )
     return (value, clip.end) if edge == "start" else (clip.start, value)
 
 
+def rows(project: Project) -> list[Layer]:
+    """Timeline rows: objects front-most first, each followed by its parts (ADR 0012)."""
+    return [x for root in reversed(project.roots()) for x in (root, *project.descendants(root.id))]
+
+
+def depth(project: Project, layer: Layer) -> int:
+    """0 for an object, 1 for its parts, 2 for parts of parts..."""
+    return len(project.ancestors(layer.id)) if layer.parent_id is not None else 0
+
+
 def place_new_clip(
-    layer: Layer, t: float, *, duration: float, fps: int, length: float = 1.0
+    layer: Layer,
+    t: float,
+    *,
+    duration: float,
+    fps: int,
+    length: float = 1.0,
+    obstacles: Iterable[Clip] = (),
 ) -> tuple[float, float] | None:
     """Where a clip added at time ``t`` goes: ``(start, duration)``, or None if it cannot.
 
@@ -186,11 +226,12 @@ def place_new_clip(
     """
     frame = 1.0 / fps
     lo, hi = 0.0, duration
-    for clip in layer.clips:
+    own = {id(clip) for clip in layer.clips}
+    for clip in [*layer.clips, *obstacles]:
         if clip.start - 1e-9 <= t < clip.end - 1e-9:
             return None  # on a clip
         if clip.end <= t + 1e-9:
-            if clip.info.category == "morph":
+            if clip.info.category == "morph" and id(clip) in own:
                 return None  # the layer has handed off
             lo = max(lo, clip.end)
         elif clip.start > t:
