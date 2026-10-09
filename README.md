@@ -28,6 +28,10 @@ In the timeline: click the ruler to scrub, drag a clip to move it, drag its edge
 to trim it (it snaps to frames, clip edges and the playhead; hold Alt to snap to
 frames only; Escape cancels), Ctrl+wheel to zoom, Ctrl+Z / Ctrl+Y to undo/redo.
 
+In the Layers panel: **Add** creates an object from the library (shapes, Text,
+MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
+(Ctrl+] / Ctrl+[) or dragging changes the stacking order; double-click renames.
+
 Render it to video:
 
 ```bash

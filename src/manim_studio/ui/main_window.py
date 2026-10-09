@@ -21,6 +21,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -41,6 +42,7 @@ from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .build_service import BuildService
 from .canvas import CanvasWidget
 from .document import Document
+from .layers_panel import LayersPanel
 from .timeline.view import TimelineView
 from .worker_process import make_worker
 
@@ -105,8 +107,21 @@ class MainWindow(QMainWindow):
         self.idle_timer.setInterval(0)
         self.idle_timer.timeout.connect(self._on_idle)
 
+        self.layers = LayersPanel(self.builds)
+        self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
+        self.layers.setEnabled(False)
+        self.layers_dock = self._dock("Layers", self.layers, Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.builds.pendingChanged.connect(self._on_pending_changed)
+
         self._build_menu()
         self.statusBar().showMessage("Open a project (File > Open) to begin.")
+
+    def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
+        dock = QDockWidget(title, self)
+        dock.setObjectName(f"{title.lower()}-dock")
+        dock.setWidget(widget)
+        self.addDockWidget(area, dock)
+        return dock
 
     # -- menu ------------------------------------------------------------------
 
@@ -128,6 +143,7 @@ class MainWindow(QMainWindow):
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addActions([undo, redo])
         view_menu = self.menuBar().addMenu("&View")
+        view_menu.addAction(self.layers_dock.toggleViewAction())
         half = QAction("Half-resolution playback", self, checkable=True)
         half.toggled.connect(self._set_half_resolution)
         view_menu.addAction(half)
@@ -167,6 +183,7 @@ class MainWindow(QMainWindow):
     def _on_reset(self, project: Project) -> None:
         """A project was opened: rebuild everything that depends on it."""
         self._has_project = True
+        self.layers.setEnabled(True)
         self.evaluator = Evaluator(project)
         self.canvas.set_scene(project.canvas, self.evaluator)
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
@@ -183,6 +200,12 @@ class MainWindow(QMainWindow):
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
+
+    def _on_pending_changed(self) -> None:
+        if self.builds.busy:
+            self.statusBar().showMessage("Building text...")
+        elif self.statusBar().currentMessage() == "Building text...":
+            self.statusBar().clearMessage()
 
     def _on_build_failed(self, text: str, message: str) -> None:
         self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)

@@ -189,3 +189,21 @@ def test_loading_another_project_resets_history(window, tmp_path) -> None:
     assert window.project.layers[0].id == "a"
     assert window.evaluator.project is window.project
     assert len(FRAMES) and window.evaluator.frame(0.2)  # renders the new project
+
+
+def test_layers_dock_edits_reach_the_canvas(window) -> None:
+    """S2.4 wiring: the dock goes through the build service to the evaluator."""
+    assert window.layers.isEnabled()
+    assert window.layers.ids_front_to_back()[-1] == window.project.layers[0].id
+    window.layers.add_object("Star")
+    window.layers.shift_selected(-1)
+    window.layers.select(window.project.layers[0].id)
+    window.layers.delete_selected()
+    assert [window.document.undo_stack.text(i) for i in range(3)] == [
+        "Add Star",
+        "Reorder layers",
+        "Delete layer",
+    ]
+    _assert_matches_fresh(window)
+    window.document.undo_stack.undo()
+    _assert_matches_fresh(window)
