@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
 from ..core import adapter
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
-from ..core.schema import Project
+from ..core.schema import TEXT_TYPES, Project
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .build_service import BuildService
 from .canvas import CanvasWidget
@@ -68,6 +68,7 @@ class MainWindow(QMainWindow):
         # Every panel edit goes through the build service (ADR 0015).
         self.builds = BuildService(self.document, make_worker(adapter.cache_dir(), self), self)
         self.builds.failed.connect(self._on_build_failed)
+        self.builds.prewarm([adapter.default_spec(t) for t in sorted(TEXT_TYPES)])  # library defaults
 
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)

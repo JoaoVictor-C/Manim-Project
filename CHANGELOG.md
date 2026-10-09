@@ -65,6 +65,11 @@ All notable changes to this project are documented here. The format follows
   builds a cold text object waits for the worker and is then re-run on the
   current snapshot, so edits and undos made meanwhile are kept; latest wins per
   field; a failed build commits nothing; nothing commits mid-drag.
+- Object registry (S2.3): `adapter.MOBJECT_PARAMS` lists the constructor params
+  each type exposes (kind, default, range, choices), `adapter.LIBRARY` the
+  library sections, `adapter.default_spec()` new objects; 2D `point` params are
+  lifted to 3D for Manim. A test proves every exposed param changes the object.
+  The editor pre-warms the library's text defaults at startup.
 - `Document.dragFinished` signal; `adapter.cache_dir()`; `schema.TEXT_TYPES`, `schema.RASTER_TYPES`.
 
 ### Changed

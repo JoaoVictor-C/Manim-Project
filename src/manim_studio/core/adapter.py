@@ -10,9 +10,10 @@ from __future__ import annotations
 import os
 import shutil
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import manim as m
 from manim.utils import rate_functions
@@ -53,6 +54,86 @@ MOBJECT_TYPES: dict[str, type] = {
     name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | RASTER_TYPES)
 }
 
+ParamKind = Literal["float", "int", "text", "choice", "point", "path"]
+
+
+@dataclass(frozen=True)
+class Param:
+    """One constructor parameter the properties panel exposes (S2 plan)."""
+
+    name: str
+    kind: ParamKind
+    default: Any
+    label: str = ""
+    minimum: float | None = None
+    maximum: float | None = None
+    step: float = 0.1
+    choices: tuple[str, ...] = ()
+    multiline: bool = False  # long text (LaTeX) gets a text box
+
+    @property
+    def title(self) -> str:
+        return self.label or self.name.replace("_", " ").capitalize()
+
+
+_SIZE = {"minimum": 0.01, "maximum": 50.0}
+_FONT_SIZE = Param("font_size", "float", 48.0, "Font size", minimum=4, maximum=400, step=1)
+
+# Hand-curated: what each object type lets the user change. Keys are Spec.params
+# names; "text" and "path" are passed positionally by _build_cached. Anything not
+# listed is still accepted from JSON but not shown. Style (fill/stroke) and the
+# layer transform are separate.
+MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
+    "Circle": (Param("radius", "float", 1.0, **_SIZE),),
+    "Square": (Param("side_length", "float", 2.0, "Side length", **_SIZE),),
+    "Rectangle": (Param("width", "float", 4.0, **_SIZE), Param("height", "float", 2.0, **_SIZE)),
+    "Triangle": (),
+    "Star": (
+        Param("n", "int", 5, "Points", minimum=3, maximum=24, step=1),
+        Param("outer_radius", "float", 1.0, "Radius", **_SIZE),
+    ),
+    "Dot": (Param("radius", "float", 0.08, minimum=0.01, maximum=5.0, step=0.01),),
+    "Line": (Param("start", "point", (-1.0, 0.0)), Param("end", "point", (1.0, 0.0))),
+    "Arrow": (
+        Param("start", "point", (-1.0, 0.0)),
+        Param("end", "point", (1.0, 0.0)),
+        Param("buff", "float", 0.25, "Gap at ends", minimum=0.0, maximum=5.0, step=0.05),
+    ),
+    "Text": (
+        Param("text", "text", "Text"),
+        _FONT_SIZE,
+        Param("font", "text", "", "Font (blank = default)"),
+        Param("weight", "choice", "NORMAL", choices=("NORMAL", "BOLD")),
+        Param("slant", "choice", "NORMAL", choices=("NORMAL", "ITALIC")),
+    ),
+    "MathTex": (Param("text", "text", r"e^{i\pi} + 1 = 0", "LaTeX (math)", multiline=True), _FONT_SIZE),
+    "Tex": (Param("text", "text", r"Hello \LaTeX", "LaTeX (text)", multiline=True), _FONT_SIZE),
+    "ImageMobject": (Param("path", "path", "", "Image file"),),
+}
+
+# The object library (S2 plan): menu sections in order.
+LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
+    ("Text", ("Text", "MathTex", "Tex")),
+    ("Media", ("ImageMobject",)),
+)
+
+_REQUIRED = {"text", "path"}  # positional in Manim: always written to the spec
+
+
+def default_spec(type_name: str, **params: Any) -> Spec:
+    """A new object of ``type_name`` as the library creates it."""
+    if type_name not in MOBJECT_PARAMS:
+        raise ValueError(f"unsupported mobject type {type_name!r}")
+    required = {p.name: p.default for p in MOBJECT_PARAMS[type_name] if p.name in _REQUIRED}
+    return Spec(type=type_name, params={**required, **params})
+
+
+def param_value(spec: Spec, param: Param) -> Any:
+    """The value the object is built with: the spec's, else the registry default."""
+    value = spec.params.get(param.name, param.default)
+    return tuple(value) if param.kind == "point" else value
+
 
 def build_mobject(spec: Spec) -> m.Mobject:
     """Build a mobject centred on the origin; the layer transform places it."""
@@ -68,6 +149,10 @@ def _build_cached(spec_json: str) -> m.Mobject:
     spec = Spec.model_validate_json(spec_json)
     cls = MOBJECT_TYPES[spec.type]
     params = dict(spec.params)
+    for param in MOBJECT_PARAMS.get(spec.type, ()):
+        if param.kind == "point" and param.name in params:
+            x, y = params[param.name][:2]
+            params[param.name] = (x, y, 0.0)  # documents are 2D
     if spec.type in TEXT_TYPES:
         mob = cls(params.pop("text", ""), **params)
     elif spec.type == "ImageMobject":
