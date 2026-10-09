@@ -122,3 +122,39 @@ def test_half_resolution_halves_the_render(window) -> None:
     assert half[0] == pytest.approx(full[0] / 2, abs=1)
     window._set_half_resolution(False)
     assert window.canvas._camera_size == full
+
+
+@pytest.mark.ui
+def test_timeline_is_part_of_the_window(window) -> None:
+    assert len(window.timeline.clip_items()) == sum(len(layer.clips) for layer in window.project.layers)
+    window.seek(2.0)
+    assert window.timeline.playhead == pytest.approx(2.0)
+
+
+@pytest.mark.ui
+def test_timeline_scrub_pauses_and_seeks(window) -> None:
+    window.play()
+    window.timeline.seekRequested.emit(4.0)
+    assert not window.play_timer.isActive()
+    assert window.t == pytest.approx(4.0)
+
+
+@pytest.mark.ui
+def test_timeline_drag_updates_canvas_and_undo(window) -> None:
+    from manim_studio.core import edits
+    from manim_studio.core.evaluator import Evaluator
+
+    doc = window.document
+    doc.begin_preview()
+    doc.preview(edits.move_clip(doc.project, "eq1", "e1-write", 0.9))
+    doc.commit_preview("Move clip")
+    assert window.evaluator.project is doc.project
+    assert window.timeline.clip_item("eq1", "e1-write").rect().x() == pytest.approx(
+        window.timeline.scale.x(0.9)
+    )
+    fresh = Evaluator(doc.project)
+    assert len(window.evaluator.frame(1.0)) == len(fresh.frame(1.0))
+    doc.undo_stack.undo()
+    assert window.timeline.clip_item("eq1", "e1-write").rect().x() == pytest.approx(
+        window.timeline.scale.x(0.5)
+    )

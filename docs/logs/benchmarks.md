@@ -111,3 +111,12 @@ Cairo 960×540 on the stress scene + a MathTex morph. Write-clip drag **21.7 ms*
 morph drag with static partners **15.0 ms**; with keyframed partners that have
 settled **14.9 ms**; while the source is mid-motion **105.8 ms** (known slow
 path). Confirms the B13/B14 prototype numbers. → ADR 0013 accepted.
+
+### B16 — S1 acceptance: clip drag in the editor window · 2026-10-09
+`benchmarks/bench_timeline_drag.py`: `MainWindow` offscreen at 1280×820 (canvas
+1157×651), stress scene + MathTex morph, idle checkpoints done; synthetic mouse
+drags on the timeline, timed from the mouse-move event to the end of the
+event-loop turn (edit + validation + evaluator + Cairo canvas + timeline rebuild).
+Write-clip drag **24.1 ms** median (25.4 p90); morph drag **19.2 ms** (19.8 p90);
+same with a keyframed morph source (settled): 24.1 / 19.3 ms. Within the 33 ms
+budget → S1 accepted.

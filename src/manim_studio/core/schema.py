@@ -12,6 +12,7 @@ that reason; ``core/adapter.py`` maps each kind to its Manim class.
 from __future__ import annotations
 
 import itertools
+import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -197,8 +198,38 @@ class Project(BaseModel):
                 targeted[clip.to_layer] = layer.id
         return self
 
+    def morph_sources(self) -> dict[str, Clip]:
+        """target layer id -> the morph clip that hands off to it (ADR 0005)."""
+        return {clip.to_layer: clip for layer in self.layers for clip in layer.clips if clip.to_layer}
+
+    def lifetime(self, layer_id: str) -> tuple[float, float]:
+        return infer_lifetime(self.layer(layer_id), self.morph_sources().get(layer_id))
+
     def layer(self, layer_id: str) -> Layer:
         for layer in self.layers:
             if layer.id == layer_id:
                 return layer
         raise KeyError(layer_id)
+
+
+def infer_lifetime(layer: Layer, morph_in: Clip | None = None) -> tuple[float, float]:
+    """When a layer is visible: ``[start, end)`` in seconds (docs/project-format.md).
+
+    An explicit lifetime wins. Otherwise the layer appears at its first clip if
+    that clip is an introducer, or when the morph targeting it (``morph_in``)
+    ends, else at 0; it disappears after its first remover or morph clip.
+    """
+    start, end = layer.lifetime.in_, layer.lifetime.out
+    if start is None:
+        start = 0.0
+        if morph_in is not None:
+            start = morph_in.end
+        elif layer.clips and layer.clips[0].info.introducer:
+            start = layer.clips[0].start
+    if end is None:
+        end = math.inf
+        for clip in layer.clips:
+            if clip.info.remover or clip.info.category == "morph":
+                end = clip.end
+                break
+    return start, end

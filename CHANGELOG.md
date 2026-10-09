@@ -39,6 +39,14 @@ All notable changes to this project are documented here. The format follows
   about the cursor, frame quantisation, 8 px snapping (frames, clip edges,
   playhead, 0, end), move/trim clamping that never produces an overlap.
 
+- Timeline (S1.4–S1.6): under the canvas, one row per layer with its lifetime band
+  and clip bars coloured by category; ruler scrubbing; drag a bar to move it or an
+  edge to trim it (snaps to frames, clip edges and the playhead; Alt = frames only;
+  Escape cancels); Ctrl+wheel zooms; drags are coalesced and record one undo step.
+  Measured 19–24 ms per drag step in the editor (B16).
+- Lifetime inference is a pure function (`schema.infer_lifetime`, `Project.lifetime`)
+  shared by the evaluator and the timeline.
+
 ### Changed
 - `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so

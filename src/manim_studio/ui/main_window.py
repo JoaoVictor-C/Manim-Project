@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -39,6 +40,7 @@ from ..core.schema import Project
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .canvas import CanvasWidget
 from .document import Document
+from .timeline.view import TimelineView
 
 log = get_logger(__name__)
 
@@ -75,11 +77,20 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.play_button)
         controls.addWidget(self.slider, 1)
         controls.addWidget(self.time_label)
-        central = QWidget()
-        layout = QVBoxLayout(central)
+        preview = QWidget()
+        layout = QVBoxLayout(preview)
         layout.addWidget(self.canvas, 1)
         layout.addLayout(controls)
-        self.setCentralWidget(central)
+
+        self.timeline = TimelineView()
+        self.timeline.set_document(self.document)
+        self.timeline.seekRequested.connect(self._on_timeline_seek)
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.addWidget(preview)
+        splitter.addWidget(self.timeline)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)  # the timeline keeps its height (about six rows)
+        self.setCentralWidget(splitter)
 
         self.play_timer = QTimer(self)
         self.play_timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -204,6 +215,7 @@ class MainWindow(QMainWindow):
         self.slider.blockSignals(True)
         self.slider.setValue(int(self.t * self.SLIDER_STEPS_PER_SECOND))
         self.slider.blockSignals(False)
+        self.timeline.set_playhead(self.t)
         self.refresh()
 
     def refresh(self) -> None:
@@ -219,6 +231,10 @@ class MainWindow(QMainWindow):
         if self.project is not None:
             self.pause()
             self.seek(self.t + frames / self.project.canvas.fps)
+
+    def _on_timeline_seek(self, t: float) -> None:
+        self.pause()
+        self.seek(t)
 
     def _on_slider(self, value: int) -> None:
         self.pause()

@@ -30,6 +30,9 @@ src/manim_studio/
 │   └── qt_paths.py      Manim geometry → QPainterPath (hit-testing, outlines)
 └── ui/                  PySide6
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
+    ├── timeline/
+    │   ├── model.py     pure geometry: TimeScale, snapping, clamping (no Qt)
+    │   └── view.py      QGraphicsView: rows, clip bars, ruler, playhead, drags
     ├── main_window.py   menus, transport, playback & idle scheduling (ADR 0009)
     └── canvas.py        letterboxed Cairo frame at the playhead
 ```

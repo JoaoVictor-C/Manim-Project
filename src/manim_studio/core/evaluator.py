@@ -29,7 +29,7 @@ import numpy as np
 from ..logging_config import get_logger
 from . import adapter
 from .edits import Edit, EditKind
-from .schema import Clip, Keyframe, Layer, Project, Transform2D
+from .schema import Clip, Keyframe, Layer, Project, Transform2D, infer_lifetime
 
 log = get_logger(__name__)
 
@@ -140,21 +140,8 @@ class Evaluator:
     # -- lifetime --------------------------------------------------------------
 
     def lifetime(self, layer: Layer) -> tuple[float, float]:
-        start, end = layer.lifetime.in_, layer.lifetime.out
-        if start is None:
-            start = 0.0
-            if layer.id in self._morph_into:
-                start = self._morph_into[layer.id][1].end
-            elif layer.clips and layer.clips[0].info.introducer:
-                start = layer.clips[0].start
-        if end is None:
-            end = math.inf
-            for clip in layer.clips:
-                info = clip.info
-                if info.remover or info.category == "morph":
-                    end = clip.end
-                    break
-        return start, end
+        morph_in = self._morph_into.get(layer.id)
+        return infer_lifetime(layer, morph_in[1] if morph_in else None)
 
     # -- local state (clips) ---------------------------------------------------
 

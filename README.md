@@ -5,8 +5,9 @@ Effects or Premiere: layers, a timeline of animation clips, keyframes and easing
 — no Python required. Manim itself renders every frame, so the preview is
 exactly what gets exported.
 
-**Status:** early development (0.1). The core engine, video export and a
-previewer work; the editable timeline is next. See the [roadmap](docs/roadmap.md).
+**Status:** early development (0.1). The core engine, video export, the
+previewer and an editable timeline with undo work; panels to build scenes
+without JSON are next. See the [roadmap](docs/roadmap.md).
 
 ## Quick start (Windows)
 
@@ -22,6 +23,10 @@ Open the example in the previewer (Space play/pause, ←/→ step a frame):
 ```bash
 uv run manim-studio edit examples/euler.json
 ```
+
+In the timeline: click the ruler to scrub, drag a clip to move it, drag its edge
+to trim it (it snaps to frames, clip edges and the playhead; hold Alt to snap to
+frames only; Escape cancels), Ctrl+wheel to zoom, Ctrl+Z / Ctrl+Y to undo/redo.
 
 Render it to video:
 
