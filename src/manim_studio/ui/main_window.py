@@ -43,6 +43,7 @@ from .build_service import BuildService
 from .canvas import CanvasWidget
 from .document import Document
 from .layers_panel import LayersPanel
+from .properties_panel import PropertiesPanel
 from .timeline.view import TimelineView
 from .worker_process import make_worker
 
@@ -111,6 +112,13 @@ class MainWindow(QMainWindow):
         self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.layers.setEnabled(False)
         self.layers_dock = self._dock("Layers", self.layers, Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.properties = PropertiesPanel(self.builds)
+        self.properties.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
+        self.properties_dock = self._dock(
+            "Properties", self.properties, Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.layers.layerSelected.connect(self.properties.show_layer)
+        self.timeline.clipSelected.connect(self._on_clip_selected)
         self.builds.pendingChanged.connect(self._on_pending_changed)
 
         self._build_menu()
@@ -144,6 +152,7 @@ class MainWindow(QMainWindow):
         edit_menu.addActions([undo, redo])
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(self.layers_dock.toggleViewAction())
+        view_menu.addAction(self.properties_dock.toggleViewAction())
         half = QAction("Half-resolution playback", self, checkable=True)
         half.toggled.connect(self._set_half_resolution)
         view_menu.addAction(half)
@@ -200,6 +209,10 @@ class MainWindow(QMainWindow):
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
+
+    def _on_clip_selected(self, layer_id: str, clip_id: str) -> None:
+        self.layers.select(layer_id)
+        self.properties.show_clip(layer_id, clip_id)
 
     def _on_pending_changed(self) -> None:
         if self.builds.busy:

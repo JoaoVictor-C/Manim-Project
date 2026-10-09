@@ -74,6 +74,14 @@ All notable changes to this project are documented here. The format follows
   library, Delete (with the morph cascade), Up/Down and drag-to-reorder for
   z-order, double-click to rename; each action is one undo step through the
   build service, and a new MathTex appears when the worker has built it.
+- Properties dock (S2.5): for a layer — name, the object's params generated from
+  the registry, fill/stroke style, position/scale/rotation/opacity (disabled when
+  keyframed), lifetime in/out ("Auto" = inferred); for a clip — animation (same
+  family only), start, duration, easing (Manim rate functions and CSS-style
+  curves), morph target. One undo step per finished field; refused values
+  revert with the reason in the status bar; new LaTeX shows in italics until
+  the worker has built it. Selecting a layer or a timeline clip shows it.
+- `adapter.EASE_NAMES`, `adapter.BEZIER_PRESETS`.
 - `Document.dragFinished` signal; `adapter.cache_dir()`; `schema.TEXT_TYPES`, `schema.RASTER_TYPES`.
 
 ### Changed

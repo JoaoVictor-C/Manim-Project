@@ -31,6 +31,9 @@ frames only; Escape cancels), Ctrl+wheel to zoom, Ctrl+Z / Ctrl+Y to undo/redo.
 In the Layers panel: **Add** creates an object from the library (shapes, Text,
 MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
 (Ctrl+] / Ctrl+[) or dragging changes the stacking order; double-click renames.
+The Properties panel edits the selected layer or clip (a timeline click selects
+a clip); each finished field is one undo step, and new LaTeX appears in italics
+until it has been built.
 
 Render it to video:
 

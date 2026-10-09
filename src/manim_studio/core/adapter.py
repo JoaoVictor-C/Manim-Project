@@ -190,6 +190,37 @@ def rate_func(ease: Easing) -> Callable[[float], float]:
     return func
 
 
+# Offered in the properties panel; any Manim rate function name is accepted from JSON.
+EASE_NAMES: tuple[str, ...] = (
+    "smooth",
+    "linear",
+    "rush_into",
+    "rush_from",
+    "double_smooth",
+    "there_and_back",
+    "ease_in_sine",
+    "ease_out_sine",
+    "ease_in_out_sine",
+    "ease_in_cubic",
+    "ease_out_cubic",
+    "ease_in_out_cubic",
+    "ease_in_back",
+    "ease_out_back",
+    "ease_in_out_back",
+    "ease_out_bounce",
+    "ease_out_elastic",
+)
+
+# CSS-style curves (x1, y1, x2, y2), as in browsers' timing functions.
+BEZIER_PRESETS: dict[str, tuple[float, float, float, float]] = {
+    "CSS ease": (0.25, 0.1, 0.25, 1.0),
+    "CSS ease-in": (0.42, 0.0, 1.0, 1.0),
+    "CSS ease-out": (0.0, 0.0, 0.58, 1.0),
+    "CSS ease-in-out": (0.42, 0.0, 0.58, 1.0),
+    "Overshoot": (0.34, 1.56, 0.64, 1.0),
+}
+
+
 def cubic_bezier(x1: float, y1: float, x2: float, y2: float) -> Callable[[float], float]:
     """CSS cubic-bezier(x1, y1, x2, y2) as a Manim rate function."""
 
