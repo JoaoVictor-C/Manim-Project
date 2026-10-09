@@ -152,14 +152,14 @@ class LayersPanel(QWidget):
             self.select(target)
         if target != selected:
             self.layerSelected.emit(target or "")
-        self._update_buttons()
+        self.update_buttons()
 
     def _on_reset(self, _project: Project) -> None:
         self._known_ids = set()
         self._select_new = False
         self.sync()
 
-    def _update_buttons(self) -> None:
+    def update_buttons(self) -> None:
         row = self.list.currentRow()
         has = row >= 0
         self.delete_button.setEnabled(has)
@@ -207,7 +207,7 @@ class LayersPanel(QWidget):
     # -- list signals -----------------------------------------------------------------
 
     def _on_current_changed(self, current: QListWidgetItem | None, _previous) -> None:
-        self._update_buttons()
+        self.update_buttons()
         self.layerSelected.emit(current.data(ID_ROLE) if current is not None else "")
 
     def _on_item_renamed(self, item: QListWidgetItem) -> None:

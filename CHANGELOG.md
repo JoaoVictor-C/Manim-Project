@@ -92,6 +92,9 @@ All notable changes to this project are documented here. The format follows
   front-most first; only what is drawn counts (alpha > 0.02); text by its box,
   images by their rectangle, shapes by fill (nonzero winding) or within 4 px of
   their stroke. 0.8 ms per click on the stress scene.
+- Shared selection (S3.3, `ui/selection.py`): one layer/clip selection for the
+  canvas, Layers panel, timeline and Properties; deleted clips fall back to
+  their layer, deleted layers clear it.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
   benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes
