@@ -179,3 +179,23 @@ left open, so ADRs can cite it.
   priority and nearest-key choice; the last key's ease does nothing → shown
   disabled; editing a named ease from a fixed default jumps the curve →
   measured fits (B27), refusal for the four eases no bezier can express.
+
+## Session 10 — P2c part layers plan · 2026-10-09
+
+- **Tool / profile:** Terza, `balanced`; 3 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0012 (proposed), the evaluator's per-layer checkpoints, the
+  build worker's warm keys (ADR 0015), measurement B28.
+- **Decisions:** part layers keyed by `{tex, occurrence}`, resolved to one exact
+  span marked by the adapter; one marked build per root, drawn and animated;
+  subtree checkpoints keyed by finished clips, each layer drawing its own
+  glyphs; root-first selection on the canvas with double-click drill-in
+  (→ ADR 0012 accepted). Plan: [../plans/p2c-part-layers.md](../plans/p2c-part-layers.md).
+- **Critiques that changed the plan:** `substrings_to_isolate` marks every
+  occurrence, so adding a part could silently retarget another and a short key
+  breaks LaTeX inside scripts → measured custom span markers, which mark only
+  the chosen span and nest; markers might change Write's frames → measured
+  identical mid-animation; a span right after `^` fails → measured, auto-brace
+  one-token spans; a count-only retarget warning misses swaps → compare the
+  span's text and neighbours too; after Split terms the root would be
+  unreachable on the canvas → root-first click, double-click to drill in.

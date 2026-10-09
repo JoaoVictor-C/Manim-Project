@@ -28,7 +28,12 @@ timeline and canvas, with the real build worker and renderer.
 
 ## Phase 2
 
-- Layer tree and part layers (ADR 0012): animate terms of an equation, TransformMatchingTex
+- **P2c** — [plan](plans/p2c-part-layers.md): part layers (ADR 0012) — animate
+  the terms of an equation as their own layers
+- TransformMatchingTex between equations with parts
+- Code layers: a layer holding user-written Manim code, rendered into a frame
+  cache and composited (for what the visual model cannot express: updaters,
+  ValueTracker, simulations)
 - ✅ **P2a** — [plan](plans/p2a-gizmos.md): scale / rotate gizmos, keyable transform properties, auto-key
 - Anchor (pivot) gizmo — needs a schema field, an evaluator change and morph
   baking; wanted for pendulums, clock hands, hinges
