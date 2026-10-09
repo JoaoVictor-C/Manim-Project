@@ -207,3 +207,16 @@ def test_layers_dock_edits_reach_the_canvas(window) -> None:
     _assert_matches_fresh(window)
     window.document.undo_stack.undo()
     _assert_matches_fresh(window)
+
+
+def test_selection_flows_to_the_properties_dock(window) -> None:
+    first = window.project.layers[0]
+    window.layers.select(first.id)
+    assert window.properties.layer_id == first.id and window.properties.clip_id is None
+    clip = first.clips[0]
+    window.timeline.clipSelected.emit(first.id, clip.id)
+    assert (window.properties.layer_id, window.properties.clip_id) == (first.id, clip.id)
+    assert window.layers.selected_id() == first.id
+    window.properties.fields["clip.duration"].commit(clip.duration + 0.1)
+    assert window.project.layers[0].clips[0].duration == pytest.approx(clip.duration + 0.1)
+    _assert_matches_fresh(window)
