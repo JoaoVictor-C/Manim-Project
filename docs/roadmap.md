@@ -29,7 +29,10 @@ timeline and canvas, with the real build worker and renderer.
 ## Phase 2
 
 - Layer tree and part layers (ADR 0012): animate terms of an equation, TransformMatchingTex
-- Scale / rotate / anchor gizmos, auto-key, curve editor for easing
+- **P2a** — [plan](plans/p2a-gizmos.md): scale / rotate gizmos, keyable transform properties, auto-key
+- Anchor (pivot) gizmo — needs a schema field, an evaluator change and morph
+  baking; wanted for pendulums, clock hands, hinges
+- Curve editor for easing
 - More clip kinds through the allow-list harness
 
 ## Phase 3

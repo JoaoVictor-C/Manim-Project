@@ -115,6 +115,7 @@ All notable changes to this project are documented here. The format follows
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
+- P2a transform gizmos plan (`docs/plans/p2a-gizmos.md`), proposed ADR 0018.
 - Phase 1 complete: `tests/ui/test_acceptance_v1.py` writes an equation, moves
   it, morphs it into a second equation, fades it out and exports MP4 through
   the UI alone.

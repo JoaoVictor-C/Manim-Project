@@ -148,3 +148,19 @@ left open, so ADRs can cite it.
   the old video → measured, retry then save as `name (2).mp4`; progress over a
   pipe is buffered → measured, every line flushed and `PYTHONUNBUFFERED=1`;
   quitting during an export → ask, then clean up.
+
+## Session 8 — P2a transform gizmos plan · 2026-10-09
+
+- **Tool / profile:** Terza, `fast`; 1 iteration, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the Phase 2 roadmap items, the S3 stopwatch rule (ADR 0016), the
+  transform model (pivot = position), measured transform edit costs (B22, B24).
+- **Decisions:** corner scale handles and a rotate knob on the oriented box,
+  pivot at the layer position; all four transform properties keyable from the
+  panel; auto-key with two keys on a track's first edit (→ ADR 0018). Plan:
+  [../plans/p2a-gizmos.md](../plans/p2a-gizmos.md).
+- **Critiques that changed the plan:** handles on the axis-aligned box drift off
+  rotated shapes → oriented box; one-key auto-key animates nothing (a one-key
+  track is constant, from `_sample`) → two keys from the layer's start; the
+  roadmap's anchor gizmo must not silently disappear → kept as the next item,
+  motivated by pendulums and clock hands.
