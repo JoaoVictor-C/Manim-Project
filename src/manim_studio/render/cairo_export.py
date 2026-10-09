@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 import av
@@ -39,12 +42,58 @@ def frame_times(canvas: Canvas) -> list[float]:
     return [i / canvas.fps for i in range(n)]
 
 
-def export_video(project: Project, out_path: Path, progress=None) -> Path:
+@dataclass(frozen=True)
+class Exported:
+    path: Path  # where the video is (the requested path, unless it was locked)
+    warning: str | None = None
+
+
+def partial_path(out_path: Path) -> Path:
+    """Where frames are written until the video is complete (ADR 0017)."""
+    return out_path.with_name(f"{out_path.stem}.partial{out_path.suffix}")
+
+
+def export_video(project: Project, out_path: Path, progress=None, replace_timeout: float = 2.0) -> Exported:
+    """Render ``project`` to ``out_path``; an existing file is replaced only by a complete video.
+
+    Frames go to ``partial_path(out_path)``; on any error that file is deleted.
+    If ``out_path`` stays locked (open in a player on Windows) for
+    ``replace_timeout`` seconds, the video is saved as ``<stem> (n)<suffix>``.
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    partial = partial_path(out_path)
+    try:
+        _encode(project, partial, progress)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    return _finish(partial, out_path, replace_timeout)
+
+
+def _finish(partial: Path, out_path: Path, timeout: float) -> Exported:
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            os.replace(partial, out_path)
+            return Exported(out_path)
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+    n = 2
+    while (alternative := out_path.with_name(f"{out_path.stem} ({n}){out_path.suffix}")).exists():
+        n += 1
+    os.replace(partial, alternative)
+    log.warning("%s is in use; saved as %s", out_path, alternative)
+    warning = f"{out_path.name} is in use (open in a player?); saved as {alternative.name}"
+    return Exported(alternative, warning)
+
+
+def _encode(project: Project, out_path: Path, progress=None) -> None:
     canvas = project.canvas
     camera = make_camera(canvas)
     evaluator = Evaluator(project)
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
     with av.open(str(out_path), mode="w") as container:
         stream = container.add_stream("libx264", rate=canvas.fps)
         stream.width = canvas.width_px
@@ -67,4 +116,3 @@ def export_video(project: Project, out_path: Path, progress=None) -> Path:
             if progress:
                 progress(i + 1, len(times))
         container.mux(stream.encode())
-    return out_path
