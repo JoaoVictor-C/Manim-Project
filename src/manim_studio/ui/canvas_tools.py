@@ -5,6 +5,9 @@
 * click: select the front-most object under the cursor (Alt+click: the next one
   behind the current selection); a click inside the selected object's box keeps
   it; a click on nothing clears the selection;
+* parts (P2c, ADR 0012): a click selects the whole object, as groups do in
+  design tools; double-click selects the part under the cursor one level down,
+  and once inside an object clicks pick its parts; Escape selects the parent;
 * drag: move the selected object, previewed live and recorded as one undo step
   ("Move layer"); Shift locks the dominant axis; Escape cancels;
 * arrow keys: nudge 1 px (Shift: 10 px); a held key is one undo step;
@@ -55,6 +58,7 @@ class _Drag:
     pivot: np.ndarray  # the layer position: scaling and rotating happen about it
     key_time: float | None  # the frame a key goes to; None = base value (ADR 0016)
     base: Project  # snapshot at press
+    to_local: np.ndarray  # world move -> change of position (a part under a scaled/rotated object)
     previous: np.ndarray | None = None  # rotation: last cursor point, to sum angle deltas
     turned: float = 0.0  # rotation: total angle swept so far
 
@@ -109,13 +113,42 @@ class MoveTool(QObject):
             return
         if current is not None and self._inside_selected_box(point):  # 2. the selected box
             target = current
-        elif hits:  # 3. whatever is under the cursor
-            target = hits[0]
+        elif hits:  # 3. whatever is under the cursor (the object, unless inside it already)
+            target = self._click_target(hits[0], current)
         else:  # 4. empty canvas
             self.selection.clear()
             return
         self.selection.select_layer(target)
         self._start_drag(target, "position", point)
+
+    def double_click(self, pos: QPointF) -> None:
+        """Select one level deeper toward the part under the cursor (drill into an object)."""
+        if self._drag is not None:
+            self.cancel()
+        point = self.canvas.to_units(pos)
+        layers = self.canvas.evaluator.frame_layers(self.playhead())
+        hits = hit_layers(layers, point, self.canvas.px_per_unit())
+        if not hits:
+            return
+        chain = [hits[0], *(a.id for a in self.project.ancestors(hits[0]))]  # the part up to its object
+        current = self.selection.layer_id
+        if current in chain[1:]:
+            target = chain[chain.index(current) - 1]
+        else:
+            target = chain[-2] if len(chain) > 1 else chain[0]
+        self.selection.select_layer(target)
+
+    def _click_target(self, hit: str, current: str | None) -> str:
+        """Clicks select whole objects; inside a selected object's tree they select parts."""
+        root = self.project.root_of(hit)
+        if current is None or current == root.id or not self.project.layer(current).is_part:
+            return root.id
+        if self.project.root_of(current).id != root.id:
+            return root.id
+        # Inside this object: the part under the cursor at the depth of the current selection.
+        chain = [hit, *(a.id for a in self.project.ancestors(hit))]
+        depth = len(self.project.ancestors(current))
+        return chain[max(0, len(chain) - 1 - depth)]
 
     def move(self, pos: QPointF, modifiers: Qt.KeyboardModifier) -> None:
         if self._drag is None:
@@ -155,6 +188,7 @@ class MoveTool(QObject):
             delta = point - drag.press
             if shift:
                 delta[np.argmin(np.abs(delta))] = 0.0
+            delta = drag.to_local @ delta
             value = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
         elif drag.prop == "scale":
             value = scale_from(drag.pivot, drag.press, point, drag.start, snap=shift)
@@ -176,11 +210,16 @@ class MoveTool(QObject):
         if event.key() == Qt.Key.Key_Escape and self._drag is not None:
             self.cancel()
             return True
+        current = self.selection.layer_id
+        if event.key() == Qt.Key.Key_Escape and current is not None and self.project.layer(current).is_part:
+            self.selection.select_layer(self.project.layer(current).parent_id)  # back out of a part
+            return True
         if not self.wants_key(event):
             return False
         layer = self.project.layer(self.selection.layer_id)
         step = NUDGE_SHIFT_PX if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else NUDGE_PX
-        dx, dy = (d * step / self.canvas.px_per_unit() for d in ARROWS[event.key()])
+        world = np.array(ARROWS[event.key()]) * step / self.canvas.px_per_unit()
+        dx, dy = (float(d) for d in self.canvas.evaluator.layer_frame(layer, self.playhead())[2] @ world)
         key_time = self._key_time(layer, "position")
         x, y = self._value(layer, "position", key_time)
         edit = self._edit(self.project, layer.id, "position", (x + dx, y + dy), key_time)
@@ -197,8 +236,10 @@ class MoveTool(QObject):
         key_time = self._key_time(layer, prop)
         start = self._value(layer, prop, key_time)
         at = key_time if key_time is not None else self.playhead()
-        pivot = np.array(layer_transform(layer, at).position, dtype=float)
-        self._drag = _Drag(layer_id, prop, point, start, pivot, key_time, self.project, previous=point)
+        pivot, _rotation, to_local = self.canvas.evaluator.layer_frame(layer, at)
+        self._drag = _Drag(
+            layer_id, prop, point, start, pivot, key_time, self.project, to_local, previous=point
+        )
         self.document.begin_preview()
 
     def _key_time(self, layer: Layer, prop: str) -> float | None:

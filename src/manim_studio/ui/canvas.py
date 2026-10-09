@@ -118,9 +118,17 @@ class CanvasWidget(QWidget):
         self.update()
 
     def _outline(self, layers: list[tuple[str, m.Mobject]], t: float) -> Outline | None:
-        mob = dict(layers).get(self.selected_layer) if self.selected_layer else None
-        if mob is None:
+        if not self.selected_layer:
             return None
+        project = self._evaluator.project
+        if not any(layer.id == self.selected_layer for layer in project.layers):
+            return None
+        # An object with parts is drawn as several mobjects: outline all of them (ADR 0012).
+        members = {self.selected_layer} | {d.id for d in project.descendants(self.selected_layer)}
+        drawn = [mob for layer_id, mob in layers if layer_id in members]
+        if not drawn:
+            return None
+        mob = drawn[0] if len(drawn) == 1 else m.Group(*drawn)
         path = QPainterPath()
         if isinstance(mob, m.ImageMobject):
             points = mob.points[:4, :2].copy()
@@ -134,10 +142,10 @@ class CanvasWidget(QWidget):
             for sub in family:
                 path.addPath(vmobject_path(sub))
             points = np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((1, 2))
-        layer = self._evaluator.project.layer(self.selected_layer)
-        transform = self._evaluator.transform_at(layer, t)
-        anchor = (float(transform.position[0]), float(transform.position[1]))
-        box = oriented_box(points, anchor, transform.rotation, MIN_BOX_PX / self.px_per_unit())
+        layer = project.layer(self.selected_layer)
+        pivot, rotation, _ = self._evaluator.layer_frame(layer, t)
+        anchor = (float(pivot[0]), float(pivot[1]))
+        box = oriented_box(points, anchor, rotation, MIN_BOX_PX / self.px_per_unit())
         return Outline(path, path.boundingRect(), anchor, box)
 
     def paintEvent(self, event) -> None:
@@ -198,6 +206,12 @@ class CanvasWidget(QWidget):
             return
         self.setFocus()
         self.tool.press(event.position(), event.modifiers())
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if self.tool is None or self._canvas is None or event.button() != Qt.MouseButton.LeftButton:
+            super().mouseDoubleClickEvent(event)
+            return
+        self.tool.double_click(event.position())
 
     def mouseMoveEvent(self, event) -> None:
         if self.tool is not None and self._canvas is not None:

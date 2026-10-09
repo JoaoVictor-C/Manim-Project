@@ -287,3 +287,17 @@ def test_changing_a_part_key_or_the_root_text_is_a_spec_edit() -> None:
     assert key_edit.kind == "spec" and {"eq", "b"} <= key_edit.layer_ids
     moved = edits.update_layer(p, "b", base={"position": (1.0, 0.0)})
     assert moved.kind == "transform" and moved.layer_ids == {"b"}
+
+
+def test_retargeted_flags_parts_whose_match_may_have_moved() -> None:
+    def retyped(p: Project, text: str) -> Project:
+        return edits.update_layer(p, "eq", spec=Spec(type="MathTex", params={"text": text})).project
+
+    p = project("b + b = c", part("second", "b", occurrence=1), part("c", "c"))
+    assert parts.retargeted(p, retyped(p, "b + b = c + 1")) == {}  # same matches, same neighbours
+    swapped = parts.retargeted(p, retyped(p, "c + b = b"))
+    assert swapped == {"second": "may now match another place", "c": "may now match another place"}
+    assert parts.retargeted(p, retyped(p, "b + b + b = c")) == {"second": "may now match another place"}
+    gone = parts.retargeted(p, retyped(p, "x = y"))
+    assert gone["c"].startswith("no longer found") and gone["second"].startswith("no longer found")
+    assert parts.retargeted(p, edits.update_layer(p, "c", name="C").project) == {}

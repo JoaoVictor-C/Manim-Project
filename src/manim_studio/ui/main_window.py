@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter
+from ..core import adapter, parts
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.schema import TEXT_TYPES, Project
@@ -236,10 +236,20 @@ class MainWindow(QMainWindow):
     def _on_changed(self, project: Project, layer_ids: frozenset[str], kind: EditKind) -> None:
         """An edit, undo or redo changed the snapshot (ADR 0013, 0014)."""
         assert self.evaluator is not None
+        before = self.evaluator.project
         self.evaluator.apply(Edit(project, kind, layer_ids))
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
+        if kind == "spec":
+            self._warn_retargeted(before, project)
+
+    def _warn_retargeted(self, before: Project, after: Project) -> None:
+        """A text edit can move a part to another match (ADR 0012): say which parts to check."""
+        moved = parts.retargeted(before, after)
+        if moved:
+            names = ", ".join(f"{after.layer(i).name or i} ({why})" for i, why in moved.items())
+            self.statusBar().showMessage(f"Check parts: {names}", 15000)
 
     def _on_selection_changed(self) -> None:
         layer_id, clip_id = self.selection.layer_id, self.selection.clip_id

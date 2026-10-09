@@ -287,3 +287,48 @@ def _group_spans_all(piece: str) -> bool:
         if depth == 0 and i < len(piece) - 1:
             return False
     return True
+
+
+# -- noticing retargeted parts after a text edit ------------------------------------------------
+
+
+def retargeted(old: Project, new: Project) -> dict[str, str]:
+    """Parts whose match may have moved because their object's text changed.
+
+    A part follows its key (the n-th match), so an edit that adds, removes or
+    reorders matches can point it at another place. Flags parts that stopped
+    resolving, whose match count changed, or whose nearest character on the left
+    changed (a swap such as ``b + b = c`` -> ``c + b = b``). A heuristic: text
+    appended after a part does not trip it, a reworded left neighbour does.
+    """
+    old_ids = {layer.id for layer in old.layers}
+    out: dict[str, str] = {}
+    for root in new.roots():
+        if root.id not in old_ids or not new.children(root.id):
+            continue
+        before_root = old.layer(root.id)
+        if before_root.spec is None or before_root.spec.params.get("text") == root.spec.params.get("text"):
+            continue
+        before, after = resolve(old, root.id), resolve(new, root.id)
+        for part in new.descendants(root.id):
+            if part.id not in before.spans:
+                continue
+            if part.id in after.orphans:
+                out[part.id] = f"no longer found ({after.orphans[part.id]})"
+                continue
+            was, now = before.spans[part.id], after.spans[part.id]
+            parent_was = before.spans.get(part.parent_id, Span(0, len(before.text)))
+            parent_now = after.spans.get(part.parent_id, Span(0, len(after.text)))
+            tex = part.part.tex
+            moved = count(before.text, tex, parent_was.start, parent_was.end) != count(
+                after.text, tex, parent_now.start, parent_now.end
+            ) or _context(before.text, was) != _context(after.text, now)
+            if moved:
+                out[part.id] = "may now match another place"
+    return out
+
+
+def _context(text: str, span: Span) -> str:
+    """The nearest non-space character before the span ("" at the start)."""
+    before = text[: span.start].rstrip()
+    return before[-1:] if before else ""

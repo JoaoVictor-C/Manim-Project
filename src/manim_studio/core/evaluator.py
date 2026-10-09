@@ -411,6 +411,26 @@ class Evaluator:
     def transform_at(self, layer: Layer, t: float) -> Transform2D:
         return layer_transform(layer, t)
 
+    def layer_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, float, np.ndarray]:
+        """Where a layer's gizmo lives: its pivot and rotation in world space, and the
+        map from a world-space move to a change of its own ``position``.
+
+        An object pivots on its position. A part pivots on its rest centre moved by
+        its own position, carried by its ancestors' transforms (ADR 0012).
+        """
+        tr = self.transform_at(layer, t)
+        if layer.parent_id is None:
+            return np.array(tr.position, dtype=float), tr.rotation, np.eye(2)
+        root = self.project.root_of(layer.id)
+        tree = self._tree(root)
+        parent = self._layers[layer.parent_id]
+        a, b, _ = self._member_affine(tree, parent, t)
+        centre = tree.centres.get(layer.id, np.zeros(3))[:2]
+        anchor = a @ (centre + np.array(tr.position, dtype=float)) + b
+        ancestors = self.project.ancestors(layer.id)
+        rotation = tr.rotation + sum(self.transform_at(x, t).rotation for x in ancestors)
+        return anchor, rotation, np.linalg.pinv(a)  # pinv: a parent scaled to 0 must not raise
+
     def _to_world(self, local: m.Mobject, layer: Layer, t: float) -> m.Mobject:
         """Apply the keyframed layer transform without touching ``local``."""
         tr = self.transform_at(layer, t)
