@@ -82,6 +82,12 @@ All notable changes to this project are documented here. The format follows
   revert with the reason in the status bar; new LaTeX shows in italics until
   the worker has built it. Selecting a layer or a timeline clip shows it.
 - `adapter.EASE_NAMES`, `adapter.BEZIER_PRESETS`.
+- Keyframe edits (S3.1, ADR 0016): `edits.set_key` (frame-quantized; replaces a
+  key within half a frame; new keys inherit the previous ease unless it does
+  not end at 1) and `edits.clear_track` (keeps the value at a time as the base);
+  `Evaluator.frame_layers(t)` names the layer of each drawn object;
+  `evaluator.layer_transform`; `Document.apply(..., merge_key, merge)` merges
+  repeated edits (an arrow key held down) into one undo step.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
   benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes

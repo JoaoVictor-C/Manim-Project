@@ -15,6 +15,8 @@ drag step (ADR 0013).
 
 from __future__ import annotations
 
+from collections.abc import Hashable
+
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
@@ -26,10 +28,32 @@ log = get_logger(__name__)
 
 
 class _SnapshotCommand(QUndoCommand):
-    def __init__(self, document: Document, before: Project, after: Project, text: str, applied: bool) -> None:
+    MERGEABLE_ID = 1  # Qt only tries mergeWith between commands with the same id
+
+    def __init__(
+        self,
+        document: Document,
+        before: Project,
+        after: Project,
+        text: str,
+        applied: bool,
+        merge_key: Hashable | None = None,
+        merge: bool = False,
+    ) -> None:
         super().__init__(text)
         self._document, self._before, self._after = document, before, after
         self._skip_first_redo = applied  # a committed preview is already current
+        self._merge_key, self._merge = merge_key, merge
+
+    def id(self) -> int:
+        return self.MERGEABLE_ID if self._merge_key is not None else -1
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        """Absorb ``other`` (already applied) if it continues this gesture."""
+        if not isinstance(other, _SnapshotCommand) or not other._merge or other._merge_key != self._merge_key:
+            return False
+        self._after = other._after
+        return True
 
     def redo(self) -> None:
         if self._skip_first_redo:
@@ -72,13 +96,20 @@ class Document(QObject):
 
     # -- committed edits ------------------------------------------------------
 
-    def apply(self, edit: edits.Edit, text: str) -> None:
-        """Commit ``edit`` as one undo step (none if it changes nothing)."""
+    def apply(
+        self, edit: edits.Edit, text: str, merge_key: Hashable | None = None, merge: bool = False
+    ) -> None:
+        """Commit ``edit`` as one undo step (none if it changes nothing).
+
+        With ``merge`` and a ``merge_key`` equal to the previous command's, the
+        edit extends that step instead (e.g. an arrow key held down, ADR 0016).
+        """
         if self.dragging:
             raise RuntimeError("finish or cancel the drag before applying another edit")
         if edit.project == self._project:
             return
-        self.undo_stack.push(_SnapshotCommand(self, self._project, edit.project, text, applied=False))
+        command = _SnapshotCommand(self, self._project, edit.project, text, False, merge_key, merge)
+        self.undo_stack.push(command)
 
     # -- drags ---------------------------------------------------------------
 

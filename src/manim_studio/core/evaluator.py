@@ -130,11 +130,20 @@ class Evaluator:
         The returned mobjects are shared render buffers: draw them before the
         next call, and never mutate them.
         """
-        out: list[m.Mobject] = []
+        return [mob for _, mob in self.frame_layers(t)]
+
+    def frame_layers(self, t: float) -> list[tuple[str, m.Mobject]]:
+        """``frame(t)`` with the id of the layer each mobject belongs to.
+
+        A morph in progress is drawn by (and belongs to) its source layer. The
+        same buffer rules apply: use the result before the next evaluation and
+        never keep it (canvas hit-testing and outlines, ADR 0016).
+        """
+        out: list[tuple[str, m.Mobject]] = []
         for layer in self.project.layers:
             mob = self._layer_at(layer, t)
             if mob is not None:
-                out.append(mob)
+                out.append((layer.id, mob))
         return out
 
     # -- lifetime --------------------------------------------------------------
@@ -213,12 +222,7 @@ class Evaluator:
     # -- layer transform (keyframes) -------------------------------------------
 
     def transform_at(self, layer: Layer, t: float) -> Transform2D:
-        base = layer.base
-        values = {
-            name: _sample(layer.tracks.get(name), t, getattr(base, name))
-            for name in ("position", "scale", "rotation", "opacity")
-        }
-        return Transform2D(**values)
+        return layer_transform(layer, t)
 
     def _to_world(self, local: m.Mobject, layer: Layer, t: float) -> m.Mobject:
         """Apply the keyframed layer transform without touching ``local``.
@@ -244,6 +248,16 @@ class Evaluator:
             if tr.opacity != 1:
                 _multiply_opacity(dst, tr.opacity)
         return proxy
+
+
+def layer_transform(layer: Layer, t: float) -> Transform2D:
+    """The layer's transform at ``t``: each property from its keyframes, else the base."""
+    base = layer.base
+    values = {
+        name: _sample(layer.tracks.get(name), t, getattr(base, name))
+        for name in ("position", "scale", "rotation", "opacity")
+    }
+    return Transform2D(**values)
 
 
 def _sample(track: list[Keyframe] | None, t: float, default):

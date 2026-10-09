@@ -116,3 +116,28 @@ def test_extreme_easing_random_access(kind: str, ease: str) -> None:
     reference = sequential_reference(kind, TEXT, EXTREME_EASES[ease])
     order = random.Random(5).sample(range(len(FRAMES)), len(FRAMES))
     assert_frames_equal(reference, render_in_order(project, order), f"{kind}/{ease}")
+
+
+def test_frame_layers_names_what_frame_draws() -> None:
+    """S3.1: frame(t) is frame_layers(t) without the ids; a morph belongs to its source."""
+    from manim_studio.core.evaluator import Evaluator
+    from support import CIRCLE, SQUARE
+
+    project = Project(
+        canvas=CANVAS,
+        layers=[
+            Layer(
+                id="a",
+                spec=SQUARE,
+                clips=[Clip(id="m", kind="Transform", start=0.2, duration=0.4, to_layer="b")],
+            ),
+            Layer(id="b", spec=CIRCLE),
+            Layer(id="c", spec=CIRCLE, lifetime={"in": 0.5}),
+        ],
+    )
+    evaluator = Evaluator(project)
+    assert [i for i, _ in evaluator.frame_layers(0.1)] == ["a"]
+    assert [i for i, _ in evaluator.frame_layers(0.4)] == ["a"]  # morphing: drawn by the source
+    assert [i for i, _ in evaluator.frame_layers(0.8)] == ["b", "c"]
+    for t in FRAMES:
+        assert [id(m) for m in evaluator.frame(t)] == [id(m) for _, m in evaluator.frame_layers(t)]

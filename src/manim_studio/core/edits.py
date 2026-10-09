@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .schema import Clip, Easing, Layer, Project, Spec
+from .schema import Clip, Easing, Keyframe, Layer, Project, Spec
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
 _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec": 3}
@@ -142,6 +142,52 @@ def remove_clip(project: Project, layer_id: str, clip_id: str) -> Edit:
     _clip(project, layer_id, clip_id)
     clips = [c for c in project.layer(layer_id).clips if c.id != clip_id]
     return _replace_layer(project, layer_id, {"clips": clips})
+
+
+# -- keyframes (S3, ADR 0016) ------------------------------------------------------
+
+
+def set_key(project: Project, layer_id: str, prop: str, t: float, value: Any) -> Edit:
+    """Set ``prop`` to ``value`` at ``t`` (frame-quantized) on the layer's track.
+
+    A key within half a frame of ``t`` is replaced and keeps its ease. A new
+    key inherits the ease of the key before it, unless that ease does not end
+    at its target (``there_and_back``): then it gets the default ease.
+    """
+    layer = _layer(project, layer_id)
+    fps = project.canvas.fps
+    t = round(t * fps) / fps
+    track = list(layer.tracks.get(prop, []))
+    value = tuple(value) if isinstance(value, (list, tuple)) else value
+    for i, key in enumerate(track):
+        if abs(key.t - t) < 0.5 / fps:
+            track[i] = Keyframe(t=key.t, value=value, ease=key.ease)
+            break
+    else:
+        before = [key for key in track if key.t < t]
+        ease = before[-1].ease if before and _reaches_target(before[-1].ease) else Easing()
+        track.append(Keyframe(t=t, value=value, ease=ease))
+    return _replace_layer(project, layer_id, {"tracks": {**layer.tracks, prop: track}})
+
+
+def clear_track(project: Project, layer_id: str, prop: str, at: float) -> Edit:
+    """Remove ``prop``'s keyframes, keeping the value they give at ``at`` as the base."""
+    from .evaluator import layer_transform  # sampling rules live with the evaluator (imports Manim)
+
+    layer = _layer(project, layer_id)
+    if prop not in layer.tracks:
+        raise EditError(f"layer {layer_id!r} has no {prop} keyframes")
+    value = getattr(layer_transform(layer, at), prop)
+    base = layer.base.model_dump()
+    base[prop] = value
+    tracks = {name: keys for name, keys in layer.tracks.items() if name != prop}
+    return _replace_layer(project, layer_id, {"tracks": tracks, "base": base})
+
+
+def _reaches_target(ease: Easing) -> bool:
+    from . import adapter
+
+    return abs(adapter.rate_func(ease)(1.0) - 1.0) < 1e-6
 
 
 def new_layer_id(project: Project, type_name: str) -> str:

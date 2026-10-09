@@ -96,6 +96,30 @@ def test_an_edit_that_changes_nothing_records_nothing(doc) -> None:
     assert doc.events == []
 
 
+def test_repeated_edits_merge_into_one_step(doc) -> None:
+    """ADR 0016: an arrow key held down is one undo step; separate taps are separate."""
+    before = doc.project
+    key = ("nudge", "a")
+    for i, merge in enumerate((False, True, True)):
+        doc.apply(
+            edits.update_layer(doc.project, "a", base={"position": (0.1 * (i + 1), 0)}), "Nudge", key, merge
+        )
+    assert doc.undo_stack.count() == 1
+    doc.apply(edits.update_layer(doc.project, "a", base={"position": (1.0, 0)}), "Nudge", key, merge=False)
+    assert doc.undo_stack.count() == 2  # a new tap
+    doc.undo_stack.undo()
+    assert doc.project.layer("a").base.position == pytest.approx((0.3, 0))
+    doc.undo_stack.undo()
+    assert doc.project is before
+
+
+def test_merging_needs_the_same_key(doc) -> None:
+    doc.apply(edits.update_layer(doc.project, "a", base={"position": (1, 0)}), "Nudge", ("nudge", "a"))
+    doc.apply(edits.update_layer(doc.project, "a", name="x"), "Rename", ("rename", "a"), merge=True)
+    doc.apply(edits.update_layer(doc.project, "a", base={"position": (2, 0)}), "Nudge", None, merge=True)
+    assert doc.undo_stack.count() == 3
+
+
 def test_cancel_restores_the_drag_start(doc) -> None:
     before = doc.project
     doc.begin_preview()
