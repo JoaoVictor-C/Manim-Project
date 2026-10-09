@@ -32,12 +32,13 @@ after the current selection).
 3. By class:
    - Text, Tex, MathTex: the bounding box (holes of letters count);
    - images: the image quad;
-   - other vector objects: inside a visibly filled subpath
-     (`QPainterPath.contains` on `qt_paths.vmobject_path`), or within
-     `max(4 px, stroke width / 2)` of a visibly stroked curve (numpy distance
-     to the cubics' chords).
+   - other vector objects: inside a visibly filled subpath (nonzero winding),
+     or within `max(4 px, stroke width / 2)` of a visibly stroked curve — both in
+     numpy on the cubics flattened into 8 segments each (Qt's
+     `QPainterPath.contains` was planned but misreports points on some lines
+     through a shape; see ADR 0016).
 
-Cost: median 0.05 ms, at most 1.1 ms per click on the stress scene (B21).
+Cost as shipped: median 0.78 ms, at most 1.9 ms per click on the stress scene (B21).
 The objects come from `Evaluator.frame_layers(t)` called at click/paint time and
 never kept — they are shared render buffers (ADR 0002).
 

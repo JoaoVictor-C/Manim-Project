@@ -153,6 +153,9 @@ boxes **0.69 ms**, filled Qt paths (`QPainterPath.contains` on `vmobject_path`)
 **6.7 ms**, filled + `QPainterPathStroker` 0.1 u **69.8 ms**, numpy distance to
 cubic chords **3.8 ms**. With a bounding-box prefilter, Qt fill + numpy stroke
 over 40 random clicks: median **0.05 ms**, max **1.14 ms**. → ADR 0016.
+As shipped (S3.2: prefilter, alpha gate, numpy winding and flattened strokes —
+Qt containment turned out wrong on some lines, see ADR 0016): median **0.78 ms**,
+max **1.86 ms** over the same 40 clicks.
 
 ### B22 — Selection outline and move-drag steps · 2026-10-09
 Same scene, 960x540. Outline of a MathTex (path mapped to pixels, drawn with its

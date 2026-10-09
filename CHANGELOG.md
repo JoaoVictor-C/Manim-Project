@@ -88,6 +88,10 @@ All notable changes to this project are documented here. The format follows
   `Evaluator.frame_layers(t)` names the layer of each drawn object;
   `evaluator.layer_transform`; `Document.apply(..., merge_key, merge)` merges
   repeated edits (an arrow key held down) into one undo step.
+- Hit-testing (S3.2, `render/hit_test.py`): all layers under a point,
+  front-most first; only what is drawn counts (alpha > 0.02); text by its box,
+  images by their rectangle, shapes by fill (nonzero winding) or within 4 px of
+  their stroke. 0.8 ms per click on the stress scene.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
   benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes

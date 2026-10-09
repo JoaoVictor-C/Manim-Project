@@ -120,6 +120,19 @@ def main() -> None:
     print(f"hit-test, fill + 0.1u stroke  {timed(lambda: path_hit(mobs, point, 0.1), 5):7.2f} ms/click")
     print(f"hit-test, chords within 0.1u  {timed(lambda: segment_hit(mobs, point, 0.1)):7.2f} ms/click")
 
+    # what ships: render.hit_test (prefilter, alpha gate, numpy winding + flattened strokes)
+    from manim_studio.render.hit_test import hit_layers
+
+    layers = evaluator.frame_layers(T)
+    clicks = np.random.default_rng(0).uniform([-7, -4], [7, 4], size=(40, 2))
+    shipped = []
+    for click in clicks:
+        t0 = time.perf_counter()
+        hit_layers(layers, click, 960 / project.canvas.frame_width)
+        shipped.append((time.perf_counter() - t0) * 1000)
+    median = statistics.median(shipped)
+    print(f"hit_layers (shipped)          {median:7.2f} ms median, {max(shipped):.2f} ms max")
+
     # selection outline of the MathTex morph source, painted over a 960x540 image
     target = dict(mobs)["ma"]
     transform = camera_transform(project.canvas, 960, 540)
