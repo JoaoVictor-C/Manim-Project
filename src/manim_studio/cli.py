@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -22,6 +23,10 @@ def build_parser() -> argparse.ArgumentParser:
     render = sub.add_parser("render", help="render a project.json to a video")
     render.add_argument("project", type=Path)
     render.add_argument("output", type=Path)
+    render.add_argument("--cache-dir", type=Path, help="Manim's cache (default: PROJECT_DIR/.cache/manim)")
+    render.add_argument(
+        "--progress", choices=("text", "json"), default="text", help="json: one flushed JSON object per line"
+    )
 
     edit = sub.add_parser("edit", help="open the editor")
     edit.add_argument("project", type=Path, nargs="?")
@@ -37,10 +42,10 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.main_window import run
 
         return run([sys.argv[0]] + ([str(args.project)] if args.project else []))
-    return _render(args.project, args.output)
+    return _render(args.project, args.output, args.cache_dir, args.progress)
 
 
-def _render(project_path: Path, output: Path) -> int:
+def _render(project_path: Path, output: Path, cache_dir: Path | None = None, mode: str = "text") -> int:
     from .core import adapter
     from .core.schema import Project
     from .render.cairo_export import export_video
@@ -51,16 +56,31 @@ def _render(project_path: Path, output: Path) -> int:
         return _fail(f"cannot read {project_path}: {exc.strerror or exc}")
     except ValidationError as exc:
         return _fail(f"{project_path} is not a valid project:\n{exc}")
-    adapter.configure(project_path.resolve().parent / ".cache" / "manim")
+    adapter.configure(cache_dir or project_path.resolve().parent / ".cache" / "manim")
 
     def progress(done: int, total: int) -> None:
-        print(f"\rframe {done}/{total}", end="", flush=True)
+        if mode == "json":
+            _emit({"frame": done, "total": total})
+        else:
+            print(f"\rframe {done}/{total}", end="", flush=True)
 
     start = time.perf_counter()
-    export_video(project, output, progress)
-    print(f"\nwrote {output}")
-    log.info("rendered %s -> %s in %.1fs", project_path, output, time.perf_counter() - start)
+    result = export_video(project, output, progress)
+    if mode == "json":
+        if result.warning:
+            _emit({"warning": result.warning})
+        _emit({"done": str(result.path)})
+    else:
+        print(f"\nwrote {result.path}")
+        if result.warning:
+            print(f"warning: {result.warning}", file=sys.stderr)
+    log.info("rendered %s -> %s in %.1fs", project_path, result.path, time.perf_counter() - start)
     return 0
+
+
+def _emit(message: dict) -> None:
+    """One JSON object per line, flushed: a reader on a pipe sees it at once (ADR 0017)."""
+    print(json.dumps(message), flush=True)
 
 
 def _fail(message: str) -> int:

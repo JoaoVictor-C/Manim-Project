@@ -36,7 +36,7 @@ def test_frame_times_cover_duration() -> None:
 
 
 def test_export_writes_every_frame_matching_the_evaluator(tmp_path) -> None:
-    out = export_video(PROJECT, tmp_path / "nested" / "out.mp4")
+    out = export_video(PROJECT, tmp_path / "nested" / "out.mp4").path
     frames = _decode(out)
     assert len(frames) == 5
     assert frames[0].shape == (90, 160, 3)
@@ -82,3 +82,74 @@ def test_cli_requires_a_command(capsys) -> None:
     with pytest.raises(SystemExit) as exc:
         cli.main([])
     assert exc.value.code == 2
+
+
+# -- safe output and the editor protocol (S4.1, ADR 0017) -------------------------------
+
+
+def test_a_failed_export_leaves_the_old_video_and_no_partial_file(tmp_path, monkeypatch) -> None:
+    from manim_studio.render import cairo_export
+
+    out = tmp_path / "out.mp4"
+    out.write_bytes(b"previous video")
+
+    def boom(camera, mobjects):
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(cairo_export, "render_frame", boom)
+    with pytest.raises(RuntimeError):
+        export_video(PROJECT, out)
+    assert out.read_bytes() == b"previous video"
+    assert list(tmp_path.iterdir()) == [out]
+
+
+def test_a_complete_export_replaces_the_old_video(tmp_path) -> None:
+    out = tmp_path / "out.mp4"
+    out.write_bytes(b"previous video")
+    result = export_video(PROJECT, out)
+    assert result.path == out and result.warning is None
+    assert len(_decode(out)) == 5
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["out.mp4"]
+
+
+def test_a_locked_output_is_saved_under_a_free_name(tmp_path, monkeypatch) -> None:
+    """Windows refuses to replace a file a player holds open (B25)."""
+    import os
+
+    from manim_studio.render import cairo_export
+
+    out = tmp_path / "out.mp4"
+    out.write_bytes(b"open in a player")
+    (tmp_path / "out (2).mp4").write_bytes(b"older copy")
+    real_replace = os.replace
+
+    def replace(src, dst):
+        if str(dst) == str(out):
+            raise PermissionError("locked")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(cairo_export.os, "replace", replace)
+    result = export_video(PROJECT, out, replace_timeout=0.2)
+    assert result.path == tmp_path / "out (3).mp4"
+    assert "in use" in result.warning
+    assert out.read_bytes() == b"open in a player"
+    assert len(_decode(result.path)) == 5
+
+
+def test_cli_json_progress_and_cache_dir(tmp_path, capsys, monkeypatch) -> None:
+    from manim_studio.core import adapter
+
+    project_file = tmp_path / "p.json"
+    project_file.write_text(PROJECT.model_dump_json(by_alias=True), encoding="utf-8")
+    configured = []
+    monkeypatch.setattr(adapter, "configure", configured.append)
+    out = tmp_path / "v.mp4"
+    cache = tmp_path / "shared-cache"
+    assert (
+        cli.main(["render", str(project_file), str(out), "--cache-dir", str(cache), "--progress", "json"])
+        == 0
+    )
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert lines[:2] == [{"frame": 1, "total": 5}, {"frame": 2, "total": 5}]
+    assert lines[-1] == {"done": str(out)}
+    assert configured == [cache]
