@@ -32,7 +32,7 @@ timeline and canvas, with the real build worker and renderer.
 - ✅ **P2a** — [plan](plans/p2a-gizmos.md): scale / rotate gizmos, keyable transform properties, auto-key
 - Anchor (pivot) gizmo — needs a schema field, an evaluator change and morph
   baking; wanted for pendulums, clock hands, hinges
-- **P2b** — [plan](plans/p2b-keyframes.md): keyframes on the timeline, key view, easing curve editor
+- ✅ **P2b** — [plan](plans/p2b-keyframes.md): keyframes on the timeline, key view, easing curve editor
 - More clip kinds through the allow-list harness
 
 ## Phase 3

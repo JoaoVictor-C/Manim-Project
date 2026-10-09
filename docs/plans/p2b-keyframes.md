@@ -1,6 +1,6 @@
 # P2b — Keyframes on the timeline and the easing curve editor: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_p2b.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 9](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B27 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -61,3 +61,14 @@ cubic beziers — their handles are disabled with a hint to pick a preset.
 | P2b.3 | key selection + Properties key view | views follow; value and ease edits; last-key ease disabled |
 | P2b.4 | curve editor + fitted table | handle drag → bezier; named start; refusal; table within 0.025 |
 | P2b.5 | acceptance + docs | auto-key, retime on the timeline, custom curve, motion checked |
+
+## Outcome
+
+Done on 2026-10-09. Differences from the plan:
+
+- The fitted table holds `linear` as (0, 0, 1, 1) rather than the fit's
+  degenerate (0, 0, 0, 0) — the same straight line, with usable handles.
+- Retiming from the key view's Time field reports the new time to the shared
+  selection (`PropertiesPanel.keyMoved`), so the keys stay selected after the move.
+- Easing lists label custom curves "Custom curve (x1, y1, x2, y2)" and presets by
+  name (`curve_editor.ease_label`).

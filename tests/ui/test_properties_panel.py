@@ -336,3 +336,23 @@ def test_key_view_retimes_and_reports_the_new_time(panel) -> None:
     panel.fields["keys.time"].commit(0.6)
     assert [k.t for k in layer(panel, "ball").tracks["scale"]] == [0, pytest.approx(0.6)]
     assert moved == [("ball", pytest.approx(0.6))]
+
+
+def test_custom_curve_from_the_easing_list(panel) -> None:
+    curve = Easing(name=None, bezier=(0.2, 0.0, 0.3, 1.2))
+    asked = []
+    panel.curve_dialog = lambda ease: asked.append(ease) or curve
+    panel.show_key("ball", 0.0)
+    panel.fields["keys.scale.ease"].commit("custom-curve")
+    assert asked == [Easing()]  # the key's current ease (smooth) is where the editor starts
+    assert layer(panel, "ball").tracks["scale"][0].ease == curve
+    assert panel.fields["keys.scale.ease"].widget.currentText().startswith("Custom curve")
+
+
+def test_cancelling_the_curve_editor_changes_nothing(panel) -> None:
+    panel.curve_dialog = lambda ease: None
+    panel.show_clip("ball", "i")
+    before = panel.project
+    panel.fields["clip.ease"].commit("custom-curve")
+    assert panel.project is before
+    assert panel.fields["clip.ease"].widget.currentText() == "Animation default"

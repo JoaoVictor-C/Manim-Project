@@ -115,6 +115,16 @@ All notable changes to this project are documented here. The format follows
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
+- Keyframes on the timeline (P2b): one diamond per key time on each row —
+  click to select, drag to retime every key at that time (one undo step),
+  Delete to remove (a property's last key becomes its base), right-click a row
+  to add keys at the playhead. Properties shows a selected key's time, values
+  and easing (disabled on a last key, where no motion follows). `edits.retime_keys`,
+  `remove_keys`, `set_key_ease`; `Selection.key_time`.
+- Easing curve editor (P2b): "Custom curve..." in every easing list opens a
+  graph with two bezier handles and presets; named Manim eases start from a
+  fitted bezier (`adapter.EASE_BEZIER_FITS`, B27) and the four that are not
+  beziers are refused.
 - P2b keyframes plan (`docs/plans/p2b-keyframes.md`), benchmark B27 and
   `benchmarks/fit_ease_beziers.py`.
 - Transform gizmos (P2a): corner handles scale and a knob rotates the selected
@@ -160,6 +170,9 @@ All notable changes to this project are documented here. The format follows
 - `zip()` calls on equal-length sequences are now `strict=True`.
 
 ### Fixed
+- The build-worker cache test compared against a fixed 150 ms and failed on a
+  busy machine (every build several times slower); it now compares warm builds
+  with cold builds in the same run.
 - Image layers rendered wrong opacity whenever they moved or had an opacity
   keyframe: the scratch copy shared the source's pixel array and used
   `ImageMobject.set_opacity`, which overwrites alpha in place.

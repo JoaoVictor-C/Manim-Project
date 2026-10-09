@@ -31,6 +31,7 @@ from ..core.adapter import Param
 from ..core.evaluator import layer_transform
 from ..core.schema import CLIP_KIND_INFO, RASTER_TYPES, Easing, Layer, Project
 from .build_service import BuildService
+from .curve_editor import ease_label, edit_curve
 from .fields import (
     BoolField,
     ChoiceField,
@@ -44,6 +45,7 @@ from .fields import (
     TextField,
 )
 
+CUSTOM_CURVE = "custom-curve"  # the "Custom curve..." entry of an easing list
 STYLE_KEYS = ("fill", "fill_opacity", "stroke", "stroke_width")
 BASE_TRACK = {"position": "position", "scale": "scale", "rotation": "rotation", "opacity": "opacity"}
 
@@ -171,6 +173,8 @@ class PropertiesPanel(QWidget):
         self._shown_props: tuple[str, ...] = ()  # keys view: the properties keyed at key_time
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
+        # "Custom curve...": shows the curve editor; tests replace it (P2b)
+        self.curve_dialog: Callable[[Easing | None], Easing | None] = lambda ease: edit_curve(self, ease)
 
         self.title = QLabel()
         self.title.setWordWrap(True)
@@ -340,7 +344,9 @@ class PropertiesPanel(QWidget):
             set_value = partial(_set_key_value, prop=prop, t=t)
             value_field = _key_value_field(prop, self._op(value_path, set_value, f"Change {prop} key"))
             set_ease = partial(_set_key_ease, prop=prop, t=t)
-            ease_field = ChoiceField(self._op(ease_path, set_ease, "Change easing"), _ease_choices(keys=True))
+            ease_field = self._ease_field(
+                self._op(ease_path, set_ease, "Change easing"), ease_path, keys=True
+            )
             if _is_last_key(layer, prop, t, fps):
                 ease_field.widget.setEnabled(False)
                 ease_field.widget.setToolTip("Last key: no motion follows it, so its easing has no effect")
@@ -349,6 +355,23 @@ class PropertiesPanel(QWidget):
             rows.append((label, value_path, value_field))
             rows.append(("  easing", ease_path, ease_field))
         self._section("Keyframes", rows)
+
+    def _ease_field(self, commit: Callable[[Any], None], path: str, keys: bool) -> ChoiceField:
+        """An easing list ending in "Custom curve...", which opens the curve editor."""
+        choices = [*_ease_choices(keys=keys), ("Custom curve...", CUSTOM_CURVE)]
+        field = ChoiceField(commit, choices, label_for=ease_label)
+
+        def on_commit(value: Any) -> None:
+            if value == CUSTOM_CURVE:
+                current = self._getters[path](self.project.layer(self.layer_id))
+                value = self.curve_dialog(current)
+                if value is None:  # cancelled
+                    self.refresh(force=True)
+                    return
+            commit(value)
+
+        field.on_commit = on_commit
+        return field
 
     def _retime_commit(self, t: float) -> Callable[[Any], None]:
         layer_id, generation = self.layer_id, self._generation
@@ -465,7 +488,7 @@ class PropertiesPanel(QWidget):
                 "Duration",
                 FloatField(commit("duration", "Trim clip"), 1 / fps, duration, 1 / fps, 3, suffix=" s"),
             ),
-            ("ease", "Easing", ChoiceField(commit("ease", "Change easing"), _ease_choices())),
+            ("ease", "Easing", self._ease_field(commit("ease", "Change easing"), "clip.ease", keys=False)),
         ]
         if morph:
             targets = [
