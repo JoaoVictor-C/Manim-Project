@@ -142,5 +142,6 @@ plan, found while building it:
 - The worker's cache dir must match the editor's: a test that re-pointed Manim's
   cache made the editor miss the warmed entry (S2.2).
 
-Left for later: a prompt for unsaved changes on New/Open/quit; keyframe editing
+Added right after S2: a Save / Discard / Cancel prompt for unsaved changes on
+New, Open and quit. Left for later: keyframe editing
 (S3 gizmo); clip params (ADR 0007).

@@ -172,11 +172,15 @@ class MainWindow(QMainWindow):
 
     def new_project(self) -> None:
         """An empty scene with the default canvas (1280x720, 30 fps, 5 s)."""
+        if not self.confirm_discard():
+            return
         self.path = None
         self.document.replace(Project())
         log.info("new project")
 
     def open_dialog(self) -> None:
+        if not self.confirm_discard():
+            return
         start = str(self.path.parent if self.path else Path.cwd())
         name, _ = QFileDialog.getOpenFileName(self, "Open project", start, "Manim Studio project (*.json)")
         if name:
@@ -232,8 +236,36 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if not self.confirm_discard():
+            event.ignore()
+            return
         self.builds.client.stop()
         super().closeEvent(event)
+
+    # -- unsaved changes ----------------------------------------------------------
+
+    def confirm_discard(self) -> bool:
+        """True if the current project may be replaced or closed (saved, or the user agreed)."""
+        if self.project is None or self.document.undo_stack.isClean():
+            return True
+        answer = self.ask_unsaved()
+        if answer == "save":
+            self.save()
+            return self.document.undo_stack.isClean()  # False if Save As was cancelled
+        return answer == "discard"
+
+    def ask_unsaved(self) -> str:
+        """Ask what to do with unsaved changes: "save", "discard" or "cancel"."""
+        name = self.path.name if self.path else "untitled"
+        buttons = QMessageBox.StandardButton
+        answer = QMessageBox.question(
+            self,
+            "Unsaved changes",
+            f"Save the changes to {name}?",
+            buttons.Save | buttons.Discard | buttons.Cancel,
+            buttons.Save,
+        )
+        return {buttons.Save: "save", buttons.Discard: "discard"}.get(answer, "cancel")
 
     def _update_title(self) -> None:
         name = self.path.name if self.path else "untitled"

@@ -220,3 +220,34 @@ def test_selection_flows_to_the_properties_dock(window) -> None:
     window.properties.fields["clip.duration"].commit(clip.duration + 0.1)
     assert window.project.layers[0].clips[0].duration == pytest.approx(clip.duration + 0.1)
     _assert_matches_fresh(window)
+
+
+@pytest.mark.parametrize(
+    ("answer", "replaced", "saved"),
+    [("discard", True, False), ("cancel", False, False), ("save", True, True)],
+)
+def test_unsaved_changes_are_confirmed_before_new(window, monkeypatch, answer, replaced, saved) -> None:
+    asked = []
+    monkeypatch.setattr(window, "ask_unsaved", lambda: asked.append(1) or answer)
+    path = window.path
+    window.document.apply(edits.move_clip(window.project, "eq1", "e1-write", 0.8), "Move Write")
+    window.new_project()
+    assert asked == [1]
+    assert (window.project.layers == []) is replaced
+    assert ('"start": 0.8' in path.read_text(encoding="utf-8")) is saved
+
+
+def test_no_question_when_nothing_changed(window, monkeypatch) -> None:
+    monkeypatch.setattr(window, "ask_unsaved", lambda: pytest.fail("asked although saved"))
+    window.new_project()
+    assert window.project.layers == []
+
+
+def test_cancel_keeps_the_window_open(window, monkeypatch) -> None:
+    from PySide6.QtGui import QCloseEvent
+
+    monkeypatch.setattr(window, "ask_unsaved", lambda: "cancel")
+    window.document.apply(edits.move_clip(window.project, "eq1", "e1-write", 0.8), "Move Write")
+    event = QCloseEvent()
+    window.closeEvent(event)
+    assert not event.isAccepted()
