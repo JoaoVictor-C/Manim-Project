@@ -42,4 +42,4 @@ need one.
 | [0011](0011-logging.md) | Logging: console plus per-user rotating file | Accepted |
 | [0012](0012-layer-tree-and-part-layers.md) | Layer tree and part layers | Proposed |
 | [0013](0013-timing-edits-keep-caches.md) | Edit kinds: timing edits keep caches | Accepted |
-| [0014](0014-document-snapshots-and-undo.md) | Document snapshots and undo | Proposed |
+| [0014](0014-document-snapshots-and-undo.md) | Document snapshots and undo | Accepted |

@@ -33,10 +33,12 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import adapter
+from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.schema import Project
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .canvas import CanvasWidget
+from .document import Document
 
 log = get_logger(__name__)
 
@@ -48,7 +50,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Manim Studio")
         self.resize(1280, 820)
-        self.project: Project | None = None
+        # The document always exists (so the Edit menu can bind to its undo stack);
+        # ``project`` is None until a file is opened.
+        self.document = Document(Project(), self)
+        self.document.reset.connect(self._on_reset)
+        self.document.changed.connect(self._on_changed)
+        self.document.undo_stack.cleanChanged.connect(self._update_title)
+        self._has_project = False
         self.path: Path | None = None
         self.evaluator: Evaluator | None = None
         self.t = 0.0
@@ -96,6 +104,12 @@ class MainWindow(QMainWindow):
             action.setShortcut(shortcut)
             action.triggered.connect(slot)
             file_menu.addAction(action)
+        edit_menu = self.menuBar().addMenu("&Edit")
+        undo = self.document.undo_stack.createUndoAction(self, "&Undo")
+        undo.setShortcut(QKeySequence.StandardKey.Undo)
+        redo = self.document.undo_stack.createRedoAction(self, "&Redo")
+        redo.setShortcut(QKeySequence.StandardKey.Redo)
+        edit_menu.addActions([undo, redo])
         view_menu = self.menuBar().addMenu("&View")
         half = QAction("Half-resolution playback", self, checkable=True)
         half.toggled.connect(self._set_half_resolution)
@@ -126,15 +140,37 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Could not open project", str(exc))
             return
         log.info("opened %s (%d layers)", path, len(project.layers))
-        self.project, self.path = project, path
+        self.path = path
+        self.document.replace(project)
+
+    @property
+    def project(self) -> Project | None:
+        return self.document.project if self._has_project else None
+
+    def _on_reset(self, project: Project) -> None:
+        """A project was opened: rebuild everything that depends on it."""
+        self._has_project = True
         self.evaluator = Evaluator(project)
         self.canvas.set_scene(project.canvas, self.evaluator)
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
-        self.setWindowTitle(f"Manim Studio - {path.name}")
+        self._update_title()
         self.seek(0.0)
         gc.collect()
         gc.freeze()  # measured: removes the gen-2 GC hitches during playback
         self.idle_timer.start()
+
+    def _on_changed(self, project: Project, layer_ids: frozenset[str], kind: EditKind) -> None:
+        """An edit, undo or redo changed the snapshot (ADR 0013, 0014)."""
+        assert self.evaluator is not None
+        self.evaluator.apply(Edit(project, kind, layer_ids))
+        self.refresh()
+        if kind in ("clip", "spec"):
+            self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
+
+    def _update_title(self) -> None:
+        name = self.path.name if self.path else "untitled"
+        dirty = "" if self.document.undo_stack.isClean() else " *"
+        self.setWindowTitle(f"Manim Studio - {name}{dirty}")
 
     def save(self) -> None:
         if self.project is None:
@@ -143,6 +179,8 @@ class MainWindow(QMainWindow):
             self.save_as()
             return
         self.path.write_text(self.project.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+        self.document.undo_stack.setClean()
+        self._update_title()
         log.info("saved %s", self.path)
         self.statusBar().showMessage(f"Saved {self.path}", 3000)
 

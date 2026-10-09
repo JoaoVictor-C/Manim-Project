@@ -29,6 +29,7 @@ src/manim_studio/
 │   ├── cairo_export.py  Manim Cairo camera → frames → PyAV/libx264
 │   └── qt_paths.py      Manim geometry → QPainterPath (hit-testing, outlines)
 └── ui/                  PySide6
+    ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── main_window.py   menus, transport, playback & idle scheduling (ADR 0009)
     └── canvas.py        letterboxed Cairo frame at the playhead
 ```

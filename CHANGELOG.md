@@ -31,6 +31,10 @@ All notable changes to this project are documented here. The format follows
 
 - S1 timeline plan (`docs/plans/s1-timeline.md`), proposed ADRs 0013–0014, benchmarks B10–B14.
 
+- `ui/document.py` (S1.2): the open project as immutable snapshots with a
+  `QUndoStack`; drags preview freely and record one undo step (Escape cancels).
+  Edit menu with Undo/Redo; window title marks unsaved changes.
+
 ### Changed
 - `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so

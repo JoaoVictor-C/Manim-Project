@@ -1,6 +1,6 @@
 # 0014. Document snapshots and undo
 
-- **Status:** Proposed (implement in S1.2)
+- **Status:** Accepted (implemented in S1.2, 2026-10-09)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 
@@ -44,3 +44,6 @@ the evaluator.
 - Verified during planning: a layer rebuilt from data with an overlap raises
   `ValidationError`; `Project.model_validate` over existing layers runs the
   project validator (duplicate ids rejected).
+- `tests/ui/test_document.py`: one undo step per drag, cancel restores, undo
+  emits the reverse kind; edits/undo/redo in the editor keep the evaluator equal
+  to a fresh one (mutation-checked: ignoring the kind makes it fail).
