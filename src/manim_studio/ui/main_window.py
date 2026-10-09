@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self.layers_dock = self._dock("Layers", self.layers, Qt.DockWidgetArea.LeftDockWidgetArea)
         self.properties = PropertiesPanel(self.builds)
         self.properties.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
+        self.properties.playhead = lambda: self.t
         self.properties_dock = self._dock(
             "Properties", self.properties, Qt.DockWidgetArea.RightDockWidgetArea
         )
