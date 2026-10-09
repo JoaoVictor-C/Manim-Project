@@ -34,6 +34,9 @@ Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`
 (93 % at the last count; the suite runs in about 30 s, a third of it LaTeX and
 the real build worker).
 
+`ui/test_acceptance_s3.py` is the S3 acceptance test: move an object on the
+canvas with real mouse events, undo, redo; then animate it with the stopwatch.
+
 `ui/test_acceptance_s2.py` is the S2 acceptance test: File > New, add a
 MathTex, type an equation, add a Write clip from the timeline menu, save and
 render — through the real widgets and the real worker.

@@ -1,6 +1,6 @@
 # S3 — Canvas interaction: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_s3.py`; B24: 18.5 ms per drag step
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 6](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B21–B23 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -96,3 +96,18 @@ key at the playhead holding the current value (nothing moves); off =
 | S3.5 | move drag, Shift, nudges, morph refusal | mouse/key tests incl. snap-to-frame and auto-repeat merge |
 | S3.6 | stopwatch toggle | on/off keeps the object in place; one undo step each |
 | S3.7 | acceptance + benchmark + docs | "move an object, undo, redo" through the canvas; drag step in the window ≤ 33 ms |
+
+## Outcome
+
+Done on 2026-10-09; 457 tests (about 40 s). Differences from the plan:
+
+- Fills are hit-tested with a numpy winding count: Qt's `QPainterPath.contains`
+  reports every point on the line through the centre of a Manim square as
+  outside (S3.2). Cost as shipped: 0.8 ms per click.
+- The S2 views kept their own APIs; the main window bridges them through the
+  `Selection`, so the S2 widget tests did not change (S3.3).
+- The canvas claims the arrow keys only while something is selected, so
+  Left/Right still step frames otherwise (S3.5).
+- Manim's shapes have no fill by default, so an unfilled square is selected by
+  its outline (as in vector editors); once selected, a press anywhere in its
+  box drags it.

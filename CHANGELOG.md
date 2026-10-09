@@ -106,6 +106,9 @@ All notable changes to this project are documented here. The format follows
   keyframes on (one key at the playhead holding the current value) or off
   (keeps the value at the playhead as the base). Base fields of a keyframed
   property are disabled live.
+- S3 acceptance (`tests/ui/test_acceptance_s3.py`): move an object on the
+  canvas, undo, redo, and animate it by moving it with keyframes on; benchmark
+  B24 (`benchmarks/bench_canvas_drag.py`): 18.5 ms per drag step in the window.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
   benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes

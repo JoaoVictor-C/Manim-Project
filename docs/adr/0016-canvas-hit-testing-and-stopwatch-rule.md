@@ -1,6 +1,6 @@
 # 0016. Canvas editing: hit-testing and the stopwatch rule
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented in S3, 2026-10-09)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 
