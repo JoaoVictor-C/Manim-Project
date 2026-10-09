@@ -26,8 +26,12 @@ source layer's lane with `to_layer` set, and:
 - Keyframes on A or B inside the morph range have no effect (the UI should show
   them disabled).
 - Editing B's transform must refresh A's morph cache (ADR 0008).
+- Nothing may follow a morph on A's lane, and a layer may be the target of only
+  one morph; both are rejected when the project loads (added 2026-10-09 after a
+  clip placed after a morph crashed the evaluator).
 
 ## Evidence
 
 - `tests/core/test_random_access.py::test_morph_random_access`
 - `tests/core/test_invalidation.py::test_morph_target_edit_refreshes_source`
+- `tests/core/test_schema.py::test_clips_after_a_morph_are_rejected`

@@ -48,3 +48,22 @@ left open, so ADRs can cite it.
     → S4 export dialog ([../roadmap.md](../roadmap.md)).
 - **Left open:** ImageMobject in `qt_paths`; GC attribution based on 3 runs;
   projects heavier than the stress scene.
+
+## Session 3 — Test-suite expansion priorities · 2026-10-09
+
+- **Tool / profile:** Terza, `fast`; 3 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.91**.
+- **Input:** coverage report (77 %, 846 statements), five suspected defects from
+  code reading (D1–D5), the 20 s suite budget.
+- **Decision:** defects first, each proven by a failing test before the fix,
+  then the uncovered modules, then a bounded property harness.
+- **Critiques that changed the plan:** a crash not on the suspect list — any clip
+  after a morph on the same lane (reproduced: `ValueError`) → rejected by the
+  schema; kind validation in the schema would import the adapter (circular,
+  loads Manim) → kind metadata moved into `schema.CLIP_KIND_INFO`; a purity test
+  that passed despite D1 → rewritten against an independent reference and
+  mutation-checked; rules claimed but untested → tested before continuing.
+- **Outcome:** D1, D2 (image layers) and D4 (lifetime precedence) were real
+  bugs, fixed; D3 and D5 were not defects (tests pass). Also found: CLI tracebacks
+  on bad input, Pillow 13 incompatibility (pinned). Suite: 45 → 200 tests,
+  coverage 77 % → 93 %, 11 s.

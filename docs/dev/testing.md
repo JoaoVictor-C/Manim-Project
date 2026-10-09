@@ -10,10 +10,23 @@ uv run pytest
 tests/
 ├── conftest.py        Manim cache + LaTeX setup, session `qt_app`, auto-skip of `latex`
 ├── support.py         shared constants (CANVAS, SQUARE, TEXT, …) and frame helpers
-├── core/              evaluator contract: random access, transforms, invalidation
-├── render/            Qt paths vs Cairo fidelity
-└── ui/                editor smoke tests (offscreen Qt)
+├── test_logging.py    logging setup (ADR 0011)
+├── core/
+│   ├── test_random_access.py   frames == Manim's sequential loop, incl. extreme easings
+│   ├── test_properties.py      random projects: order independence, invalidation
+│   ├── test_images.py          ImageMobject layers vs an independent reference
+│   ├── test_invalidation.py    edit classes (ADR 0008)
+│   ├── test_lifetime.py        visibility rules
+│   ├── test_schema.py          validation rules, JSON round trip, examples
+│   ├── test_adapter.py         registry parity, builders, clamping, patches
+│   ├── test_easing.py          cubic-bezier vs CSS reference, keyframe sampling
+│   └── test_transforms.py      numpy transforms == Manim methods
+├── render/            Qt paths vs Cairo; video export and CLI
+└── ui/                editor: load/save, errors, wall-clock playback, stepping
 ```
+
+Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`
+(93 % at the last count; the suite runs in about 11 s).
 
 ## Markers
 
@@ -33,6 +46,20 @@ that easy to state:
   in any order;
 - `assert_frames_equal` / `assert_evaluators_agree` — pixel comparison with a
   tolerance of 1 level (anti-aliasing rounding).
+
+## Property tests
+
+`core/test_properties.py` generates valid projects from fixed seeds and checks
+the two contracts every project must meet. When one fails, the message names
+the seed; reproduce it with `random_project(random.Random(seed))`. If you add a
+feature, extend the generator so the feature appears in generated projects —
+check that it does (the generator once produced no morphs at all).
+
+## Write the failing test first
+
+For bugs, write the test, watch it fail for the right reason, then fix. For
+tests that guard a subtle property (purity, caching), also check the test fails
+against the old code — a test that passes on the bug guards nothing.
 
 ## Writing a test
 

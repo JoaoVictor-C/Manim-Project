@@ -12,6 +12,9 @@ requires-python = ">=3.13"
 dependencies = [
     "manim==0.22.0",  # pinned: the adapter relies on Manim internals (ADR 0003)
     "numpy>=2.5.3",
+    # Manim 0.22's Cairo camera calls Image.fromarray(..., mode="RGBA") for ImageMobject,
+    # which Pillow 13 removes. Lift when Manim drops that call.
+    "pillow>=11,<13",
     "pydantic>=2.14.0",
     "pyside6>=6.12.0",
 ]
@@ -22,6 +25,7 @@ manim-studio = "manim_studio.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.13",
 ]
 
@@ -33,7 +37,11 @@ build-backend = "uv_build"
 testpaths = ["tests"]
 pythonpath = ["tests"]
 addopts = ["--import-mode=importlib", "-p", "no:cacheprovider"]
-filterwarnings = ["ignore::SyntaxWarning"]  # pydub (a Manim dependency) on Python 3.13
+filterwarnings = [
+    "ignore::SyntaxWarning",  # pydub (a Manim dependency) on Python 3.13
+    # Known, pinned around (pillow<13): Manim's camera passes mode= to Image.fromarray.
+    "ignore:'mode' parameter for changing data types is deprecated:DeprecationWarning",
+]
 markers = [
     "latex: needs a LaTeX installation (skipped automatically when missing)",
     "ui: needs Qt (runs offscreen)",

@@ -11,7 +11,7 @@ import random
 import pytest
 
 from manim_studio.core import adapter
-from manim_studio.core.schema import Clip, Layer, Project
+from manim_studio.core.schema import CLIP_KIND_INFO, Clip, Easing, Layer, Project
 from manim_studio.render.cairo_export import make_camera, render_frame
 from support import (
     CANVAS,
@@ -26,8 +26,8 @@ from support import (
     single_clip_project,
 )
 
-NON_MORPH = [k for k, v in adapter.CLIP_KINDS.items() if v.category != "morph"]
-MORPH = [k for k, v in adapter.CLIP_KINDS.items() if v.category == "morph"]
+NON_MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category != "morph"]
+MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category == "morph"]
 
 
 @pytest.mark.parametrize("spec", [SQUARE, TEXT], ids=lambda s: s.type)
@@ -98,3 +98,21 @@ def test_checkpoint_chain_matches_sequential() -> None:
 
     order = list(reversed(range(len(FRAMES))))
     assert_frames_equal(reference, render_in_order(project, order), "chain")
+
+
+EXTREME_EASES = {
+    "back-out": Easing(bezier=(0.34, 1.56, 0.64, 1.0)),
+    "anticipate": Easing(bezier=(0.6, -0.6, 0.7, 1.0)),
+    "there-and-back": Easing(name="there_and_back"),
+    "rush-into": Easing(name="rush_into"),
+}
+
+
+@pytest.mark.parametrize("ease", EXTREME_EASES, ids=str)
+@pytest.mark.parametrize("kind", ["Create", "Write", "FadeIn", "GrowFromCenter", "Indicate", "Uncreate"])
+def test_extreme_easing_random_access(kind: str, ease: str) -> None:
+    """ADR 0007: overshooting curves are clamped, and frames stay order-independent."""
+    project = single_clip_project(kind, TEXT, EXTREME_EASES[ease])
+    reference = sequential_reference(kind, TEXT, EXTREME_EASES[ease])
+    order = random.Random(5).sample(range(len(FRAMES)), len(FRAMES))
+    assert_frames_equal(reference, render_in_order(project, order), f"{kind}/{ease}")

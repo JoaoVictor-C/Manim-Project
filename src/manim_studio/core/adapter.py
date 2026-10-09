@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import shutil
 from collections.abc import Callable
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -19,7 +18,7 @@ import manim as m
 from manim.utils import rate_functions
 
 from ..logging_config import get_logger
-from .schema import ClipCategory, Easing, Spec
+from .schema import CLIP_KIND_INFO, Easing, Spec
 
 log = get_logger(__name__)
 
@@ -140,42 +139,33 @@ def cubic_bezier(x1: float, y1: float, x2: float, y2: float) -> Callable[[float]
 # --- clips -------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ClipKind:
-    cls: type[m.Animation]
-    category: ClipCategory
-    introducer: bool = False  # layer becomes visible at clip start
-    remover: bool = False  # layer disappears at clip end
-    clamp_alpha: bool = True  # content/emphasis clips cannot overshoot
-
-
-CLIP_KINDS: dict[str, ClipKind] = {
-    "Create": ClipKind(m.Create, "content", introducer=True),
-    "Uncreate": ClipKind(m.Uncreate, "content", remover=True),
-    "Write": ClipKind(m.Write, "content", introducer=True),
-    "Unwrite": ClipKind(m.Unwrite, "content", remover=True),
-    "DrawBorderThenFill": ClipKind(m.DrawBorderThenFill, "content", introducer=True),
-    "FadeIn": ClipKind(m.FadeIn, "content", introducer=True),
-    "FadeOut": ClipKind(m.FadeOut, "content", remover=True),
-    "GrowFromCenter": ClipKind(m.GrowFromCenter, "content", introducer=True),
-    "SpinInFromNothing": ClipKind(m.SpinInFromNothing, "content", introducer=True),
-    "ShrinkToCenter": ClipKind(m.ShrinkToCenter, "content", remover=True),
-    "Indicate": ClipKind(m.Indicate, "emphasis"),
-    "Wiggle": ClipKind(m.Wiggle, "emphasis"),
-    "ApplyWave": ClipKind(m.ApplyWave, "emphasis"),
-    "Transform": ClipKind(m.ReplacementTransform, "morph", clamp_alpha=False),
-    "FadeTransform": ClipKind(m.FadeTransform, "morph", clamp_alpha=False),
-    "TransformMatchingShapes": ClipKind(m.TransformMatchingShapes, "morph", clamp_alpha=False),
+# Kind metadata (category, introducer/remover, vector-only) is pure data in
+# schema.CLIP_KIND_INFO; this table only maps each kind to its Manim class.
+ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
+    "Create": m.Create,
+    "Uncreate": m.Uncreate,
+    "Write": m.Write,
+    "Unwrite": m.Unwrite,
+    "DrawBorderThenFill": m.DrawBorderThenFill,
+    "FadeIn": m.FadeIn,
+    "FadeOut": m.FadeOut,
+    "GrowFromCenter": m.GrowFromCenter,
+    "SpinInFromNothing": m.SpinInFromNothing,
+    "ShrinkToCenter": m.ShrinkToCenter,
+    "Indicate": m.Indicate,
+    "Wiggle": m.Wiggle,
+    "ApplyWave": m.ApplyWave,
+    "Transform": m.ReplacementTransform,  # ADR 0005: the source hands off to the target
+    "FadeTransform": m.FadeTransform,
+    "TransformMatchingShapes": m.TransformMatchingShapes,
 }
-
-# Text-drawing clips need VMobjects; images only fade/grow.
-_VECTOR_ONLY = {"Create", "Uncreate", "Write", "Unwrite", "DrawBorderThenFill", "Wiggle", "ApplyWave"}
 
 
 def allowed_clip_kinds(mobject_type: str) -> list[str]:
+    """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
     if mobject_type in _IMAGE:
-        return [k for k in CLIP_KINDS if k not in _VECTOR_ONLY]
-    return list(CLIP_KINDS)
+        return [k for k, info in CLIP_KIND_INFO.items() if not info.vector_only]
+    return list(CLIP_KIND_INFO)
 
 
 def make_animation(
@@ -185,7 +175,8 @@ def make_animation(
     params: dict[str, Any],
     target: m.Mobject | None = None,
 ) -> m.Animation:
-    info = CLIP_KINDS[kind]
+    info = CLIP_KIND_INFO[kind]
+    cls = ANIMATION_CLASSES[kind]
     kwargs = dict(params)
     if ease is not None:
         kwargs["rate_func"] = rate_func(ease)
@@ -200,10 +191,10 @@ def make_animation(
     if info.category == "morph":
         if target is None:
             raise ValueError(f"{kind} needs a target layer")
-        anim = info.cls(mobject, target, **kwargs)
+        anim = cls(mobject, target, **kwargs)
     else:
-        anim = info.cls(mobject, **kwargs)
-    if info.clamp_alpha:
+        anim = cls(mobject, **kwargs)
+    if info.clamps_alpha:
         raw = anim.rate_func
         anim.rate_func = lambda x: min(1.0, max(0.0, raw(x)))
     return anim

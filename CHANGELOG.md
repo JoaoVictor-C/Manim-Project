@@ -18,7 +18,16 @@ All notable changes to this project are documented here. The format follows
 - Test: idle checkpoint precompute drains (`test_missing_checkpoints_drain`).
 - Tooling: ruff (lint + format), pytest markers `latex` and `ui`, dev dependency group.
 
+- Validation: unknown clip kinds, non-positive durations, negative starts,
+  morph target rules, clips after a morph, duplicate layer ids, unsupported
+  schema versions, bezier x outside [0, 1] are rejected on load.
+- Tests: 45 → 200 (images, schema, adapter, easing, lifetime, export, CLI,
+  logging, editor behaviour, seeded property tests); coverage 77 % → 93 %; `pytest-cov`.
+
 ### Changed
+- Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so
+  documents validate without importing Manim; `adapter.ANIMATION_CLASSES` maps kinds to Manim.
+- `pillow<13` pinned: Manim 0.22 uses an argument Pillow 13 removes.
 - Manim pinned to exactly 0.22.0 (ADR 0003).
 - `render/qt_preview.py` renamed to `render/qt_paths.py` (it serves overlays and
   hit-testing, not preview content — ADR 0006).
@@ -26,6 +35,14 @@ All notable changes to this project are documented here. The format follows
 - `zip()` calls on equal-length sequences are now `strict=True`.
 
 ### Fixed
+- Image layers rendered wrong opacity whenever they moved or had an opacity
+  keyframe: the scratch copy shared the source's pixel array and used
+  `ImageMobject.set_opacity`, which overwrites alpha in place.
+- A clip after a morph on the same layer crashed the evaluator (`ValueError`);
+  such projects are now rejected on load.
+- A clip outside a layer's explicit lifetime made the layer visible again.
+- `manim-studio render` printed a traceback for missing or invalid project files;
+  it now prints one error line and exits with code 2.
 - Qt tests crashed the run when a `QGuiApplication` was created before a
   `QApplication`; all Qt tests now share one session `qt_app`.
 - Author name encoding in `pyproject.toml`.

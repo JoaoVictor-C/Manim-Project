@@ -15,9 +15,12 @@ sequentially from a checkpoint, or patch them.
 
 ## Decision
 
-- The adapter registry (`CLIP_KINDS`, `allowed_clip_kinds`) is the
-  **allow-list**, keyed by (clip kind, mobject type, parameters exposed in the
-  UI). A combination is exposed only if it passes the random-access harness.
+- The clip registry is the **allow-list**: `schema.CLIP_KIND_INFO` holds each
+  kind's metadata (pure data, so documents validate without Manim),
+  `adapter.ANIMATION_CLASSES` maps kinds to Manim classes, and
+  `adapter.allowed_clip_kinds` filters by mobject type. It is keyed by (clip
+  kind, mobject type, parameters exposed in the UI). A combination is exposed
+  only if it passes the random-access harness.
 - Failures are fixed by **adapter patches** that pin the intended semantics
   (Wiggle: pivot at the clip's starting centre). Every patch is listed in
   [../deviations.md](../deviations.md).

@@ -38,7 +38,8 @@ times are seconds.
 **Lifetime inference:** visible from the start of the first clip if it is an
 introducer (Create, Write, FadeIn, …), else from 0 — or from the end of the
 morph that targets this layer. Hidden after the first remover (FadeOut,
-Uncreate, …) or morph clip on its lane.
+Uncreate, …) or morph clip on its lane. The lifetime gates everything: a clip
+outside the layer's lifetime does not make it visible.
 
 ## Spec
 
@@ -93,6 +94,19 @@ segment **leaving** this keyframe: either `{"name": <Manim rate function>}`
 | morph | Transform, FadeTransform, TransformMatchingShapes | ends this layer, starts `to_layer` |
 
 `ImageMobject` layers accept fades, growth/shrink and Indicate only.
+
+## Validation rules
+
+A file that breaks any of these is rejected on load (CLI exit code 2, an error
+dialog in the editor):
+
+- `schema_version` must be supported; layer ids are unique.
+- Clips: known `kind`; `start ≥ 0`; `duration > 0`; no overlap on a lane.
+- Morph clips must have `to_layer`; other clips must not. The target must exist,
+  must not be the layer itself, and may be the target of only one morph.
+- Nothing may follow a morph on the same lane (the layer has handed off — ADR 0005).
+- Canvas sizes, fps, `frame_height` and `duration` are positive; `opacity` in `base` is in [0, 1].
+- Cubic-bezier `x1`, `x2` are in [0, 1] (y may overshoot).
 
 ## Compatibility
 

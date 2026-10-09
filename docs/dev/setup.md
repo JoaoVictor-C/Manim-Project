@@ -43,6 +43,13 @@ initexmf --set-config-value=[MPM]AutoInstall=1
 | benchmark | `uv run python benchmarks/bench_preview.py` |
 | render | `uv run manim-studio -v render examples/euler.json out/euler.mp4` |
 
+## Pinned dependencies
+
+| pin | why | lift when |
+|---|---|---|
+| `manim==0.22.0` | the adapter relies on Manim internals (ADR 0003) | the suite passes on the new version |
+| `pillow<13` | Manim 0.22's camera calls `Image.fromarray(..., mode=...)`, removed in Pillow 13 | Manim stops passing `mode=` |
+
 ## Where things go at runtime
 
 | path | content | in git? |

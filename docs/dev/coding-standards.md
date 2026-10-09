@@ -28,8 +28,8 @@ what a linter cannot.
    base mobject, or anything returned by `Evaluator.frame()`.
 4. Every UI edit goes through `Evaluator.invalidate()` with the right edit class
    (ADR 0008). When unsure, use the broader class.
-5. New clip kinds are added to `CLIP_KINDS` and must pass the random-access
-   tests; deviations from vanilla Manim go in `docs/deviations.md`.
+5. New clip kinds are added to `schema.CLIP_KIND_INFO` and
+   `adapter.ANIMATION_CLASSES` and must pass the random-access tests; deviations from vanilla Manim go in `docs/deviations.md`.
 6. Schema changes that rename or change meaning bump `SCHEMA_VERSION` and ship a
    migration; update `docs/project-format.md`.
 

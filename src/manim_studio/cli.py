@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from .logging_config import get_logger, setup_logging
 
 log = get_logger(__name__)
@@ -43,8 +45,13 @@ def _render(project_path: Path, output: Path) -> int:
     from .core.schema import Project
     from .render.cairo_export import export_video
 
+    try:
+        project = Project.model_validate_json(project_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return _fail(f"cannot read {project_path}: {exc.strerror or exc}")
+    except ValidationError as exc:
+        return _fail(f"{project_path} is not a valid project:\n{exc}")
     adapter.configure(project_path.resolve().parent / ".cache" / "manim")
-    project = Project.model_validate_json(project_path.read_text(encoding="utf-8"))
 
     def progress(done: int, total: int) -> None:
         print(f"\rframe {done}/{total}", end="", flush=True)
@@ -54,3 +61,10 @@ def _render(project_path: Path, output: Path) -> int:
     print(f"\nwrote {output}")
     log.info("rendered %s -> %s in %.1fs", project_path, output, time.perf_counter() - start)
     return 0
+
+
+def _fail(message: str) -> int:
+    """User errors: one readable message on stderr and exit code 2, no traceback."""
+    log.info("user error: %s", message)  # the console already shows it via stderr
+    print(f"error: {message}", file=sys.stderr)
+    return 2

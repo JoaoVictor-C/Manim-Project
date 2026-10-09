@@ -62,7 +62,7 @@ class Evaluator:
         missing = []
         for layer in self.project.layers:
             for index, clip in enumerate(layer.clips, start=1):
-                if adapter.CLIP_KINDS[clip.kind].category == "morph":
+                if clip.info.category == "morph":
                     break  # the layer hands off to its morph target here
                 if (layer.id, clip.id) not in self._checkpoints:
                     missing.append((layer, index))
@@ -139,12 +139,12 @@ class Evaluator:
             start = 0.0
             if layer.id in self._morph_into:
                 start = self._morph_into[layer.id][1].end
-            elif layer.clips and adapter.CLIP_KINDS[layer.clips[0].kind].introducer:
+            elif layer.clips and layer.clips[0].info.introducer:
                 start = layer.clips[0].start
         if end is None:
             end = math.inf
             for clip in layer.clips:
-                info = adapter.CLIP_KINDS[clip.kind]
+                info = clip.info
                 if info.remover or info.category == "morph":
                     end = clip.end
                     break
@@ -173,16 +173,16 @@ class Evaluator:
 
     def _layer_at(self, layer: Layer, t: float) -> m.Mobject | None:
         start, end = self.lifetime(layer)
+        if not (start <= t < end):  # the lifetime gates everything, clips included
+            return None
         for index, clip in enumerate(layer.clips):
             if clip.start <= t < clip.end:
                 alpha = (t - clip.start) / clip.duration
-                if adapter.CLIP_KINDS[clip.kind].category == "morph":
+                if clip.info.category == "morph":
                     return self._morph_at(layer, index, clip, alpha)
                 active = self._activate(layer, index, clip)
                 active.anim.interpolate(alpha)
                 return self._to_world(active.drawn, layer, t)
-        if not (start <= t < end):
-            return None
         index = sum(1 for clip in layer.clips if clip.end <= t)
         return self._to_world(self._state_before(layer, index), layer, t)
 
@@ -293,8 +293,9 @@ def _copy_drawable_state(dst: m.Mobject, src: m.Mobject) -> None:
                 value = value.copy()
             setattr(dst, attr, value)
     elif isinstance(src, m.ImageMobject):
-        dst.pixel_array = src.pixel_array
-        dst.set_opacity(1)
+        # Copy: ImageMobject.set_opacity and fades write pixel_array in place, so a
+        # shared array would let one frame corrupt the source state of the next.
+        dst.pixel_array = src.pixel_array.copy()
 
 
 def _multiply_opacity(sub: m.Mobject, factor: float) -> None:
@@ -304,4 +305,6 @@ def _multiply_opacity(sub: m.Mobject, factor: float) -> None:
             if rgbas is not None and len(rgbas):
                 rgbas[:, 3] *= factor
     elif isinstance(sub, m.ImageMobject):
-        sub.set_opacity(factor)
+        # Not set_opacity(): it is relative to the ORIGINAL alpha and would discard
+        # the current one (e.g. mid-FadeIn). Multiply what is there instead.
+        sub.pixel_array[:, :, 3] = (sub.pixel_array[:, :, 3] * factor).astype(np.uint8)
