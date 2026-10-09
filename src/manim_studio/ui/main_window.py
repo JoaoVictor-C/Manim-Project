@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
         )
         self.layers.layerSelected.connect(self.properties.show_layer)
         self.timeline.clipSelected.connect(self._on_clip_selected)
+        self.timeline.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.builds.pendingChanged.connect(self._on_pending_changed)
 
         self._build_menu()

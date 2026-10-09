@@ -159,3 +159,48 @@ def test_dragged_results_are_valid_documents() -> None:
                 project.layers[0], "c2", edge, proposed, duration=DURATION, fps=FPS, scale=SCALE
             )
             edits.trim_clip(project, "a", "c2", start=new_start, end=new_end)
+
+
+# -- adding clips (S2.6) -------------------------------------------------------------
+
+
+def test_new_clip_starts_at_the_click_and_fits_the_gap() -> None:
+    from manim_studio.ui.timeline.model import place_new_clip
+
+    def place(t):
+        return place_new_clip(lane(), t, duration=DURATION, fps=FPS)
+
+    assert place(4.2) == pytest.approx((4.2, 1.0))  # gap 4-6
+    assert place(5.5) == pytest.approx((5.5, 0.5))  # shortened by c3 at 6.0
+    assert place(0.3) == pytest.approx((0.3, 0.7))  # before c1
+    assert place(8.0) == pytest.approx((8.0, 1.0))
+    assert place(9.9) == pytest.approx((9.9, 0.1))  # canvas end
+    assert place(1.5) is None  # on c1
+
+
+def test_new_clip_keeps_one_frame_at_the_end_of_a_gap() -> None:
+    from manim_studio.ui.timeline.model import place_new_clip
+
+    start, length = place_new_clip(lane(), 5.999, duration=DURATION, fps=FPS)
+    assert start == pytest.approx(6.0 - 1 / FPS) and length == pytest.approx(1 / FPS)
+
+
+def test_nothing_goes_after_a_morph_or_into_a_gap_under_a_frame() -> None:
+    from manim_studio.ui.timeline.model import place_new_clip
+
+    morphing = Layer(
+        id="m",
+        spec=Spec(type="Square"),
+        clips=[Clip(id="x", kind="Transform", start=1.0, duration=1.0, to_layer="t")],
+    )
+    assert place_new_clip(morphing, 3.0, duration=DURATION, fps=FPS) is None
+    assert place_new_clip(morphing, 0.5, duration=DURATION, fps=FPS) == pytest.approx((0.5, 0.5))
+    tight = Layer(
+        id="t",
+        spec=Spec(type="Square"),
+        clips=[
+            Clip(id="a", kind="FadeIn", start=0, duration=1.0),
+            Clip(id="b", kind="FadeOut", start=1.01, duration=1),
+        ],
+    )
+    assert place_new_clip(tight, 1.005, duration=DURATION, fps=FPS) is None

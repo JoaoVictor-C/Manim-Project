@@ -82,9 +82,14 @@ All notable changes to this project are documented here. The format follows
   revert with the reason in the status bar; new LaTeX shows in italics until
   the worker has built it. Selecting a layer or a timeline clip shows it.
 - `adapter.EASE_NAMES`, `adapter.BEZIER_PRESETS`.
+- Timeline clips (S2.6): right-click a row to add a clip at that time (1 s,
+  shortened to fit the gap; morphs pick a layer that is not yet a target; not
+  offered after a morph), right-click a clip to delete it, Delete key removes
+  the selected clip. Placement is the pure `timeline.model.place_new_clip`.
 - `Document.dragFinished` signal; `adapter.cache_dir()`; `schema.TEXT_TYPES`, `schema.RASTER_TYPES`.
 
 ### Changed
+- Timeline rows list the front-most layer first, matching the Layers panel.
 - `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so
   documents validate without importing Manim; `adapter.ANIMATION_CLASSES` maps kinds to Manim.

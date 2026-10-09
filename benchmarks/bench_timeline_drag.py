@@ -47,7 +47,7 @@ def mouse(view, kind, pos):
 def drag(app, window, layer_id: str, clip_id: str, playhead: float, steps: int = 20) -> list[float]:
     view = window.timeline
     window.seek(playhead)
-    row = [layer.id for layer in window.project.layers].index(layer_id)
+    row = view.row_of(layer_id)
     clip = next(c for c in window.project.layer(layer_id).clips if c.id == clip_id)
     scene_point = QPointF(
         view.scale.x(clip.start + clip.duration / 2), RULER_HEIGHT + row * ROW_HEIGHT + ROW_HEIGHT / 2

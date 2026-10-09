@@ -172,3 +172,30 @@ def drag_trim(
         snap(proposed, candidates, scale, fps, snapping), *trim_bounds(layer, clip_id, edge, duration, fps)
     )
     return (value, clip.end) if edge == "start" else (clip.start, value)
+
+
+def place_new_clip(
+    layer: Layer, t: float, *, duration: float, fps: int, length: float = 1.0
+) -> tuple[float, float] | None:
+    """Where a clip added at time ``t`` goes: ``(start, duration)``, or None if it cannot.
+
+    The clip starts at ``t`` on the frame grid and is ``length`` long, shortened
+    to fit the free gap around ``t``; near the end of a gap it slides back so it
+    keeps at least one frame. Nothing can go inside another clip or after a
+    morph (ADR 0005).
+    """
+    frame = 1.0 / fps
+    lo, hi = 0.0, duration
+    for clip in layer.clips:
+        if clip.start - 1e-9 <= t < clip.end - 1e-9:
+            return None  # on a clip
+        if clip.end <= t + 1e-9:
+            if clip.info.category == "morph":
+                return None  # the layer has handed off
+            lo = max(lo, clip.end)
+        elif clip.start > t:
+            hi = min(hi, clip.start)
+    if hi - lo < frame - 1e-9:
+        return None
+    start = _clamp(quantize(t, fps), lo, hi - frame)
+    return start, min(length, hi - start)

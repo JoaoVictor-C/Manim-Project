@@ -3,34 +3,39 @@
 A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 ``Document`` (snapshots and undo):
 
-* one row per layer, with its lifetime band and clip bars coloured by category;
+* one row per layer, front-most layer on top (as in the Layers panel), with its
+  lifetime band and clip bars coloured by category;
 * the ruler at the top scrubs the playhead (``seekRequested``);
 * dragging a clip's body moves it, dragging within ``EDGE_PX`` of an edge trims it;
   Alt disables snapping, Escape cancels, release records one undo step;
 * mouse moves are coalesced: only the latest position is applied per event-loop
   turn, so a slow frame drops positions instead of queueing them (ADR 0009);
-* Ctrl+wheel zooms about the cursor.
+* Ctrl+wheel zooms about the cursor;
+* right-click adds a clip at that time (or deletes the clip under the cursor);
+  Delete removes the selected clip (S2.6).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pydantic import ValidationError
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
+    QMenu,
     QStyleOptionGraphicsItem,
     QWidget,
 )
 
-from ...core import edits
-from ...core.schema import Clip, Project, infer_lifetime
+from ...core import adapter, edits
+from ...core.schema import CLIP_KIND_INFO, Clip, Layer, Project, infer_lifetime
 from ...logging_config import get_logger
 from ..document import Document
-from .model import Edge, TimeScale, drag_move, drag_trim, snap_candidates
+from .model import Edge, TimeScale, drag_move, drag_trim, place_new_clip, snap_candidates
 
 log = get_logger(__name__)
 
@@ -85,7 +90,7 @@ class LayerHeader(QWidget):
             return
         painter.setPen(TEXT_COLOR)
         scroll = self._view.verticalScrollBar().value()
-        for row, layer in enumerate(project.layers):
+        for row, layer in enumerate(self._view.rows()):
             y = RULER_HEIGHT + row * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT < RULER_HEIGHT:
                 continue
@@ -107,6 +112,7 @@ class _Drag:
 class TimelineView(QGraphicsView):
     seekRequested = Signal(float)
     clipSelected = Signal(str, str)  # layer id, clip id
+    message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -146,6 +152,18 @@ class TimelineView(QGraphicsView):
         self._drag = None
         self.sync()
 
+    def rows(self) -> list[Layer]:
+        """Layers in row order: the front-most (last in the project) first."""
+        return list(reversed(self.project.layers)) if self.project is not None else []
+
+    def row_of(self, layer_id: str) -> int:
+        return [layer.id for layer in self.rows()].index(layer_id)
+
+    def layer_at(self, viewport_y: float) -> Layer | None:
+        row = int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT)
+        rows = self.rows()
+        return rows[row] if viewport_y >= RULER_HEIGHT and 0 <= row < len(rows) else None
+
     def sizeHint(self) -> QSize:
         return QSize(800, RULER_HEIGHT + 6 * ROW_HEIGHT + 2 * self.frameWidth() + 16)
 
@@ -166,7 +184,7 @@ class TimelineView(QGraphicsView):
         height = RULER_HEIGHT + len(project.layers) * ROW_HEIGHT
         scene.setSceneRect(0, 0, width + 40, height)
         sources = project.morph_sources()
-        for row, layer in enumerate(project.layers):
+        for row, layer in enumerate(self.rows()):
             top = RULER_HEIGHT + row * ROW_HEIGHT
             start, end = infer_lifetime(layer, sources.get(layer.id))
             end = min(end, project.canvas.duration)
@@ -318,7 +336,92 @@ class TimelineView(QGraphicsView):
             self._pending = None
             self.document.cancel_preview()
             return
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace) and self._drag is None and self.selected:
+            self.delete_clip(*self.selected)
+            return
         super().keyPressEvent(event)
+
+    # -- adding and deleting clips (S2.6) ------------------------------------------
+
+    def contextMenuEvent(self, event) -> None:
+        menu = self.context_menu(QPointF(event.pos()))
+        if menu is not None and not menu.isEmpty():
+            menu.exec(event.globalPos())
+
+    def context_menu(self, pos: QPointF) -> QMenu | None:
+        """The right-click menu for a viewport position (built separately so it can be tested)."""
+        if self.project is None or self._drag is not None:
+            return None
+        item, _edge = self._hit(pos)
+        menu = QMenu(self)
+        if item is not None:
+            layer_id, clip_id = item.layer_id, item.clip_id
+            menu.addAction(f"Delete {item.kind} clip", lambda: self.delete_clip(layer_id, clip_id))
+            return menu
+        layer = self.layer_at(pos.y())
+        if layer is None:
+            return None
+        t = self.scale.t(self.mapToScene(pos.toPoint()).x())
+        add = menu.addMenu("Add clip")
+        placement = place_new_clip(
+            layer, t, duration=self.project.canvas.duration, fps=self.project.canvas.fps
+        )
+        if placement is None:
+            add.setEnabled(False)
+            add.setTitle("Add clip (no room here)")
+            return menu
+        start, length = placement
+        kinds = adapter.allowed_clip_kinds(layer.spec.type)
+        targets = self._morph_targets(layer)
+        for category, title in (
+            ("content", "Appear / disappear"),
+            ("emphasis", "Emphasis"),
+            ("morph", "Turn into"),
+        ):
+            section = [k for k in kinds if CLIP_KIND_INFO[k].category == category]
+            if not section:
+                continue
+            menu_for = add.addMenu(title)
+            for kind in section:
+                if category != "morph":
+                    menu_for.addAction(kind, lambda k=kind: self.add_clip(layer.id, k, start, length))
+                    continue
+                sub = menu_for.addMenu(kind)
+                sub.setEnabled(bool(targets))
+                for target in targets:
+                    sub.addAction(
+                        target.name or target.id,
+                        lambda k=kind, to=target.id: self.add_clip(layer.id, k, start, length, to_layer=to),
+                    )
+        return menu
+
+    def _morph_targets(self, layer: Layer) -> list[Layer]:
+        taken = self.project.morph_sources()
+        return [other for other in self.rows() if other.id != layer.id and other.id not in taken]
+
+    def add_clip(
+        self, layer_id: str, kind: str, start: float, length: float, to_layer: str | None = None
+    ) -> None:
+        clip_id = edits.new_clip_id(self.project.layer(layer_id), kind)
+        self._apply(
+            lambda p: edits.add_clip(p, layer_id, kind, start, length, to_layer=to_layer, clip_id=clip_id),
+            f"Add {kind} clip",
+        )
+        if any(c.id == clip_id for c in self.project.layer(layer_id).clips):
+            self.selected = (layer_id, clip_id)
+            self.sync()
+            self.clipSelected.emit(layer_id, clip_id)
+
+    def delete_clip(self, layer_id: str, clip_id: str) -> None:
+        if self.selected == (layer_id, clip_id):
+            self.selected = None
+        self._apply(lambda p: edits.remove_clip(p, layer_id, clip_id), "Delete clip")
+
+    def _apply(self, op, text: str) -> None:
+        try:
+            self.document.apply(op(self.project), text)
+        except (edits.EditError, ValidationError) as exc:
+            self.message.emit(f"{text}: {exc}")
 
     def _update_cursor(self, pos: QPointF) -> None:
         item, edge = self._hit(pos) if pos.y() >= RULER_HEIGHT else (None, None)
