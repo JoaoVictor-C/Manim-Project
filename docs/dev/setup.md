@@ -59,6 +59,10 @@ initexmf --set-config-value=[MPM]AutoInstall=1
 | `out/` | your renders and screenshots | no |
 | `%LOCALAPPDATA%\ManimStudio\logs\` | application log (ADR 0011) | — |
 
+Environment variables: `MANIM_STUDIO_LOG_DIR` moves the log folder;
+`MANIM_STUDIO_WORKER=0` turns the build worker off (text is then built on the
+UI thread — slower, but handy when debugging the worker, ADR 0015).
+
 ## Troubleshooting (Windows)
 
 **`uv` fails with "Missing expected target directory for Python minor version link".**

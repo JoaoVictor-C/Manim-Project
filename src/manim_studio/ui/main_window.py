@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
         self.builds.pendingChanged.connect(self._on_pending_changed)
 
         self._build_menu()
-        self.statusBar().showMessage("Open a project (File > Open) to begin.")
+        self.statusBar().showMessage("Create a project (File > New) or open one (File > Open).")
 
     def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
         dock = QDockWidget(title, self)
@@ -137,6 +137,7 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
         for text, shortcut, slot in (
+            ("&New", QKeySequence.StandardKey.New, self.new_project),
             ("&Open...", QKeySequence.StandardKey.Open, self.open_dialog),
             ("&Save", QKeySequence.StandardKey.Save, self.save),
             ("Save &As...", QKeySequence.StandardKey.SaveAs, self.save_as),
@@ -168,6 +169,12 @@ class MainWindow(QMainWindow):
             self.addAction(step)
 
     # -- project ---------------------------------------------------------------
+
+    def new_project(self) -> None:
+        """An empty scene with the default canvas (1280x720, 30 fps, 5 s)."""
+        self.path = None
+        self.document.replace(Project())
+        log.info("new project")
 
     def open_dialog(self) -> None:
         start = str(self.path.parent if self.path else Path.cwd())
