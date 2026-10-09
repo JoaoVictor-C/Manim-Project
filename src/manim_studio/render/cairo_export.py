@@ -61,6 +61,8 @@ def export_video(project: Project, out_path: Path, progress=None, replace_timeou
     ``replace_timeout`` seconds, the video is saved as ``<stem> (n)<suffix>``.
     """
     out_path = Path(out_path)
+    if out_path.is_dir():
+        raise IsADirectoryError(f"{out_path} is a folder, not a video file")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     partial = partial_path(out_path)
     try:

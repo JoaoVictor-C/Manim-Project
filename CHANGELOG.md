@@ -111,6 +111,10 @@ All notable changes to this project are documented here. The format follows
   `<name>.partial.mp4` and replace the output only when complete, so a failed or
   cancelled export never damages a previous video; a locked output (open in a
   player) is saved as `<name> (2).mp4` with a warning (ADR 0017).
+- `ui/export_job.py` (S4.2): one export in a separate process — snapshot to a
+  JSON file in the cache, live progress, `finished(path, warning)` /
+  `failed(message)`, `cancel()` that leaves no partial file. A folder given as
+  the output is now a clear error instead of a misleading "in use" rename.
 - S4 export plan (`docs/plans/s4-export.md`), proposed ADR 0017, benchmark B25.
 - S3 acceptance (`tests/ui/test_acceptance_s3.py`): move an object on the
   canvas, undo, redo, and animate it by moving it with keyframes on; benchmark
