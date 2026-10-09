@@ -1,6 +1,6 @@
 # S1 — Timeline: implementation plan
 
-- **Status:** In progress — S1.1, S1.2 done
+- **Status:** In progress — S1.1–S1.3 done
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 4](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B10–B14 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -102,7 +102,7 @@ move one of 400 clip items and repaint).
 |---|---|---|---|
 | **S1.1** ✅ | `core/edits.py`, `EditKind`, `Evaluator.invalidate(kind="timing")`, transform-keyed morph cache; ADR 0013 accepted | kind detection (incl. reorder ⇒ `clip`); invalid edits raise; **spy on `adapter.make_animation` proves timing edits never re-begin**; keyframed morph vs fresh evaluator; property test: random edits via `invalidate(kind)` == fresh evaluator | 1–2 d |
 | **S1.2** ✅ | `ui/document.py`, undo/redo commands, Edit menu; ADR 0014 accepted | preview/commit/cancel; one undo step per drag; undo/redo frames == fresh evaluator; undo of a timing drag is a timing edit | 1 d |
-| **S1.3** | `ui/timeline/model.py` | headless: time↔x round trip at several zooms; snapping priority and threshold; every clamp bound; quantisation; Alt | 1 d |
+| **S1.3** ✅ | `ui/timeline/model.py` | headless: time↔x round trip at several zooms; snapping priority and threshold; every clamp bound; quantisation; Alt | 1 d |
 | **S1.4** | `ui/timeline/view.py` (ruler, rows, bars, lifetime bands, playhead, zoom/scroll) | rows match layers, bars match clips, ruler click seeks, zoom keeps the time under the cursor | 2 d |
 | **S1.5** | drag move/trim wiring, coalescing, Escape; benchmark B16 (drag latency in the real widget) | `QTest` drags → expected document + exactly one undo entry; Escape restores; B16 ≤ 33 ms for Write and settled-morph drags | 1–2 d |
 | **S1.6** | `MainWindow`: vertical splitter (canvas over timeline), selected-clip highlight; docs (architecture, roadmap, changelog) | UI smoke test with the timeline; full suite < 20 s | 0.5 d |

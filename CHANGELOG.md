@@ -35,6 +35,10 @@ All notable changes to this project are documented here. The format follows
   `QUndoStack`; drags preview freely and record one undo step (Escape cancels).
   Edit menu with Undo/Redo; window title marks unsaved changes.
 
+- `ui/timeline/model.py` (S1.3): pure timeline geometry — time↔x scale with zoom
+  about the cursor, frame quantisation, 8 px snapping (frames, clip edges,
+  playhead, 0, end), move/trim clamping that never produces an overlap.
+
 ### Changed
 - `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.
 - Clip-kind metadata moved from the adapter into `schema.CLIP_KIND_INFO`, so
