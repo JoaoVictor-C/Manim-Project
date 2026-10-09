@@ -21,6 +21,7 @@ tests/
 │   ├── test_warm.py            warm keys and the warm gate (ADR 0015)
 │   ├── test_schema.py          validation rules, JSON round trip, examples
 │   ├── test_adapter.py         registry parity, builders, clamping, patches
+│   ├── test_registry.py        object library: every type builds, every exposed param has an effect
 │   ├── test_easing.py          cubic-bezier vs CSS reference, keyframe sampling
 │   └── test_transforms.py      numpy transforms == Manim methods
 ├── render/            Qt paths vs Cairo; video export and CLI
