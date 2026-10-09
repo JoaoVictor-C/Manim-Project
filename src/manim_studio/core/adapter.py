@@ -40,6 +40,11 @@ def configure(cache_dir: Path) -> None:
     log.info("manim cache=%s latex=%s", cache_dir, latex or "NOT FOUND (MathTex/Tex unavailable)")
 
 
+def cache_dir() -> Path:
+    """Where Manim caches built objects (set by ``configure``; shared with the build worker)."""
+    return Path(m.config.media_dir)
+
+
 # --- mobjects ---------------------------------------------------------------
 
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}

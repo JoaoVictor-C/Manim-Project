@@ -1,6 +1,6 @@
 # 0015. Build worker: warm Manim's disk cache, then commit
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented in S2.2, 2026-10-09)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 
@@ -65,5 +65,12 @@ Only some params create new cache entries: the text and the Text font do
 
 - Benchmarks B17–B20 in [../logs/benchmarks.md](../logs/benchmarks.md).
 - [Decision session 5](../logs/decision-sessions.md).
-- Tests (S2.2): `tests/core/test_warm.py`, `tests/ui/test_build_service.py`,
-  `tests/test_worker.py`.
+- Tests: `tests/core/test_warm.py` (keys, gate), `tests/ui/test_build_service.py`
+  (rules against a fake worker: edits and undo made while building are kept,
+  latest wins, deleted layer dropped, one request per key, failed builds commit
+  nothing, no commit mid-drag), `tests/ui/test_worker_process.py` (startup
+  queue, timeout restart, giving up, crash restart; the real worker warms the
+  cache this process reads and reports LaTeX errors).
+- Found while implementing: inside Manim's `align*` wrapper `\frac{x}{` is
+  valid LaTeX (the wrapper's closing brace balances it), so tests use an
+  undefined command for a LaTeX error.

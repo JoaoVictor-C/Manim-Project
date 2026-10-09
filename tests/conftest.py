@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Tests that run the CLI or editor must not write into the user's real log folder.
 os.environ["MANIM_STUDIO_LOG_DIR"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-logs-")))
+# Editor windows in tests build synchronously; the worker has its own tests (ADR 0015).
+os.environ["MANIM_STUDIO_WORKER"] = "0"
 
 # Must run before any test builds a mobject: sets the cache dir and finds MiKTeX.
 adapter.configure(ROOT / ".cache" / "manim")

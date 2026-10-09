@@ -56,6 +56,16 @@ All notable changes to this project are documented here. The format follows
 - Validation: duplicate clip ids on a lane and vector-only clip kinds on image
   layers are rejected.
 - `Document.apply` records nothing for an edit that changes nothing.
+- Build worker (S2.2, ADR 0015): `python -m manim_studio.worker` warms Manim's
+  disk cache for Text/Tex/MathTex in another process; `ui/worker_process.py`
+  queues requests during startup, restarts on a 20 s timeout or a crash, and
+  falls back to synchronous builds if it cannot start (`MANIM_STUDIO_WORKER=0`
+  disables it). LaTeX errors are reported as LaTeX's own message.
+- `core/warm.py` and `ui/build_service.py`: panel edits are operations; one that
+  builds a cold text object waits for the worker and is then re-run on the
+  current snapshot, so edits and undos made meanwhile are kept; latest wins per
+  field; a failed build commits nothing; nothing commits mid-drag.
+- `Document.dragFinished` signal; `adapter.cache_dir()`; `schema.TEXT_TYPES`, `schema.RASTER_TYPES`.
 
 ### Changed
 - `Evaluator.invalidate(..., transform_only=...)` replaced by `invalidate(..., kind=...)` / `apply(edit)`.

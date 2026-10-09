@@ -17,16 +17,27 @@ tests/
 │   ├── test_images.py          ImageMobject layers vs an independent reference
 │   ├── test_invalidation.py    edit classes (ADR 0008)
 │   ├── test_lifetime.py        visibility rules
+│   ├── test_edits.py           edit API, edit kinds, structural edits through the evaluator
+│   ├── test_warm.py            warm keys and the warm gate (ADR 0015)
 │   ├── test_schema.py          validation rules, JSON round trip, examples
 │   ├── test_adapter.py         registry parity, builders, clamping, patches
 │   ├── test_easing.py          cubic-bezier vs CSS reference, keyframe sampling
 │   └── test_transforms.py      numpy transforms == Manim methods
 ├── render/            Qt paths vs Cairo; video export and CLI
-└── ui/                editor: load/save, errors, wall-clock playback, stepping
+└── ui/                editor: load/save, errors, wall-clock playback, stepping;
+                       document/undo, timeline, build service (fake worker),
+                       worker process (stand-in programs + the real worker)
 ```
 
 Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`
-(93 % at the last count; the suite runs in about 11 s).
+(93 % at the last count; the suite runs in about 30 s, a third of it LaTeX and
+the real build worker).
+
+Editor windows in tests build synchronously: `conftest.py` sets
+`MANIM_STUDIO_WORKER=0`. The worker's own behaviour is tested in
+`ui/test_worker_process.py` (lifecycle rules with tiny stand-in programs, then
+one shared real worker) and its effect on edits in `ui/test_build_service.py`
+with a deterministic fake.
 
 ## Markers
 
