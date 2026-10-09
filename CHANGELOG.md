@@ -82,6 +82,8 @@ All notable changes to this project are documented here. The format follows
   revert with the reason in the status bar; new LaTeX shows in italics until
   the worker has built it. Selecting a layer or a timeline clip shows it.
 - `adapter.EASE_NAMES`, `adapter.BEZIER_PRESETS`.
+- S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,
+  benchmarks B21–B23 (`benchmarks/bench_canvas_interaction.py`).
 - New, Open and closing the window ask before discarding unsaved changes
   (Save / Discard / Cancel).
 - File > New (S2.7). S2 acceptance: a MathTex layer with a Write clip is built

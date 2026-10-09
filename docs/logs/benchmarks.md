@@ -145,3 +145,26 @@ style excluded (ADR 0015).
 ImageMobject from a 4000×4000 RGBA PNG (1.4 MB, gradient): **197 ms** and
 **199 ms** cold; from the adapter's in-memory spec cache (copy) **16 ms**. Image
 edits stay synchronous (no disk cache for the worker to warm).
+
+### B21 — Hit-testing a click on the canvas · 2026-10-09
+`benchmarks/bench_canvas_interaction.py`, stress scene + MathTex morph at
+t = 2.5 s (21 visible layers), every layer tested without a prefilter: bounding
+boxes **0.69 ms**, filled Qt paths (`QPainterPath.contains` on `vmobject_path`)
+**6.7 ms**, filled + `QPainterPathStroker` 0.1 u **69.8 ms**, numpy distance to
+cubic chords **3.8 ms**. With a bounding-box prefilter, Qt fill + numpy stroke
+over 40 random clicks: median **0.05 ms**, max **1.14 ms**. → ADR 0016.
+
+### B22 — Selection outline and move-drag steps · 2026-10-09
+Same scene, 960x540. Outline of a MathTex (path mapped to pixels, drawn with its
+bounding box): **0.72 ms** per frame. One move step (edit + `Evaluator.apply` +
+evaluate + Cairo render): static layer, base position **15.1 ms**; keyframed
+layer, key at the playhead **15.1 ms** (both `transform` kind, caches kept);
+keyframed morph source mid-morph **93.8 ms** (re-begin). → ADR 0016.
+
+### B23 — Morph drag lag and clip-driven visibility · 2026-10-09
+Moving a morph source by 1.0 u moves the drawn morph by **0.93 u** at 25 %,
+**0.50 u** at 50 % and **0.07 u** at 75 % of the morph (smooth rate): a drag
+cannot follow the cursor → drags refused during a morph. A filled Square at the
+first frame of its FadeIn has its full geometry but fill and stroke alpha
+**0.0** (0.001 one frame later) → hit-testing is gated on alpha > 0.02. Of the 17
+easings the panel offers, only `there_and_back` does not end at 1. → ADR 0016.

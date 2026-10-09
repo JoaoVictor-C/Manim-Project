@@ -112,3 +112,24 @@ left open, so ADRs can cite it.
   stay synchronous.
 - **Left open:** opening a project with many unseen strings is slow once
   (synchronous, documented).
+
+## Session 6 — S3 canvas interaction plan · 2026-10-09
+
+- **Tool / profile:** Terza, `balanced`; 3 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** S3 scope, measured hit-test and drag costs (B21–B22, taken for the
+  session), edit kinds (ADR 0013), document undo (ADR 0014), morph hand-offs (ADR 0005).
+- **Decisions:** bounding-box prefilter + Qt path fill + numpy stroke distance,
+  alpha-gated, all hits front-to-back with Alt+click cycling; `frame_layers`;
+  one shared `Selection`; the stopwatch rule with frame-snapped keys and ease
+  inheritance; no drags during a morph; auto-repeat nudges merge into one undo
+  step (→ ADR 0016). Plan: [../plans/s3-canvas.md](../plans/s3-canvas.md).
+- **Critiques that changed the plan:** a proposed pure-numpy winding test was
+  unmeasured and off-roadmap → Qt paths with a prefilter, measured at 0.05 ms
+  median; dragging during a morph → measured lag (B23), refused; a wide text box
+  hides objects behind it → Alt+click cycling; the preview time and the key time
+  differed → the playhead snaps to the frame first; inheriting `there_and_back`
+  would freeze a segment → measured which easings end at 1; holding an arrow
+  key flooded the undo stack → auto-repeat merging; objects invisible because of
+  a clip were clickable → measured, alpha gate.
+- **Left open:** none structural; Qt key-event details are handled in tests.
