@@ -163,6 +163,12 @@ class MainWindow(QMainWindow):
         redo = self.document.undo_stack.createRedoAction(self, "&Redo")
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addActions([undo, redo])
+        edit_menu.addSeparator()
+        self.auto_key_action = QAction("&Auto-key", self, checkable=True)
+        self.auto_key_action.setToolTip("Changing an object's transform sets keyframes at the playhead")
+        edit_menu.addAction(self.auto_key_action)
+        self.move_tool.auto_key = self.auto_key_action.isChecked
+        self.properties.auto_key = self.auto_key_action.isChecked
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(self.layers_dock.toggleViewAction())
         view_menu.addAction(self.properties_dock.toggleViewAction())
@@ -371,6 +377,8 @@ class MainWindow(QMainWindow):
         self.slider.blockSignals(False)
         self.timeline.set_playhead(self.t)
         self.refresh()
+        if not self.play_timer.isActive():
+            self.properties.refresh()  # keyed fields show their value at the playhead
 
     def refresh(self) -> None:
         if self.project is None:

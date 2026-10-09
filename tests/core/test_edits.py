@@ -427,3 +427,30 @@ def test_key_edits_keep_caches_and_match_a_fresh_evaluator(count_begins) -> None
     _warm(evaluator)
     assert count_begins == []
     assert_evaluators_agree(evaluator, Evaluator(edit.project))
+
+
+# -- set_property: the stopwatch rule and auto-key (P2a, ADR 0018) --------------------
+
+
+def test_set_property_edits_the_base_of_an_untracked_property() -> None:
+    edit = edits.set_property(two_clip_project(), "b", "rotation", 30.0, t=0.4)
+    assert edit.project.layer("b").base.rotation == 30.0 and edit.project.layer("b").tracks == {}
+
+
+def test_set_property_keys_a_tracked_property() -> None:
+    edit = edits.set_property(keyed_project(), "a", "position", (9.0, 9.0), t=0.5, auto_key=False)
+    assert edit.project.layer("a").tracks["position"][1].value == (9.0, 9.0)
+
+
+def test_auto_key_animates_from_the_layer_start_to_the_new_value() -> None:
+    project = two_clip_project()  # layer "a" starts with a Write at 0.0; "b" with a Grow at 0.2
+    edit = edits.set_property(project, "b", "rotation", 90.0, t=0.6, auto_key=True)
+    keys = edit.project.layer("b").tracks["rotation"]
+    assert [(k.t, k.value) for k in keys] == [(pytest.approx(0.2), 0.0), (pytest.approx(0.6), 90.0)]
+    assert edit.project.layer("b").base.rotation == 0.0
+    assert edit.kind == "transform"
+
+
+def test_auto_key_at_the_layer_start_writes_one_key() -> None:
+    edit = edits.set_property(two_clip_project(), "b", "scale", 2.0, t=0.2, auto_key=True)
+    assert [(k.t, k.value) for k in edit.project.layer("b").tracks["scale"]] == [(pytest.approx(0.2), 2.0)]

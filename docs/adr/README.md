@@ -46,4 +46,4 @@ need one.
 | [0015](0015-build-worker-warm-then-commit.md) | Build worker: warm Manim's disk cache, then commit | Accepted |
 | [0016](0016-canvas-hit-testing-and-stopwatch-rule.md) | Canvas editing: hit-testing and the stopwatch rule | Accepted |
 | [0017](0017-export-process-and-safe-output.md) | Exports run in a process and replace the output only when complete | Accepted |
-| [0018](0018-keyable-properties-and-auto-key.md) | Keyable properties and auto-key | Proposed |
+| [0018](0018-keyable-properties-and-auto-key.md) | Keyable properties and auto-key | Accepted |

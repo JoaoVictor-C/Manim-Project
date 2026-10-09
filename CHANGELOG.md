@@ -115,6 +115,12 @@ All notable changes to this project are documented here. The format follows
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
+- Transform gizmos (P2a): corner handles scale and a knob rotates the selected
+  object about its position (Shift: 10 % / 15° steps; live readout), on a box
+  that follows the object's rotation. Every transform property has a Keys toggle
+  in Properties; a keyed field shows its value at the playhead and edits keys.
+  Edit > Auto-key: the first change of an untracked property animates from the
+  layer's start to the playhead (ADR 0018). `edits.set_property` holds the rule.
 - P2a transform gizmos plan (`docs/plans/p2a-gizmos.md`), proposed ADR 0018.
 - Phase 1 complete: `tests/ui/test_acceptance_v1.py` writes an equation, moves
   it, morphs it into a second equation, fades it out and exports MP4 through

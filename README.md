@@ -38,9 +38,11 @@ MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
 (Ctrl+] / Ctrl+[) or dragging changes the stacking order; double-click renames.
 On the canvas: click an object to select it (Alt+click: the one behind), drag
 to move it (Shift: one axis, Escape cancels), arrow keys nudge it (Shift: 10 px).
-With **Keyframes** on for its position (Properties > Transform), moving it sets
-a key at the playhead instead — move the playhead, move the object, and it
-animates.
+The selected object has handles: drag a corner to scale it, the round knob to
+rotate it (Shift snaps to 10 % / 15°). With **Keys** on for a property
+(Properties > Transform), changing it sets a key at the playhead instead; with
+**Edit > Auto-key** on, the first change already animates — move the playhead,
+pose the object, and it moves there over time.
 
 The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics

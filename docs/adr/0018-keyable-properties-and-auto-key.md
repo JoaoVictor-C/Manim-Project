@@ -1,6 +1,6 @@
 # 0018. Keyable properties and auto-key
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented in P2a, 2026-10-09)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 

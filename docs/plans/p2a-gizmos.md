@@ -1,6 +1,6 @@
 # P2a — Transform gizmos and keyable properties: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_p2a.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 8](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **ADRs:** [0016 stopwatch rule](../adr/0016-canvas-hit-testing-and-stopwatch-rule.md) (reused),
@@ -58,3 +58,10 @@ the base (S3).
 | P2a.3 | keyable Properties | toggles for four properties; keyed field edit → key; refresh on seek |
 | P2a.4 | auto-key | two keys vs one at the start; off = base |
 | P2a.5 | acceptance + docs | scale and rotate, undo, redo; animate a rotation with auto-key |
+
+## Outcome
+
+Done on 2026-10-09. The stopwatch rule and auto-key live in one core function,
+`edits.set_property`, used by the canvas tool and the Properties panel alike.
+Keyed fields now show their value at the playhead and edit keys (they were
+disabled in S3); the Keyframes toggle sits on each transform row.

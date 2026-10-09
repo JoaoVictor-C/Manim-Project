@@ -14,13 +14,14 @@ from dataclasses import dataclass
 import manim as m
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QTransform
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas
 from ..render.cairo_export import render_frame
 from ..render.qt_paths import vmobject_path
+from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
 
 OUTLINE_COLOR = QColor("#38bdf8")
 
@@ -32,6 +33,7 @@ class Outline:
     path: QPainterPath
     bounds: QRectF
     anchor: tuple[float, float]
+    box: Box  # oriented: the frame the handles live in (P2a)
 
 
 class CanvasWidget(QWidget):
@@ -52,6 +54,7 @@ class CanvasWidget(QWidget):
         self.last_render_ms = 0.0
         self.selected_layer: str | None = None  # whose outline to draw
         self.outline: Outline | None = None
+        self.readout: tuple[QPointF, str] | None = None  # a value shown next to the cursor while dragging
         self.tool = None  # receives mouse/key input (canvas_tools.MoveTool)
 
     @property
@@ -120,18 +123,22 @@ class CanvasWidget(QWidget):
             return None
         path = QPainterPath()
         if isinstance(mob, m.ImageMobject):
-            ul, ur, dl, dr = (QPointF(*mob.points[i, :2]) for i in range(4))
+            points = mob.points[:4, :2].copy()
+            ul, ur, dl, dr = (QPointF(*points[i]) for i in range(4))
             path.moveTo(ul)
             for corner in (ur, dr, dl):
                 path.lineTo(corner)
             path.closeSubpath()
         else:
-            for sub in mob.family_members_with_points():
-                if isinstance(sub, m.VMobject):
-                    path.addPath(vmobject_path(sub))
+            family = [sub for sub in mob.family_members_with_points() if isinstance(sub, m.VMobject)]
+            for sub in family:
+                path.addPath(vmobject_path(sub))
+            points = np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((1, 2))
         layer = self._evaluator.project.layer(self.selected_layer)
-        anchor = self._evaluator.transform_at(layer, t).position
-        return Outline(path, path.boundingRect(), (float(anchor[0]), float(anchor[1])))
+        transform = self._evaluator.transform_at(layer, t)
+        anchor = (float(transform.position[0]), float(transform.position[1]))
+        box = oriented_box(points, anchor, transform.rotation, MIN_BOX_PX / self.px_per_unit())
+        return Outline(path, path.boundingRect(), anchor, box)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -155,11 +162,26 @@ class CanvasWidget(QWidget):
         dashed = QPen(OUTLINE_COLOR, 1, Qt.PenStyle.DashLine)
         dashed.setCosmetic(True)
         painter.setPen(dashed)
-        painter.drawRect(to_px.mapRect(self.outline.bounds))
+        box = self.outline.box
+        corners = [to_px.map(QPointF(*c)) for c in box.corners]
+        painter.drawPolygon(QPolygonF(corners))
         cx, cy = to_px.map(QPointF(*self.outline.anchor)).toTuple()
         painter.setPen(pen)
         painter.drawLine(QPointF(cx - 6, cy), QPointF(cx + 6, cy))
         painter.drawLine(QPointF(cx, cy - 6), QPointF(cx, cy + 6))
+        # handles: corner squares scale, the knob rotates (P2a)
+        painter.setBrush(QColor("#0f172a"))
+        half = HANDLE_PX / 2
+        for corner in corners:
+            painter.drawRect(QRectF(corner.x() - half, corner.y() - half, HANDLE_PX, HANDLE_PX))
+        knob = to_px.map(QPointF(*box.knob(KNOB_OFFSET_PX / self.px_per_unit())))
+        top_middle = (corners[2] + corners[3]) / 2
+        painter.drawLine(top_middle, knob)
+        painter.drawEllipse(knob, half, half)
+        if self.readout is not None:
+            pos, text = self.readout
+            painter.setPen(QColor("#e2e8f0"))
+            painter.drawText(pos + QPointF(14, -10), text)
 
     # -- input: forwarded to the tool ---------------------------------------------
 
