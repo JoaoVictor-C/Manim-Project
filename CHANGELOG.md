@@ -115,6 +115,8 @@ All notable changes to this project are documented here. The format follows
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
+- P2b keyframes plan (`docs/plans/p2b-keyframes.md`), benchmark B27 and
+  `benchmarks/fit_ease_beziers.py`.
 - Transform gizmos (P2a): corner handles scale and a knob rotates the selected
   object about its position (Shift: 10 % / 15° steps; live readout), on a box
   that follows the object's rotation. Every transform property has a Keys toggle

@@ -164,3 +164,18 @@ left open, so ADRs can cite it.
   track is constant, from `_sample`) → two keys from the layer's start; the
   roadmap's anchor gizmo must not silently disappear → kept as the next item,
   motivated by pendulums and clock hands.
+
+## Session 9 — P2b keyframes and curve editor plan · 2026-10-09
+
+- **Tool / profile:** Terza, `fast`; 1 iteration, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the P2a gap (keys exist but are invisible), the timeline's row
+  model (S1), the easing model, the shared selection (S3).
+- **Decisions:** merged diamonds per key time on the layer row; retime / delete /
+  add on the timeline; the selection gains a key time; a key view in
+  Properties; a curve editor starting from fitted beziers. Plan:
+  [../plans/p2b-keyframes.md](../plans/p2b-keyframes.md).
+- **Critiques that changed the plan:** diamonds overlap clip bars → press
+  priority and nearest-key choice; the last key's ease does nothing → shown
+  disabled; editing a named ease from a fixed default jumps the curve →
+  measured fits (B27), refusal for the four eases no bezier can express.

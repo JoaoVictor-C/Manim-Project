@@ -196,3 +196,12 @@ export started from the dialog (210 frames, 1280x720, 5.6 s including the
 renderer's start-up), a 16 ms `QTimer` on the UI thread: lateness median
 **0.0 ms**, p99 **14 ms**, max **50 ms** (one tick, at process start) over 343
 ticks. The UI does not freeze → S4 accepted.
+
+### B27 — Named Manim eases as cubic beziers · 2026-10-09
+`benchmarks/fit_ease_beziers.py`: grid search + refinement of (x1, y1, x2, y2)
+per named ease, max vertical error over 41 curve samples. Within 0.022: linear
+0.0, rush_into/rush_from 0.0007, ease_in/out/in_out_sine ≤ 0.0009, the cubic
+family ≤ 0.0032, smooth 0.004, ease_in/out_back 0.006, ease_in_out_back 0.0215.
+Not representable: double_smooth 0.092, ease_out_bounce 0.140, ease_out_elastic
+0.636, there_and_back 1.0. The fit takes ~1.4 s per ease (23.5 s for 17) → the
+results ship as a table (`adapter.EASE_BEZIER_FITS`), rechecked by a test.
