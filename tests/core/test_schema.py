@@ -147,3 +147,21 @@ def test_schema_does_not_import_manim() -> None:
     code = "import sys, manim_studio.core.schema; print('manim' in sys.modules)"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"
+
+
+def test_clip_ids_are_unique_on_a_lane() -> None:
+    with pytest.raises(ValidationError, match="duplicate clip ids"):
+        Layer(
+            id="a",
+            spec=Spec(type="Square"),
+            clips=[
+                Clip(id="c", kind="FadeIn", start=0, duration=0.1),
+                Clip(id="c", kind="FadeOut", start=1, duration=0.1),
+            ],
+        )
+
+
+def test_images_refuse_vector_only_clip_kinds() -> None:
+    with pytest.raises(ValidationError, match="needs a vector object"):
+        Layer(id="a", spec=Spec(type="ImageMobject"), clips=[Clip(id="c", kind="Write", start=0, duration=1)])
+    Layer(id="a", spec=Spec(type="ImageMobject"), clips=[Clip(id="c", kind="FadeIn", start=0, duration=1)])

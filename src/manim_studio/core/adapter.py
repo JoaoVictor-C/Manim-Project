@@ -18,7 +18,7 @@ import manim as m
 from manim.utils import rate_functions
 
 from ..logging_config import get_logger
-from .schema import CLIP_KIND_INFO, Easing, Spec
+from .schema import CLIP_KIND_INFO, RASTER_TYPES, TEXT_TYPES, Easing, Spec
 
 log = get_logger(__name__)
 
@@ -43,10 +43,10 @@ def configure(cache_dir: Path) -> None:
 # --- mobjects ---------------------------------------------------------------
 
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}
-_TEXT = {"Text", "MathTex", "Tex"}
-_IMAGE = {"ImageMobject"}
 
-MOBJECT_TYPES: dict[str, type] = {name: getattr(m, name) for name in sorted(_SHAPES | _TEXT | _IMAGE)}
+MOBJECT_TYPES: dict[str, type] = {
+    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | RASTER_TYPES)
+}
 
 
 def build_mobject(spec: Spec) -> m.Mobject:
@@ -63,7 +63,7 @@ def _build_cached(spec_json: str) -> m.Mobject:
     spec = Spec.model_validate_json(spec_json)
     cls = MOBJECT_TYPES[spec.type]
     params = dict(spec.params)
-    if spec.type in ("Text", "MathTex", "Tex"):
+    if spec.type in TEXT_TYPES:
         mob = cls(params.pop("text", ""), **params)
     elif spec.type == "ImageMobject":
         mob = cls(params.pop("path"), **params)
@@ -163,7 +163,7 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
 
 def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
-    if mobject_type in _IMAGE:
+    if mobject_type in RASTER_TYPES:
         return [k for k, info in CLIP_KIND_INFO.items() if not info.vector_only]
     return list(CLIP_KIND_INFO)
 

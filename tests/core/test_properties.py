@@ -112,16 +112,47 @@ def test_frames_are_order_independent(seed: int) -> None:
         assert max_diff(scrambled[t], fresh) <= 1, f"seed={seed} t={t}"
 
 
+def _gaps(layer: Layer, min_length: float = 0.15) -> list[tuple[float, float]]:
+    """Free intervals on a lane where a clip may go (never after a morph)."""
+    if any(c.info.category == "morph" for c in layer.clips):
+        return []
+    edges = [0.0, *(t for c in layer.clips for t in (c.start, c.end)), CANVAS.duration]
+    pairs = zip(edges[::2], edges[1::2], strict=True)
+    return [(lo, hi) for lo, hi in pairs if hi - lo >= min_length]
+
+
 def random_edit(rng: random.Random, project: Project) -> edits.Edit:
     """One random edit through the public edit API, kept valid by construction."""
     layer = rng.choice(project.layers)
     movable = [c for c in layer.clips]
-    op = rng.choice(["move", "trim", "base", "ease"] if movable else ["base"])
+    ops = ["base", "add_layer", "move_layer"]
+    if movable:
+        ops += ["move", "trim", "ease", "remove_clip"]
+    if _gaps(layer):
+        ops.append("add_clip")
+    if len(project.layers) > 1:
+        ops.append("remove_layer")
+    op = rng.choice(ops)
     if op == "base":
         base = Transform2D(position=(rng.uniform(-2, 2), rng.uniform(-1, 1)), rotation=rng.uniform(-90, 90))
         return edits.update_layer(project, layer.id, base=base)
+    if op == "add_layer":
+        return edits.add_layer(project, rng.choice(SPECS), index=rng.randint(0, len(project.layers)))
+    if op == "move_layer":
+        return edits.move_layer(project, layer.id, rng.randrange(len(project.layers)))
+    if op == "remove_layer":
+        return edits.remove_layer(project, layer.id)
+    if op == "add_clip":
+        lo, hi = rng.choice(_gaps(layer))
+        duration = round(rng.uniform(0.1, hi - lo), 3)
+        start = rng.uniform(lo, hi - duration)
+        return edits.add_clip(
+            project, layer.id, rng.choice(NON_MORPH), start, duration, ease=rng.choice(EASES)
+        )
     index = rng.randrange(len(movable))
     clip = movable[index]
+    if op == "remove_clip":
+        return edits.remove_clip(project, layer.id, clip.id)
     lo = layer.clips[index - 1].end if index > 0 else 0.0
     hi = layer.clips[index + 1].start if index + 1 < len(layer.clips) else CANVAS.duration
     if op == "move":
@@ -139,7 +170,7 @@ def test_random_edits_match_fresh_evaluator(seed: int) -> None:
     project = random_project(rng)
     evaluator = Evaluator(project)
     render_all(evaluator, TIMES)  # warm every cache
-    for _ in range(3):
+    for _ in range(4):
         edit = random_edit(rng, project)
         evaluator.apply(edit)
         project = edit.project
