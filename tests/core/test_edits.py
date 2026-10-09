@@ -354,3 +354,76 @@ def test_structural_edits_through_the_evaluator_match_a_fresh_one() -> None:
         project = edit.project
         _warm(evaluator)
         assert_evaluators_agree(evaluator, Evaluator(project))
+
+
+# -- keyframes (S3.1, ADR 0016) ---------------------------------------------------------
+
+FPS30 = CANVAS.fps  # support.CANVAS: 15 fps
+
+
+def keyed_project(ease_first: Easing | None = None) -> Project:
+    first = Keyframe(t=0.0, value=(0.0, 0.0), ease=ease_first or Easing(name="linear"))
+    return Project(
+        canvas=CANVAS,
+        layers=[Layer(id="a", spec=SQUARE, tracks={"position": [first, Keyframe(t=1.0, value=(2.0, 0.0))]})],
+    )
+
+
+def test_set_key_inserts_on_the_frame_grid_and_inherits_the_ease() -> None:
+    edit = edits.set_key(keyed_project(), "a", "position", 0.51, (1.0, 1.0))
+    keys = edit.project.layer("a").tracks["position"]
+    assert [k.t for k in keys] == [0.0, pytest.approx(round(0.51 * FPS30) / FPS30), 1.0]
+    assert keys[1].value == (1.0, 1.0) and keys[1].ease == Easing(name="linear")
+    assert edit.kind == "transform"
+
+
+def test_set_key_replaces_a_key_within_half_a_frame() -> None:
+    project = keyed_project()
+    edit = edits.set_key(project, "a", "position", 1.0 + 0.4 / FPS30, (3.0, 0.0))
+    keys = edit.project.layer("a").tracks["position"]
+    assert len(keys) == 2 and keys[1].t == 1.0 and keys[1].value == (3.0, 0.0)
+
+
+def test_a_key_before_the_first_gets_the_default_ease() -> None:
+    project = edits.set_key(keyed_project(), "a", "position", 0.2, (5.0, 0.0)).project
+    project = edits.update_layer(
+        project, "a", tracks={"position": [k for k in project.layer("a").tracks["position"] if k.t > 0.1]}
+    ).project
+    keys = edits.set_key(project, "a", "position", 0.0, (9.0, 9.0)).project.layer("a").tracks["position"]
+    assert keys[0].t == 0.0 and keys[0].ease == Easing()
+
+
+def test_there_and_back_is_not_inherited() -> None:
+    """It ends where it started, so a new key would never be reached (B23)."""
+    edit = edits.set_key(keyed_project(Easing(name="there_and_back")), "a", "position", 0.5, (1.0, 0.0))
+    assert edit.project.layer("a").tracks["position"][1].ease == Easing()
+
+
+def test_set_key_creates_a_track() -> None:
+    edit = edits.set_key(two_clip_project(), "b", "position", 0.4, [1.0, 2.0])
+    assert edit.project.layer("b").tracks["position"] == [Keyframe(t=0.4, value=(1.0, 2.0))]
+
+
+def test_clear_track_keeps_the_value_at_the_given_time() -> None:
+    edit = edits.clear_track(keyed_project(), "a", "position", at=0.5)
+    layer = edit.project.layer("a")
+    assert "position" not in layer.tracks
+    assert layer.base.position == pytest.approx((1.0, 0.0))  # linear halfway
+    assert edit.kind == "transform"
+    with pytest.raises(edits.EditError, match="no position keyframes"):
+        edits.clear_track(edit.project, "a", "position", at=0.5)
+
+
+def test_key_edits_keep_caches_and_match_a_fresh_evaluator(count_begins) -> None:
+    project = two_clip_project()
+    evaluator = _warm(Evaluator(project))
+    count_begins.clear()
+    for t, x in ((0.2, 1.0), (0.6, -1.0), (0.6, 2.0)):
+        edit = edits.set_key(project, "a", "position", t, (x, 0.5))
+        evaluator.apply(edit)
+        project = edit.project
+    edit = edits.clear_track(project, "a", "position", at=0.4)
+    evaluator.apply(edit)
+    _warm(evaluator)
+    assert count_begins == []
+    assert_evaluators_agree(evaluator, Evaluator(edit.project))
