@@ -25,9 +25,10 @@ its baked start) at 94 ms per step.
 
 - **Hit-testing** returns all layers under the point, front-most first, after a
   visibility gate (alpha > 0.02). Text-like objects hit on their bounding box,
-  images on their quad, other vector objects on visible fill (Qt
-  `QPainterPath.contains`) or within max(4 px, half the stroke width) of a
-  visible stroke. Alt+click cycles to the next hit behind.
+  images on their quad, other vector objects on visible fill (nonzero
+  winding) or within max(4 px, half the stroke width) of a visible stroke,
+  both computed in numpy on the curves flattened into short segments.
+  Alt+click cycles to the next hit behind.
 - **The evaluator exposes layer identity** through `frame_layers(t)`; results
   are shared buffers, read at click/paint time and never stored.
 - **One `Selection`** (layer, clip) is shared by every view.
@@ -38,6 +39,12 @@ its baked start) at 94 ms per step.
 - **No move during a morph** of the dragged layer (as source or target).
 - **Undo**: a drag is one step; holding an arrow key is one step (auto-repeat
   events merge into the previous nudge of the same layer).
+
+Implementation note (S3.2): the plan used Qt's `QPainterPath.contains` for
+fills, but it reports some interior points as outside — every point on the
+horizontal line through the centre of a Manim `Square` (`(0, 0)`, `(1, 0)`) —
+so fills use a numpy winding count instead (tests:
+`tests/render/test_hit_test.py`). Cost as shipped: 0.78 ms median per click (B21).
 
 ## Consequences
 
