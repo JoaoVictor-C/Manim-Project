@@ -1,0 +1,60 @@
+[project]
+name = "manim-studio"
+version = "0.1.0"
+description = "A visual, timeline-based animation editor that uses Manim as its engine."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "João Victor", email = "fffjv2006@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "manim==0.22.0",  # pinned: the adapter relies on Manim internals (ADR 0003)
+    "numpy>=2.5.3",
+    "pydantic>=2.14.0",
+    "pyside6>=6.12.0",
+]
+
+[project.scripts]
+manim-studio = "manim_studio.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.13",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = ["--import-mode=importlib", "-p", "no:cacheprovider"]
+filterwarnings = ["ignore::SyntaxWarning"]  # pydub (a Manim dependency) on Python 3.13
+markers = [
+    "latex: needs a LaTeX installation (skipped automatically when missing)",
+    "ui: needs Qt (runs offscreen)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+src = ["src", "tests", "benchmarks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = [
+    "RUF001",  # ambiguous unicode characters appear in LaTeX strings
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E402"]  # Qt platform env var must be set before importing PySide6
+"src/manim_studio/ui/**" = ["N802"]  # Qt overrides use camelCase (paintEvent, ...)
+
+[tool.ruff.lint.isort]
+known-first-party = ["manim_studio"]

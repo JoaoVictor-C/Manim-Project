@@ -1,0 +1,100 @@
+"""Random-access evaluation must equal Manim's sequential play loop (ADR 0002, 0007).
+
+A timeline editor requests frames shuffled, reversed and repeated; every frame
+must still match what ``Scene.play`` renders when played straight through.
+"""
+
+from __future__ import annotations
+
+import random
+
+import pytest
+
+from manim_studio.core import adapter
+from manim_studio.core.schema import Clip, Layer, Project
+from manim_studio.render.cairo_export import make_camera, render_frame
+from support import (
+    CANVAS,
+    CIRCLE,
+    FRAMES,
+    MATH,
+    SQUARE,
+    TEXT,
+    assert_frames_equal,
+    render_in_order,
+    sequential_reference,
+    single_clip_project,
+)
+
+NON_MORPH = [k for k, v in adapter.CLIP_KINDS.items() if v.category != "morph"]
+MORPH = [k for k, v in adapter.CLIP_KINDS.items() if v.category == "morph"]
+
+
+@pytest.mark.parametrize("spec", [SQUARE, TEXT], ids=lambda s: s.type)
+@pytest.mark.parametrize("kind", NON_MORPH)
+def test_single_clip_random_access(kind: str, spec) -> None:
+    project = single_clip_project(kind, spec)
+    reference = sequential_reference(kind, spec)
+    n = len(FRAMES)
+    shuffled = random.Random(0).sample(range(n), n)
+    scrub = list(range(n)) + list(reversed(range(n))) + shuffled
+
+    assert_frames_equal(reference, render_in_order(project, shuffled, fresh_each_frame=True), "fresh")
+    assert_frames_equal(reference, render_in_order(project, scrub), "reused")
+
+
+@pytest.mark.latex
+@pytest.mark.parametrize("kind", ["Write", "FadeIn", "Indicate", "Create"])
+def test_mathtex_random_access(kind: str) -> None:
+    project = single_clip_project(kind, MATH)
+    reference = sequential_reference(kind, MATH)
+    order = random.Random(1).sample(range(len(FRAMES)), len(FRAMES))
+    assert_frames_equal(reference, render_in_order(project, order), "mathtex")
+
+
+@pytest.mark.parametrize("kind", MORPH)
+def test_morph_random_access(kind: str) -> None:
+    layers = [
+        Layer(id="a", spec=SQUARE, clips=[Clip(id="m", kind=kind, start=0, duration=1, to_layer="b")]),
+        Layer(id="b", spec=CIRCLE),
+    ]
+    project = Project(canvas=CANVAS, layers=layers)
+
+    camera = make_camera(CANVAS)
+    anim = adapter.make_animation(
+        kind, adapter.build_mobject(SQUARE), None, {}, adapter.build_mobject(CIRCLE)
+    )
+    anim.begin()
+    reference = []
+    for t in FRAMES:
+        anim.interpolate(t)
+        reference.append(render_frame(camera, [anim.mobject]))
+
+    order = random.Random(2).sample(range(len(FRAMES)), len(FRAMES))
+    assert_frames_equal(reference, render_in_order(project, order), kind)
+
+
+def test_checkpoint_chain_matches_sequential() -> None:
+    """Three clips in a row: jumping into the last one must replay the earlier ones."""
+    clips = [
+        Clip(id="1", kind="Create", start=0.0, duration=0.4),
+        Clip(id="2", kind="Indicate", start=0.4, duration=0.3),
+        Clip(id="3", kind="FadeOut", start=0.7, duration=0.3),
+    ]
+    project = Project(canvas=CANVAS, layers=[Layer(id="a", spec=SQUARE, clips=clips)])
+
+    camera = make_camera(CANVAS)
+    mob = adapter.build_mobject(SQUARE)
+    reference = []
+    for clip in clips:
+        anim = adapter.make_animation(clip.kind, mob, None, {})
+        anim.begin()
+        for t in FRAMES:
+            if clip.start <= t < clip.end:
+                anim.interpolate((t - clip.start) / clip.duration)
+                reference.append(render_frame(camera, [anim.mobject]))
+        anim.finish()
+        mob = anim.mobject
+
+    order = list(reversed(range(len(FRAMES))))
+    assert_frames_equal(reference, render_in_order(project, order), "chain")

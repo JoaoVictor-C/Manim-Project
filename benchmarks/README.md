@@ -1,0 +1,15 @@
+# Benchmarks
+
+Performance scripts for the per-frame path. They are not part of the test suite.
+
+| script | measures |
+|---|---|
+| `bench_preview.py` | evaluator, QPainter and Cairo time per frame on the stress scene (20 MathTex, 3 concurrent Writes, 10 keyframed layers) at 960×540 |
+
+```bash
+uv run python benchmarks/bench_preview.py
+```
+
+When a result informs a decision, append it to
+[../docs/logs/benchmarks.md](../docs/logs/benchmarks.md) with the next id, the
+date, and the machine if it differs.
