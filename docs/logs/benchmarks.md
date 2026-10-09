@@ -180,3 +180,12 @@ mouse-move event to the end of its event-loop turn (edit + validation +
 evaluator + Cairo render + outline + panels). Static layer (base position):
 **18.4 ms** median (19.7 p90); keyframed layer (key at the playhead): **18.5 ms**
 (19.4 p90). Within the 33 ms budget → S3 accepted.
+
+### B25 — Exporting from a separate process · 2026-10-09
+`manim-studio render examples/euler.json` (1280x720@30, 210 frames): render
+**2.5 s** (84 frames/s) after ~**4 s** of process start-up (6.6 s wall).
+Killing a 60 s render after 8 s leaves a **48-byte unreadable** file at the
+output path. `os.replace` onto a file held open by another handle raises
+**PermissionError** (succeeds once closed). A child process printing without
+`flush`, read through a pipe, delivers its first line only **at exit** (0.98 s
+for three lines 0.3 s apart). → ADR 0017.

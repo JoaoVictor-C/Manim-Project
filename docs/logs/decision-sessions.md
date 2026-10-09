@@ -133,3 +133,18 @@ left open, so ADRs can cite it.
   key flooded the undo stack → auto-repeat merging; objects invisible because of
   a clip were clickable → measured, alpha gate.
 - **Left open:** none structural; Qt key-event details are handled in tests.
+
+## Session 7 — S4 export dialog plan · 2026-10-09
+
+- **Tool / profile:** Terza, `fast`; 1 iteration, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the roadmap item, the render CLI, measured render speed and the
+  corrupt output a killed render leaves (B25).
+- **Decisions:** export the current snapshot through the CLI in a `QProcess`
+  with `--cache-dir` and flushed `--progress json`; write a partial file and
+  replace the output only when complete; non-modal dialog with progress, ETA,
+  cancel and Open folder (→ ADR 0017). Plan: [../plans/s4-export.md](../plans/s4-export.md).
+- **Critiques that changed the plan:** the replace fails when a player holds
+  the old video → measured, retry then save as `name (2).mp4`; progress over a
+  pipe is buffered → measured, every line flushed and `PYTHONUNBUFFERED=1`;
+  quitting during an export → ask, then clean up.

@@ -106,6 +106,7 @@ All notable changes to this project are documented here. The format follows
   keyframes on (one key at the playhead holding the current value) or off
   (keeps the value at the playhead as the base). Base fields of a keyframed
   property are disabled live.
+- S4 export plan (`docs/plans/s4-export.md`), proposed ADR 0017, benchmark B25.
 - S3 acceptance (`tests/ui/test_acceptance_s3.py`): move an object on the
   canvas, undo, redo, and animate it by moving it with keyframes on; benchmark
   B24 (`benchmarks/bench_canvas_drag.py`): 18.5 ms per drag step in the window.

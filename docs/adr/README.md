@@ -45,3 +45,4 @@ need one.
 | [0014](0014-document-snapshots-and-undo.md) | Document snapshots and undo | Accepted |
 | [0015](0015-build-worker-warm-then-commit.md) | Build worker: warm Manim's disk cache, then commit | Accepted |
 | [0016](0016-canvas-hit-testing-and-stopwatch-rule.md) | Canvas editing: hit-testing and the stopwatch rule | Accepted |
+| [0017](0017-export-process-and-safe-output.md) | Exports run in a process and replace the output only when complete | Proposed |
