@@ -17,6 +17,8 @@ import json
 from .parts import build_spec
 from .schema import TEXT_TYPES, Project, Spec
 
+LABELS = {"AxisLabels": ("x_label", "y_label"), "GraphLabel": ("label",)}  # TeX on axes (ADR 0030)
+
 CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entry
 
 
@@ -27,6 +29,15 @@ def warm_key(spec: Spec) -> str | None:
         return None
     params = {k: v for k, v in spec.params.items() if k not in CACHE_NEUTRAL_PARAMS}
     return json.dumps({"type": spec.type, "params": params}, sort_keys=True)
+
+
+def warm_keys(spec: Spec) -> set[str]:
+    """Every disk-cache entry building ``spec`` reads: its own, or its labels' TeX (ADR 0030)."""
+    if spec.type in LABELS:
+        texts = (str(spec.params.get(name) or "") for name in LABELS[spec.type])
+        return {warm_key(Spec(type="MathTex", params={"text": t})) for t in texts if t.strip()}
+    key = warm_key(spec)
+    return {key} if key is not None else set()
 
 
 def key_spec(key: str) -> Spec:
@@ -41,12 +52,12 @@ def needs_warm(old: Project, new: Project, warmed: set[str] | frozenset[str]) ->
     parts' marker spans (ADR 0012), so adding a part warms the new build.
     """
     old_specs = {root.id: build_spec(old, root.id) for root in old.roots()}
+    old_specs |= {x.id: x.spec for x in old.layers if x.is_child and not x.is_part}
+    built = [(root.id, build_spec(new, root.id)) for root in new.roots()]
+    built += [(x.id, x.spec) for x in new.layers if x.is_child and not x.is_part]  # labels on axes
     keys = set()
-    for root in new.roots():
-        spec = build_spec(new, root.id)
-        if old_specs.get(root.id) == spec:
+    for layer_id, spec in built:
+        if old_specs.get(layer_id) == spec:
             continue
-        key = warm_key(spec)
-        if key is not None and key not in warmed:
-            keys.add(key)
+        keys |= {key for key in warm_keys(spec) if key not in warmed}
     return keys

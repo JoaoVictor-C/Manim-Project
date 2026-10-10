@@ -108,6 +108,11 @@ def remove_layer(project: Project, layer_id: str) -> Edit:
     """Delete a layer with its parts, and morph clips that turn another layer into one of them."""
     _layer(project, layer_id)
     gone = {layer_id} | {d.id for d in project.descendants(layer_id)}
+    while True:  # and what is built from a deleted graph (ADR 0030)
+        more = {x.id for x in project.layers if x.id not in gone and set(project.referenced_graphs(x)) & gone}
+        if not more:
+            break
+        gone |= more
     layers = []
     for layer in project.layers:
         if layer.id in gone:
@@ -528,6 +533,13 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
             and old.layer(a.parent_id).spec != new.layer(b.parent_id).spec
         ):
             layer_kind = "spec"  # its parent changed: a graph is plotted again on new axes (ADR 0024)
+        if (
+            layer_kind != "spec"
+            and a is not None
+            and b is not None
+            and old.referenced_graphs(a) != new.referenced_graphs(b)
+        ):
+            layer_kind = "spec"  # its graph changed: an area is built again (ADR 0030)
         if layer_kind is None:
             continue
         touched.add(layer_id)

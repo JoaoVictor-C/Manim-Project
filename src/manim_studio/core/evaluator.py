@@ -279,7 +279,8 @@ class Evaluator:
             self._tree(layer)  # builds the whole object
         if layer.id not in self._base:
             if layer.is_child:  # a child object alone, built against its parent (a path, ADR 0025)
-                built = adapter.build_child(self._layers[layer.parent_id].spec, layer.spec)
+                parent = self._layers[layer.parent_id].spec
+                built = adapter.build_child(parent, layer.spec, self.project.referenced_graphs(layer))
             else:
                 built = adapter.build_mobject(layer.spec, self._media_signature(layer))
             self._base[layer.id] = built
@@ -503,7 +504,10 @@ class Evaluator:
         against it; a child owns its slice of the glyphs and pivots as before (no rest centre)."""
         if root.id not in self._base:
             builds = [adapter.build_mobject(root.spec, self._media_signature(root))]
-            builds += [adapter.build_child(root.spec, child.spec) for child in children]
+            builds += [
+                adapter.build_child(root.spec, child.spec, self.project.referenced_graphs(child))
+                for child in children
+            ]
             vector = all(isinstance(b, m.VMobject) for b in builds)
             self._base[root.id] = m.VGroup(*builds) if vector else m.Group(*builds)
         group = self._base[root.id]
@@ -752,7 +756,11 @@ def _builds(project: Project) -> dict[str, object]:
         out[root.id] = (parts.build_spec(project, root.id), children)
     for layer in project.layers:
         if layer.is_child and not layer.is_part:
-            out[layer.id] = (project.layer(layer.parent_id).spec, layer.spec)
+            out[layer.id] = (
+                project.layer(layer.parent_id).spec,
+                layer.spec,
+                project.referenced_graphs(layer),
+            )
     return out
 
 
