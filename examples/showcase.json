@@ -587,6 +587,282 @@
       ]
     },
     {
+      "id": "rod",
+      "name": "",
+      "spec": {
+        "type": "Line",
+        "params": {
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            -2.2
+          ]
+        },
+        "style": {
+          "stroke": "#cbd5e1",
+          "stroke_width": 6
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -5.6,
+          2.1
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0,
+        "anchor": [
+          0.0,
+          1.1
+        ]
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "rotation": [
+          {
+            "t": 1.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 2.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 3.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 5.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 6.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 7.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 8.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 9.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 0.5,
+          "duration": 0.6,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "bob",
+      "name": "",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.22
+        },
+        "style": {
+          "fill": "#14b8a6",
+          "fill_opacity": 1.0,
+          "stroke": "#0f766e"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -5.6,
+          1.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0,
+        "anchor": [
+          0.0,
+          2.2
+        ]
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "rotation": [
+          {
+            "t": 1.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 2.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 3.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 5.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 6.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 7.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 8.0,
+            "value": 25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 9.0,
+            "value": -25.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 0.5,
+          "duration": 0.6,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "hinge",
+      "name": "",
+      "spec": {
+        "type": "Dot",
+        "params": {},
+        "style": {
+          "fill": "#cbd5e1"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -5.6,
+          3.2
+        ],
+        "scale": 0.8,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
       "id": "orbit",
       "name": "Orbit (code)",
       "spec": {

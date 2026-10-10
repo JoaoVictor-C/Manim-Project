@@ -14,6 +14,8 @@ What is in it (10 s, 1280x720 @ 30 fps):
   TransformMatchingTex, each term flying to its new place (ADR 0020);
 * a square that is drawn, spins and grows on keyframes, then morphs into a circle;
 * a star that grows from its centre and pulses its opacity;
+* a pendulum (ADR 0021): a rod and a bob that both turn about the same pivot,
+  set with their anchors — the rod's at its top end, the bob's far outside it;
 * a code layer (ADR 0019): real Manim code with a ValueTracker, an updater and a
   TracedPath — an orbit the visual model cannot express — placed and scaled
   like any other layer.
@@ -121,6 +123,28 @@ def build() -> Project:
         apply(edits.set_key(p, "star", "opacity", t, value))
     apply(edits.set_key(p, "star", "rotation", 3.0, 0.0))
     apply(edits.set_key(p, "star", "rotation", 9.0, 360.0))
+
+    # Pendulum: rod and bob swing about one pivot through their anchors (ADR 0021)
+    pivot = (-5.6, 3.2)
+    rod = Spec(
+        type="Line",
+        params={"start": (0.0, 0.0), "end": (0.0, -2.2)},
+        style={"stroke": "#cbd5e1", "stroke_width": 6},
+    )
+    bob = Spec(
+        type="Circle",
+        params={"radius": 0.22},
+        style={"fill": "#14b8a6", "fill_opacity": 1.0, "stroke": "#0f766e"},
+    )
+    for layer_id, spec, anchor in (("rod", rod, (0.0, 1.1)), ("bob", bob, (0.0, 2.2))):
+        apply(edits.add_layer(p, spec, layer_id=layer_id))
+        position = (pivot[0] - anchor[0], pivot[1] - anchor[1])  # the anchor lands on the pivot
+        apply(edits.update_layer(p, layer_id, base={"anchor": anchor, "position": position}))
+        apply(edits.add_clip(p, layer_id, "FadeIn", 0.5, 0.6))
+        for i in range(9):
+            apply(edits.set_key(p, layer_id, "rotation", 1.0 + 1.0 * i, -25.0 if i % 2 == 0 else 25.0))
+    apply(edits.add_layer(p, Spec(type="Dot", style={"fill": "#cbd5e1"}), layer_id="hinge"))
+    apply(edits.update_layer(p, "hinge", base={"position": pivot, "scale": 0.8}))
 
     # Code layer: an orbit with updaters and a dissipating trail, scaled and placed like any layer
     apply(
