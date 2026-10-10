@@ -57,6 +57,7 @@ CLIP_KIND_INFO: dict[str, ClipKindInfo] = {
     "Transform": ClipKindInfo("morph"),
     "FadeTransform": ClipKindInfo("morph"),
     "TransformMatchingShapes": ClipKindInfo("morph"),
+    "TransformMatchingTex": ClipKindInfo("morph"),  # MathTex/Tex only (ADR 0020)
 }
 
 
@@ -254,15 +255,20 @@ class Project(BaseModel):
                 raise ValueError(
                     f"layer {layer.id!r}: parts are only supported on MathTex and Tex, not {node.spec.type}"
                 )
-        has_children = {layer.parent_id for layer in self.layers if layer.parent_id}
-        tree = has_children | {layer.id for layer in self.layers if layer.parent_id}
         for layer in self.layers:
             for clip in layer.clips:
-                if clip.to_layer and (layer.id in tree or clip.to_layer in tree):
+                if clip.to_layer and layer.parent_id is not None:
                     raise ValueError(
-                        f"clip {clip.id!r} on layer {layer.id!r}: "
-                        "morphs are not supported on layers with parts yet"
+                        f"clip {clip.id!r} on part {layer.id!r}: a part cannot morph; "
+                        "morph its object (TransformMatchingTex moves the terms)"
                     )
+                if clip.kind == "TransformMatchingTex":
+                    target = by_id.get(clip.to_layer)
+                    kinds = {layer.spec.type if layer.spec else None, target.spec.type if target else None}
+                    if not kinds <= PART_PARENT_TYPES:
+                        raise ValueError(
+                            f"clip {clip.id!r}: TransformMatchingTex needs MathTex or Tex at both ends"
+                        )
             node = layer
             while node.parent_id is not None:
                 node = by_id[node.parent_id]
@@ -272,6 +278,11 @@ class Project(BaseModel):
                             raise ValueError(
                                 f"clip {clip.id!r} on {layer.id!r} overlaps clip {other.id!r} "
                                 f"on {node.id!r}, which contains it"
+                            )
+                        if other.to_layer and clip.start >= other.start - 1e-9:
+                            raise ValueError(
+                                f"clip {clip.id!r} on {layer.id!r} starts after {node.id!r} begins "
+                                f"morphing ({other.id!r}): it would never be seen"
                             )
 
     def morph_sources(self) -> dict[str, Clip]:

@@ -27,7 +27,9 @@ from support import (
 )
 
 NON_MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category != "morph"]
-MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category == "morph"]
+MORPH = [
+    k for k, v in CLIP_KIND_INFO.items() if v.category == "morph" and k != "TransformMatchingTex"
+]  # TeX only: test_matching_tex.py
 
 
 @pytest.mark.parametrize("spec", [SQUARE, TEXT], ids=lambda s: s.type)

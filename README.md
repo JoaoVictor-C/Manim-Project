@@ -56,6 +56,12 @@ panel and the timeline, get their own clips (Indicate a term, fade one out) and
 keyframes, and move with the equation. On the canvas a click selects the whole
 equation; double-click a term to select it, Esc to go back up.
 
+To turn one equation into another, right-click its row on the timeline and
+choose **Add clip > Turn into > TransformMatchingTex** and the target equation:
+terms that appear in both fly to their new places, the rest fades. Terms match
+by their parts' TeX where both equations have them, and by shape otherwise —
+split the equations into terms when a symbol repeats.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

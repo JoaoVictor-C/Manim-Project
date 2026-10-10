@@ -49,8 +49,9 @@ term of an equation. A part has no spec; it draws the glyphs of its key's span
 and moves with its parent (its own transform pivots on its centre). Its clips
 may not overlap clips of its ancestors; sibling parts may animate at the same
 time. A key that no longer matches after a text edit leaves the part
-*orphaned*: kept, but drawn nowhere. Morph clips are not allowed on objects
-with parts yet.
+*orphaned*: kept, but drawn nowhere. Objects with parts can morph and be
+morphed into (the whole tree takes part); a part itself cannot morph, and its
+clips may not start after its object begins morphing.
 
 ```json
 { "id": "b", "name": "b^2", "parent_id": "eq", "part": { "tex": "b^2", "occurrence": 0 },

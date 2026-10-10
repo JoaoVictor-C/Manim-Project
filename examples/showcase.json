@@ -93,6 +93,15 @@
           "ease": null,
           "params": {},
           "to_layer": null
+        },
+        {
+          "id": "transformmatchingtex-1",
+          "kind": "TransformMatchingTex",
+          "start": 6.2,
+          "duration": 1.4,
+          "ease": null,
+          "params": {},
+          "to_layer": "eq2"
         }
       ]
     },
@@ -234,17 +243,112 @@
           "ease": null,
           "params": {},
           "to_layer": null
-        },
-        {
-          "id": "fadeout-1",
-          "kind": "FadeOut",
-          "start": 6.0,
-          "duration": 1.0,
-          "ease": null,
-          "params": {},
-          "to_layer": null
         }
       ]
+    },
+    {
+      "id": "eq2",
+      "name": "",
+      "spec": {
+        "type": "MathTex",
+        "params": {
+          "text": "c^2 = a^2 + b^2",
+          "font_size": 72
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          1.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "c2b",
+      "name": "c^2",
+      "spec": null,
+      "parent_id": "eq2",
+      "part": {
+        "tex": "c^2",
+        "occurrence": 0
+      },
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "a2b",
+      "name": "a^2",
+      "spec": null,
+      "parent_id": "eq2",
+      "part": {
+        "tex": "a^2",
+        "occurrence": 0
+      },
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "b2b",
+      "name": "b^2",
+      "spec": null,
+      "parent_id": "eq2",
+      "part": {
+        "tex": "b^2",
+        "occurrence": 0
+      },
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
     },
     {
       "id": "square",
