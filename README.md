@@ -36,6 +36,10 @@ Delete) to remove it.
 In the Layers panel: **Add** creates an object from the library (shapes, Text,
 MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
 (Ctrl+] / Ctrl+[) or dragging changes the stacking order; double-click renames.
+**Ctrl+wheel** on the canvas zooms about the cursor, the wheel pans (Shift+wheel
+sideways), and so does dragging with the middle button; **View > Fit** (Ctrl+0)
+and **Actual Size** (Ctrl+1) set the view, which the readout under the canvas
+shows. Around the frame, dimmed, you see what lies outside it.
 On the canvas: click an object to select it (Alt+click: the one behind), drag
 to move it (Shift: one axis, Escape cancels), arrow keys nudge it (Shift: 10 px).
 The selected object has handles: drag a corner to scale it, the round knob to

@@ -45,7 +45,7 @@ timeline and canvas, with the real build worker and renderer.
 
 - Axes and function graphs as child layers; SVG and image import
 - Spatial (curved) motion paths, MoveAlongPath clips
-- **P3a** — [plan](plans/p3a-viewport.md): viewport zoom/pan with a re-framed camera (ADR 0023)
+- ✅ **P3a** — [plan](plans/p3a-viewport.md): viewport zoom/pan with a re-framed camera (ADR 0023)
 - Render-ahead cache
 
 ## Phase 4
