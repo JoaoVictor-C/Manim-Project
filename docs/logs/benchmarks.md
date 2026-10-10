@@ -310,3 +310,12 @@ patched animation matches **exactly** (diff 0) in reversed and shuffled order
 on Square, Text, MathTex and an image, for the default, `shape=Circle`, and the
 three-part `fade_in=True, fade_out=True` variant; at the end the object is
 unchanged. The adapter now draws the parts' mobjects.
+
+### B36 — A re-framed preview camera · 2026-10-10
+`benchmarks/bench_viewport.py`, the stress scene of `bench_preview.py` (20
+MathTex, 3 concurrent Writes, 10 keyed layers), median per frame over 30 frames:
+letterboxed frame 806x453 **18.2 ms**; camera covering the whole widget
+806x598 at the same scale **20.2 ms** (+11 %); zoom 4x about (1, 0.5) **17.4 ms**;
+zoom 0.25x **18.0 ms**. A camera zoomed 2x about (1, 0.5) vs the matching crop of
+a 1612x906 render of the whole frame: max 120, **mean 0.7** — edges only (the
+crop is aligned to whole pixels, anti-aliasing differs). → ADR 0023.

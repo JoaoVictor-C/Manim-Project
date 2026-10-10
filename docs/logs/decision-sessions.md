@@ -280,3 +280,19 @@ left open, so ADRs can cite it.
   params the new kind rejects → dropped; an overlay on a root whose glyphs all
   belong to parts would vanish → members with an overlay are drawn; type
   restrictions only in the menus → validated on load like `vector_only`.
+
+## Session 15 — P3a viewport zoom/pan plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on
+  `max_loops`, confidence **0.83**, no open critical item.
+- **Input:** ADR 0016 (canvas geometry), measurement B36, a read of the canvas,
+  MoveTool and the window's shortcuts.
+- **Decisions:** a Fit mode plus an absolute scale and centre; a camera
+  re-framed over the whole widget with a dimmed pasteboard; Ctrl+wheel zoom
+  about the cursor, wheel and middle-drag pan, Ctrl+0/Ctrl+1 (→ ADR 0023). Plan:
+  [../plans/p3a-viewport.md](../plans/p3a-viewport.md).
+- **Critiques that changed the plan:** zoom relative to Fit would turn an
+  explicit 100 % into 87 % after a resize → absolute scale with a Fit mode;
+  Space+drag pan would toggle playback → middle-drag; a wheel during a drag
+  would make the dragged object jump → view changes wait for the drag to end;
+  the dimming as one fill with a hole → four rectangles.
