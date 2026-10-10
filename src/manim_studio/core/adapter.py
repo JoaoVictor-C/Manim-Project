@@ -130,7 +130,7 @@ LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
     ("Text", ("Text", "MathTex", "Tex")),
     ("Media", ("ImageMobject",)),
-    ("Code", ("Code",)),
+    ("Python", ("Code",)),
 )
 
 _REQUIRED = {"text", "path", "code"}  # always written to the spec

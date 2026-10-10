@@ -121,6 +121,16 @@ All notable changes to this project are documented here. The format follows
   to add keys at the playhead. Properties shows a selected key's time, values
   and easing (disabled on a last key, where no motion follows). `edits.retime_keys`,
   `remove_keys`, `set_key_ease`; `Selection.key_time`.
+- Code layers (P2d, ADR 0019): a layer holding a Manim `Scene` written by the
+  user, for what the timeline cannot express (updaters, ValueTracker,
+  TracedPath). Real Manim plays it once into a frame cache (cropped,
+  premultiplied, zlib; `core/code_cache.py`) and the editor paints the frames
+  with Cairo between ordinary mobjects, with the layer's transform and opacity.
+  Code runs only in single-use warm spare processes (`code_runner.py`,
+  `ui/code_render.py`; B30, B31) and only when trusted: a per-user hash store,
+  a prompt when opening a project with untrusted code, `--trust-code` for the
+  CLI. Properties shows a code editor, the render status and Run again.
+- Showcase example (`examples/showcase.json`, built by `examples/build_showcase.py`).
 - Part layers (P2c, ADR 0012): animate the terms of an equation as their own
   layers. A part is `{tex, occurrence}` under a MathTex/Tex object, resolved to
   one exact span that the adapter marks with its own dvisvgm group (identical

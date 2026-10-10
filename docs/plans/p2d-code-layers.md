@@ -1,9 +1,9 @@
 # P2d — Code layers: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2d.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 11](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
-- **Evidence:** benchmark B30 in [../logs/benchmarks.md](../logs/benchmarks.md)
+- **Evidence:** benchmarks B30, B31 in [../logs/benchmarks.md](../logs/benchmarks.md)
 - **ADR:** [0019 — Code layers](../adr/0019-code-layers.md)
 
 ## Goal
@@ -88,3 +88,22 @@ audio, OpenGL scenes, several scenes per layer.
 | P2d.3 | render service with warm spares | latency to first frame with a warm spare; supersede; cancel; crash; lazy start |
 | P2d.4 | UI: library, editor, status, trust prompt, placeholder, export flag | edits through the UI; untrusted project asks and runs nothing |
 | P2d.5 | acceptance + docs | TracedPath under an equation: scrub = play, export = editor |
+
+## Outcome
+
+Done on 2026-10-10. Differences from the plan:
+
+- Manim's camera with a transparent background already holds **premultiplied**
+  pixels (Cairo's own surface: `#ff8000` at 50 % reads `[128, 64, 0, 128]`), so
+  the cache stores crops as they come; premultiplying again darkened edges.
+- With a warm spare, an edit reaches the cache in 0.15-0.24 s for a 1 s scene
+  (B31) — faster than expected because the runner writes frames as they come.
+- Spares run only while a *trusted* code layer exists (untrusted code never
+  needs one), and they have no Qt parent: deleting a just-exited `QProcess`
+  through its parent aborted Qt, so the service releases them itself.
+- A user's `class Wait(Scene)` shadows Manim's `Wait`; the runner finds the
+  scene by identity, not by name.
+- The evaluator reads frames from the renderer's cache (one place for both).
+- The library section is "Python" (an item and a section both named "Code"
+  were ambiguous).
+- Code layers have no Style section (fill and stroke mean nothing to them).

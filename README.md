@@ -56,6 +56,14 @@ panel and the timeline, get their own clips (Indicate a term, fade one out) and
 keyframes, and move with the equation. On the canvas a click selects the whole
 equation; double-click a term to select it, Esc to go back up.
 
+**Code layers** are the escape hatch for what the timeline cannot express
+(updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
+creates a layer holding a Manim `Scene`; edit it in Properties and press
+Ctrl+Enter. Real Manim plays it once in a separate process and the editor
+shows its frames, placed, scaled and faded like any layer. Code runs only if
+you trust it: opening a project that contains someone else's code asks first,
+and exporting from the command line needs `--trust-code`.
+
 The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics
 until it has been built.
