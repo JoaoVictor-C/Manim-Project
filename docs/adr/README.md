@@ -54,3 +54,4 @@ need one.
 | [0023](0023-canvas-viewport.md) | Canvas viewport | Accepted |
 | [0024](0024-axes-and-graphs.md) | Child objects: axes and graphs | Accepted |
 | [0025](0025-move-along-path.md) | Moving along another layer's path | Accepted |
+| [0026](0026-curved-position-paths.md) | Curved position paths | Accepted |

@@ -335,3 +335,21 @@ left open, so ADRs can cite it.
   harness had only one layer → a two-layer case; reading the path's animated
   state would let layers recurse → rest shape only; an un-keyed drag after the
   run would silently do nothing → a status hint.
+
+## Session 18 — P3d curved position paths plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on
+  `max_loops`, confidence **0.84**; the last question (show the motion path
+  always or on demand) was decided in the synthesis: always for the selected
+  layer, hidden while playing.
+- **Input:** ADR 0016, 0018, 0021, 0023; measurement B39; a read of the
+  key-rebuilding edits and the Easing validator.
+- **Decisions:** optional tangents on position keys; arc-length walking;
+  linear formula kept for straight segments; a canvas motion-path overlay;
+  de Casteljau split on insert (→ ADR 0026). Plan:
+  [../plans/p3d-curved-paths.md](../plans/p3d-curved-paths.md).
+- **Critiques that changed the plan:** overshooting eases had no meaning on a
+  curve → continue along the end tangent; mirrored handle lengths forced
+  symmetric keys → align direction, keep length; inserting a key keeps the
+  shape but not the timing → stated; the edits rebuilt keys and would drop
+  tangents → copied; key squares over the object's middle → harmless, same edit.
