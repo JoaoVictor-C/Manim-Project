@@ -416,3 +416,20 @@ left open, so ADRs can cite it.
   leave a later graph morph where it was → path signatures in member morph
   ends; the old child drawing path would drift → removed; an absolute rotation
   would jump at the clip start → relative.
+
+## Session 22 — P3h objects on axes · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0024, 0029; measurement B42; a read of Manim's `get_area`,
+  `get_riemann_rectangles` and `get_graph_label`.
+- **Decisions:** Point, Area, RiemannRectangles, AxisLabels, GraphLabel as
+  locked child objects built with Manim's helpers; a `graph` parameter kind
+  for sibling references, validated, cascaded on delete, classified on edit;
+  clamped function attributes on graphs; own graph-label placement; label
+  types not offered as paths (→ ADR 0030). Plan:
+  [../plans/p3h-axes-objects.md](../plans/p3h-axes-objects.md).
+- **Critiques that changed the plan:** `get_graph_label` moves labels onto
+  Manim's default screen, not the project's → own placement; an area's spec
+  does not change when its graph does → classified changed, build keys include
+  the graph; text glyphs as paths → excluded.
