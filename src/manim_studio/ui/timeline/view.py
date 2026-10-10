@@ -482,9 +482,12 @@ class TimelineView(QGraphicsView):
         kinds = adapter.allowed_clip_kinds((layer.spec or self.project.root_of(layer.id).spec).type)
         if layer.is_part:  # a part cannot morph; its object can (ADR 0020)
             kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "morph"]
+        if layer.is_child:  # only whole objects travel along paths (ADR 0025)
+            kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "motion"]
         for category, title in (
             ("content", "Appear / disappear"),
             ("emphasis", "Emphasis"),
+            ("motion", "Move"),
             ("morph", "Turn into"),
         ):
             section = [k for k in kinds if CLIP_KIND_INFO[k].category == category]
@@ -492,6 +495,18 @@ class TimelineView(QGraphicsView):
                 continue
             menu_for = add.addMenu(title)
             for kind in section:
+                if category == "motion":  # along which layer (ADR 0025)
+                    sub = menu_for.addMenu(kind)
+                    paths = self.project.path_layers(layer.id)
+                    sub.setEnabled(bool(paths))
+                    for path in paths:
+                        sub.addAction(
+                            path.name or path.id,
+                            lambda k=kind, p=path.id: self.add_clip(
+                                layer.id, k, start, length, params={"path": p}
+                            ),
+                        )
+                    continue
                 if category != "morph":
                     menu_for.addAction(kind, lambda k=kind: self.add_clip(layer.id, k, start, length))
                     continue
@@ -565,11 +580,19 @@ class TimelineView(QGraphicsView):
         ]
 
     def add_clip(
-        self, layer_id: str, kind: str, start: float, length: float, to_layer: str | None = None
+        self,
+        layer_id: str,
+        kind: str,
+        start: float,
+        length: float,
+        to_layer: str | None = None,
+        params: dict | None = None,
     ) -> None:
         clip_id = edits.new_clip_id(self.project.layer(layer_id), kind)
         self._apply(
-            lambda p: edits.add_clip(p, layer_id, kind, start, length, to_layer=to_layer, clip_id=clip_id),
+            lambda p: edits.add_clip(
+                p, layer_id, kind, start, length, to_layer=to_layer, clip_id=clip_id, params=params
+            ),
             f"Add {kind} clip",
         )
         if any(c.id == clip_id for c in self.project.layer(layer_id).clips):

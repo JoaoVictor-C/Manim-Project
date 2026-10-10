@@ -3,12 +3,13 @@
     python examples/build_graphs.py
     manim-studio render examples/graphs.json out/graphs.mp4
 
-What is in it (6 s, 1280x720 @ 30 fps):
+What is in it (7 s, 1280x720 @ 30 fps):
 
 * axes with numbers, drawn with Create;
 * ``sin(x)`` drawn along the axes, then turned into ``x**2/10 - 1``;
 * ``tan(x)`` faded in: its poles split the curve instead of spiking;
-* a title written in, then the whole chart glides up while the graphs ride along.
+* a title written in, then the whole chart glides up while the graphs ride along;
+* a dot runs along the parabola with MoveAlongPath (ADR 0025).
 
 Built with the same edit functions the editor uses.
 """
@@ -24,7 +25,7 @@ OUT = Path(__file__).with_name("graphs.json")
 
 
 def build() -> Project:
-    p = Project(canvas=Canvas(duration=6.0, background="#0f172a"))
+    p = Project(canvas=Canvas(duration=7.0, background="#0f172a"))
 
     def apply(edit: edits.Edit) -> None:
         nonlocal p
@@ -66,6 +67,11 @@ def build() -> Project:
     apply(edits.add_clip(p, "sine", "Create", 1.2, 1.5))
     apply(edits.add_clip(p, "sine", "Transform", 3.0, 1.3, to_layer="parabola"))
     apply(edits.add_clip(p, "tangent", "FadeIn", 4.4, 0.8))
+    # a dot runs along the parabola once the axes have settled (ADR 0025)
+    dot = Spec(type="Dot", params={"radius": 0.12}, style={"fill": "#ffffff", "fill_opacity": 1.0})
+    apply(edits.add_layer(p, dot, layer_id="runner"))
+    apply(edits.add_clip(p, "runner", "FadeIn", 5.4, 0.2))
+    apply(edits.add_clip(p, "runner", "MoveAlongPath", 5.6, 1.3, params={"path": "parabola"}))
     return p
 
 

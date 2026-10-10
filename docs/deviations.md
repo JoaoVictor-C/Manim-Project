@@ -43,6 +43,11 @@ The editor and the export agree.
 
 ## Robustness patches (output unchanged)
 
+- **MoveAlongPath measures its path once.** Manim's `point_from_proportion`
+  measures every curve of the path on every frame (23.6 ms on a 399-curve
+  graph); the adapter's `TabledMoveAlongPath` builds an arc-length table when
+  the clip begins and gives the same points (B38, `tests/core/test_paths.py`).
+
 - **Half-written LaTeX renders are compiled again.** Manim reuses
   `<hash>.svg` whenever it exists; a process killed while writing it (a build
   worker past its timeout) left a truncated file that failed that formula for

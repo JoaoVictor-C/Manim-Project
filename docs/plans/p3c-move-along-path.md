@@ -1,6 +1,6 @@
 # P3c — MoveAlongPath clips: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p3c.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 17](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.80)
 - **Evidence:** benchmark B38 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -63,3 +63,9 @@ the clip's Properties.
 | P3c.1 | registry, `layer` param kind, schema rules, adapter patch, harness | validation tests; patch = Manim's points; two-layer harness |
 | P3c.2 | evaluator: local path, signature keys, removal, hint | frames vs hand-built MoveAlongPath; the dot stays on the path after moving either layer; a later clip starts at the path end |
 | P3c.3 | menus, Properties, acceptance, ADR 0025, docs | the Goal's scenario through the UI, export = editor |
+
+## Outcome
+
+Done on 2026-10-10, as planned. The timeline's submenu is named after the kind
+(*Move > MoveAlongPath > layer*) like the other clip menus. Graphs are kept out
+by the allow-list too (`allowed_clip_kinds("Graph")` has no motion kinds).

@@ -83,6 +83,10 @@ split the equations into terms when a symbol repeats.
 any layer (Create it, Turn it into another graph). Double-click a graph to edit
 its formula, range and colour in Properties.
 
+To make something travel along a shape - a dot along a graph, around a
+circle - right-click its row and choose **Add clip > Move > MoveAlongPath** and
+the layer to follow; the clip's Properties let you pick another path.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

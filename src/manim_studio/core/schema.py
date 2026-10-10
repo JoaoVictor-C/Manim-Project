@@ -470,6 +470,18 @@ class Project(BaseModel):
                                 f"morphing ({other.id!r}): it would never be seen"
                             )
 
+    def path_layers(self, mover_id: str) -> list[Layer]:
+        """Layers ``mover_id`` may travel along (ADR 0025): not itself or its descendants,
+        not parts, code or images."""
+        inside = {mover_id} | {d.id for d in self.descendants(mover_id)}
+        return [
+            layer
+            for layer in self.layers
+            if layer.id not in inside
+            and not layer.is_part
+            and layer.spec.type not in CODE_TYPES | RASTER_TYPES
+        ]
+
     def morph_sources(self) -> dict[str, Clip]:
         """target layer id -> the morph clip that hands off to it (ADR 0005)."""
         return {clip.to_layer: clip for layer in self.layers for clip in layer.clips if clip.to_layer}

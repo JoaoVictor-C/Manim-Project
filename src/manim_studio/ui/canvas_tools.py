@@ -197,6 +197,15 @@ class MoveTool(QObject):
         drag, self._drag = self._drag, None
         self.canvas.readout = None
         self.document.commit_preview(VERBS[drag.prop])
+        if drag.prop == "position" and drag.key_time is None:
+            layer = self.project.layer(drag.layer_id)
+            runs = [c for c in layer.clips if c.info.category == "motion" and c.start <= self.playhead()]
+            if runs:  # the path re-runs from the moved base: nothing moves after its start (ADR 0025)
+                run = runs[-1]
+                self.message.emit(
+                    f"This object follows a path from {run.start:g} s: key its position to move it "
+                    "after that, or move the path."
+                )
         if drag.prop == "anchor" and edits.anchor_shifts_elsewhere(self.project.layer(drag.layer_id)):
             self.message.emit(SHIFTS_ELSEWHERE)
 
