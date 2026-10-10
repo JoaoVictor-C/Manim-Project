@@ -50,6 +50,7 @@ from .layers_panel import LayersPanel
 from .properties_panel import PropertiesPanel
 from .selection import Selection
 from .timeline.view import TimelineView
+from .viewport import ZOOM_STEP
 from .worker_process import make_worker
 
 log = get_logger(__name__)
@@ -84,6 +85,7 @@ class MainWindow(QMainWindow):
 
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)
+        self.canvas.view_changed.connect(self.refresh)
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.valueChanged.connect(self._on_slider)
         self.play_button = QPushButton("Play")
@@ -189,6 +191,17 @@ class MainWindow(QMainWindow):
         half = QAction("Half-resolution playback", self, checkable=True)
         half.toggled.connect(self._set_half_resolution)
         view_menu.addAction(half)
+        view_menu.addSeparator()  # the canvas view (ADR 0023)
+        for text, keys, slot in (
+            ("Zoom &In", ("Ctrl+=", "Ctrl++"), lambda: self.canvas.zoom(ZOOM_STEP)),
+            ("Zoom &Out", ("Ctrl+-",), lambda: self.canvas.zoom(1 / ZOOM_STEP)),
+            ("&Fit", ("Ctrl+0",), self.canvas.fit),
+            ("&Actual Size (100 %)", ("Ctrl+1",), self.canvas.actual_size),
+        ):
+            action = QAction(text, self)
+            action.setShortcuts([QKeySequence(k) for k in keys])
+            action.triggered.connect(slot)
+            view_menu.addAction(action)
         play = QAction("Play / Pause", self)
         play.setShortcut(Qt.Key.Key_Space)
         play.triggered.connect(self.toggle_play)
@@ -443,6 +456,7 @@ class MainWindow(QMainWindow):
         fps = self.project.canvas.fps
         self.time_label.setText(
             f"{self.t:5.2f} s  frame {int(self.t * fps):4d}  ({self.canvas.last_render_ms:4.1f} ms)"
+            f"   {self.canvas.zoom_label()}"
         )
 
     def step(self, frames: int) -> None:
