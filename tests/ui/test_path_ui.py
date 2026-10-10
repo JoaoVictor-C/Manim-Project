@@ -14,6 +14,7 @@ from PySide6.QtCore import QPointF
 
 from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec, Transform2D
 from manim_studio.ui.main_window import MainWindow
+from manim_studio.ui.timeline.view import ClipItem
 from ui.test_acceptance_v1 import menu_action, timeline_menu
 from ui.test_canvas_tools import drag, px
 
@@ -57,6 +58,8 @@ def test_move_along_a_path_from_the_timeline(window, qt_app) -> None:
     clip = window.project.layer("dot").clips[0]
     assert (clip.kind, clip.params) == ("MoveAlongPath", {"path": "sin"})
     assert window.document.undo_stack.undoText() == "Add MoveAlongPath clip"
+    clips = [item for item in window.timeline.scene().items() if isinstance(item, ClipItem)]
+    assert [(c.layer_id, c.kind) for c in clips] == [("dot", "MoveAlongPath")]  # the timeline draws it
 
 
 def test_graphs_do_not_travel(window) -> None:

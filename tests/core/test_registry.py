@@ -42,7 +42,12 @@ ALL_PARAMS = [
 def image(tmp_path: Path):
     def make(name: str, color: tuple[int, int, int]) -> str:
         path = tmp_path / name
-        Image.new("RGBA", (40, 20), (*color, 255)).save(path)
+        if name.endswith(".svg"):  # a different shape per colour, so the drawing changes too
+            shape = '<rect width="40" height="20"' if color[0] else '<polygon points="0,20 20,0 40,20"'
+            fill = "#{:02x}{:02x}{:02x}".format(*color)
+            path.write_text(f'<svg xmlns="http://www.w3.org/2000/svg">{shape} fill="{fill}"/></svg>', "utf-8")
+        else:
+            Image.new("RGBA", (40, 20), (*color, 255)).save(path)
         return str(path)
 
     return make
@@ -79,10 +84,18 @@ def test_param_value_falls_back_to_the_default() -> None:
     assert adapter.param_value(Spec(type="Line", params={"start": [0, 1]}), start) == (0, 1)
 
 
+def _media(type_name: str, image) -> dict:
+    """A file for the media types (ADR 0027)."""
+    if type_name == "ImageMobject":
+        return {"path": image("a.png", (255, 0, 0))}
+    return {"path": image("a.svg", (255, 0, 0))} if type_name == "SVGMobject" else {}
+
+
 @pytest.mark.parametrize("type_name", ALL_TYPES)
 def test_every_library_object_builds(type_name: str, image) -> None:
-    extra = {"path": image("a.png", (255, 0, 0))} if type_name == "ImageMobject" else {}
-    mob = _build(adapter.default_spec(type_name, **extra))
+    spec = adapter.default_spec(type_name, **_media(type_name, image))
+    mob = _build(spec)
+    assert adapter.media_problem(spec) is None  # drawn, not a placeholder
     if type_name not in CHILD_ONLY_TYPES:  # a graph sits where its function puts it
         assert abs(mob.get_center()).max() < 1e-6
 
@@ -99,7 +112,7 @@ def _other(param: Param, image) -> object:
     if param.kind == "point":
         return (param.default[0] - 0.5, param.default[1] + 0.7)
     if param.kind == "path":
-        return image("b.png", (0, 0, 255))
+        return image("b.svg" if "svg" in param.file_filter else "b.png", (0, 0, 255))
     if param.name == "expression":
         return "cos(x)"  # a graph needs a formula (ADR 0024)
     return "Arial" if param.name == "font" else "Other 42"
@@ -114,9 +127,7 @@ def _signature(mob) -> np.ndarray:
 
 @pytest.mark.parametrize(("type_name", "param"), ALL_PARAMS)
 def test_every_exposed_param_changes_the_object(type_name: str, param: Param, image) -> None:
-    base = adapter.default_spec(type_name)
-    if type_name == "ImageMobject":
-        base = adapter.default_spec(type_name, path=image("a.png", (255, 0, 0)))
+    base = adapter.default_spec(type_name, **_media(type_name, image))
     changed = base.model_copy(update={"params": {**base.params, param.name: _other(param, image)}})
     a, b = _signature(_build(base)), _signature(_build(changed))
     assert a.shape != b.shape or not np.allclose(a, b), f"{type_name}.{param.name} has no effect"

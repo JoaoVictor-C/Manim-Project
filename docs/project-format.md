@@ -77,14 +77,16 @@ its own; it may morph into another layer (typically another graph).
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `Code`, `Axes`; `Graph` (only
+  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `SVGMobject`, `Code`, `Axes`; `Graph` (only
   as a child of `Axes`).
 - `Code` (ADR 0019) holds Python in `params.code`: one `Scene` subclass
   (`from manim import *` and `numpy as np` are implied). It is rendered once
   into a frame cache, plays from the layer's start and holds its last frame;
   it has no clips. It runs only when trusted on this computer.
 - `params`: keyword arguments of the Manim constructor. `Text`/`MathTex`/`Tex`
-  take their string in `text`; `ImageMobject` takes `path`.
+  take their string in `text`; `ImageMobject` takes `path`; `SVGMobject` takes
+  `path` and `height` (default 2). Paths are absolute. A file that is missing or
+  cannot be read is drawn as a dashed placeholder; the project still opens (ADR 0027).
 - `Axes`: `x_range` / `y_range` as `[from, to]`, `x_step` / `y_step`,
   `x_length` / `y_length` (scene units), `numbers` (`"yes"` / `"no"`).
 - `Graph`: `expression`, a function of `x` with numbers, `pi`, `e`,
@@ -163,7 +165,7 @@ Registered clip params (ADR 0022):
 | Indicate | `color`, `scale_factor` | `"#rrggbb"` (default `#FFFF00`); 1–3 (default 1.2) |
 | Circumscribe | `shape`, `color` | `"rectangle"` or `"circle"`; a colour |
 | Flash, FocusOn | `color` | a colour |
-| MoveAlongPath | `path` | the id of another layer (not the object itself or its parts, not a part, code layer or image) |
+| MoveAlongPath | `path` | the id of another layer (not the object itself or its parts, not a part, code layer or image); a group such as an SVG is followed along its longest path |
 
 **MoveAlongPath** (ADR 0025) moves the object's centre along the path layer's
 shape as it is at the clip's start - its built shape under its transform (and

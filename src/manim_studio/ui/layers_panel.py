@@ -36,7 +36,16 @@ from PySide6.QtWidgets import (
 
 from ..core import adapter, edits, parts
 from ..core.expressions import check as check_expression
-from ..core.schema import CHILD_TYPES, CODE_TYPES, PART_PARENT_TYPES, RASTER_TYPES, Layer, Project, Spec
+from ..core.schema import (
+    CHILD_TYPES,
+    CODE_TYPES,
+    MEDIA_TYPES,
+    PART_PARENT_TYPES,
+    RASTER_TYPES,
+    Layer,
+    Project,
+    Spec,
+)
 from .build_service import BuildService
 
 ID_ROLE = Qt.ItemDataRole.UserRole
@@ -143,6 +152,7 @@ class LayersPanel(QWidget):
         self.document = builds.document
         # Hooks for tests and other front-ends: an image path or ""; a part key or None.
         self.choose_image: Callable[[], str] = self._choose_image_dialog
+        self.choose_svg: Callable[[], str] = self._choose_svg_dialog  # an SVG path or "" (ADR 0027)
         self.ask_part: Callable[[str], tuple[str, int] | None] = self._ask_part_dialog
         self.ask_expression: Callable[[], str | None] = self._ask_expression_dialog  # Add graph (ADR 0024)
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
@@ -214,7 +224,7 @@ class LayersPanel(QWidget):
         for section, types in adapter.LIBRARY:
             menu.addSection(section)
             for type_name in types:
-                action = menu.addAction(type_name)
+                action = menu.addAction(adapter.LIBRARY_LABELS.get(type_name, type_name))
                 action.triggered.connect(partial(self.add_object, type_name))
         self.library_menu = menu
         return menu
@@ -317,8 +327,8 @@ class LayersPanel(QWidget):
 
     def add_object(self, type_name: str) -> None:
         extra = {}
-        if type_name in RASTER_TYPES:
-            path = self.choose_image()
+        if type_name in MEDIA_TYPES:
+            path = self.choose_image() if type_name in RASTER_TYPES else self.choose_svg()
             if not path:
                 return
             extra["path"] = path
@@ -455,6 +465,10 @@ class LayersPanel(QWidget):
         name, _ = QFileDialog.getOpenFileName(
             self, "Add image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
         )
+        return name
+
+    def _choose_svg_dialog(self) -> str:
+        name, _ = QFileDialog.getOpenFileName(self, "Add SVG", "", "SVG drawings (*.svg)")
         return name
 
     def _ask_expression_dialog(self) -> str | None:

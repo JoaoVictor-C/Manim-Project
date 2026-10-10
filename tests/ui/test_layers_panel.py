@@ -70,7 +70,8 @@ def test_library_menu_lists_every_type_in_sections(panel) -> None:
     texts = [a.text() for a in panel.library_menu.actions()]
     for section, types in adapter.LIBRARY:
         assert section in texts
-        assert all(t in texts for t in types)
+        assert all(adapter.LIBRARY_LABELS.get(t, t) in texts for t in types)
+    assert "SVG" in texts and "Image" in texts  # media types by their everyday names
 
 
 def test_adding_a_shape_puts_it_on_top_and_selects_it(panel) -> None:

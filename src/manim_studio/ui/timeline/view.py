@@ -67,7 +67,7 @@ KEY_GRAB_PX = 5.0
 KEY_OFFSET = ROW_HEIGHT - 6  # diamond centre below the row top
 TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
 
-CATEGORY_COLORS = {"content": "#3b82f6", "emphasis": "#f59e0b", "morph": "#a855f7"}
+CATEGORY_COLORS = {"content": "#3b82f6", "emphasis": "#f59e0b", "motion": "#10b981", "morph": "#a855f7"}
 LIFETIME_COLOR = QColor(255, 255, 255, 28)
 PLAYHEAD_COLOR = QColor("#ef4444")
 BACKGROUND = QColor("#1f2329")

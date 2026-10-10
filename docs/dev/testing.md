@@ -17,6 +17,10 @@ pay Manim's import (5-8 s here) each time; skip them while iterating.
 point it at their own folder, and leaving it there made every later LaTeX build
 compile from scratch (that alone cost a minute, B32).
 
+In tests marked `ui`, an exception raised inside a Qt slot (a menu action, a
+timer, a signal handler) fails the test: Qt only prints such exceptions, so a
+broken handler used to pass unnoticed.
+
 ## Layout
 
 ```
@@ -51,6 +55,11 @@ subprocesses — the build worker and the renderer — and LaTeX).
 `ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
+`ui/test_acceptance_p3e.py` adds an SVG through Media > SVG, draws it on with
+DrawBorderThenFill, rewrites and deletes the file (redrawn on activation,
+placeholder and message) and exports; `core/test_svg.py` covers colours, the
+clip harness on SVGs, every kind of unreadable file, `check_media` with
+checkpoints and path followers, and the export of a missing file.
 `ui/test_acceptance_p3d.py` keys a dot, smooths a key and pulls its handle on
 the canvas, then checks the arc, scrubbing and the export;
 `core/test_motion_paths.py` covers arc-length walking, overshoot, edits that

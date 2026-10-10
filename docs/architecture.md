@@ -102,6 +102,7 @@ editor keeps working while a video renders (ADR 0017).
 | Edit kind | timing / transform / clip / spec, computed by `core/edits.py` — decides what `Evaluator.apply` drops | ADR 0008, 0013 |
 | Allow-list | clip kinds × mobject types verified random-access-safe | ADR 0007 |
 | Warm key | disk-cache identity of a text object; an edit building a cold key waits for the worker | ADR 0015 |
+| Media signature | an image's or SVG's file modification time and size; a change on disk rebuilds the layer when `Evaluator.check_media` runs (load, activation, F5); files that cannot be drawn show a placeholder | ADR 0027 |
 
 The document format is specified in [project-format.md](project-format.md).
 
@@ -112,7 +113,8 @@ how they were measured: [logs/benchmarks.md](logs/benchmarks.md).
 
 ## Known limitations
 
-- Flat layers only; parts of objects cannot be animated separately yet (ADR 0012, proposed).
+- Parts exist only for MathTex/Tex terms (ADR 0012); other objects animate whole.
+- Media paths are absolute, and the elements of an SVG cannot be animated separately yet (ADR 0027).
 - No updaters / `TracedPath` / 3D.
 - `qt_paths` does not draw `ImageMobject` (only needed for hit-testing).
 - Deliberate differences from vanilla Manim: [deviations.md](deviations.md).

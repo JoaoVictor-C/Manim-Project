@@ -724,7 +724,7 @@ def _param_field(param: Param, commit: Callable[[Any], None]) -> Field:
     if param.kind == "point":
         return PointField(commit)
     if param.kind == "path":
-        return PathField(commit)
+        return PathField(commit, param.file_filter) if param.file_filter else PathField(commit)
     if param.name == "code":
         return CodeField(commit)
     if param.multiline:

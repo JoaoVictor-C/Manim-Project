@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
         self.export_dialog: ExportDialog | None = None
         self.path: Path | None = None
         self.evaluator: Evaluator | None = None
+        self._media_errors: dict[str, str] = {}  # media layers drawn as placeholders (ADR 0027)
         self.t = 0.0
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
         # Every panel edit goes through the build service (ADR 0015).
@@ -149,6 +150,9 @@ class MainWindow(QMainWindow):
         self.builds.pendingChanged.connect(self._on_pending_changed)
 
         self._build_menu()
+        app = QApplication.instance()
+        if app is not None:  # coming back from another program: files may have changed (ADR 0027)
+            app.applicationStateChanged.connect(self._on_application_state)
         self.statusBar().showMessage("Create a project (File > New) or open one (File > Open).")
 
     def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
@@ -202,6 +206,12 @@ class MainWindow(QMainWindow):
             action.setShortcuts([QKeySequence(k) for k in keys])
             action.triggered.connect(slot)
             view_menu.addAction(action)
+        view_menu.addSeparator()
+        reload_media = QAction("Reload &Media", self)
+        reload_media.setShortcut(QKeySequence("F5"))
+        reload_media.setToolTip("Read images and SVG files again after they changed on disk")
+        reload_media.triggered.connect(lambda: self.reload_media(report=True))
+        view_menu.addAction(reload_media)
         play = QAction("Play / Pause", self)
         play.setShortcut(Qt.Key.Key_Space)
         play.triggered.connect(self.toggle_play)
@@ -258,6 +268,8 @@ class MainWindow(QMainWindow):
         gc.freeze()  # measured: removes the gen-2 GC hitches during playback
         self.idle_timer.start()
         self.code.sync(project)
+        self._media_errors = {}
+        self.report_media()
         untrusted = self.trust.untrusted(project)
         if untrusted:  # opening a file must never run its code silently (ADR 0019)
             names = [project.layer(i).name or i for i in untrusted]
@@ -291,7 +303,43 @@ class MainWindow(QMainWindow):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
         if kind == "spec":
             self._warn_retargeted(before, project)
+            self.report_media()  # a re-picked file may not be drawable
         self.code.sync(project)
+
+    # -- media files (ADR 0027) ------------------------------------------------
+
+    def _on_application_state(self, state: Qt.ApplicationState) -> None:
+        if state == Qt.ApplicationState.ApplicationActive and self.isVisible():
+            self.reload_media()
+
+    def reload_media(self, report: bool = False) -> set[str]:
+        """Read media files changed on disk again and redraw; returns the layers rebuilt.
+        ``report`` always says what happened (the menu action); otherwise only new problems."""
+        if self.evaluator is None or self.project is None:
+            return set()
+        changed = self.evaluator.check_media()
+        if changed:
+            log.info("media reloaded: %s", sorted(changed))
+            self.refresh()
+            self.idle_timer.start()  # their checkpoints were dropped (ADR 0009)
+        if not self.report_media(force=report) and report:
+            self.statusBar().showMessage(f"Media reloaded ({len(changed)} changed)", 3000)
+        return changed
+
+    def report_media(self, force: bool = False) -> bool:
+        """Say which media layers show a placeholder when that changed (or ``force``)."""
+        assert self.evaluator is not None and self.project is not None
+        errors = self.evaluator.media_errors()
+        shown = bool(errors) and (force or errors != self._media_errors)
+        if shown:
+            names = []
+            for layer_id, problem in errors.items():
+                layer = self.project.layer(layer_id)
+                file = Path(str(layer.spec.params.get("path") or "")).name
+                names.append(f"{layer.name or layer_id} ({file + ' - ' if file else ''}{problem})")
+            self.statusBar().showMessage(f"Missing media: {', '.join(names)}", 15000)
+        self._media_errors = errors
+        return shown
 
     def _warn_retargeted(self, before: Project, after: Project) -> None:
         """A text edit can move a part to another match (ADR 0012): say which parts to check."""

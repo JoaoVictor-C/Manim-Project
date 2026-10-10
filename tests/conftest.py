@@ -74,6 +74,25 @@ def _no_unsaved_changes_dialog(request, monkeypatch):
     monkeypatch.setattr(MainWindow, "ask_trust", lambda self, names: "skip")
 
 
+@pytest.fixture(autouse=True)
+def _no_exceptions_in_qt_slots(request, monkeypatch):
+    """An exception raised in a Qt slot (a menu action, a timer, a signal) is printed and
+    swallowed by Qt, so the test would pass: collect them and fail the test instead."""
+    if "ui" not in request.keywords:
+        yield
+        return
+    import sys
+    import traceback
+
+    raised: list[str] = []
+    monkeypatch.setattr(
+        sys, "excepthook", lambda *info: raised.append("".join(traceback.format_exception(*info)))
+    )
+    yield
+    if raised:
+        pytest.fail("exception in a Qt slot:\n" + "\n".join(raised), pytrace=False)
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if shutil.which("latex") is None:
         skip = pytest.mark.skip(reason="LaTeX not found (install MiKTeX or TeX Live)")
