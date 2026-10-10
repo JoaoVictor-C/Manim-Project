@@ -66,6 +66,12 @@ def changed_layers(old: Project, new: Project) -> set[str] | None:
     return _closure(old, changed) | _closure(new, changed)
 
 
+def layer_spans(project: Project, layer_ids: Iterable[str]) -> list[Span]:
+    """The times where these layers, or what depends on them, are drawn (a code render
+    finished, a media file was read again: the project itself did not change)."""
+    return _merge(_lifetimes(project, _closure(project, set(layer_ids))))
+
+
 def _moved(old: Project, new: Project) -> set[str]:
     """Layers whose place in the stacking order changed: outside the longest common order."""
     a, b = [layer.id for layer in old.layers], [layer.id for layer in new.layers]
@@ -153,9 +159,11 @@ class FrameStore:
         return len(self.frames)
 
     def set_view(self, view: int) -> None:
-        """A new framing: no frame is valid any more."""
+        """A new framing: no kept frame is valid. Frames carry their view, so the generation
+        stays (frames rendered from the current project for the new view are fine)."""
         self.view = view
-        self.invalidate_all()
+        self.frames.clear()
+        self.nbytes = 0
 
     def invalidate_all(self) -> None:
         self.generation += 1

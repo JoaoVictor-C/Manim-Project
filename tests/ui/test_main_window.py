@@ -79,7 +79,8 @@ def test_invalid_project_shows_error_and_keeps_state(window, tmp_path, monkeypat
 
 @pytest.mark.ui
 def test_playback_follows_wall_clock_and_drops_frames(window, monkeypatch) -> None:
-    """ADR 0009: playback time = elapsed wall-clock time, however slow frames are."""
+    """ADR 0009: playback time = elapsed wall-clock time, however slow frames are, shown on
+    the export's frame grid (ADR 0028)."""
     from manim_studio.ui import main_window as mw
 
     clock = [100.0]
@@ -88,7 +89,8 @@ def test_playback_follows_wall_clock_and_drops_frames(window, monkeypatch) -> No
     window.play()
     clock[0] += 0.75  # one tick arrives late: no catch-up frames, just the current time
     window._on_play_tick()
-    assert window.t == pytest.approx(1.75)
+    fps = window.project.canvas.fps
+    assert window.t == pytest.approx(int(1.75 * fps) / fps)  # the grid frame showing at 1.75 s
     clock[0] += 100  # past the end: stops at the last moment and pauses
     window._on_play_tick()
     assert window.t == pytest.approx(window.project.canvas.duration)

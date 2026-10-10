@@ -194,7 +194,8 @@ def test_the_store_refuses_other_views_and_stale_generations() -> None:
     assert store.accept(1, store.generation, 6, b"after")
     store.set_view(2)
     assert len(store) == 0 and store.nbytes == 0
-    assert not store.accept(2, rendered_at, 7, b"before the view changed")
+    assert not store.accept(1, store.generation, 7, b"for the old view")
+    assert store.accept(2, rendered_at, 7, b"the same project, the new view")  # 7 never changed
 
 
 def test_the_store_asks_from_the_playhead_and_wraps() -> None:

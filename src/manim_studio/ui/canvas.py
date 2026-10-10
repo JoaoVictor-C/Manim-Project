@@ -71,6 +71,8 @@ class CanvasWidget(QWidget):
         self.view = viewport.View()  # editor state, not saved (ADR 0023)
         self.motion: motion_overlay.MotionPath | None = None  # the selected layer's path (ADR 0026)
         self.playing = False  # the motion path hides while playing
+        self.render_ahead = None  # frames rendered ahead (ui.render_ahead.RenderAhead, ADR 0028)
+        self.from_cache = False  # the frame shown came from it
         self._pan_from: QPointF | None = None  # middle-drag in progress
 
     @property
@@ -157,14 +159,29 @@ class CanvasWidget(QWidget):
             self._camera.frame_center = np.array([view.centre[0], view.centre[1], 0.0])
         self._camera_view = view
         start = time.perf_counter()
-        layers = self._evaluator.frame_layers(t)
-        pixels = render_frame(self._camera, [mob for _, mob in layers])
-        self.outline = self._outline(layers, t)  # built now: the mobjects are shared buffers
+        cached = None
+        if self.render_ahead is not None:
+            self.render_ahead.set_view(view)
+            cached = self.render_ahead.image(t)
+        self.from_cache = cached is not None
+        if cached is not None:  # rendered ahead (ADR 0028): only the selected object is evaluated
+            self._image = cached
+            self.outline = self._outline(self._selected_object(t), t)
+        else:
+            layers = self._evaluator.frame_layers(t)
+            pixels = render_frame(self._camera, [mob for _, mob in layers])
+            self.outline = self._outline(layers, t)  # built now: the mobjects are shared buffers
+            height, width = pixels.shape[:2]
+            self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.motion = self._motion(t)
         self.last_render_ms = (time.perf_counter() - start) * 1000
-        height, width = pixels.shape[:2]
-        self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.update()
+
+    def _selected_object(self, t: float) -> list[tuple[str, m.Mobject]]:
+        project = self._evaluator.project
+        if not self.selected_layer or not any(layer.id == self.selected_layer for layer in project.layers):
+            return []
+        return self._evaluator.object_frame(self.selected_layer, t)
 
     def preview_view(self) -> PreviewView:
         """How the frame is framed now (ADR 0028): the camera covers the whole widget."""
