@@ -53,3 +53,4 @@ need one.
 | [0022](0022-clip-params-and-overlays.md) | Clip parameters and overlay clips | Accepted |
 | [0023](0023-canvas-viewport.md) | Canvas viewport | Accepted |
 | [0024](0024-axes-and-graphs.md) | Child objects: axes and graphs | Accepted |
+| [0025](0025-move-along-path.md) | Moving along another layer's path | Accepted |
