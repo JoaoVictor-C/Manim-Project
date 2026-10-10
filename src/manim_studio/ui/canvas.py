@@ -24,10 +24,12 @@ from ..core.evaluator import Evaluator
 from ..core.schema import Canvas
 from ..render.cairo_export import render_frame
 from ..render.qt_paths import vmobject_path
-from . import viewport
+from . import motion_overlay, viewport
 from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
 
 OUTLINE_COLOR = QColor("#38bdf8")
+MOTION_COLOR = QColor("#f59e0b")  # the motion path (ADR 0026)
+KEY_PX = 7.0  # a key's square on the motion path
 PASTEBOARD_DIM = QColor(24, 24, 27, 170)  # over what lies outside the video frame
 FRAME_BORDER = QColor("#52525b")
 WHEEL_PAN_PX = 48.0  # one wheel notch
@@ -66,6 +68,8 @@ class CanvasWidget(QWidget):
         self.readout: tuple[QPointF, str] | None = None  # a value shown next to the cursor while dragging
         self.tool = None  # receives mouse/key input (canvas_tools.MoveTool)
         self.view = viewport.View()  # editor state, not saved (ADR 0023)
+        self.motion: motion_overlay.MotionPath | None = None  # the selected layer's path (ADR 0026)
+        self.playing = False  # the motion path hides while playing
         self._pan_from: QPointF | None = None  # middle-drag in progress
 
     @property
@@ -164,10 +168,20 @@ class CanvasWidget(QWidget):
         layers = self._evaluator.frame_layers(t)
         pixels = render_frame(self._camera, [mob for _, mob in layers])
         self.outline = self._outline(layers, t)  # built now: the mobjects are shared buffers
+        self.motion = self._motion(t)
         self.last_render_ms = (time.perf_counter() - start) * 1000
         height, width = pixels.shape[:2]
         self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.update()
+
+    def _motion(self, t: float) -> motion_overlay.MotionPath | None:
+        if self.playing or not self.selected_layer or self._evaluator is None:
+            return None
+        project = self._evaluator.project
+        if not any(layer.id == self.selected_layer for layer in project.layers):
+            return None
+        layer = project.layer(self.selected_layer)
+        return motion_overlay.build(layer, *self._evaluator.position_frame(layer, t))
 
     def _outline(self, layers: list[tuple[str, m.Mobject]], t: float) -> Outline | None:
         if not self.selected_layer:
@@ -210,6 +224,8 @@ class CanvasWidget(QWidget):
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             painter.drawImage(QRectF(self.rect()), self._image)
             self._paint_pasteboard(painter)
+            if self.motion is not None:
+                self._paint_motion(painter)
             if self.outline is not None:
                 self._paint_outline(painter)
         painter.end()
@@ -231,6 +247,32 @@ class CanvasWidget(QWidget):
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(frame)
+
+    def _paint_motion(self, painter: QPainter) -> None:
+        """The motion path: dashed through the keys, a square per key, its tangent handles."""
+        to_px = self.units_transform()
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        dashed = QPen(MOTION_COLOR, 1, Qt.PenStyle.DashLine)
+        dashed.setCosmetic(True)
+        painter.setPen(dashed)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPolyline(QPolygonF([to_px.map(QPointF(*p)) for p in self.motion.polyline]))
+        solid = QPen(MOTION_COLOR, 1)
+        solid.setCosmetic(True)
+        painter.setPen(solid)
+        half = KEY_PX / 2
+        for key in self.motion.keys:
+            centre = to_px.map(QPointF(*key.point))
+            for handle in (key.in_handle, key.out_handle):
+                if handle is not None:
+                    end = to_px.map(QPointF(*handle))
+                    painter.drawLine(centre, end)
+                    painter.setBrush(MOTION_COLOR)
+                    painter.drawEllipse(end, 3.0, 3.0)
+            painter.setBrush(QColor("#0f172a"))
+            painter.drawRect(QRectF(centre.x() - half, centre.y() - half, KEY_PX, KEY_PX))
+        painter.restore()
 
     def _paint_outline(self, painter: QPainter) -> None:
         to_px = self.units_transform()

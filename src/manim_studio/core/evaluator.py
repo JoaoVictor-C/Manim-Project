@@ -553,6 +553,20 @@ class Evaluator:
     def transform_at(self, layer: Layer, t: float) -> Transform2D:
         return layer_transform(layer, t)
 
+    def position_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """``(a, b)`` with ``world pivot = a @ position + b`` at ``t`` (the motion path, ADR 0026)."""
+        anchor = np.array(self.transform_at(layer, t).anchor, dtype=float)
+        if layer.parent_id is None:
+            return np.eye(2), anchor
+        parent = self._layers[layer.parent_id]
+        if layer.is_part:
+            tree = self._tree(self.project.root_of(layer.id))
+            a, b, _ = self._member_affine(tree, parent, t)
+            centre = tree.centres.get(layer.id, np.zeros(3))[:2]
+            return a, a @ (centre + anchor) + b
+        a, b = _affine(self.transform_at(parent, t))
+        return a, a @ anchor + b
+
     def layer_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, float, np.ndarray]:
         """Where a layer's gizmo lives: its pivot and rotation in world space, and the
         map from a world-space move to a change of its own ``position``.

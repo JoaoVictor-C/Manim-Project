@@ -13,6 +13,10 @@
 * arrow keys: nudge 1 px (Shift: 10 px); a held key is one undo step;
 * handles (P2a): a corner scales about the layer's pivot (Shift: steps of
   10 %), the knob rotates about it (Shift: 15 degree steps);
+* the motion path (P3d, ADR 0026): drag a key's square to move that key, a
+  tangent handle to bend the path (a smooth key's other handle stays opposite,
+  keeping its length; Alt moves one handle only); double-click a square to
+  make the key smooth or straight;
 * the pivot cross (P2f, ADR 0021): Ctrl+drag on it moves the anchor while the
   object stays put ("Move anchor"; Shift snaps to the box's corners, edge
   midpoints and centre); Ctrl+double-click centres the anchor. Without Ctrl a
@@ -39,6 +43,7 @@ from ..core import edits
 from ..core.evaluator import layer_transform
 from ..core.schema import Layer, Project
 from ..render.hit_test import hit_layers
+from . import motion_overlay
 from .canvas import CanvasWidget
 from .document import Document
 from .gizmo import (
@@ -77,9 +82,13 @@ class _Drag:
     turned: float = 0.0  # rotation: total angle swept so far
     to_anchor: np.ndarray | None = None  # anchor: world move of the pivot -> change of the anchor
     snaps: np.ndarray | None = None  # anchor: where Ctrl snaps the pivot (world)
+    key: motion_overlay.MotionKey | None = None  # motion path: the key (or its handle) dragged
 
 
 VERBS = {
+    "key": "Move key",
+    "in": "Bend path",
+    "out": "Bend path",
     "position": "Move layer",
     "scale": "Scale layer",
     "rotation": "Rotate layer",
@@ -128,6 +137,12 @@ class MoveTool(QObject):
         if handle is not None:  # 2. a handle of the selected layer
             self._start_drag(current, "scale" if handle == "scale" else "rotation", point)
             return
+        motion = self._motion_under(point)
+        if motion is not None and alt and motion[0] == "key":
+            motion = None  # Alt+click on a key square still cycles; on a handle Alt breaks the pair
+        if motion is not None:  # 3. the motion path's handles and keys (ADR 0026)
+            self._start_motion_drag(current, *motion, point)
+            return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
         hits = hit_layers(layers, point, self.canvas.px_per_unit())
         if alt:
@@ -157,6 +172,10 @@ class MoveTool(QObject):
         point = self.canvas.to_units(pos)
         if modifiers & Qt.KeyboardModifier.ControlModifier and self._cross_under(point):
             self._centre_anchor()
+            return
+        motion = self._motion_under(point)
+        if motion is not None and motion[0] == "key":
+            self._toggle_smooth(motion[1])
             return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
         hits = hit_layers(layers, point, self.canvas.px_per_unit())
@@ -226,6 +245,10 @@ class MoveTool(QObject):
         self._pending = None
         shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
         readout = None
+        if drag.prop in ("key", "in", "out"):
+            alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
+            self.document.preview(self._motion_edit(drag, point, alt))
+            return
         if drag.prop == "anchor":
             target = drag.pivot + (point - drag.press)
             if shift:
@@ -368,6 +391,63 @@ class MoveTool(QObject):
             return None
         ppu = self.canvas.px_per_unit()
         return handle_at(outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu)
+
+    # -- the motion path (ADR 0026) ------------------------------------------------
+
+    def _motion_under(self, point: np.ndarray):
+        path = self.canvas.motion
+        if path is None or path.layer_id != self.selection.layer_id:
+            return None
+        return motion_overlay.hit(path, point, GRAB_PX / self.canvas.px_per_unit())
+
+    def _start_motion_drag(self, layer_id: str, part: str, index: int, point: np.ndarray) -> None:
+        if self._morph_playing(layer_id):
+            self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
+            return
+        path = self.canvas.motion
+        key = self.project.layer(layer_id).tracks["position"][index]
+        start = key.value if part == "key" else (key.in_tangent if part == "in" else key.out_tangent)
+        self._drag = _Drag(
+            layer_id,
+            part,
+            point,
+            tuple(start),
+            path.keys[index].point,
+            key.t,
+            self.project,
+            path.to_track,
+            key=path.keys[index],
+        )
+        self.document.begin_preview()
+
+    def _motion_edit(self, drag: _Drag, point: np.ndarray, alt: bool) -> edits.Edit:
+        delta = drag.to_local @ (point - drag.press)
+        moved = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
+        if drag.prop == "key":
+            return edits.set_key(drag.base, drag.layer_id, "position", drag.key_time, moved)
+        key = next(
+            k for k in drag.base.layer(drag.layer_id).tracks["position"] if abs(k.t - drag.key_time) < 1e-9
+        )
+        own, other = ("in_tangent", "out_tangent") if drag.prop == "in" else ("out_tangent", "in_tangent")
+        values = {own: moved, other: getattr(key, other)}
+        if drag.key.smooth and not alt:  # a smooth key stays smooth: the other handle turns, keeps its length
+            values[other] = motion_overlay.aligned(np.asarray(moved), getattr(key, other))
+        return edits.set_tangents(
+            drag.base, drag.layer_id, drag.key_time, values["in_tangent"], values["out_tangent"]
+        )
+
+    def _toggle_smooth(self, index: int) -> None:
+        layer = self.project.layer(self.selection.layer_id)
+        key = layer.tracks["position"][index]
+        try:
+            if key.curved:
+                self.document.apply(
+                    edits.set_tangents(self.project, layer.id, key.t, None, None), "Straighten key"
+                )
+            else:
+                self.document.apply(edits.smooth_key(self.project, layer.id, key.t), "Smooth key")
+        except edits.EditError as exc:
+            self.message.emit(str(exc))
 
     def _cross_under(self, point: np.ndarray) -> bool:
         """Whether ``point`` is on the selected layer's pivot cross."""
