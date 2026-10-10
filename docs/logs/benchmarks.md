@@ -282,3 +282,20 @@ and adding `(I - A)(old - new)` to the position: image unchanged, **max error
 scale: **0**. The limit: with rotation keyed 0° -> 90° and the anchor moved at
 45°, the same rigid offset is exact at that time (6e-17) and **1.06 units off**
 at 0° (a 3-unit line, anchor moved from its middle to its top). → ADR 0021.
+
+### B35 — Candidate clip kinds against the random-access rule · 2026-10-10
+`benchmarks/bench_clip_kinds.py`: each candidate rendered as `Scene.play` would
+(begin, interpolate in order) vs a fresh animation per frame vs one animation
+scrubbed in shuffled order, on Square, Text and MathTex (320x180 @ 15 fps).
+**Exact (max diff 0):** GrowFromEdge, GrowFromPoint, SpiralIn, FadeIn/FadeOut
+with `shift`, AddTextLetterByLetter / RemoveTextLetterByLetter (Text), Flash,
+FocusOn, Indicate with `color`/`scale_factor`, ClockwiseTransform,
+CounterclockwiseTransform, FadeTransformPieces; begin + one frame 0.3-17 ms.
+Broadcast exact but **111 ms** (Text) / **299 ms** (MathTex) to begin.
+ShowPassingFlash raises on all three. Circumscribe and Blink are `Succession`s:
+they need a scene and only play forward; with a patch that snapshots the drawn
+family before each part and restores it per frame they match Manim's
+sequential output **exactly in reversed and shuffled order** (begin 0.1-0.3 ms
+for Circumscribe). Blink leaves a Square **98 levels** off its shape at the end.
+On a 60x40 RGBA image: the same exact set except SpiralIn (raises) and
+ShowPassingFlash (VMobjects only); Circumscribe with the patch exact. → ADR 0022.

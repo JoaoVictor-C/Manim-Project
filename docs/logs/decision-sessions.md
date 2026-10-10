@@ -261,3 +261,22 @@ left open, so ADRs can cite it.
   tests then failed because they drag a new object by its middle — where its
   cross is — so the anchor now moves with **Ctrl+drag** (Shift snaps), and the
   36 px guard was dropped.
+
+## Session 14 — P2g more clip kinds plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on
+  `max_loops`, confidence **0.84**, no open critical item.
+- **Input:** ADR 0007 (allow-list), ADR 0012 (part trees), measurement B35,
+  a read of the evaluator's checkpoints and tree clips.
+- **Decisions:** nine new kinds and params on three existing ones; four
+  rejected with measured reasons; overlay clips; `only_types`; a clip-param
+  registry; a Succession patch (→ ADR 0022). Plan:
+  [../plans/p2g-clip-kinds.md](../plans/p2g-clip-kinds.md).
+- **Critiques that changed the plan:** overlay clips would checkpoint the
+  overlay instead of the object → checkpoint the object; images were never
+  measured → measured (SpiralIn is vector only, the overlays work); strict
+  param validation would reject documented hand-written kwargs → a direction
+  is a name or a vector, unregistered keys pass through; changing a kind kept
+  params the new kind rejects → dropped; an overlay on a root whose glyphs all
+  belong to parts would vanish → members with an overlay are drawn; type
+  restrictions only in the menus → validated on load like `vector_only`.
