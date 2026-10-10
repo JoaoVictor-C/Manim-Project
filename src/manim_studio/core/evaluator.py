@@ -81,7 +81,11 @@ class Evaluator:
     def _index(self) -> None:
         self._morph_into: dict[str, tuple[Layer, Clip]] = {}
         self._layers: dict[str, Layer] = {layer.id: layer for layer in self.project.layers}
-        self._has_parts = {layer.parent_id for layer in self.project.layers if layer.parent_id}
+        self._has_parts = {layer.parent_id for layer in self.project.layers if layer.is_part}
+        self._objects: dict[str, list[Layer]] = {}  # root -> its child objects, drawn after it (ADR 0024)
+        for layer in self.project.layers:
+            if layer.is_child and not layer.is_part:
+                self._objects.setdefault(layer.parent_id, []).append(layer)
         for layer in self.project.layers:
             for clip in layer.clips:
                 if clip.to_layer:
@@ -98,7 +102,7 @@ class Evaluator:
         """
         missing: list[tuple[Layer, int | tuple[ClipKey, ...]]] = []
         for layer in self.project.layers:
-            if layer.parent_id is not None:
+            if layer.is_part:
                 continue
             if layer.id in self._has_parts:
                 for finished in self._tree_milestones(layer):
@@ -147,7 +151,7 @@ class Evaluator:
         old_partners = {
             layer.id: {c.to_layer for c in layer.clips if c.to_layer} for layer in old_project.layers
         }
-        old_builds = {root.id: parts.build_spec(old_project, root.id) for root in old_project.roots()}
+        old_builds = _builds(old_project)
         self.project = project
         self._index()
         affected = set(layer_ids)
@@ -169,7 +173,7 @@ class Evaluator:
         for key in [k for k in self._tree_states if k[0] in affected]:
             del self._tree_states[key]
         log.debug("invalidate %s -> affected %s", layer_ids, affected)
-        new_builds = {root.id: parts.build_spec(project, root.id) for root in project.roots()}
+        new_builds = _builds(project)
         for layer_id in affected:
             self._proxies.pop(layer_id, None)
             self._trees.pop(layer_id, None)
@@ -198,10 +202,14 @@ class Evaluator:
                 continue  # drawn with its object
             if layer.id in self._has_parts:
                 out.extend(self._tree_at(layer, t))
-                continue
-            mob = self._layer_at(layer, t)
-            if mob is not None:
-                out.append((layer.id, mob))
+            else:
+                mob = self._layer_at(layer, t)
+                if mob is not None:
+                    out.append((layer.id, mob))
+            for child in self._objects.get(layer.id, ()):  # graphs on their axes (ADR 0024)
+                mob = self._layer_at(child, t)
+                if mob is not None:
+                    out.append((child.id, mob))
         return out
 
     # -- lifetime --------------------------------------------------------------
@@ -218,8 +226,13 @@ class Evaluator:
 
     def _base_mobject(self, layer: Layer) -> m.Mobject:
         if layer.id not in self._base:
-            spec = self._tree(layer).spec if layer.id in self._has_parts else layer.spec
-            self._base[layer.id] = adapter.build_mobject(spec)
+            if layer.is_child:  # a child object is built against its parent (ADR 0024)
+                built = adapter.build_child(self._layers[layer.parent_id].spec, layer.spec)
+            else:
+                built = adapter.build_mobject(
+                    self._tree(layer).spec if layer.id in self._has_parts else layer.spec
+                )
+            self._base[layer.id] = built
         return self._base[layer.id]
 
     def _state_before(self, layer: Layer, index: int) -> m.Mobject:
@@ -310,6 +323,8 @@ class Evaluator:
     def _end_signature(self, layer: Layer, t: float):
         """What one end of a morph depends on besides edits that drop caches anyway."""
         if layer.id not in self._has_parts:
+            if layer.is_child:  # a graph's world shape also depends on its axes (ADR 0024)
+                return self.transform_at(layer, t), self.transform_at(self._layers[layer.parent_id], t)
             return self.transform_at(layer, t)
         tree = self._tree(layer)
         finished = tuple((lay.id, c.id) for lay, c in self._tree_clips(layer, tree) if c.end <= t)
@@ -503,6 +518,12 @@ class Evaluator:
         anchor = np.array(tr.anchor, dtype=float)
         if layer.parent_id is None:
             return anchor + np.array(tr.position, dtype=float), tr.rotation, np.eye(2)
+        if not layer.is_part:  # a child object: its parent's frame carries it (ADR 0024)
+            parent = self._layers[layer.parent_id]
+            ptr = self.transform_at(parent, t)
+            a, b = _affine(ptr)
+            pivot = a @ (anchor + np.array(tr.position, dtype=float)) + b
+            return pivot, tr.rotation + ptr.rotation, np.linalg.pinv(a)
         root = self.project.root_of(layer.id)
         tree = self._tree(root)
         parent = self._layers[layer.parent_id]
@@ -514,12 +535,17 @@ class Evaluator:
         return pivot, rotation, np.linalg.pinv(a)  # pinv: a parent scaled to 0 must not raise
 
     def _to_world(self, local: m.Mobject, layer: Layer, t: float) -> m.Mobject:
-        """Apply the keyframed layer transform without touching ``local``."""
+        """Apply the keyframed layer transform (and a child object's parent's) without touching ``local``."""
         tr = self.transform_at(layer, t)
-        if tr == _IDENTITY:
-            return local
+        if not layer.is_child:
+            if tr == _IDENTITY:
+                return local
+            a, b = _affine(tr)
+            return self._project_local(local, layer.id, a, b, tr.opacity)
+        ptr = self.transform_at(self._layers[layer.parent_id], t)  # ADR 0024: carried by its parent
         a, b = _affine(tr)
-        return self._project_local(local, layer.id, a, b, tr.opacity)
+        pa, pb = _affine(ptr)
+        return self._project_local(local, layer.id, pa @ a, pa @ b + pb, tr.opacity * ptr.opacity)
 
     def _project_local(self, local: m.Mobject, key: str, a: np.ndarray, b: np.ndarray, opacity: float):
         """``local`` mapped by ``p -> a p + b`` with ``opacity`` applied, on a scratch proxy.
@@ -542,6 +568,16 @@ class Evaluator:
             if opacity != 1:
                 _multiply_opacity(dst, opacity)
         return proxy
+
+
+def _builds(project: Project) -> dict[str, object]:
+    """What each layer's base object is built from: roots with their parts' spans, child objects
+    with their parent's spec (an axes edit re-plots its graphs)."""
+    out: dict[str, object] = {root.id: parts.build_spec(project, root.id) for root in project.roots()}
+    for layer in project.layers:
+        if layer.is_child and not layer.is_part:
+            out[layer.id] = (project.layer(layer.parent_id).spec, layer.spec)
+    return out
 
 
 def code_key(project: Project, layer: Layer) -> str:

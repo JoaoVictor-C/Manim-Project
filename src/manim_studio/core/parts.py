@@ -121,6 +121,8 @@ def resolve(project: Project, root_id: str) -> Resolution:
     orphans: dict[str, str] = {}
     whole = Span(0, len(text))
     for layer in project.descendants(root_id):
+        if not layer.is_part:
+            continue  # a child object (ADR 0024) owns no glyphs
         parent_span = whole if layer.parent_id == root_id else spans.get(layer.parent_id)
         if parent_span is None:
             orphans[layer.id] = "its parent part does not resolve"
@@ -155,8 +157,8 @@ def _resolve_one(text: str, layer: Layer, parent: Span) -> Span | str:
 def build_spec(project: Project, root_id: str, resolution: Resolution | None = None) -> Spec:
     """The spec the root is built from: its own, plus its parts' marker spans if any."""
     root = project.layer(root_id)
-    if not project.children(root_id):
-        return root.spec
+    if not any(child.is_part for child in project.children(root_id)):
+        return root.spec  # no parts (a graph on axes is a child object, ADR 0024)
     resolution = resolution or resolve(project, root_id)
     if not resolution.order:
         return root.spec

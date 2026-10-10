@@ -22,7 +22,8 @@ CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entr
 
 def warm_key(spec: Spec) -> str | None:
     """The disk-cache identity of a text-bearing spec, or None if it builds fast."""
-    if spec.type not in TEXT_TYPES:
+    numbered_axes = spec.type == "Axes" and spec.params.get("numbers") == "yes"  # LaTeX digits (B37)
+    if spec.type not in TEXT_TYPES and not numbered_axes:
         return None
     params = {k: v for k, v in spec.params.items() if k not in CACHE_NEUTRAL_PARAMS}
     return json.dumps({"type": spec.type, "params": params}, sort_keys=True)
