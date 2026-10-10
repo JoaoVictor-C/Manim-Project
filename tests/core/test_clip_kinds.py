@@ -46,6 +46,8 @@ def samples() -> list[tuple[str, dict]]:
     """Every registered param once, every direction and choice each once."""
     out = []
     for kind, params in CLIP_PARAMS.items():
+        if CLIP_KIND_INFO[kind].category == "motion":
+            continue  # needs a path layer: the two-layer harness in test_paths.py
         for param in params:
             if param.kind == "direction":
                 values = [*DIRECTIONS, [0.5, -1.0]]

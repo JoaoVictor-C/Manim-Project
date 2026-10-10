@@ -145,7 +145,11 @@ CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
     ),
     "Flash": (ClipParam("color", "Colour", "color", default=_YELLOW),),
     "FocusOn": (ClipParam("color", "Colour", "color", default="#888888"),),
-    "MoveAlongPath": (ClipParam("path", "Path", "layer"),),
+    "MoveAlongPath": (
+        ClipParam("path", "Path", "layer"),
+        # ADR 0029: turn with the path, by its change of direction since the clip's start
+        ClipParam("rotate", "Turn", "choice", default="no", choices=("no", "along")),
+    ),
 }
 
 

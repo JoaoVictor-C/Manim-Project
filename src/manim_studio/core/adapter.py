@@ -7,6 +7,7 @@ on Manim internals is meant to live here so a Manim upgrade touches one file.
 
 from __future__ import annotations
 
+import math
 import os
 import shutil
 from collections.abc import Callable
@@ -628,12 +629,15 @@ class TabledMoveAlongPath(m.MoveAlongPath):
     arc-length table built here (0.005 ms).
     """
 
-    def __init__(self, mobject: m.Mobject, path: m.VMobject, **kwargs: Any) -> None:
+    TURN_STEP = 1e-6  # of a curve's parameter: the tiny chord whose direction is the tangent
+
+    def __init__(self, mobject: m.Mobject, path: m.VMobject, rotate: str = "no", **kwargs: Any) -> None:
         super().__init__(mobject, path, **kwargs)
         count = path.get_num_curves()
         self._curves = [path.get_nth_curve_function(i) for i in range(count)]
         self._lengths = np.array([path.get_nth_curve_length(i) for i in range(count)])
         self._cumulative = np.concatenate([[0.0], np.cumsum(self._lengths)])
+        self._turns = rotate == "along"  # ADR 0029
 
     def _point(self, alpha: float) -> np.ndarray:
         if not self._curves:
@@ -643,8 +647,30 @@ class TabledMoveAlongPath(m.MoveAlongPath):
         length = self._lengths[i]
         return self._curves[i]((target - self._cumulative[i]) / length if length > 0 else 0.0)
 
+    def _direction(self, alpha: float) -> float:
+        """The path's direction (an angle) at ``alpha`` of its length: the derivative of the
+        curve under that point (a chord of 2e-6 of its parameter, one-sided at its ends)."""
+        target = min(max(alpha, 0.0), 1.0) * self._cumulative[-1]
+        i = min(int(np.searchsorted(self._cumulative, target, side="right")) - 1, len(self._curves) - 1)
+        length = self._lengths[i]
+        s = (target - self._cumulative[i]) / length if length > 0 else 0.0
+        curve, step = self._curves[i], self.TURN_STEP
+        delta = curve(min(s + step, 1.0)) - curve(max(s - step, 0.0))
+        return math.atan2(delta[1], delta[0])
+
     def interpolate_mobject(self, alpha: float) -> None:
-        self.mobject.move_to(self._point(self.rate_func(alpha)))
+        eased = self.rate_func(alpha)
+        if self._turns and self._curves:
+            # From the object as it began, so a frame depends on alpha alone (random access).
+            for dst, src in zip(
+                self.mobject.family_members_with_points(),
+                self.starting_mobject.family_members_with_points(),
+                strict=True,
+            ):
+                dst.points = src.points.copy()
+            turn = self._direction(eased) - self._direction(0.0)
+            self.mobject.rotate(turn, about_point=self.mobject.get_center())
+        self.mobject.move_to(self._point(eased))
 
 
 class KeyedTransformMatching(TransformMatchingAbstractBase):
