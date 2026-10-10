@@ -319,3 +319,16 @@ letterboxed frame 806x453 **18.2 ms**; camera covering the whole widget
 zoom 0.25x **18.0 ms**. A camera zoomed 2x about (1, 0.5) vs the matching crop of
 a 1612x906 render of the whole frame: max 120, **mean 0.7** — edges only (the
 crop is aligned to whole pixels, anti-aliasing differs). → ADR 0023.
+
+### B37 — Axes, function graphs and a safe expression compiler · 2026-10-10
+`benchmarks/bench_graphs.py`. A whitelist compiler over Python's `ast` (numbers,
+`x`, `pi`, `e`, `+ - * / **`, unary signs, `sin cos tan exp log sqrt abs`) vs
+`eval` on 1001 points for five expressions: **max diff 0**; compile 0.01-0.03 ms,
+evaluate 0.00-0.03 ms; imports, attributes, other calls, comprehensions,
+lambdas and conditionals are rejected. `Axes(x_range [-5, 5, 1], y_range
+[-3, 3, 1], 10 x 6)`: **9 ms**; with number labels **7.6 s cold** (LaTeX
+digits, empty Manim cache), **31 ms** warm. `axes.plot(sin)` on [-5, 5]:
+**4.2 ms**, 400 points. Create on a graph and Transform between two graphs,
+in order vs shuffled: **scrub diff 0** (the graph is visible: 191-206 levels).
+Bad values: `log(x)` and `sqrt(x)` on [-5, 5] leave 204 of 400 points NaN;
+`tan(x)` reaches |y| 85 and `1/x` 5.6e13 (rendered as spikes). → ADR 0024.

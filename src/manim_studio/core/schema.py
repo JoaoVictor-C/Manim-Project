@@ -31,6 +31,8 @@ TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached o
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
+CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": frozenset({"Graph"})}  # child objects (ADR 0024)
+LOCKED_TYPES = frozenset({"Graph"})  # follow their parent exactly: only opacity is their own
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "morph"]
@@ -241,6 +243,7 @@ class Lifetime(BaseModel):
 
 
 TrackName = Literal["position", "scale", "rotation", "opacity"]
+TRACK_NAMES: tuple[TrackName, ...] = ("position", "scale", "rotation", "opacity")
 
 
 class PartKey(BaseModel):
@@ -263,14 +266,35 @@ class Layer(BaseModel):
 
     @property
     def is_part(self) -> bool:
+        """A span of its root's glyphs (ADR 0012)."""
+        return self.part is not None
+
+    @property
+    def is_child(self) -> bool:
+        """Has a parent: a part, or a child object such as a graph (ADR 0024)."""
         return self.parent_id is not None
+
+    @property
+    def locked(self) -> bool:
+        """Follows its parent exactly (a graph on its axes): only opacity is its own."""
+        return self.spec is not None and self.spec.type in LOCKED_TYPES
 
     @model_validator(mode="after")
     def _lane_rules(self) -> Layer:
         if self.parent_id is None and (self.spec is None or self.part is not None):
             raise ValueError(f"layer {self.id!r}: a layer without a parent needs a spec and no part key")
-        if self.parent_id is not None and (self.part is None or self.spec is not None):
-            raise ValueError(f"layer {self.id!r}: a part layer needs a part key and no spec")
+        if self.parent_id is not None and (self.part is None) == (self.spec is None):
+            raise ValueError(
+                f"layer {self.id!r}: a child layer needs a part key (a part) or its own spec (an object)"
+            )
+        if self.locked:
+            _check_locked(self)
+        if self.spec is not None and self.spec.type == "Graph":
+            from .expressions import check  # numpy, no Manim
+
+            problem = check(self.spec.params.get("expression", ""))
+            if problem:
+                raise ValueError(f"layer {self.id!r}: graph expression: {problem}")
         ids = [c.id for c in self.clips]
         if len(set(ids)) != len(ids):
             raise ValueError(
@@ -296,6 +320,22 @@ class Layer(BaseModel):
         for track in self.tracks.values():
             track.sort(key=lambda k: k.t)
         return self
+
+
+def keyable_props(layer: Layer) -> tuple[TrackName, ...]:
+    """Transform properties the layer may key (ADR 0024: a locked child keys opacity only)."""
+    return ("opacity",) if layer.locked else TRACK_NAMES
+
+
+def _check_locked(layer: Layer) -> None:
+    base = layer.base
+    own = (
+        base.position != (0.0, 0.0) or base.scale != 1.0 or base.rotation != 0.0 or base.anchor != (0.0, 0.0)
+    )
+    if own or set(layer.tracks) - {"opacity"}:
+        raise ValueError(
+            f"layer {layer.id!r}: a {layer.spec.type} follows its parent - only its opacity can change"
+        )
 
 
 def _check_only_types(layer_id: str, clip: Clip, mobject_type: str) -> None:
@@ -343,10 +383,16 @@ class Project(BaseModel):
         return self
 
     def _tree_rules(self) -> None:
-        """ADR 0012: parts hang under MathTex/Tex roots; no clip overlaps an ancestor's clip."""
+        """ADR 0012: parts hang under MathTex/Tex roots; no clip on a part overlaps an ancestor's
+        clip. ADR 0024: child objects hang under a root that accepts their type."""
         by_id = {layer.id: layer for layer in self.layers}
         for layer in self.layers:
             if layer.parent_id is None:
+                if layer.spec.type in LOCKED_TYPES:
+                    owners = sorted(t for t, kids in CHILD_TYPES.items() if layer.spec.type in kids)
+                    raise ValueError(
+                        f"layer {layer.id!r}: a {layer.spec.type} needs a parent ({', '.join(owners)})"
+                    )
                 continue
             if layer.parent_id not in by_id:
                 raise ValueError(f"layer {layer.id!r}: parent {layer.parent_id!r} is missing")
@@ -356,19 +402,26 @@ class Project(BaseModel):
                     raise ValueError(f"layer {layer.id!r}: its parents form a cycle")
                 seen.add(node.id)
                 node = by_id[node.parent_id]
-            if node.spec.type not in PART_PARENT_TYPES:
+            if not layer.is_part:
+                parent = by_id[layer.parent_id]
+                if parent.spec is None or layer.spec.type not in CHILD_TYPES.get(parent.spec.type, ()):
+                    raise ValueError(
+                        f"layer {layer.id!r}: a {layer.spec.type} cannot be a child of "
+                        f"{parent.spec.type if parent.spec else 'a part'}"
+                    )
+            elif node.spec.type not in PART_PARENT_TYPES:
                 raise ValueError(
                     f"layer {layer.id!r}: parts are only supported on MathTex and Tex, not {node.spec.type}"
                 )
         for layer in self.layers:
-            if layer.parent_id is not None:  # a part animates glyphs of its root's type
+            if layer.is_part:  # a part animates glyphs of its root's type
                 node = layer
                 while node.parent_id is not None:
                     node = by_id[node.parent_id]
                 for clip in layer.clips:
                     _check_only_types(layer.id, clip, node.spec.type)
             for clip in layer.clips:
-                if clip.to_layer and layer.parent_id is not None:
+                if clip.to_layer and layer.is_part:
                     raise ValueError(
                         f"clip {clip.id!r} on part {layer.id!r}: a part cannot morph; "
                         "morph its object (TransformMatchingTex moves the terms)"
@@ -381,7 +434,7 @@ class Project(BaseModel):
                             f"clip {clip.id!r}: TransformMatchingTex needs MathTex or Tex at both ends"
                         )
             node = layer
-            while node.parent_id is not None:
+            while layer.is_part and node.parent_id is not None:  # parts share their root's glyphs
                 node = by_id[node.parent_id]
                 for clip in layer.clips:
                     for other in node.clips:

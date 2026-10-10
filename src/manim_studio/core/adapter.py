@@ -99,8 +99,11 @@ _tex_mobject.tex_to_svg_file = _tex_to_svg_file
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}
 
 MOBJECT_TYPES: dict[str, type] = {
-    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | RASTER_TYPES)
+    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | RASTER_TYPES | {"Axes"})
 }
+CHILD_ONLY_TYPES = frozenset({"Graph"})  # built with their parent (build_child, ADR 0024)
+GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
+GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
 
 ParamKind = Literal["float", "int", "text", "choice", "point", "path"]
 
@@ -168,6 +171,20 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     "MathTex": (Param("text", "text", r"e^{i\pi} + 1 = 0", "LaTeX (math)", multiline=True), _FONT_SIZE),
     "Tex": (Param("text", "text", r"Hello \LaTeX", "LaTeX (text)", multiline=True), _FONT_SIZE),
     "ImageMobject": (Param("path", "path", "", "Image file"),),
+    # Axes and their graphs (ADR 0024); a graph's own params, its parent supplies the coordinates.
+    "Axes": (
+        Param("x_range", "point", (-5.0, 5.0), "x from / to"),
+        Param("x_step", "float", 1.0, "x tick step", minimum=0.01, maximum=1000.0),
+        Param("y_range", "point", (-3.0, 3.0), "y from / to"),
+        Param("y_step", "float", 1.0, "y tick step", minimum=0.01, maximum=1000.0),
+        Param("x_length", "float", 10.0, "Width", minimum=0.5, maximum=50.0),
+        Param("y_length", "float", 6.0, "Height", minimum=0.5, maximum=50.0),
+        Param("numbers", "choice", "no", "Numbers", choices=("no", "yes")),
+    ),
+    "Graph": (
+        Param("expression", "text", "sin(x)", "y ="),
+        Param("x_range", "point", (-5.0, 5.0), "x from / to"),
+    ),
     # A code layer (ADR 0019): one Scene subclass; `from manim import *` and numpy as np are implied.
     "Code": (Param("code", "text", CODE_STARTER, "Manim code (one Scene)", multiline=True),),
 }
@@ -177,10 +194,11 @@ LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
     ("Text", ("Text", "MathTex", "Tex")),
     ("Media", ("ImageMobject",)),
+    ("Graphing", ("Axes",)),
     ("Python", ("Code",)),
 )
 
-_REQUIRED = {"text", "path", "code"}  # always written to the spec
+_REQUIRED = {"text", "path", "code", "expression"}  # always written to the spec
 
 
 def default_spec(type_name: str, **params: Any) -> Spec:
@@ -218,7 +236,9 @@ def _build_cached(spec_json: str) -> m.Mobject:
             x, y = params[param.name][:2]
             params[param.name] = (x, y, 0.0)  # documents are 2D
     spans = params.pop(parts.SPANS_PARAM, None)
-    if spec.type in TEXT_TYPES:
+    if spec.type == "Axes":
+        mob = _build_axes(spec)
+    elif spec.type in TEXT_TYPES:
         text = params.pop("text", "")
         mob = cls(parts.mark(text, spans) if spans else text, **params)
     elif spec.type == "ImageMobject":
@@ -228,6 +248,103 @@ def _build_cached(spec_json: str) -> m.Mobject:
     _apply_style(mob, spec.style)
     mob.move_to(m.ORIGIN)
     return mob
+
+
+def _axes_param(spec: Spec, name: str):
+    param = next(p for p in MOBJECT_PARAMS["Axes"] if p.name == name)
+    return spec.params.get(name, param.default)
+
+
+def _whole(value: float) -> float | int:
+    """Whole numbers as ints, so the axes label 1, 2, 3 rather than 1.0, 2.0, 3.0."""
+    return int(value) if float(value).is_integer() else float(value)
+
+
+def _build_axes(spec: Spec) -> m.Axes:
+    """Axes from the editor's params (ranges as [from, to] plus a step; numbers yes/no)."""
+    x0, x1 = (_whole(v) for v in _axes_param(spec, "x_range")[:2])
+    y0, y1 = (_whole(v) for v in _axes_param(spec, "y_range")[:2])
+    return m.Axes(
+        x_range=[x0, x1, _whole(_axes_param(spec, "x_step"))],
+        y_range=[y0, y1, _whole(_axes_param(spec, "y_step"))],
+        x_length=_axes_param(spec, "x_length"),
+        y_length=_axes_param(spec, "y_length"),
+        axis_config={"include_numbers": _axes_param(spec, "numbers") == "yes"},
+    )
+
+
+def build_child(parent: Spec, spec: Spec) -> m.Mobject:
+    """A child object built against its parent (ADR 0024): a graph on its axes."""
+    return _child_cached(parent.model_dump_json(), spec.model_dump_json()).copy()
+
+
+@lru_cache(maxsize=256)
+def _child_cached(parent_json: str, spec_json: str) -> m.Mobject:
+    parent, spec = Spec.model_validate_json(parent_json), Spec.model_validate_json(spec_json)
+    if spec.type != "Graph" or parent.type != "Axes":
+        raise ValueError(f"no child object {spec.type!r} on {parent.type!r}")
+    axes = _build_cached(parent_json)  # the same axes, centred the same way, the root draws
+    x_range = spec.params.get("x_range") or _axes_param(parent, "x_range")
+    graph = plot_runs(axes, spec.params["expression"], float(x_range[0]), float(x_range[1]))
+    graph.set_stroke(m.YELLOW, width=4)  # Manim's plot default
+    _apply_style(graph, spec.style)
+    return graph
+
+
+def plot_runs(axes: m.Axes, expression: str, x0: float, x1: float) -> m.VMobject:
+    """The graph of ``expression`` on ``axes`` over [x0, x1], one subpath per drawable run.
+
+    A sample is drawable when it is finite and within the axes' y range. Runs end
+    exactly where the curve leaves the range or its domain (found by bisection
+    between the last drawable sample and the next), so ``tan`` stops at the edge
+    of the axes instead of spiking and ``sqrt`` starts at 0 (B37).
+    """
+    from .expressions import compile_expression
+
+    f = compile_expression(expression)
+    y0, y1 = axes.y_range[0], axes.y_range[1]
+
+    def value(x: float) -> float:
+        with np.errstate(all="ignore"):
+            return float(f(np.array([x], dtype=float))[0])
+
+    def drawable(y) -> np.ndarray:
+        with np.errstate(invalid="ignore"):
+            return np.isfinite(y) & (y >= y0) & (y <= y1)
+
+    def edge(inside: float, outside: float) -> float:
+        """The last drawable x between a drawable and an undrawable sample."""
+        for _ in range(GRAPH_BISECTIONS):
+            middle = (inside + outside) / 2
+            if drawable(np.array([value(middle)]))[0]:
+                inside = middle
+            else:
+                outside = middle
+        return inside
+
+    lo, hi = min(x0, x1), max(x0, x1)
+    xs = np.linspace(lo, hi, GRAPH_SAMPLES)
+    with np.errstate(all="ignore"):
+        good = drawable(f(xs))
+    graph = m.VMobject()
+    start = None
+    for i, ok in enumerate([*good, False]):  # a sentinel closes the last run
+        if ok and start is None:
+            start = i
+        elif not ok and start is not None:
+            left = edge(xs[start], xs[start - 1]) if start > 0 else xs[start]
+            right = edge(xs[i - 1], xs[i]) if i < len(xs) else xs[i - 1]
+            if right - left > 1e-9:
+                samples = max(i - start, 2)
+                piece = axes.plot(
+                    value, x_range=[left, right, (right - left) / (samples - 1)], use_smoothing=False
+                )
+                if graph.has_points():
+                    graph.append_vectorized_mobject(piece)
+                else:
+                    graph.set_points(piece.points)
+            start = None
+    return graph
 
 
 def part_regions(spec: Spec) -> list[tuple[int, ...]]:

@@ -124,14 +124,28 @@ def move_layer(project: Project, layer_id: str, index: int) -> Edit:
     An object moves together with its parts, which always follow it (ADR 0012).
     """
     layer = _layer(project, layer_id)
-    if layer.is_part:
-        raise EditError(f"{layer_id!r} is a part: parts are drawn with their object")
+    if layer.is_child:
+        kind = "a part: parts" if layer.is_part else f"on {layer.parent_id!r}: children"
+        raise EditError(f"{layer_id!r} is {kind} are drawn with their object")
     roots = [root for root in project.roots() if root.id != layer_id]
     roots.insert(max(0, min(index, len(roots))), layer)
     return _replace_layers(project, [x for root in roots for x in (root, *project.descendants(root.id))])
 
 
 # -- parts (P2c, ADR 0012) ------------------------------------------------------------
+
+
+def add_child(
+    project: Project, parent_id: str, spec: Spec, *, name: str = "", layer_id: str | None = None
+) -> Edit:
+    """A child object under ``parent_id`` (ADR 0024: a graph on axes), drawn after its siblings."""
+    _layer(project, parent_id)
+    layer = Layer(id=layer_id or new_layer_id(project, spec.type), name=name, spec=spec, parent_id=parent_id)
+    family = {parent_id} | {d.id for d in project.descendants(parent_id)}
+    last = max(i for i, other in enumerate(project.layers) if other.id in family)
+    layers = list(project.layers)
+    layers.insert(last + 1, layer)
+    return _replace_layers(project, layers)
 
 
 def add_part(
@@ -437,6 +451,15 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
             and parts.build_spec(old, layer_id) != parts.build_spec(new, layer_id)
         ):
             layer_kind = "spec"  # its parts changed: the object is rebuilt with other markers
+        if (
+            layer_kind != "spec"
+            and a is not None
+            and b is not None
+            and b.is_child
+            and not b.is_part
+            and old.layer(a.parent_id).spec != new.layer(b.parent_id).spec
+        ):
+            layer_kind = "spec"  # its parent changed: a graph is plotted again on new axes (ADR 0024)
         if layer_kind is None:
             continue
         touched.add(layer_id)

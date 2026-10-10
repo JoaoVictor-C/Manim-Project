@@ -14,14 +14,21 @@ import pytest
 from PIL import Image
 
 from manim_studio.core import adapter
-from manim_studio.core.adapter import LIBRARY, MOBJECT_PARAMS, MOBJECT_TYPES, Param
+from manim_studio.core.adapter import CHILD_ONLY_TYPES, LIBRARY, MOBJECT_PARAMS, MOBJECT_TYPES, Param
 from manim_studio.core.schema import CODE_TYPES, TEXT_TYPES, Spec
 
-LATEX_TYPES = {"MathTex", "Tex"}
+LATEX_TYPES = {"MathTex", "Tex", "Axes"}  # Axes: its numbers are LaTeX
 
 
 def _marks(type_name: str):
     return [pytest.mark.latex] if type_name in LATEX_TYPES else []
+
+
+def _build(spec: Spec):
+    """Roots build alone; a graph builds on default axes (ADR 0024)."""
+    if spec.type in CHILD_ONLY_TYPES:
+        return adapter.build_child(Spec(type="Axes"), spec)
+    return adapter.build_mobject(spec)
 
 
 BUILT = sorted(set(MOBJECT_PARAMS) - CODE_TYPES)  # code layers are rendered, not built (ADR 0019)
@@ -42,8 +49,8 @@ def image(tmp_path: Path):
 
 
 def test_registry_and_library_cover_every_type_once() -> None:
-    assert set(MOBJECT_PARAMS) == set(MOBJECT_TYPES) | CODE_TYPES
-    listed = [t for _, types in LIBRARY for t in types]
+    assert set(MOBJECT_PARAMS) == set(MOBJECT_TYPES) | CODE_TYPES | CHILD_ONLY_TYPES
+    listed = [t for _, types in LIBRARY for t in types]  # graphs are added on axes, not from the library
     assert sorted(listed) == sorted(set(MOBJECT_TYPES) | CODE_TYPES)
 
 
@@ -75,8 +82,9 @@ def test_param_value_falls_back_to_the_default() -> None:
 @pytest.mark.parametrize("type_name", ALL_TYPES)
 def test_every_library_object_builds(type_name: str, image) -> None:
     extra = {"path": image("a.png", (255, 0, 0))} if type_name == "ImageMobject" else {}
-    mob = adapter.build_mobject(adapter.default_spec(type_name, **extra))
-    assert abs(mob.get_center()).max() < 1e-6
+    mob = _build(adapter.default_spec(type_name, **extra))
+    if type_name not in CHILD_ONLY_TYPES:  # a graph sits where its function puts it
+        assert abs(mob.get_center()).max() < 1e-6
 
 
 def _other(param: Param, image) -> object:
@@ -92,6 +100,8 @@ def _other(param: Param, image) -> object:
         return (param.default[0] - 0.5, param.default[1] + 0.7)
     if param.kind == "path":
         return image("b.png", (0, 0, 255))
+    if param.name == "expression":
+        return "cos(x)"  # a graph needs a formula (ADR 0024)
     return "Arial" if param.name == "font" else "Other 42"
 
 
@@ -108,7 +118,7 @@ def test_every_exposed_param_changes_the_object(type_name: str, param: Param, im
     if type_name == "ImageMobject":
         base = adapter.default_spec(type_name, path=image("a.png", (255, 0, 0)))
     changed = base.model_copy(update={"params": {**base.params, param.name: _other(param, image)}})
-    a, b = _signature(adapter.build_mobject(base)), _signature(adapter.build_mobject(changed))
+    a, b = _signature(_build(base)), _signature(_build(changed))
     assert a.shape != b.shape or not np.allclose(a, b), f"{type_name}.{param.name} has no effect"
 
 

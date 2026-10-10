@@ -43,7 +43,8 @@ timeline and canvas, with the real build worker and renderer.
 
 ## Phase 3
 
-- Axes and function graphs as child layers; SVG and image import
+- ✅ **P3b** — [plan](plans/p3b-graphs.md): axes and function graphs as child layers (ADR 0024)
+- SVG and image import
 - Spatial (curved) motion paths, MoveAlongPath clips
 - ✅ **P3a** — [plan](plans/p3a-viewport.md): viewport zoom/pan with a re-framed camera (ADR 0023)
 - Render-ahead cache

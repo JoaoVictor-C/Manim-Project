@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
@@ -34,7 +35,8 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import adapter, edits, parts
-from ..core.schema import CODE_TYPES, PART_PARENT_TYPES, RASTER_TYPES, Layer, Project
+from ..core.expressions import check as check_expression
+from ..core.schema import CHILD_TYPES, CODE_TYPES, PART_PARENT_TYPES, RASTER_TYPES, Layer, Project, Spec
 from .build_service import BuildService
 
 ID_ROLE = Qt.ItemDataRole.UserRole
@@ -142,6 +144,7 @@ class LayersPanel(QWidget):
         # Hooks for tests and other front-ends: an image path or ""; a part key or None.
         self.choose_image: Callable[[], str] = self._choose_image_dialog
         self.ask_part: Callable[[str], tuple[str, int] | None] = self._ask_part_dialog
+        self.ask_expression: Callable[[], str | None] = self._ask_expression_dialog  # Add graph (ADR 0024)
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self._known_ids: set[str] = set()
         self._select_new = False
@@ -170,8 +173,10 @@ class LayersPanel(QWidget):
         part_menu = QMenu(self)
         self.add_part_action = part_menu.addAction("Add part...", self.add_part)
         self.split_action = part_menu.addAction("Split into terms", self.split_terms)
+        part_menu.addSeparator()
+        self.add_graph_action = part_menu.addAction("Add graph...", self.add_graph)
         self.part_button.setMenu(part_menu)
-        self.part_button.setToolTip("Animate pieces of an equation as their own layers")
+        self.part_button.setToolTip("Animate pieces of an equation as their own layers, or plot on axes")
 
         buttons = QHBoxLayout()
         for button in (
@@ -292,7 +297,7 @@ class LayersPanel(QWidget):
         layer_id = self.selected_id()
         layer = self.project.layer(layer_id) if layer_id else None
         roots = [root.id for root in self.project.roots()]
-        index = roots.index(layer_id) if layer is not None and not layer.is_part else -1
+        index = roots.index(layer_id) if layer is not None and not layer.is_child else -1
         self.delete_button.setEnabled(layer is not None)
         self.up_button.setEnabled(index >= 0 and index < len(roots) - 1)
         self.down_button.setEnabled(index > 0)
@@ -302,7 +307,11 @@ class LayersPanel(QWidget):
         )
         self.add_part_action.setEnabled(can_part and not has_morph)
         self.split_action.setEnabled(can_part and not has_morph)
-        self.part_button.setEnabled(can_part and not has_morph)
+        can_graph = (
+            layer is not None and layer.parent_id is None and "Graph" in CHILD_TYPES.get(layer.spec.type, ())
+        )
+        self.add_graph_action.setEnabled(can_graph)
+        self.part_button.setEnabled((can_part and not has_morph) or can_graph)
 
     # -- actions --------------------------------------------------------------------
 
@@ -329,6 +338,24 @@ class LayersPanel(QWidget):
             return
         self._select_new = True
         self._submit(partial(edits.add_part, parent_id=parent_id, tex=key[0], occurrence=key[1]), "Add part")
+
+    def add_graph(self) -> None:
+        """Ask for a function of x and plot it on the selected axes (ADR 0024)."""
+        parent_id = self.selected_id()
+        if parent_id is None:
+            return
+        expression = self.ask_expression()
+        if expression is None:
+            return
+        problem = check_expression(expression)
+        if problem:
+            self.message.emit(f"Add graph: {problem}")
+            return
+        axes = self.project.layer(parent_id).spec
+        x_range = list(axes.params.get("x_range", (-5.0, 5.0)))
+        spec = Spec(type="Graph", params={"expression": expression.strip(), "x_range": x_range})
+        self._select_new = True
+        self._submit(partial(edits.add_child, parent_id=parent_id, spec=spec), "Add graph")
 
     def split_terms(self) -> None:
         """Make each top-level term of the selected equation (or part) a part, in one step."""
@@ -364,7 +391,7 @@ class LayersPanel(QWidget):
     def shift_selected(self, steps: int) -> None:
         """+1 brings the object one step forward (up the tree), -1 sends it back."""
         layer_id = self.selected_id()
-        if layer_id is None or self.project.layer(layer_id).is_part:
+        if layer_id is None or self.project.layer(layer_id).is_child:
             return
         roots = [root.id for root in self.project.roots()]
         index = roots.index(layer_id) + steps
@@ -429,6 +456,12 @@ class LayersPanel(QWidget):
             self, "Add image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
         )
         return name
+
+    def _ask_expression_dialog(self) -> str | None:
+        text, ok = QInputDialog.getText(
+            self, "Add graph", "y = (a function of x, e.g. sin(x), x**2/10 - 1, exp(-x**2))", text="sin(x)"
+        )
+        return text if ok else None
 
     def _ask_part_dialog(self, parent_id: str) -> tuple[str, int] | None:
         dialog = PartDialog(self.project, parent_id, self)

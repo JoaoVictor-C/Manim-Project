@@ -161,7 +161,7 @@ def test_split_terms_skip_terms_that_cannot_be_marked() -> None:
 
 
 def test_a_part_needs_a_key_and_no_spec_and_a_root_needs_a_spec() -> None:
-    with pytest.raises(ValidationError, match="part key and no spec"):
+    with pytest.raises(ValidationError, match=r"a part key \(a part\) or its own spec"):
         Layer(id="p", parent_id="eq")
     with pytest.raises(ValidationError, match="needs a spec"):
         Layer(id="r")

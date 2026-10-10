@@ -296,3 +296,23 @@ left open, so ADRs can cite it.
   Space+drag pan would toggle playback → middle-drag; a wheel during a drag
   would make the dragged object jump → view changes wait for the drag to end;
   the dimming as one fill with a hole → four rectangles.
+
+## Session 16 — P3b axes and function graphs plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on
+  `max_loops`, confidence **0.82**; the last question (do clips on the axes
+  animate their graphs?) was decided in the synthesis: no, in v1.
+- **Input:** ADR 0005, 0007, 0012, 0015, 0022; measurement B37; a read of the
+  schema's tree rules, `frame_layers`, `move_layer`, `remove_layer` and the
+  timeline's key menu.
+- **Decisions:** child layers with their own spec under accepting roots;
+  graphs locked to their axes; a whitelist expression compiler; curves split
+  at bad values; numbered axes warmed (→ ADR 0024). Plan:
+  [../plans/p3b-graphs.md](../plans/p3b-graphs.md).
+- **Critiques that changed the plan:** the part rules (no overlap with an
+  ancestor's clip, no morphs) would forbid the plan's own acceptance scenario →
+  parts only; a graph with a free transform would plot `f` against the wrong
+  ticks → locked; the timeline's key menu could create tracks the schema
+  refuses → one `keyable_props` for schema and UI; the harness only built root
+  specs → extended to child specs; an axes edit left graph morph caches stale →
+  children classified `spec`.

@@ -42,6 +42,7 @@ from ..core.schema import (
     PartKey,
     Project,
     clip_params,
+    keyable_props,
 )
 from .build_service import BuildService
 from .curve_editor import ease_label, edit_curve
@@ -535,12 +536,15 @@ class PropertiesPanel(QWidget):
 
     def _transform_section(self, layer: Layer) -> None:
         rows = []
+        keyable = keyable_props(layer)  # a graph keeps only its opacity (ADR 0024)
         for name, label, field_type in (
             ("position", "Position", lambda c: PointField(c)),
             ("scale", "Scale", lambda c: FloatField(c, 0.01, 100, 0.05, 3)),
             ("rotation", "Rotation", lambda c: FloatField(c, -3600, 3600, 1, 1, suffix=" deg")),
             ("opacity", "Opacity", lambda c: FloatField(c, 0, 1, 0.05, 2)),
         ):
+            if name not in keyable:
+                continue
             path = f"base.{name}"
             self._register(path, lambda layer, n=name: self._transform_value(layer, n))
             op = partial(
@@ -598,7 +602,7 @@ class PropertiesPanel(QWidget):
         morph = clip.info.category == "morph"
         kinds = [
             k
-            for k in adapter.allowed_clip_kinds(self.project.root_of(layer.id).spec.type)
+            for k in adapter.allowed_clip_kinds((layer.spec or self.project.root_of(layer.id).spec).type)
             if (CLIP_KIND_INFO[k].category == "morph") == morph
         ]
 

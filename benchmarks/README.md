@@ -10,6 +10,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_matching_tex.py` | keyed matching between two equations — B33 |
 | `bench_clip_kinds.py` | candidate clip kinds against the random-access rule — B35 |
 | `bench_viewport.py` | what a re-framed preview camera costs, and its exactness — B36 |
+| `bench_graphs.py` | expression compiler, Axes build, plotting, graph clips under scrubbing — B37 |
 | `bench_anchor.py` | the anchor model and its compensation, numerically — B34 |
 | `bench_preview.py` | evaluator, QPainter and Cairo time per frame on the stress scene (20 MathTex, 3 concurrent Writes, 10 keyframed layers) at 960×540 |
 
