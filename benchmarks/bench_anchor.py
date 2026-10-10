@@ -43,7 +43,9 @@ def main() -> None:
         rotation, scale = rng.uniform(-360, 360), rng.uniform(0.1, 4)
         position, a0, a1 = rng.normal(size=(3, 2)) * 2
         old = points @ linear(rotation, scale).T + position
-        worst["identity"] = max(worst["identity"], np.abs(world(points, rotation, scale, position, (0, 0)) - old).max())
+        worst["identity"] = max(
+            worst["identity"], np.abs(world(points, rotation, scale, position, (0, 0)) - old).max()
+        )
         before = world(points, rotation, scale, position, a0)
         moved = position + (np.eye(2) - linear(rotation, scale)) @ (a0 - a1)
         after = world(points, rotation, scale, moved, a1)

@@ -488,21 +488,23 @@ class Evaluator:
         """Where a layer's gizmo lives: its pivot and rotation in world space, and the
         map from a world-space move to a change of its own ``position``.
 
-        An object pivots on its position. A part pivots on its rest centre moved by
-        its own position, carried by its ancestors' transforms (ADR 0012).
+        An object pivots on its anchor moved by its position. A part pivots on its
+        rest centre plus its anchor, moved by its own position and carried by its
+        ancestors' transforms (ADR 0012, ADR 0021).
         """
         tr = self.transform_at(layer, t)
+        anchor = np.array(tr.anchor, dtype=float)
         if layer.parent_id is None:
-            return np.array(tr.position, dtype=float), tr.rotation, np.eye(2)
+            return anchor + np.array(tr.position, dtype=float), tr.rotation, np.eye(2)
         root = self.project.root_of(layer.id)
         tree = self._tree(root)
         parent = self._layers[layer.parent_id]
         a, b, _ = self._member_affine(tree, parent, t)
         centre = tree.centres.get(layer.id, np.zeros(3))[:2]
-        anchor = a @ (centre + np.array(tr.position, dtype=float)) + b
+        pivot = a @ (centre + anchor + np.array(tr.position, dtype=float)) + b
         ancestors = self.project.ancestors(layer.id)
         rotation = tr.rotation + sum(self.transform_at(x, t).rotation for x in ancestors)
-        return anchor, rotation, np.linalg.pinv(a)  # pinv: a parent scaled to 0 must not raise
+        return pivot, rotation, np.linalg.pinv(a)  # pinv: a parent scaled to 0 must not raise
 
     def _to_world(self, local: m.Mobject, layer: Layer, t: float) -> m.Mobject:
         """Apply the keyframed layer transform without touching ``local``."""
@@ -551,17 +553,24 @@ def layer_transform(layer: Layer, t: float) -> Transform2D:
         name: _sample(layer.tracks.get(name), t, getattr(base, name))
         for name in ("position", "scale", "rotation", "opacity")
     }
-    return Transform2D(**values)
+    return Transform2D(**values, anchor=base.anchor)  # the anchor is never keyed (ADR 0021)
 
 
 def _affine(tr: Transform2D, pivot: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
-    """``p -> a p + b``: scale and rotate about ``pivot`` (the origin for objects), then move."""
+    """``p -> a p + b``: scale and rotate about ``pivot`` + the anchor, then move.
+
+    ``pivot`` is the origin for objects and the rest centre for parts (ADR 0012,
+    ADR 0021).
+    """
     angle = math.radians(tr.rotation)
     c, s = math.cos(angle) * tr.scale, math.sin(angle) * tr.scale
     a = np.array([[c, -s], [s, c]])
     b = np.array(tr.position, dtype=float)
+    centre = np.array(tr.anchor, dtype=float)
     if pivot is not None:
-        b = b + pivot[:2] - a @ pivot[:2]
+        centre = centre + pivot[:2]
+    if centre.any():
+        b = b + centre - a @ centre
     return a, b
 
 

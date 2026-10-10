@@ -21,6 +21,7 @@ wrong. This module has no Qt dependency (coding standards rule 1).
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -281,6 +282,40 @@ def clear_track(project: Project, layer_id: str, prop: str, at: float) -> Edit:
     base[prop] = value
     tracks = {name: keys for name, keys in layer.tracks.items() if name != prop}
     return _replace_layer(project, layer_id, {"tracks": tracks, "base": base})
+
+
+def set_anchor(project: Project, layer_id: str, anchor: Any, t: float) -> Edit:
+    """Move the layer's anchor (its pivot, ADR 0021) without moving the drawing at ``t``.
+
+    The position is compensated by ``(I - A)(old - new)``, ``A`` being the layer's
+    rotation and scale at ``t``: on the base, and on every position key (a rigid
+    shift of the path). Exact at all times unless rotation or scale is keyed
+    (``anchor_shifts_elsewhere``). Never creates keys.
+    """
+    from .evaluator import layer_transform  # sampling rules live with the evaluator (imports Manim)
+
+    layer = _layer(project, layer_id)
+    tr = layer_transform(layer, t)
+    angle = math.radians(tr.rotation)
+    c, s = math.cos(angle) * tr.scale, math.sin(angle) * tr.scale
+    ox, oy = layer.base.anchor[0] - float(anchor[0]), layer.base.anchor[1] - float(anchor[1])
+    dx, dy = ox - (c * ox - s * oy), oy - (s * ox + c * oy)
+
+    def shifted(value) -> tuple[float, float]:
+        return (value[0] + dx, value[1] + dy)
+
+    base = layer.base.model_dump()
+    base["anchor"] = (float(anchor[0]), float(anchor[1]))
+    base["position"] = shifted(layer.base.position)
+    tracks = dict(layer.tracks)
+    if tracks.get("position"):
+        tracks["position"] = [k.model_copy(update={"value": shifted(k.value)}) for k in tracks["position"]]
+    return _replace_layer(project, layer_id, {"base": base, "tracks": tracks})
+
+
+def anchor_shifts_elsewhere(layer: Layer) -> bool:
+    """Whether moving the anchor keeps the drawing only at the edit time (keyed rotation/scale)."""
+    return bool(layer.tracks.get("rotation") or layer.tracks.get("scale"))
 
 
 def retime_keys(project: Project, layer_id: str, t_from: float, t_to: float) -> Edit:

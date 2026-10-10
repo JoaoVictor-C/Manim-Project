@@ -81,6 +81,13 @@ The object is built centred on the origin; `base`/`tracks` place it.
 `{"position": [x, y], "scale": 1.0, "rotation": 0.0, "opacity": 1.0}` —
 rotation in degrees counter-clockwise; opacity multiplies the object's own opacity.
 
+Optional `"anchor": [x, y]` (default `[0, 0]`, not written when default) is
+the point the object rotates and scales about, in its own units: its build
+centre for objects, its rest centre for parts, moved by the anchor (ADR 0021).
+A point `p` of the drawing lands at `A (p - P) + P + position`, `A` being
+rotation × scale and `P` the pivot. The anchor only lives in `base`; it has no
+track.
+
 ## Keyframe
 
 ```json
