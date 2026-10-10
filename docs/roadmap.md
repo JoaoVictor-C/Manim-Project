@@ -35,8 +35,8 @@ timeline and canvas, with the real build worker and renderer.
   holding user-written Manim code, rendered into a frame cache and composited
   (for what the visual model cannot express: updaters, ValueTracker, simulations)
 - ✅ **P2a** — [plan](plans/p2a-gizmos.md): scale / rotate gizmos, keyable transform properties, auto-key
-- Anchor (pivot) gizmo — needs a schema field, an evaluator change and morph
-  baking; wanted for pendulums, clock hands, hinges
+- **P2f** — [plan](plans/p2f-anchor-gizmo.md): anchor (pivot) gizmo (ADR 0021) —
+  rotate and scale about any point: pendulums, clock hands, hinges
 - ✅ **P2b** — [plan](plans/p2b-keyframes.md): keyframes on the timeline, key view, easing curve editor
 - More clip kinds through the allow-list harness
 

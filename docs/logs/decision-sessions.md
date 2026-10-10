@@ -235,3 +235,24 @@ left open, so ADRs can cite it.
   a part with no counterpart would fade whole although its glyphs exist on the
   other side → unmatched parts dissolve into shape-keyed glyphs; unequal
   duplicate groups were unmeasured → measured exact.
+
+## Session 13 — P2f anchor (pivot) gizmo plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on
+  `max_loops`, confidence **0.82** (the one open question — how the cross's
+  grab is guarded — was settled in the coda).
+- **Input:** ADR 0012 (part pivots), ADR 0016/0018 (gizmos, auto-key), the
+  numeric probe that became B34, a read of `MoveTool.press` and the evaluator.
+- **Decisions:** a base-only `Transform2D.anchor`; compensation of the base
+  position and a rigid shift of position keys; a crosshair-first gizmo with
+  snapping and a centring double-click; additive format (→ ADR 0021). Plan:
+  [../plans/p2f-anchor-gizmo.md](../plans/p2f-anchor-gizmo.md).
+- **Critiques that changed the plan:** the cross would steal the whole body of
+  a small object → grab only when the box's longer side is ≥ 36 px (a
+  both-sides rule was refuted: it blocks a vertical line, the pendulum case);
+  resetting a code layer's anchor to (0, 0) puts the pivot at the canvas origin
+  → double-click centres on the drawing; `layer_transform` rebuilds transforms
+  from the four keyable properties and would drop the anchor → carry it; the
+  scale/rotate drags take their pivot from `layer_frame` → it returns the world
+  pivot; keyed positions with any ease stay exact under a rigid shift
+  (confirmed); keyed rotation does not (measured, warned).

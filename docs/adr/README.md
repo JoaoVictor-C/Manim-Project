@@ -47,3 +47,6 @@ need one.
 | [0016](0016-canvas-hit-testing-and-stopwatch-rule.md) | Canvas editing: hit-testing and the stopwatch rule | Accepted |
 | [0017](0017-export-process-and-safe-output.md) | Exports run in a process and replace the output only when complete | Accepted |
 | [0018](0018-keyable-properties-and-auto-key.md) | Keyable properties and auto-key | Accepted |
+| [0019](0019-code-layers.md) | Code layers | Accepted |
+| [0020](0020-matching-morphs.md) | Matching morphs between equations | Accepted |
+| [0021](0021-anchor-point.md) | The anchor point | Accepted |
