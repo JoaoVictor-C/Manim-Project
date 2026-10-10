@@ -35,7 +35,7 @@ import manim as m
 import numpy as np
 
 from ..logging_config import get_logger
-from . import adapter, parts
+from . import adapter, motion_paths, parts
 from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
@@ -674,6 +674,8 @@ def _sample(track: list[Keyframe] | None, t: float, default):
     for k0, k1 in itertools.pairwise(track):
         if k0.t <= t < k1.t:
             u = adapter.rate_func(k0.ease)((t - k0.t) / (k1.t - k0.t))
+            if k0.out_tangent is not None or k1.in_tangent is not None:  # a curved path (ADR 0026)
+                return motion_paths.point_at(k0.value, k0.out_tangent, k1.in_tangent, k1.value, u)
             if isinstance(k0.value, tuple):
                 return tuple(a + (b - a) * u for a, b in zip(k0.value, k1.value, strict=True))
             return k0.value + (k1.value - k0.value) * u

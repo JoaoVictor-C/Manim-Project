@@ -183,6 +183,21 @@ class Keyframe(BaseModel):
     t: float
     value: float | Vec2
     ease: Easing = Field(default_factory=Easing)
+    # Position keys only (ADR 0026): offsets of the path's handles, relative to the value.
+    in_tangent: Vec2 | None = None
+    out_tangent: Vec2 | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_tangents(self, handler):
+        data = handler(self)
+        for name in ("in_tangent", "out_tangent"):
+            if data.get(name) is None:
+                data.pop(name, None)  # files without curved paths save as before
+        return data
+
+    @property
+    def curved(self) -> bool:
+        return self.in_tangent is not None or self.out_tangent is not None
 
 
 class Spec(BaseModel):
@@ -293,6 +308,9 @@ class Layer(BaseModel):
             )
         if self.locked:
             _check_locked(self)
+        for name, track in self.tracks.items():
+            if name != "position" and any(key.curved for key in track):
+                raise ValueError(f"layer {self.id!r}: only position keys can have path tangents")
         if self.spec is not None and self.spec.type == "Graph":
             from .expressions import check  # numpy, no Manim
 

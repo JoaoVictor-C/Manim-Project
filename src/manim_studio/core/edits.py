@@ -27,7 +27,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from . import parts
+import numpy as np
+
+from . import motion_paths, parts
 from .schema import Clip, Easing, Keyframe, Layer, PartKey, Project, Spec, clip_params
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
@@ -248,9 +250,11 @@ def remove_clip(project: Project, layer_id: str, clip_id: str) -> Edit:
 def set_key(project: Project, layer_id: str, prop: str, t: float, value: Any) -> Edit:
     """Set ``prop`` to ``value`` at ``t`` (frame-quantized) on the layer's track.
 
-    A key within half a frame of ``t`` is replaced and keeps its ease. A new
-    key inherits the ease of the key before it, unless that ease does not end
-    at its target (``there_and_back``): then it gets the default ease.
+    A key within half a frame of ``t`` is replaced and keeps its ease (and path
+    tangents). A new key inherits the ease of the key before it, unless that ease
+    does not end at its target (``there_and_back``): then it gets the default ease.
+    A new position key inside a curved segment splits it so the path keeps its
+    shape (ADR 0026).
     """
     layer = _layer(project, layer_id)
     fps = project.canvas.fps
@@ -259,12 +263,29 @@ def set_key(project: Project, layer_id: str, prop: str, t: float, value: Any) ->
     value = tuple(value) if isinstance(value, (list, tuple)) else value
     for i, key in enumerate(track):
         if abs(key.t - t) < 0.5 / fps:
-            track[i] = Keyframe(t=key.t, value=value, ease=key.ease)
+            track[i] = key.model_copy(update={"value": value})
             break
     else:
         before = [key for key in track if key.t < t]
         ease = before[-1].ease if before and _reaches_target(before[-1].ease) else Easing()
-        track.append(Keyframe(t=t, value=value, ease=ease))
+        new = Keyframe(t=t, value=value, ease=ease)
+        after = [key for key in track if key.t > t]
+        if prop == "position" and before and after and (before[-1].out_tangent or after[0].in_tangent):
+            k0, k1 = before[-1], after[0]
+            fraction = _eased(k0, (t - k0.t) / (k1.t - k0.t))
+            out0, _point, in_new, out_new, in1 = motion_paths.split(
+                k0.value, k0.out_tangent, k1.in_tangent, k1.value, fraction
+            )
+            new = new.model_copy(update={"in_tangent": in_new, "out_tangent": out_new})
+            track = [
+                key.model_copy(update={"out_tangent": out0})
+                if key is k0
+                else key.model_copy(update={"in_tangent": in1})
+                if key is k1
+                else key
+                for key in track
+            ]
+        track.append(new)
     return _replace_layer(project, layer_id, {"tracks": {**layer.tracks, prop: track}})
 
 
@@ -359,7 +380,7 @@ def retime_keys(project: Project, layer_id: str, t_from: float, t_to: float) -> 
         if any(abs(key.t - t_to) < 0.5 / fps for key in others):
             raise EditError(f"{prop} already has a key at {t_to:g} s")
         key = track[index]
-        tracks[prop] = [*others, Keyframe(t=t_to, value=key.value, ease=key.ease)]
+        tracks[prop] = [*others, key.model_copy(update={"t": t_to})]
         moved = True
     if not moved:
         raise EditError(f"layer {layer_id!r} has no keys at {t_from:g} s")
@@ -399,11 +420,56 @@ def set_key_ease(
         if index is None or (wanted is not None and prop not in wanted):
             continue
         key = track[index]
-        tracks[prop] = [*track[:index], Keyframe(t=key.t, value=key.value, ease=ease), *track[index + 1 :]]
+        tracks[prop] = [*track[:index], key.model_copy(update={"ease": ease}), *track[index + 1 :]]
         changed = True
     if not changed:
         raise EditError(f"layer {layer_id!r} has no keys at {t:g} s")
     return _replace_layer(project, layer_id, {"tracks": tracks})
+
+
+def set_tangents(project: Project, layer_id: str, t: float, in_tangent: Any, out_tangent: Any) -> Edit:
+    """The path tangents of the position key at ``t`` (None = no handle; ADR 0026)."""
+    layer = _layer(project, layer_id)
+    track = list(layer.tracks.get("position", []))
+    index = _key_index(track, t, project.canvas.fps)
+    if index is None:
+        raise EditError(f"layer {layer_id!r} has no position key at {t:g} s")
+    track[index] = track[index].model_copy(
+        update={"in_tangent": _vec(in_tangent), "out_tangent": _vec(out_tangent)}
+    )
+    return _replace_layer(project, layer_id, {"tracks": {**layer.tracks, "position": track}})
+
+
+def smooth_key(project: Project, layer_id: str, t: float) -> Edit:
+    """Give the position key at ``t`` aligned handles from its neighbours (ADR 0026)."""
+    layer = _layer(project, layer_id)
+    track = layer.tracks.get("position", [])
+    index = _key_index(track, t, project.canvas.fps)
+    if index is None:
+        raise EditError(f"layer {layer_id!r} has no position key at {t:g} s")
+    here = np.asarray(track[index].value, float)
+    prev = np.asarray(track[index - 1].value, float) if index > 0 else None
+    nxt = np.asarray(track[index + 1].value, float) if index + 1 < len(track) else None
+    if prev is not None and nxt is not None:
+        direction = (nxt - prev) / 6
+        in_t, out_t = -direction, direction
+    elif nxt is not None:
+        in_t, out_t = None, (nxt - here) / 3
+    elif prev is not None:
+        in_t, out_t = (prev - here) / 3, None
+    else:
+        raise EditError("a single key has no path to smooth")
+    return set_tangents(project, layer_id, t, in_t, out_t)
+
+
+def _vec(value: Any) -> tuple[float, float] | None:
+    return None if value is None else (float(value[0]), float(value[1]))
+
+
+def _eased(key: Keyframe, u: float) -> float:
+    from .adapter import rate_func  # the evaluator's sampling rule (imports Manim)
+
+    return rate_func(key.ease)(u)
 
 
 def _key_index(track: list[Keyframe], t: float, fps: int) -> int | None:
