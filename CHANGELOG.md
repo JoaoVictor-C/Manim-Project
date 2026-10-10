@@ -121,6 +121,13 @@ All notable changes to this project are documented here. The format follows
   to add keys at the playhead. Properties shows a selected key's time, values
   and easing (disabled on a last key, where no motion follows). `edits.retime_keys`,
   `remove_keys`, `set_key_ease`; `Selection.key_time`.
+- LaTeX renders left half-written by a killed process (a build worker past its
+  timeout) are compiled again instead of failing that formula for good
+  (adapter patch on `tex_to_svg_file`, ADR 0007).
+- Faster tests (B32): parallel by default (`pytest-xdist`, up to 8 workers,
+  per-worker Manim caches), a `slow` marker for tests that start real
+  processes (`pytest -m "not slow"` runs in ~30 s), and the shared Manim cache
+  restored after each test. Full suite: 293 s -> 75-110 s.
 - Code layers (P2d, ADR 0019): a layer holding a Manim `Scene` written by the
   user, for what the timeline cannot express (updaters, ValueTracker,
   TracedPath). Real Manim plays it once into a frame cache (cropped,

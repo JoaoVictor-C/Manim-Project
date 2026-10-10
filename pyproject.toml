@@ -26,6 +26,7 @@ manim-studio = "manim_studio.cli:main"
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8",
     "ruff>=0.13",
 ]
 
@@ -36,7 +37,16 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = ["--import-mode=importlib", "-p", "no:cacheprovider"]
+# Parallel by default (pytest-xdist): at most 8 workers was fastest here (B32);
+# use -n 0 to debug (pdb, -s), and -m "not slow" for a quick loop.
+addopts = [
+    "--import-mode=importlib",
+    "-p",
+    "no:cacheprovider",
+    "--numprocesses=auto",
+    "--maxprocesses=8",
+    "--dist=worksteal",
+]
 filterwarnings = [
     "ignore::SyntaxWarning",  # pydub (a Manim dependency) on Python 3.13
     # Known, pinned around (pillow<13): Manim's camera passes mode= to Image.fromarray.
@@ -45,6 +55,7 @@ filterwarnings = [
 markers = [
     "latex: needs a LaTeX installation (skipped automatically when missing)",
     "ui: needs Qt (runs offscreen)",
+    "slow: starts real processes (build worker, renderer, code runner): seconds each",
 ]
 
 [tool.ruff]

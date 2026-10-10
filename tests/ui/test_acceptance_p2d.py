@@ -26,7 +26,7 @@ from manim_studio.render.cairo_export import frame_times, make_camera, render_fr
 from manim_studio.ui.main_window import MainWindow
 from ui.test_acceptance_v1 import menu_action, timeline_menu, type_latex, wait_until
 
-pytestmark = [pytest.mark.ui, pytest.mark.latex]
+pytestmark = [pytest.mark.ui, pytest.mark.latex, pytest.mark.slow]  # starts real processes
 
 TRACE = """class Trace(Scene):
     def construct(self):

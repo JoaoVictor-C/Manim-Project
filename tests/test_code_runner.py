@@ -93,6 +93,7 @@ def run_spare(tmp_path, job_line: str) -> tuple[list[dict], int]:
     return [json.loads(line) for line in out.splitlines() if line.startswith("{")], process.returncode
 
 
+@pytest.mark.slow
 def test_a_warm_spare_takes_one_job_from_stdin(tmp_path) -> None:
     messages, code = run_spare(tmp_path, job(ORBIT, key="orbit").to_json())
     assert code == 0 and messages[-1] == {"done": True, "frames": 15}
@@ -100,6 +101,7 @@ def test_a_warm_spare_takes_one_job_from_stdin(tmp_path) -> None:
     assert CodeCache(tmp_path / "code").open("orbit").frame_count == 15
 
 
+@pytest.mark.slow
 def test_a_failing_job_reports_its_error_and_line(tmp_path) -> None:
     bad = "class A(Scene):\n    def construct(self):\n        raise RuntimeError('boom')\n"
     messages, code = run_spare(tmp_path, job(bad).to_json())
@@ -107,6 +109,7 @@ def test_a_failing_job_reports_its_error_and_line(tmp_path) -> None:
     assert messages[-1] == {"error": "RuntimeError: boom", "line": 3}
 
 
+@pytest.mark.slow
 def test_export_renders_code_layers_only_when_trusted(tmp_path, capsys) -> None:
     from manim_studio import cli
     from manim_studio.core.schema import Canvas, Layer, Project, Spec

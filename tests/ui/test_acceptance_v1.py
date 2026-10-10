@@ -29,7 +29,7 @@ from manim_studio.core.evaluator import layer_transform
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.timeline.view import ROW_HEIGHT, RULER_HEIGHT
 
-pytestmark = [pytest.mark.ui, pytest.mark.latex]
+pytestmark = [pytest.mark.ui, pytest.mark.latex, pytest.mark.slow]  # starts real processes
 
 
 def wait_until(qt_app, condition, timeout: float = 90.0) -> None:

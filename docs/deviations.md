@@ -21,3 +21,11 @@ object's centre at the start of the clip. Single-part objects are unaffected.
 An easing curve that overshoots (e.g. `cubic-bezier(0.34, 1.56, 0.64, 1)`)
 would make `Create`/`Write` draw past their end. Content and emphasis clips
 clamp the eased alpha; morph clips and keyframes may overshoot.
+
+## Robustness patches (output unchanged)
+
+- **Half-written LaTeX renders are compiled again.** Manim reuses
+  `<hash>.svg` whenever it exists; a process killed while writing it (a build
+  worker past its timeout) left a truncated file that failed that formula for
+  good. The adapter wraps `tex_to_svg_file`: an SVG that does not end with
+  `</svg>` is deleted and compiled again (`tests/core/test_adapter.py`).

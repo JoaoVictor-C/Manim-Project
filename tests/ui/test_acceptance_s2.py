@@ -34,7 +34,7 @@ from manim_studio.ui.timeline.view import ROW_HEIGHT, RULER_HEIGHT
 from manim_studio.ui.worker_process import WorkerProcess
 from support import max_diff
 
-pytestmark = [pytest.mark.ui, pytest.mark.latex]
+pytestmark = [pytest.mark.ui, pytest.mark.latex, pytest.mark.slow]  # starts real processes
 
 
 def wait_until(qt_app, condition, timeout: float = 60.0) -> None:

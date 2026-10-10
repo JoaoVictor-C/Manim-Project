@@ -32,7 +32,7 @@ from ui.test_acceptance_v1 import menu_action, timeline_menu, type_latex, wait_u
 from ui.test_canvas_tools import drag, mouse, px
 from ui.test_part_canvas import glyph
 
-pytestmark = [pytest.mark.ui, pytest.mark.latex]
+pytestmark = [pytest.mark.ui, pytest.mark.latex, pytest.mark.slow]  # starts real processes
 
 
 @pytest.fixture
