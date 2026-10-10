@@ -47,6 +47,42 @@ def cache_dir() -> Path:
     return Path(m.config.media_dir)
 
 
+# --- patch: never reuse a half-written LaTeX SVG (ADR 0007) ---------------------
+#
+# Manim reuses ``<hash>.svg`` whenever the file exists. A process killed while
+# dvisvgm writes it (a build worker past its timeout, a cancelled render) leaves
+# a truncated file that would then fail that formula forever ("IndexError: list
+# index out of range" while parsing). A complete SVG ends with ``</svg>``; anything
+# else is deleted and compiled again.
+
+from manim.mobject.text import tex_mobject as _tex_mobject  # noqa: E402
+from manim.utils import tex_file_writing as _tex_files  # noqa: E402
+
+_manim_tex_to_svg_file = _tex_files.tex_to_svg_file
+
+
+def _complete_svg(path: Path) -> bool:
+    try:
+        with path.open("rb") as file:
+            file.seek(max(0, path.stat().st_size - 64))
+            return file.read().rstrip().endswith(b"</svg>")
+    except OSError:
+        return False
+
+
+def _tex_to_svg_file(expression, environment=None, tex_template=None):
+    template = tex_template if tex_template is not None else m.config["tex_template"]
+    svg = _tex_files.generate_tex_file(expression, environment, template).with_suffix(".svg")
+    if svg.exists() and not _complete_svg(svg):
+        log.warning("discarding an incomplete cached LaTeX render: %s", svg.name)
+        svg.unlink(missing_ok=True)
+    return _manim_tex_to_svg_file(expression, environment, tex_template)
+
+
+_tex_files.tex_to_svg_file = _tex_to_svg_file
+_tex_mobject.tex_to_svg_file = _tex_to_svg_file
+
+
 # --- mobjects ---------------------------------------------------------------
 
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}

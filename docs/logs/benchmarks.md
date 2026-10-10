@@ -248,3 +248,15 @@ first frame at 6.6-8.7 s, done at 7.2-9.3 s — the import is ~85 % of the wait.
 layer changes to a 1 s scene (`Create(Square())`, 32x18 @ 10 fps). From
 `sync()` to every frame in the cache: **0.15-0.24 s** (3 runs), against 6.6-8.7 s
 to the *first* frame for a cold process (B30). → P2d.3 accepted.
+
+### B32 — Test suite wall time · 2026-10-10
+642 tests, this machine (12 logical cores, busy). Serial: **293 s**. Most of it
+was two things: (1) CLI tests re-pointed Manim's cache at their own folder and
+never restored it, so every later LaTeX build compiled from scratch (~3 s each)
+— restoring the shared cache after each test: **230 s**; (2) tests that start
+real processes (build worker, renderer, code runner) each pay Manim's import
+(5-8 s). In parallel with `pytest-xdist` and a per-worker cache seeded from the
+shared one: `-n auto` (12) 89-97 s, `-n 6` 79 s, **`-n 8` 74 s** (worksteal) —
+more workers oversubscribe the CPU with Manim subprocesses. The default is now
+at most 8 workers; on a loaded machine a full run takes 75-110 s. The quick
+lane `-m "not slow"` (no real subprocesses): **~28-38 s** for 611 tests.

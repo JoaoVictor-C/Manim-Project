@@ -86,3 +86,22 @@ def test_wiggle_pivot_is_pinned_to_start_centre() -> None:
     anim = adapter.make_animation("Wiggle", mob, None, {})
     assert list(anim.scale_about_point) == pytest.approx([1, 2, 0], abs=1e-6)
     assert list(anim.rotate_about_point) == pytest.approx([1, 2, 0], abs=1e-6)
+
+
+@pytest.mark.latex
+def test_a_truncated_cached_latex_render_is_compiled_again() -> None:
+    """A process killed while writing <hash>.svg must not poison that formula (ADR 0007 patch)."""
+    import uuid
+
+    from manim.mobject.text import tex_mobject
+    from manim.utils import tex_file_writing
+
+    assert tex_mobject.tex_to_svg_file is tex_file_writing.tex_to_svg_file  # MathTex uses the patch
+    expression = rf"\sqrt{{{uuid.uuid4().int % 10**9}}}"
+    svg = tex_file_writing.tex_to_svg_file(expression, "align*")
+    data = svg.read_bytes()
+    svg.write_bytes(data[: len(data) // 2])  # what a kill during dvisvgm leaves behind
+    again = tex_file_writing.tex_to_svg_file(expression, "align*")
+    assert again == svg
+    rebuilt = svg.read_bytes()  # compiled again (dvisvgm output is not byte-stable across runs)
+    assert rebuilt.rstrip().endswith(b"</svg>") and len(rebuilt) > len(data) * 0.9

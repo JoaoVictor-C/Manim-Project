@@ -1,8 +1,21 @@
 # Testing
 
 ```bash
-uv run pytest
+uv run pytest                 # everything, in parallel (up to 8 workers)
+uv run pytest -m "not slow"   # the quick loop: no real subprocesses (~30 s)
+uv run pytest -n 0 -s tests/core/test_edits.py   # one worker: for pdb, print, -s
 ```
+
+The suite runs in parallel by default (`pytest-xdist`, `--dist=worksteal`,
+see `addopts` in `pyproject.toml`). Each worker gets its own Manim cache under
+`.cache/test-workers/<worker>`, seeded with the shared cache's compiled LaTeX
+and text, so workers never write the same file at once. Tests marked **`slow`**
+start real processes — the build worker, the renderer, the code runner — and
+pay Manim's import (5-8 s here) each time; skip them while iterating.
+
+`conftest.py` puts Manim back on the shared cache after every test: CLI tests
+point it at their own folder, and leaving it there made every later LaTeX build
+compile from scratch (that alone cost a minute, B32).
 
 ## Layout
 
@@ -31,7 +44,7 @@ tests/
 ```
 
 Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`
-(93 % at the last count; the suite runs in about 60 s, a third of it real
+(93 % at the last count; the full suite takes 75-100 s in parallel, most of it real
 subprocesses — the build worker and the renderer — and LaTeX).
 
 `ui/test_acceptance_p2a.py`, `ui/test_acceptance_p2b.py` and

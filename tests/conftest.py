@@ -25,7 +25,29 @@ os.environ["MANIM_STUDIO_CODE"] = "0"
 os.environ["MANIM_STUDIO_WORKER"] = "0"
 
 # Must run before any test builds a mobject: sets the cache dir and finds MiKTeX.
-adapter.configure(ROOT / ".cache" / "manim")
+SHARED_CACHE = ROOT / ".cache" / "manim"
+# Parallel runs (pytest -n): each worker gets its own Manim cache, seeded with the
+# shared one's compiled LaTeX and text, so workers never write the same file at
+# once. It lives in the project: LaTeX fails under the 8.3 temp path (setup notes).
+WORKER = os.environ.get("PYTEST_XDIST_WORKER")
+CACHE = ROOT / ".cache" / "test-workers" / WORKER if WORKER else SHARED_CACHE
+if WORKER:
+    for folder in ("Tex", "texts"):
+        if (SHARED_CACHE / folder).is_dir():
+            shutil.copytree(SHARED_CACHE / folder, CACHE / folder, dirs_exist_ok=True)
+adapter.configure(CACHE)
+
+
+@pytest.fixture(autouse=True)
+def _shared_manim_cache():
+    """Every test sees the shared cache, where LaTeX is already compiled.
+
+    CLI tests point Manim at their own cache (``--cache-dir``); left that way,
+    every later LaTeX build compiled from scratch (~3 s each, minutes overall).
+    """
+    yield
+    if Path(adapter.cache_dir()) != CACHE:
+        adapter.configure(CACHE)
 
 
 @pytest.fixture(scope="session")

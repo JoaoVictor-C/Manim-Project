@@ -21,7 +21,7 @@ from manim_studio.core.evaluator import layer_transform
 from manim_studio.ui.gizmo import KNOB_OFFSET_PX
 from manim_studio.ui.main_window import MainWindow
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui]
 
 
 def menu_action(menu, *path: str):

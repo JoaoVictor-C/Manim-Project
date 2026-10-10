@@ -27,7 +27,7 @@ from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec, Transfo
 from manim_studio.render.cairo_export import make_camera, render_frame
 from manim_studio.ui.main_window import MainWindow
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.slow]  # starts real processes
 
 
 def project(duration: float = 1.0) -> Project:

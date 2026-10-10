@@ -23,7 +23,7 @@ from manim_studio.core.schema import Canvas, Layer, Project, Spec
 from manim_studio.core.trust import TrustStore
 from manim_studio.ui.code_render import CodeRenderService
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.slow]  # starts real processes
 
 STAND_IN = r"""
 import json, sys, time

@@ -7,20 +7,20 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import time
-from pathlib import Path
 
 import av
 import pytest
 
 pytest.importorskip("PySide6")
 
+from manim_studio.core import adapter
 from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec
 from manim_studio.render.cairo_export import partial_path
 from manim_studio.ui.export_job import ExportJob
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.slow]  # starts real processes
 
-CACHE = Path(__file__).resolve().parents[2] / ".cache" / "manim"
+CACHE = adapter.cache_dir()  # set by conftest (one per worker in parallel runs)
 
 
 def project(duration: float = 1.0) -> Project:

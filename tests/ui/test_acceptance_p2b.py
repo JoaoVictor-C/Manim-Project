@@ -25,7 +25,7 @@ from manim_studio.core.schema import Easing
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.timeline.view import KEY_OFFSET, ROW_HEIGHT, RULER_HEIGHT
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui]
 
 
 def menu_action(menu, *path: str):

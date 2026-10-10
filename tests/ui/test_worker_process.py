@@ -26,10 +26,10 @@ from manim_studio.core.schema import Spec
 from manim_studio.core.warm import warm_key
 from manim_studio.ui.worker_process import MAX_FAILED_STARTS, WorkerProcess
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.slow]  # starts real processes
 
 ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / ".cache" / "manim"  # LaTeX fails under the 8.3 temp path on this machine
+CACHE = adapter.cache_dir()  # set by conftest; LaTeX fails under the 8.3 temp path on this machine
 
 # Stand-ins speaking the protocol: echo every request back as ok, or never answer.
 ECHO = (
