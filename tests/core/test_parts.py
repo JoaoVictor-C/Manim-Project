@@ -190,21 +190,17 @@ def test_a_clip_may_not_overlap_clips_of_its_ancestors_but_siblings_may_overlap(
     Project(layers=[root, b, c])  # siblings overlap: allowed
 
 
-def test_morphs_are_refused_on_part_trees() -> None:
+def test_objects_with_parts_may_morph_but_parts_may_not() -> None:
+    """ADR 0020 relaxed ADR 0012's v1 refusal."""
     other = Layer(id="other", spec=Spec(type="MathTex", params={"text": "x"}))
     morph = Clip(id="m", kind="Transform", start=1.0, duration=1.0, to_layer="other")
     root = Layer(id="eq", spec=Spec(type="MathTex", params={"text": EQ}), clips=[morph])
-    with pytest.raises(ValidationError, match="morphs are not supported"):
-        Project(layers=[root, part("b", "b^2"), other])
+    Project(layers=[root, part("b", "b^2"), other])  # from an object with parts
     into = Clip(id="m", kind="Transform", start=1.0, duration=1.0, to_layer="eq")
-    with pytest.raises(ValidationError, match="morphs are not supported"):
-        Project(
-            layers=[
-                Layer(id="eq", spec=Spec(type="MathTex", params={"text": EQ})),
-                part("b", "b^2"),
-                other.model_copy(update={"clips": [into]}),
-            ]
-        )
+    plain = Layer(id="eq", spec=Spec(type="MathTex", params={"text": EQ}))
+    Project(layers=[plain, part("b", "b^2"), other.model_copy(update={"clips": [into]})])  # into one
+    with pytest.raises(ValidationError, match="a part cannot morph"):
+        Project(layers=[plain, part("b", "b^2", clips=[morph]), other])
 
 
 def test_a_part_lifetime_is_clamped_to_its_parent() -> None:

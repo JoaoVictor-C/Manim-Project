@@ -46,7 +46,9 @@ EASES = [
     Easing(bezier=(0.34, 1.56, 0.64, 1.0)),
 ]
 NON_MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category != "morph"]
-MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category == "morph"]
+MORPH = [
+    k for k, v in CLIP_KIND_INFO.items() if v.category == "morph" and k != "TransformMatchingTex"
+]  # TeX only
 SEEDS = range(12)
 
 

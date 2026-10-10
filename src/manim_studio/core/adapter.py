@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 import manim as m
+import numpy as np
+from manim.animation.transform_matching_parts import TransformMatchingAbstractBase
 from manim.utils import rate_functions
 
 from ..logging_config import get_logger
 from . import parts
-from .schema import CLIP_KIND_INFO, CODE_TYPES, RASTER_TYPES, TEXT_TYPES, Easing, Spec
+from .schema import CLIP_KIND_INFO, CODE_TYPES, PART_PARENT_TYPES, RASTER_TYPES, TEXT_TYPES, Easing, Spec
 
 log = get_logger(__name__)
 
@@ -368,6 +370,54 @@ def cubic_bezier(x1: float, y1: float, x2: float, y2: float) -> Callable[[float]
 
 # Kind metadata (category, introducer/remover, vector-only) is pure data in
 # schema.CLIP_KIND_INFO; this table only maps each kind to its Manim class.
+def shape_key(mob: m.Mobject) -> str:
+    """A glyph's identity by outline: centred and scaled to height 1 (as TransformMatchingShapes)."""
+    copy = mob.copy().center()
+    if copy.height > 0:
+        copy.set(height=1)
+    return f"shape:{hash(np.round(copy.points, 3).tobytes())}"
+
+
+def keyed_pieces(
+    source: list[tuple[str | None, m.Mobject]], target: list[tuple[str | None, m.Mobject]]
+) -> tuple[m.VGroup, m.VGroup]:
+    """The pieces TransformMatchingTex transforms, keyed in two passes (ADR 0020).
+
+    ``source`` and ``target`` list ``(part TeX or None, glyphs)``. A part stays
+    one piece keyed ``tex:<TeX>`` only if the same TeX exists on the other side;
+    every other glyph becomes its own piece keyed by its shape.
+    """
+    common = {tex for tex, _ in source if tex} & {tex for tex, _ in target if tex}
+
+    def pieces(groups: list[tuple[str | None, m.Mobject]]) -> m.VGroup:
+        out = m.VGroup()
+        for tex, glyphs in groups:
+            if tex in common:
+                piece = m.VGroup(*glyphs.family_members_with_points())
+                piece.match_key = f"tex:{tex}"
+                out.add(piece)
+                continue
+            for glyph in glyphs.family_members_with_points():
+                piece = m.VGroup(glyph)
+                piece.match_key = shape_key(glyph)
+                out.add(piece)
+        return out
+
+    return pieces(source), pieces(target)
+
+
+class KeyedTransformMatching(TransformMatchingAbstractBase):
+    """TransformMatchingTex on pieces that already carry their keys (``keyed_pieces``)."""
+
+    @staticmethod
+    def get_mobject_parts(mobject: m.Mobject) -> list[m.Mobject]:
+        return list(mobject.submobjects)
+
+    @staticmethod
+    def get_mobject_key(mobject: m.Mobject) -> str:
+        return mobject.match_key
+
+
 ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "Create": m.Create,
     "Uncreate": m.Uncreate,
@@ -385,6 +435,7 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "Transform": m.ReplacementTransform,  # ADR 0005: the source hands off to the target
     "FadeTransform": m.FadeTransform,
     "TransformMatchingShapes": m.TransformMatchingShapes,
+    "TransformMatchingTex": KeyedTransformMatching,  # fed keyed_pieces by the evaluator (ADR 0020)
 }
 
 
@@ -392,9 +443,12 @@ def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
     if mobject_type in CODE_TYPES:
         return []  # code layers animate inside their code (ADR 0019)
+    kinds = list(CLIP_KIND_INFO)
+    if mobject_type not in PART_PARENT_TYPES:
+        kinds.remove("TransformMatchingTex")  # matches TeX terms (ADR 0020)
     if mobject_type in RASTER_TYPES:
-        return [k for k, info in CLIP_KIND_INFO.items() if not info.vector_only]
-    return list(CLIP_KIND_INFO)
+        return [k for k in kinds if not CLIP_KIND_INFO[k].vector_only]
+    return kinds
 
 
 def make_animation(

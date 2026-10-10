@@ -265,24 +265,55 @@ class Evaluator:
     def _morph_at(self, layer: Layer, index: int, clip: Clip, alpha: float) -> m.Mobject:
         """Morphs are world-space hand-offs: A at clip start -> B at clip end (ADR 0005).
 
-        The begun animation bakes both ends' world transforms, so it is reused
-        only while those transforms are unchanged (ADR 0013): moving a morph whose
-        partners are static or settled costs no new ``begin()``.
+        Either end may be an object with parts, drawn as its whole tree (ADR 0020).
+        The begun animation bakes both ends, so it is reused only while their
+        signatures are unchanged (ADR 0013): moving a morph whose partners are
+        static or settled costs no new ``begin()``.
         """
         key = (layer.id, clip.id)
-        target_layer = self.project.layer(clip.to_layer)
-        baked = (self.transform_at(layer, clip.start), self.transform_at(target_layer, clip.end))
+        target_layer = self._layers[clip.to_layer]
+        baked = (self._end_signature(layer, clip.start), self._end_signature(target_layer, clip.end))
         cached = self._active.get(key)
         if cached is None or cached.baked != baked:
-            # _to_world may return shared buffers; the animation mutates its inputs.
-            source = self._to_world(self._state_before(layer, index), layer, clip.start).copy()
-            target = self._to_world(self._base_mobject(target_layer), target_layer, clip.end).copy()
-            anim = adapter.make_animation(clip.kind, source, clip.ease, clip.params, target)
+            source = self._end_groups(layer, clip.start, index)
+            target = self._end_groups(target_layer, clip.end, None)
+            if clip.kind == "TransformMatchingTex":
+                source_mob, target_mob = adapter.keyed_pieces(source, target)
+            else:
+                source_mob, target_mob = _compose(source), _compose(target)
+            anim = adapter.make_animation(clip.kind, source_mob, clip.ease, clip.params, target_mob)
             anim.begin()
             self._active[key] = _Active(anim, anim.mobject, baked)
         active = self._active[key]
         active.anim.interpolate(alpha)
         return active.drawn
+
+    def _end_groups(self, layer: Layer, t: float, index: int | None) -> list[tuple[str | None, m.Mobject]]:
+        """One end of a morph in world space, as ``(part TeX or None, glyphs)`` copies.
+
+        An object with parts gives one group per drawn member; any other layer
+        one group: its state before clip ``index`` (the source) or its base
+        object (a target, which appears when the morph ends). Copies: drawings
+        are shared buffers and the animation mutates its inputs.
+        """
+        if layer.id in self._has_parts:
+            groups = []
+            for member, mob in self._tree_members_at(layer, t):
+                part = self._layers[member].part
+                groups.append((part.tex if part is not None else None, mob.copy()))
+            return groups
+        local = self._state_before(layer, index) if index is not None else self._base_mobject(layer)
+        return [(None, self._to_world(local, layer, t).copy())]
+
+    def _end_signature(self, layer: Layer, t: float):
+        """What one end of a morph depends on besides edits that drop caches anyway."""
+        if layer.id not in self._has_parts:
+            return self.transform_at(layer, t)
+        tree = self._tree(layer)
+        finished = tuple((lay.id, c.id) for lay, c in self._tree_clips(layer, tree) if c.end <= t)
+        return finished, tuple(
+            (member, self.transform_at(self._layers[member], t)) for member in tree.members
+        )
 
     # -- code layers (ADR 0019) ------------------------------------------------
 
@@ -346,6 +377,7 @@ class Evaluator:
             for member in tree.members
             if tree.regions[member]
             for clip in self._layers[member].clips
+            if not clip.to_layer  # a morph takes over the whole tree (_tree_at)
         ]
         return sorted(clips, key=lambda lc: (lc[1].start, order[lc[0].id]))
 
@@ -390,6 +422,16 @@ class Evaluator:
     def _tree_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
         start, end = self.lifetime(root)
         if not (start <= t < end):
+            return []
+        for index, clip in enumerate(root.clips):
+            if clip.to_layer and clip.start <= t < clip.end:  # the whole tree morphs (ADR 0020)
+                return [(root.id, self._morph_at(root, index, clip, (t - clip.start) / clip.duration))]
+        return self._tree_members_at(root, t)
+
+    def _tree_members_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
+        """The tree's members as drawn at ``t``, ignoring morphs (also a morph's ends)."""
+        start, end = self.lifetime(root)
+        if not (start <= t <= end):
             return []
         tree = self._tree(root)
         clips = self._tree_clips(root, tree)
@@ -537,6 +579,13 @@ def _sample(track: list[Keyframe] | None, t: float, default):
                 return tuple(a + (b - a) * u for a, b in zip(k0.value, k1.value, strict=True))
             return k0.value + (k1.value - k0.value) * u
     return track[-1].value
+
+
+def _compose(groups: list[tuple[str | None, m.Mobject]]) -> m.Mobject:
+    """One morph end for kinds that do not match pieces: the members as one object."""
+    if len(groups) == 1:
+        return groups[0][1]
+    return m.VGroup(*(mob for _, mob in groups))
 
 
 _IDENTITY = Transform2D()
