@@ -1,6 +1,6 @@
 # P3g — Child objects animate with their object; turning along a path
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 21](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **ADR:** [0029 — Child objects animate with their object](../adr/0029-child-objects-in-the-tree.md)

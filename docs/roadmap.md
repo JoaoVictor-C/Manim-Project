@@ -50,7 +50,7 @@ timeline and canvas, with the real build worker and renderer.
 - ✅ **P3a** — [plan](plans/p3a-viewport.md): viewport zoom/pan with a re-framed camera (ADR 0023)
 - ✅ **P3f** — [plan](plans/p3f-render-ahead.md): frames rendered ahead in a preview process, played from a cache (ADR 0028)
 
-- **P3g** — [plan](plans/p3g-child-trees.md): graphs animate with their axes; turning along a path (ADR 0029)
+- ✅ **P3g** — [plan](plans/p3g-child-trees.md): graphs animate with their axes; turning along a path (ADR 0029)
 
 ## Phase 4
 

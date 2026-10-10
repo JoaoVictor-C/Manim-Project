@@ -1,6 +1,6 @@
 # 0024. Child objects: axes and graphs
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by [0029](0029-child-objects-in-the-tree.md): child objects animate with their object)
 - **Date:** 2026-10-10
 - **Deciders:** João Victor
 - **Amends:** [0012](0012-layer-tree-and-part-layers.md) (a second kind of child layer)
