@@ -25,6 +25,7 @@ src/manim_studio/
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
 │   ├── edits.py         edits → new validated snapshot + edit kind (ADR 0013, 0014)
 │   ├── parts.py         part layers: keys → exact TeX spans, markers, split terms (ADR 0012)
+│   ├── expressions.py   graph formulas: a whitelist over Python's syntax tree, never eval (ADR 0024)
 │   ├── code_cache.py    code layer frames: cropped premultiplied zlib frames, eviction (ADR 0019)
 │   ├── code_frame.py    a cached frame as a mobject; painted by Cairo, hit by alpha (ADR 0019)
 │   ├── trust.py         which code may run: hashes in a per-user store (ADR 0019)

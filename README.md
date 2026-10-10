@@ -77,6 +77,12 @@ terms that appear in both fly to their new places, the rest fades. Terms match
 by their parts' TeX where both equations have them, and by shape otherwise —
 split the equations into terms when a symbol repeats.
 
+**Graphs**: add **Axes** from the library (*Graphing*), select them and use
+**Parts > Add graph...** with a function of x such as `sin(x)` or
+`exp(-x**2)`. The graph sits on the axes and moves with them; animate it like
+any layer (Create it, Turn it into another graph). Double-click a graph to edit
+its formula, range and colour in Properties.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

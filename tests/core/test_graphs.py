@@ -156,11 +156,11 @@ def test_a_graph_is_manims_plot_on_the_same_axes() -> None:
 
 
 def test_bad_values_split_the_curve_instead_of_spiking() -> None:
-    for text, pieces in (("tan(x)", 4), ("1/x", 2)):
+    for text, pieces in (("tan(x)", 3), ("1/x", 2)):  # tan: three branches cross y in [-3, 3]
         curve = adapter.build_child(AXES, Spec(type="Graph", params={"expression": text}))
         assert len(curve.get_subpaths()) >= pieces, text
         assert np.isfinite(curve.points).all()
-        assert np.abs(curve.points[:, 1]).max() <= 6 + 1e-6  # y range +-3, margin 50 % of its 6 units
+        assert np.abs(curve.points[:, 1]).max() <= 3 + 1e-6  # stops at the edge of the axes
     log = adapter.build_child(AXES, Spec(type="Graph", params={"expression": "log(x)"}))
     assert log.points[:, 0].min() > 0  # only where it is defined
     nothing = adapter.build_child(AXES, Spec(type="Graph", params={"expression": "sqrt(-1-x**2)"}))

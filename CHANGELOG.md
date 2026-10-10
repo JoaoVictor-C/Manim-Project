@@ -127,6 +127,16 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Axes and function graphs (P3b, ADR 0024): `Axes` in the library; graphs are
+  child objects (`parent_id` + their own spec) added with *Parts > Add graph...*,
+  plotted from a whitelist expression (`core/expressions.py`: parsed, never
+  `eval`'d; validated on load). Graphs ride on their axes, are locked to them
+  (only opacity is keyable), take every vector clip kind and morph into other
+  graphs; editing the axes re-plots them. Curves split where the function is
+  undefined or leaves the y range, ending exactly at the edge (bisection).
+  Numbered axes are warmed by the build worker. `edits.add_child`;
+  `schema.keyable_props`; part-only rules now apply to parts only.
+  Example: `examples/graphs.json`.
 - Canvas viewport (P3a, ADR 0023): Ctrl+wheel zooms about the cursor (5 %-3200 %),
   wheel / Shift+wheel / middle-drag pan, View > Zoom In/Out, Fit (Ctrl+0),
   Actual Size (Ctrl+1); a readout beside the frame counter. The preview camera

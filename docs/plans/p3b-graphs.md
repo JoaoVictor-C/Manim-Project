@@ -1,6 +1,6 @@
 # P3b — Axes and function graphs: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p3b.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 16](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.82)
 - **Evidence:** benchmark B37 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -67,3 +67,13 @@ exactly as the editor shows it.
 | P3b.1 | expressions, schema child layers, `keyable_props`, adapter build, harness | expression tests (values, rejections); schema rules; graphs vs hand-built Manim; split runs; harness over child specs |
 | P3b.2 | evaluator: children in `frame_layers`, root affine, morph key, edit kinds, warm gate; locked gestures | frames vs Manim with a moved/scaled axes; scrub = play; axes edit re-plots; canvas drag on a graph moves the axes |
 | P3b.3 | library, Add graph, Properties, acceptance, ADR 0024, docs | the Goal's scenario through the UI, export = editor |
+
+## Outcome
+
+Done on 2026-10-10, with one change found by looking at the rendered example:
+the planned 50 % margin beyond the y range let `tan(x)` spill far outside the
+axes. Runs now end exactly where the curve leaves the y range or its domain
+(30 bisection steps between the last drawable sample and the next), so curves
+stop at the axes' edge and `sqrt` starts at 0. Axes print whole-number ranges
+and steps as integers (`1`, not `1.0`). `examples/graphs.json` shows axes with
+numbers, a sine drawn and turned into a parabola, and `tan(x)` split at its poles.

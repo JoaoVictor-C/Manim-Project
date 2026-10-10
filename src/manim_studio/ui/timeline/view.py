@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 
 from ...core import adapter, edits
 from ...core.evaluator import layer_transform
-from ...core.schema import CLIP_KIND_INFO, CODE_TYPES, PART_PARENT_TYPES, Clip, Layer, Project
+from ...core.schema import CLIP_KIND_INFO, CODE_TYPES, PART_PARENT_TYPES, Clip, Layer, Project, keyable_props
 from ...logging_config import get_logger
 from ..document import Document
 from .model import (
@@ -479,7 +479,7 @@ class TimelineView(QGraphicsView):
             add.setTitle("Add clip (no room here)")
             return menu
         start, length = placement
-        kinds = adapter.allowed_clip_kinds(self.project.root_of(layer.id).spec.type)
+        kinds = adapter.allowed_clip_kinds((layer.spec or self.project.root_of(layer.id).spec).type)
         if layer.is_part:  # a part cannot morph; its object can (ADR 0020)
             kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "morph"]
         for category, title in (
@@ -519,12 +519,13 @@ class TimelineView(QGraphicsView):
         return min(near, key=lambda pair: pair[0])[1] if near else None
 
     def _add_key_menu(self, menu: QMenu, layer: Layer) -> None:
-        tracked = [prop for prop in TRANSFORM_PROPS if layer.tracks.get(prop)]
+        keyable = keyable_props(layer)  # a graph keys its opacity only (ADR 0024)
+        tracked = [prop for prop in keyable if layer.tracks.get(prop)]
         if tracked:
             menu.addAction("Add key at playhead", lambda: self.add_keys(layer.id, tracked))
             return
         sub = menu.addMenu("Add key at playhead")
-        for prop in TRANSFORM_PROPS:
+        for prop in keyable:
             sub.addAction(prop.capitalize(), lambda p=prop: self.add_keys(layer.id, [p]))
 
     def add_keys(self, layer_id: str, props: list[str]) -> None:

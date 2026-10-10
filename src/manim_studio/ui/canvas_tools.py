@@ -258,7 +258,7 @@ class MoveTool(QObject):
             return True
         if not self.wants_key(event):
             return False
-        layer = self.project.layer(self.selection.layer_id)
+        layer = self.project.layer(self._owner(self.selection.layer_id))
         step = NUDGE_SHIFT_PX if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else NUDGE_PX
         world = np.array(ARROWS[event.key()]) * step / self.canvas.px_per_unit()
         dx, dy = (float(d) for d in self.canvas.evaluator.layer_frame(layer, self.playhead())[2] @ world)
@@ -270,7 +270,13 @@ class MoveTool(QObject):
 
     # -- rules ---------------------------------------------------------------------
 
+    def _owner(self, layer_id: str) -> str:
+        """Who a gesture moves: a graph is locked to its axes, so they move (ADR 0024)."""
+        layer = self.project.layer(layer_id)
+        return layer.parent_id if layer.locked else layer_id
+
     def _start_drag(self, layer_id: str, prop: str, point: np.ndarray) -> None:
+        layer_id = self._owner(layer_id)
         layer = self.project.layer(layer_id)
         if self._morph_playing(layer_id):
             self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
@@ -297,7 +303,7 @@ class MoveTool(QObject):
 
     def _centre_anchor(self) -> None:
         """Put the selected layer's anchor at the centre of its drawing's box."""
-        layer = self.project.layer(self.selection.layer_id)
+        layer = self.project.layer(self._owner(self.selection.layer_id))
         if self._morph_playing(layer.id):
             self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
             return

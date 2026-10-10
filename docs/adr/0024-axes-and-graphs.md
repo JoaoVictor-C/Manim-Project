@@ -22,8 +22,8 @@ introduced child layers only as *parts* — spans of a TeX object's glyphs.
 - A graph's function is an **expression** compiled by a whitelist over Python's
   syntax tree (numbers, `x`, `pi`, `e`, arithmetic, a few functions). Nothing
   else is accepted, on load or in the editor; nothing is ever passed to `eval`.
-- Non-finite values and values far outside the y range split the curve into
-  separate subpaths.
+- Where the function is undefined or leaves the axes' y range, the curve is
+  split into separate subpaths that end exactly at the edge.
 
 ## Consequences
 

@@ -103,7 +103,7 @@ MOBJECT_TYPES: dict[str, type] = {
 }
 CHILD_ONLY_TYPES = frozenset({"Graph"})  # built with their parent (build_child, ADR 0024)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
-GRAPH_MARGIN = 0.5  # values beyond the y range by more than this fraction of it split the curve
+GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
 
 ParamKind = Literal["float", "int", "text", "choice", "point", "path"]
 
@@ -255,13 +255,18 @@ def _axes_param(spec: Spec, name: str):
     return spec.params.get(name, param.default)
 
 
+def _whole(value: float) -> float | int:
+    """Whole numbers as ints, so the axes label 1, 2, 3 rather than 1.0, 2.0, 3.0."""
+    return int(value) if float(value).is_integer() else float(value)
+
+
 def _build_axes(spec: Spec) -> m.Axes:
     """Axes from the editor's params (ranges as [from, to] plus a step; numbers yes/no)."""
-    x0, x1 = _axes_param(spec, "x_range")[:2]
-    y0, y1 = _axes_param(spec, "y_range")[:2]
+    x0, x1 = (_whole(v) for v in _axes_param(spec, "x_range")[:2])
+    y0, y1 = (_whole(v) for v in _axes_param(spec, "y_range")[:2])
     return m.Axes(
-        x_range=[x0, x1, _axes_param(spec, "x_step")],
-        y_range=[y0, y1, _axes_param(spec, "y_step")],
+        x_range=[x0, x1, _whole(_axes_param(spec, "x_step"))],
+        y_range=[y0, y1, _whole(_axes_param(spec, "y_step"))],
         x_length=_axes_param(spec, "x_length"),
         y_length=_axes_param(spec, "y_length"),
         axis_config={"include_numbers": _axes_param(spec, "numbers") == "yes"},
@@ -287,31 +292,52 @@ def _child_cached(parent_json: str, spec_json: str) -> m.Mobject:
 
 
 def plot_runs(axes: m.Axes, expression: str, x0: float, x1: float) -> m.VMobject:
-    """The graph of ``expression`` on ``axes`` over [x0, x1], one subpath per finite run.
+    """The graph of ``expression`` on ``axes`` over [x0, x1], one subpath per drawable run.
 
-    Samples that are not finite or lie beyond the y range by more than GRAPH_MARGIN
-    of it split the curve (B37: log and sqrt give NaN, tan and 1/x spike).
+    A sample is drawable when it is finite and within the axes' y range. Runs end
+    exactly where the curve leaves the range or its domain (found by bisection
+    between the last drawable sample and the next), so ``tan`` stops at the edge
+    of the axes instead of spiking and ``sqrt`` starts at 0 (B37).
     """
-    from .expressions import compile_expression, evaluate
+    from .expressions import compile_expression
+
+    f = compile_expression(expression)
+    y0, y1 = axes.y_range[0], axes.y_range[1]
+
+    def value(x: float) -> float:
+        with np.errstate(all="ignore"):
+            return float(f(np.array([x], dtype=float))[0])
+
+    def drawable(y) -> np.ndarray:
+        with np.errstate(invalid="ignore"):
+            return np.isfinite(y) & (y >= y0) & (y <= y1)
+
+    def edge(inside: float, outside: float) -> float:
+        """The last drawable x between a drawable and an undrawable sample."""
+        for _ in range(GRAPH_BISECTIONS):
+            middle = (inside + outside) / 2
+            if drawable(np.array([value(middle)]))[0]:
+                inside = middle
+            else:
+                outside = middle
+        return inside
 
     lo, hi = min(x0, x1), max(x0, x1)
     xs = np.linspace(lo, hi, GRAPH_SAMPLES)
-    ys = evaluate(expression, xs)
-    y0, y1 = axes.y_range[0], axes.y_range[1]
-    margin = (y1 - y0) * GRAPH_MARGIN
-    good = np.isfinite(ys) & (ys >= y0 - margin) & (ys <= y1 + margin)
-    f = compile_expression(expression)
+    with np.errstate(all="ignore"):
+        good = drawable(f(xs))
     graph = m.VMobject()
     start = None
     for i, ok in enumerate([*good, False]):  # a sentinel closes the last run
         if ok and start is None:
             start = i
         elif not ok and start is not None:
-            if i - start >= 2:  # a run needs two samples to draw anything
+            left = edge(xs[start], xs[start - 1]) if start > 0 else xs[start]
+            right = edge(xs[i - 1], xs[i]) if i < len(xs) else xs[i - 1]
+            if right - left > 1e-9:
+                samples = max(i - start, 2)
                 piece = axes.plot(
-                    lambda x: float(f(np.array([x]))[0]),
-                    x_range=[xs[start], xs[i - 1], (xs[i - 1] - xs[start]) / max(i - 1 - start, 1)],
-                    use_smoothing=False,
+                    value, x_range=[left, right, (right - left) / (samples - 1)], use_smoothing=False
                 )
                 if graph.has_points():
                     graph.append_vectorized_mobject(piece)
