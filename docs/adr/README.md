@@ -51,3 +51,4 @@ need one.
 | [0020](0020-matching-morphs.md) | Matching morphs between equations | Accepted |
 | [0021](0021-anchor-point.md) | The anchor point | Accepted |
 | [0022](0022-clip-params-and-overlays.md) | Clip parameters and overlay clips | Accepted |
+| [0023](0023-canvas-viewport.md) | Canvas viewport | Accepted |

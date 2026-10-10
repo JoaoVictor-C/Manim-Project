@@ -42,6 +42,7 @@ src/manim_studio/
     ├── code_render.py   keeps code layers rendered with warm single-use spares (ADR 0019)
     ├── selection.py     the one selection shared by every view (ADR 0016)
     ├── canvas_tools.py  click to select; move, scale, rotate, nudge; stopwatch rule (ADR 0016, 0018)
+    ├── viewport.py      the canvas view: Fit or scale + centre, zoom about a point, pan (pure)
     ├── gizmo.py         handle geometry: oriented box, scale/angle from drags, pivot snaps (pure)
     ├── curve_editor.py  easing curve editor: bezier handles, presets, fitted named eases
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)

@@ -127,6 +127,12 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Canvas viewport (P3a, ADR 0023): Ctrl+wheel zooms about the cursor (5 %-3200 %),
+  wheel / Shift+wheel / middle-drag pan, View > Zoom In/Out, Fit (Ctrl+0),
+  Actual Size (Ctrl+1); a readout beside the frame counter. The preview camera
+  covers the whole widget, so objects outside the frame show on a dimmed
+  pasteboard (+2 ms per frame at Fit, B36). The view is not saved; zooms survive
+  resizes, Fit follows them. Zooming in spreads the handles of small parts.
 - More clip kinds (P2g, ADR 0022): GrowFromEdge, SpiralIn, Add/RemoveTextLetterByLetter
   (Text only), Circumscribe, Flash, FocusOn, ClockwiseTransform,
   CounterclockwiseTransform, FadeTransformPieces. **Clip params** registered per

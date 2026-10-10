@@ -116,12 +116,13 @@ def test_step_moves_one_frame_and_pauses(window) -> None:
 
 @pytest.mark.ui
 def test_half_resolution_halves_the_render(window) -> None:
-    full = window.canvas._camera_size
+    (full, frame) = window.canvas._camera_size  # pixel size, and the world area it shows
     window._set_half_resolution(True)
-    half = window.canvas._camera_size
+    (half, half_frame) = window.canvas._camera_size
     assert half[0] == pytest.approx(full[0] / 2, abs=1)
+    assert half_frame == frame  # fewer pixels, same picture
     window._set_half_resolution(False)
-    assert window.canvas._camera_size == full
+    assert window.canvas._camera_size == (full, frame)
 
 
 @pytest.mark.ui
