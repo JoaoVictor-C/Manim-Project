@@ -397,3 +397,22 @@ left open, so ADRs can cite it.
   object alone (measured ~3 ms); a view change is not an edit → frames carry
   their view; code renders finishing → invalidate that layer; two timing rules
   in one playback → always quantise.
+
+## Session 21 — P3g child objects in the tree, turning along a path · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0012, 0020, 0024, 0025; a read of the tree and morph code; the
+  example projects' clip overlaps (none); a probe showing MoveAlongPath on an
+  equation with a part crashes on master.
+- **Decisions:** child objects join their root's tree (root clips animate the
+  whole figure); member morphs inside trees; the overlap rule extended; path
+  clips supported on tree roots; build keys include children; `rotate` =
+  `no` | `along`, relative to the clip's start (→ ADR 0029). Plan:
+  [../plans/p3g-child-trees.md](../plans/p3g-child-trees.md).
+- **Critiques that changed the plan:** tree animations had no path target (a
+  crash today) → passed, with path signatures in tree keys; a graph edit would
+  not rebuild the group → children in the root's build key; a moved path would
+  leave a later graph morph where it was → path signatures in member morph
+  ends; the old child drawing path would drift → removed; an absolute rotation
+  would jump at the clip start → relative.
