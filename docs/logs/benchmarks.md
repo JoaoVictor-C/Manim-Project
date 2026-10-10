@@ -260,3 +260,15 @@ shared one: `-n auto` (12) 89-97 s, `-n 6` 79 s, **`-n 8` 74 s** (worksteal) —
 more workers oversubscribe the CPU with Manim subprocesses. The default is now
 at most 8 workers; on a loaded machine a full run takes 75-110 s. The quick
 lane `-m "not slow"` (no real subprocesses): **~28-38 s** for 611 tests.
+
+### B33 — Keyed matching between two equations · 2026-10-10
+`benchmarks/bench_matching_tex.py`: `a^2 + b^2 = c^2` -> `a^2 = c^2 - b^2`,
+parts a^2, b^2, c^2 on both. A `TransformMatchingAbstractBase` subclass fed
+pre-grouped pieces: parts keyed by TeX, other glyphs by normalized shape. Shape
+keys agree across separately compiled equations (`=` matches; `+` vs `-` do
+not). Matched: a^2, b^2, c^2 (TeX) and `=` (shape); `+` fades out, `-` fades
+in. Frames at shuffled alphas equal frames in order: **max diff 0**. Begin
+**15 ms**, interpolate + render **1.3 ms**/frame. Alpha 1 vs the target
+equation: mean diff 0.01 (re-aligned paths on a few pixels; the target layer
+takes over at the clip end). Unequal duplicate groups (`a^2+b^2+c^2` ->
+`x^2+y^2`: three `2` vs two, two `+` vs one) also exact. → ADR 0020.

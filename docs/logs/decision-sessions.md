@@ -218,3 +218,20 @@ left open, so ADRs can cite it.
   a `CodeFrame` mobject; several layers queued behind one spare → up to two
   spares; export could run untrusted code → `--trust-code` only when all
   layers are trusted.
+
+## Session 12 — P2e TransformMatchingTex plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0005 (morph hand-offs), ADR 0012 (part trees; v1 refused
+  morphs on them), measurement B33.
+- **Decisions:** a keyed TransformMatchingTex (part TeX where it matches on
+  both sides, glyph shape otherwise); morphs on and into part trees; a bake key
+  with finished-clip orders (→ ADR 0020). Plan:
+  [../plans/p2e-matching-tex.md](../plans/p2e-matching-tex.md).
+- **Critiques that changed the plan:** the morph cache keyed only by transforms
+  would reuse a stale morph after a timing edit → finished-clip order in the
+  key; a clip on a part after its root's morph starts is invisible → refused;
+  a part with no counterpart would fade whole although its glyphs exist on the
+  other side → unmatched parts dissolve into shape-keyed glyphs; unequal
+  duplicate groups were unmeasured → measured exact.
