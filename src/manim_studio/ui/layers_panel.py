@@ -142,6 +142,15 @@ def _text_of(project: Project, layer_id: str) -> str:
     return text[span.start : span.end] if span else ""
 
 
+AXES_MENU = (  # Parts > Add to axes (ADR 0030): type, menu label
+    ("Point", "Point"),
+    ("Area", "Area"),
+    ("RiemannRectangles", "Riemann rectangles"),
+    ("AxisLabels", "Axis labels"),
+    ("GraphLabel", "Graph label"),
+)
+
+
 class LayersPanel(QWidget):
     layerSelected = Signal(str)  # layer id, or "" for none
     message = Signal(str)  # errors for the status bar
@@ -185,6 +194,11 @@ class LayersPanel(QWidget):
         self.split_action = part_menu.addAction("Split into terms", self.split_terms)
         part_menu.addSeparator()
         self.add_graph_action = part_menu.addAction("Add graph...", self.add_graph)
+        self.axes_menu = part_menu.addMenu("Add to axes")  # more objects on axes (ADR 0030)
+        self.axes_actions = {
+            type_name: self.axes_menu.addAction(label, partial(self.add_to_axes, type_name))
+            for type_name, label in AXES_MENU
+        }
         self.part_button.setMenu(part_menu)
         self.part_button.setToolTip("Animate pieces of an equation as their own layers, or plot on axes")
 
@@ -317,10 +331,14 @@ class LayersPanel(QWidget):
         )
         self.add_part_action.setEnabled(can_part and not has_morph)
         self.split_action.setEnabled(can_part and not has_morph)
-        can_graph = (
-            layer is not None and layer.parent_id is None and "Graph" in CHILD_TYPES.get(layer.spec.type, ())
-        )
+        axes = self._axes_of(layer)
+        can_graph = axes is not None
         self.add_graph_action.setEnabled(can_graph)
+        self.axes_menu.setEnabled(can_graph)
+        has_graph = axes is not None and self._first_graph(axes) is not None
+        for type_name, action in self.axes_actions.items():
+            needs_graph = any(p.kind == "graph" for p in adapter.MOBJECT_PARAMS[type_name])
+            action.setEnabled(can_graph and (has_graph or not needs_graph))
         self.part_button.setEnabled((can_part and not has_morph) or can_graph)
 
     # -- actions --------------------------------------------------------------------
@@ -349,11 +367,42 @@ class LayersPanel(QWidget):
         self._select_new = True
         self._submit(partial(edits.add_part, parent_id=parent_id, tex=key[0], occurrence=key[1]), "Add part")
 
+    def _axes_of(self, layer: Layer | None) -> Layer | None:
+        """The axes a selection belongs to (the axes themselves, or one of their objects)."""
+        if layer is None:
+            return None
+        root = self.project.root_of(layer.id)
+        return root if root.spec is not None and "Graph" in CHILD_TYPES.get(root.spec.type, ()) else None
+
+    def _first_graph(self, axes: Layer) -> Layer | None:
+        return next((x for x in self.project.children(axes.id) if x.spec and x.spec.type == "Graph"), None)
+
+    def add_to_axes(self, type_name: str) -> None:
+        """Add a point, an area, rectangles or a label to the selected axes (ADR 0030); objects
+        built from a graph start on the axes' first graph."""
+        selected = self.selected_id()
+        axes = self._axes_of(self.project.layer(selected)) if selected else None
+        if axes is None:
+            return
+        extra = {}
+        if any(p.kind == "graph" for p in adapter.MOBJECT_PARAMS[type_name]):
+            graph = self._first_graph(axes)
+            if graph is None:
+                self.message.emit("Add a graph to these axes first")
+                return
+            extra["graph"] = graph.id
+        spec = adapter.default_spec(type_name, **extra)
+        self._select_new = True
+        label = dict(AXES_MENU)[type_name]
+        self._submit(partial(edits.add_child, parent_id=axes.id, spec=spec), f"Add {label.lower()}")
+
     def add_graph(self) -> None:
         """Ask for a function of x and plot it on the selected axes (ADR 0024)."""
-        parent_id = self.selected_id()
-        if parent_id is None:
+        selected = self.selected_id()
+        axes = self._axes_of(self.project.layer(selected)) if selected else None
+        if axes is None:
             return
+        parent_id = axes.id
         expression = self.ask_expression()
         if expression is None:
             return
