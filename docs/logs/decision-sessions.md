@@ -353,3 +353,25 @@ left open, so ADRs can cite it.
   symmetric keys → align direction, keep length; inserting a key keeps the
   shape but not the timing → stated; the edits rebuilt keys and would drop
   tangents → copied; key squares over the object's middle → harmless, same edit.
+
+## Session 19 — P3e SVG import plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0019, 0022, 0025; measurement B40; a probe of the failures
+  (missing, malformed, empty SVG; missing image); a read of the evaluator's
+  base, checkpoint and path caches.
+- **Decisions:** an `SVGMobject` layer (path, height), file colours kept with
+  style overrides; a media signature (mtime, size) in the build cache and the
+  evaluator; checks on load, on application activation and from a menu; one
+  builder draws a placeholder for missing, unreadable, broken or empty media so
+  the export agrees; MoveAlongPath follows an SVG's longest path; absolute paths
+  in v1; SVG elements as parts later (→ ADR 0027). Plan:
+  [../plans/p3e-svg.md](../plans/p3e-svg.md).
+- **Critiques that changed the plan:** a missing image already broke frames, not
+  loads → the builder makes the placeholder, shared with the export; a new base
+  alone would leave checkpoints from the old drawing → a changed file is a spec
+  edit of its layer and path signatures include it; a paused canvas would never
+  notice a save in another program → check on activation (watchers break on
+  atomic saves); a stat before every frame scales with media layers → dropped;
+  the first path of a logo may be a dot → the longest path.

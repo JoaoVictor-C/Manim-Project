@@ -55,3 +55,4 @@ need one.
 | [0024](0024-axes-and-graphs.md) | Child objects: axes and graphs | Accepted |
 | [0025](0025-move-along-path.md) | Moving along another layer's path | Accepted |
 | [0026](0026-curved-position-paths.md) | Curved position paths | Accepted |
+| [0027](0027-svg-layers-and-media-files.md) | SVG layers and media files | Accepted |
