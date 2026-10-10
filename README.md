@@ -99,7 +99,9 @@ split the equations into terms when a symbol repeats.
 any layer (Create it, Turn it into another graph). A clip on the axes animates
 the whole figure - fade it in or out, indicate it, or send it along a path, and
 the graphs come along. Double-click a graph to edit
-its formula, range and colour in Properties.
+its formula, range and colour in Properties. **Parts > Add to axes** adds a
+point, the area under a graph (or between two), Riemann rectangles, axis labels
+or a graph label; pick their graph and range in Properties.
 
 To make something travel along a shape - a dot along a graph, around a
 circle - right-click its row and choose **Add clip > Move > MoveAlongPath** and

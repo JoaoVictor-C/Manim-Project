@@ -1,6 +1,6 @@
 # P3h — Points, areas, rectangles and labels on axes
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 22](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B42 in [../logs/benchmarks.md](../logs/benchmarks.md)

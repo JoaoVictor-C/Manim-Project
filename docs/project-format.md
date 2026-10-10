@@ -58,8 +58,14 @@ clips may not start after its object begins morphing.
   "clips": [{ "id": "i", "kind": "Indicate", "start": 1.0, "duration": 1.0 }] }
 ```
 
-**Child objects** (ADR 0024) have a `parent_id` and their own `spec` (no part
-key). Today: a `Graph` under an `Axes` root. A graph is plotted in its axes'
+**Child objects** (ADR 0024, 0030) have a `parent_id` and their own `spec` (no
+part key): objects on an `Axes` root. A `Graph` plots `expression`; a `Point`
+sits at `x`, `y` (axes units); an `Area` fills under `graph` over `x_range`, down
+to `bounded_graph` if set; `RiemannRectangles` take `graph`, `x_range`, `dx` and
+`sample` (`left`, `right`, `center`); `AxisLabels` take `x_label`/`y_label` and a
+`GraphLabel` `graph`, `label`, `x`, `direction` (TeX). `graph` and
+`bounded_graph` name a `Graph` on the same axes; deleting that graph deletes
+them. All are locked like graphs (below). A graph is plotted in its axes'
 coordinates, drawn right after them, moves with them and lives within their
 lifetime. It is **locked** to them: its `base` keeps the default position,
 scale, rotation and anchor, and only `opacity` may have a track. Its clips
@@ -80,8 +86,9 @@ axes takes their graphs along.
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `SVGMobject`, `Code`, `Axes`; `Graph` (only
-  as a child of `Axes`).
+  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `SVGMobject`, `Code`, `Axes`; `Graph`,
+  `Point`, `Area`, `RiemannRectangles`, `AxisLabels`, `GraphLabel` (only as children of
+  `Axes`).
 - `Code` (ADR 0019) holds Python in `params.code`: one `Scene` subclass
   (`from manim import *` and `numpy as np` are implied). It is rendered once
   into a frame cache, plays from the layer's start and holds its last frame;

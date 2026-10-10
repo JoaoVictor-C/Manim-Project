@@ -127,6 +127,12 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Objects on axes (P3h, ADR 0030): *Parts > Add to axes* adds a Point, an Area
+  (under a graph or between two), RiemannRectangles, AxisLabels and a
+  GraphLabel, built with Manim's own Axes helpers and locked to their axes like
+  graphs. Area, rectangles and graph labels name a graph on the same axes
+  (validated; deleting the graph deletes them; editing it rebuilds them).
+  Graphs now carry the function Manim's helpers read, clamped where undefined.
 - Graphs animate with their axes (P3g, ADR 0029): an object with child
   objects evaluates as one tree, like an equation with parts, so a clip on the
   axes animates the axes with their graphs (FadeIn/FadeOut, Indicate, Wiggle,
