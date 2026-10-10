@@ -12,7 +12,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
-from PySide6.QtGui import QColor, QKeyEvent
+from PySide6.QtGui import QColor, QFontDatabase, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -154,6 +154,21 @@ class LongTextField(Field):
     def _show(self, value: Any) -> None:
         if self.widget.toPlainText() != value:
             self.widget.setPlainText("" if value is None else str(value))
+
+
+class CodeField(LongTextField):
+    """Python source for a code layer (ADR 0019): monospace, tall, Tab indents."""
+
+    def __init__(self, on_commit: Commit) -> None:
+        super().__init__(on_commit)
+        edit = self.widget
+        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        edit.setFont(font)
+        edit.setTabChangesFocus(False)
+        edit.setTabStopDistance(4 * edit.fontMetrics().horizontalAdvance(" "))
+        edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        edit.setFixedHeight(280)
+        edit.setPlaceholderText("class MyScene(Scene): ...   (Ctrl+Enter to apply)")
 
 
 class BoolField(Field):

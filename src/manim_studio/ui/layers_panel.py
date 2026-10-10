@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import adapter, edits, parts
-from ..core.schema import PART_PARENT_TYPES, RASTER_TYPES, Layer, Project
+from ..core.schema import CODE_TYPES, PART_PARENT_TYPES, RASTER_TYPES, Layer, Project
 from .build_service import BuildService
 
 ID_ROLE = Qt.ItemDataRole.UserRole
@@ -142,6 +142,7 @@ class LayersPanel(QWidget):
         # Hooks for tests and other front-ends: an image path or ""; a part key or None.
         self.choose_image: Callable[[], str] = self._choose_image_dialog
         self.ask_part: Callable[[str], tuple[str, int] | None] = self._ask_part_dialog
+        self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self._known_ids: set[str] = set()
         self._select_new = False
 
@@ -313,6 +314,8 @@ class LayersPanel(QWidget):
                 return
             extra["path"] = path
         spec = adapter.default_spec(type_name, **extra)
+        if type_name in CODE_TYPES:
+            self.trust_code(str(spec.params["code"]))  # the library's own starter scene
         self._select_new = True
         self._submit(partial(edits.add_layer, spec=spec), f"Add {type_name}")
 

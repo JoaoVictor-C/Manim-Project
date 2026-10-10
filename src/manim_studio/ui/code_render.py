@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass, field
@@ -331,3 +332,37 @@ class CodeRenderService(QObject):
         for line in text.splitlines():
             if line.strip():
                 log.debug("code runner: %s", line)
+
+
+class NoCodeRenderer(QObject):
+    """Renders nothing (``MANIM_STUDIO_CODE=0``: tests, debugging): code layers keep their cache."""
+
+    statusChanged = Signal(str)
+    rendered = Signal(str)
+
+    def __init__(self, cache_dir: Path, trust: TrustStore, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.cache = CodeCache(Path(cache_dir) / "code")
+        self.trust = trust
+
+    def status(self, layer_id: str) -> CodeStatus | None:
+        return None
+
+    def sync(self, project: Project) -> None:
+        pass
+
+    def retry(self, layer_id: str) -> None:
+        pass
+
+    def trust_layers(self, project: Project, layer_ids: list[str]) -> None:
+        self.trust.trust([str(project.layer(i).spec.params.get("code", "")) for i in layer_ids])
+
+    def stop(self) -> None:
+        pass
+
+
+def make_code_renderer(cache_dir: Path, trust: TrustStore, parent: QObject | None = None):
+    """The real renderer, or none when ``MANIM_STUDIO_CODE=0``."""
+    if os.environ.get("MANIM_STUDIO_CODE") == "0":
+        return NoCodeRenderer(cache_dir, trust, parent)
+    return CodeRenderService(cache_dir, trust, parent=parent)

@@ -38,10 +38,12 @@ from ..core import adapter, parts
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.schema import TEXT_TYPES, Project
+from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .build_service import BuildService
 from .canvas import CanvasWidget
 from .canvas_tools import MoveTool
+from .code_render import make_code_renderer
 from .document import Document
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
@@ -76,6 +78,9 @@ class MainWindow(QMainWindow):
         self.builds = BuildService(self.document, make_worker(adapter.cache_dir(), self), self)
         self.builds.failed.connect(self._on_build_failed)
         self.builds.prewarm([adapter.default_spec(t) for t in sorted(TEXT_TYPES)])  # library defaults
+        # Code layers render in separate processes, only if trusted (ADR 0019).
+        self.trust = TrustStore()
+        self.code = make_code_renderer(adapter.cache_dir(), self.trust, self)
 
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)
@@ -114,11 +119,18 @@ class MainWindow(QMainWindow):
 
         self.layers = LayersPanel(self.builds)
         self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
+        self.layers.trust_code = lambda code: self.trust.trust([code])
         self.layers.setEnabled(False)
         self.layers_dock = self._dock("Layers", self.layers, Qt.DockWidgetArea.LeftDockWidgetArea)
         self.properties = PropertiesPanel(self.builds)
         self.properties.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.properties.playhead = lambda: self.t
+        self.properties.trust_code = lambda code: self.trust.trust([code])
+        self.properties.code_status = lambda i: s.text if (s := self.code.status(i)) else None
+        self.properties.code_failed = lambda i: (s := self.code.status(i)) is not None and s.state == "error"
+        self.properties.retry_code = self.code.retry
+        self.code.statusChanged.connect(self.properties.refresh_code_status)
+        self.code.rendered.connect(lambda _layer_id: self.refresh())
         self.properties_dock = self._dock(
             "Properties", self.properties, Qt.DockWidgetArea.RightDockWidgetArea
         )
@@ -224,7 +236,7 @@ class MainWindow(QMainWindow):
         """A project was opened: rebuild everything that depends on it."""
         self._has_project = True
         self.layers.setEnabled(True)
-        self.evaluator = Evaluator(project)
+        self.evaluator = Evaluator(project, self.code.cache)  # frames where the renderer writes them
         self.canvas.set_scene(project.canvas, self.evaluator)
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
         self._update_title()
@@ -232,6 +244,29 @@ class MainWindow(QMainWindow):
         gc.collect()
         gc.freeze()  # measured: removes the gen-2 GC hitches during playback
         self.idle_timer.start()
+        self.code.sync(project)
+        untrusted = self.trust.untrusted(project)
+        if untrusted:  # opening a file must never run its code silently (ADR 0019)
+            names = [project.layer(i).name or i for i in untrusted]
+            if self.ask_trust(names) == "run":
+                self.code.trust_layers(project, untrusted)
+            else:
+                self.statusBar().showMessage(
+                    "Code layers were not run: they show a placeholder. Edit their code to run it.", 15000
+                )
+
+    def ask_trust(self, names: list[str]) -> str:
+        """``"run"`` or ``"skip"``: may this project's code run on this computer?"""
+        answer = QMessageBox.question(
+            self,
+            "Run code from this project?",
+            "This project contains Python code that will run on your computer:\n\n"
+            + "\n".join(f"  - {name}" for name in names)
+            + "\n\nOnly run it if you trust where the project came from. Run it?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return "run" if answer == QMessageBox.StandardButton.Yes else "skip"
 
     def _on_changed(self, project: Project, layer_ids: frozenset[str], kind: EditKind) -> None:
         """An edit, undo or redo changed the snapshot (ADR 0013, 0014)."""
@@ -243,6 +278,7 @@ class MainWindow(QMainWindow):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
         if kind == "spec":
             self._warn_retargeted(before, project)
+        self.code.sync(project)
 
     def _warn_retargeted(self, before: Project, after: Project) -> None:
         """A text edit can move a part to another match (ADR 0012): say which parts to check."""
@@ -291,6 +327,7 @@ class MainWindow(QMainWindow):
         if self.export_dialog is not None:
             self.export_dialog.close()
         self.builds.client.stop()
+        self.code.stop()
         super().closeEvent(event)
 
     # -- export (S4, ADR 0017) -------------------------------------------------------
@@ -303,7 +340,11 @@ class MainWindow(QMainWindow):
             name = self.path.stem if self.path else "untitled"
             folder = self.path.parent if self.path else Path.cwd()
             self.export_dialog = ExportDialog(
-                lambda: self.document.project, folder / "out" / f"{name}.mp4", adapter.cache_dir(), self
+                lambda: self.document.project,
+                folder / "out" / f"{name}.mp4",
+                adapter.cache_dir(),
+                self,
+                trusted=lambda project: not self.trust.untrusted(project),
             )
             self.export_dialog.stateChanged.connect(self._on_export_state)
         self.export_dialog.show()
@@ -453,7 +494,8 @@ class MainWindow(QMainWindow):
         missing = self.evaluator.missing_checkpoints()
         if not missing:
             self.idle_timer.stop()
-            self.statusBar().showMessage("Ready", 2000)
+            if self.statusBar().currentMessage().startswith("Preparing timeline"):
+                self.statusBar().showMessage("Ready", 2000)  # never over another message
             return
         self.statusBar().showMessage(f"Preparing timeline... {len(missing)} checkpoints left")
         self.evaluator.compute_checkpoint(*missing[0])
