@@ -135,9 +135,17 @@ def test_real_worker_warms_the_cache_for_this_process(real_worker, qt_app) -> No
     cold = Spec(type="MathTex", params={"text": rf"\sqrt[3]{{{uuid.uuid4().int % 10**9}}}"})
     warm_ms, cold_ms = build_ms(specs[1]), build_ms(cold)
     assert warm_ms < cold_ms / 3, f"MathTex: warm {warm_ms:.0f} ms vs cold {cold_ms:.0f} ms"
-    files = len({path for path in CACHE.rglob("*.svg")})
-    build_ms(specs[0])
-    assert len({path for path in CACHE.rglob("*.svg")}) == files  # the warmed Text: nothing new written
+    # The warmed Text is read, not drawn again (counting files would also see other processes' writes).
+    from manim.mobject.text import text_mobject
+
+    drawn = []
+    original = text_mobject.manimpango.text2svg
+    text_mobject.manimpango.text2svg = lambda *a, **k: drawn.append(a) or original(*a, **k)
+    try:
+        build_ms(specs[0])
+    finally:
+        text_mobject.manimpango.text2svg = original
+    assert drawn == []
 
 
 def build_ms(spec: Spec) -> float:
