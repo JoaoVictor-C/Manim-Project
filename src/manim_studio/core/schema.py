@@ -32,8 +32,16 @@ RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds a
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
-CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": frozenset({"Graph"})}  # child objects (ADR 0024)
-LOCKED_TYPES = frozenset({"Graph"})  # follow their parent exactly: only opacity is their own
+AXES_OBJECTS = frozenset({"Graph", "Point", "Area", "RiemannRectangles", "AxisLabels", "GraphLabel"})
+CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": AXES_OBJECTS}  # child objects (ADR 0024, 0030)
+LOCKED_TYPES = AXES_OBJECTS  # follow their parent exactly: only opacity is their own
+# Params naming a sibling Graph (ADR 0030): (name, required).
+GRAPH_PARAMS: dict[str, tuple[tuple[str, bool], ...]] = {
+    "Area": (("graph", True), ("bounded_graph", False)),
+    "RiemannRectangles": (("graph", True),),
+    "GraphLabel": (("graph", True),),
+}
+NOT_PATHS = frozenset({"AxisLabels", "GraphLabel"})  # text glyphs make no useful path (ADR 0030)
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "motion", "morph"]
@@ -388,6 +396,7 @@ class Project(BaseModel):
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
         self._tree_rules()
         self._path_rules()
+        self._graph_refs()
         targeted: dict[str, str] = {}
         for layer in self.layers:
             for clip in layer.clips:
@@ -423,8 +432,40 @@ class Project(BaseModel):
                 if path is None:
                     raise ValueError(f"clip {clip.id!r}: {clip.kind} needs a path layer")
                 inside = {layer.id} | {d.id for d in self.descendants(layer.id)}
-                if path.id in inside or path.is_part or path.spec.type in CODE_TYPES | RASTER_TYPES:
+                if (
+                    path.id in inside
+                    or path.is_part
+                    or path.spec.type in CODE_TYPES | RASTER_TYPES | NOT_PATHS
+                ):
                     raise ValueError(f"clip {clip.id!r}: {path.id!r} cannot be its path")
+
+    def _graph_refs(self) -> None:
+        """ADR 0030: an area, rectangles or a graph label name a graph on the same axes."""
+        by_id = {layer.id: layer for layer in self.layers}
+        for layer in self.layers:
+            for name, required in GRAPH_PARAMS.get(layer.spec.type if layer.spec else "", ()):
+                target = layer.spec.params.get(name) or None
+                if target is None and not required:
+                    continue
+                graph = by_id.get(target)
+                if (
+                    graph is None
+                    or graph.spec is None
+                    or graph.spec.type != "Graph"
+                    or (graph.parent_id != layer.parent_id)
+                ):
+                    raise ValueError(
+                        f"layer {layer.id!r}: {name} must name a graph on the same axes, not {target!r}"
+                    )
+
+    def referenced_graphs(self, layer: Layer) -> dict[str, Spec]:
+        """The specs of the graphs ``layer`` is built from (ADR 0030), by id."""
+        if layer.spec is None:
+            return {}
+        names = [n for n, _ in GRAPH_PARAMS.get(layer.spec.type, ())]
+        ids = [layer.spec.params.get(n) for n in names]
+        by_id = {other.id: other for other in self.layers}
+        return {i: by_id[i].spec for i in ids if i and i in by_id}
 
     def _tree_rules(self) -> None:
         """ADR 0012: parts hang under MathTex/Tex roots; no clip on a part overlaps an ancestor's
@@ -502,7 +543,7 @@ class Project(BaseModel):
             for layer in self.layers
             if layer.id not in inside
             and not layer.is_part
-            and layer.spec.type not in CODE_TYPES | RASTER_TYPES
+            and layer.spec.type not in CODE_TYPES | RASTER_TYPES | NOT_PATHS
         ]
 
     def morph_sources(self) -> dict[str, Clip]:

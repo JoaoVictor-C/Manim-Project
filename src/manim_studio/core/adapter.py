@@ -7,6 +7,7 @@ on Manim internals is meant to live here so a Manim upgrade touches one file.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import shutil
@@ -24,6 +25,7 @@ from manim.utils import rate_functions
 from ..logging_config import get_logger
 from . import parts
 from .schema import (
+    AXES_OBJECTS,
     CLIP_KIND_INFO,
     CODE_TYPES,
     DIRECTIONS,
@@ -103,11 +105,11 @@ _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", 
 MOBJECT_TYPES: dict[str, type] = {
     name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | {"Axes"})
 }
-CHILD_ONLY_TYPES = frozenset({"Graph"})  # built with their parent (build_child, ADR 0024)
+CHILD_ONLY_TYPES = AXES_OBJECTS  # built with their parent (build_child, ADR 0024, 0030)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
 
-ParamKind = Literal["float", "int", "text", "choice", "point", "path"]
+ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph"]  # graph: a sibling's id
 
 
 @dataclass(frozen=True)
@@ -192,6 +194,39 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
         Param("expression", "text", "sin(x)", "y ="),
         Param("x_range", "point", (-5.0, 5.0), "x from / to"),
     ),
+    # More objects on axes (ADR 0030), in axes units; graph params name a sibling Graph.
+    "Point": (
+        Param("x", "float", 1.0, minimum=-1000.0, maximum=1000.0, step=0.1),
+        Param("y", "float", 1.0, minimum=-1000.0, maximum=1000.0, step=0.1),
+        Param("radius", "float", 0.08, minimum=0.01, maximum=5.0, step=0.01),
+    ),
+    "Area": (
+        Param("graph", "graph", "", "Under graph"),
+        Param("x_range", "point", (0.0, 2.0), "x from / to"),
+        Param("bounded_graph", "graph", "", "Down to graph (none: the x axis)"),
+    ),
+    "RiemannRectangles": (
+        Param("graph", "graph", "", "Under graph"),
+        Param("x_range", "point", (0.0, 3.0), "x from / to"),
+        Param("dx", "float", 0.25, "Width", minimum=0.01, maximum=10.0, step=0.05),
+        Param("sample", "choice", "left", "Height at", choices=("left", "right", "center")),
+    ),
+    "AxisLabels": (
+        Param("x_label", "text", "x", "x label (LaTeX)"),
+        Param("y_label", "text", "y", "y label (LaTeX)"),
+    ),
+    "GraphLabel": (
+        Param("graph", "graph", "", "Graph"),
+        Param("label", "text", "f(x)", "Label (LaTeX)"),
+        Param("x", "float", 2.0, "At x", minimum=-1000.0, maximum=1000.0, step=0.1),
+        Param(
+            "direction",
+            "choice",
+            "UR",
+            "Side",
+            choices=("UR", "UL", "DR", "DL", "UP", "DOWN", "LEFT", "RIGHT"),
+        ),
+    ),
     # A code layer (ADR 0019): one Scene subclass; `from manim import *` and numpy as np are implied.
     "Code": (Param("code", "text", CODE_STARTER, "Manim code (one Scene)", multiline=True),),
 }
@@ -205,7 +240,7 @@ LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Python", ("Code",)),
 )
 
-_REQUIRED = {"text", "path", "code", "expression"}  # always written to the spec
+_REQUIRED = {"text", "path", "code", "expression", "graph"}  # always written to the spec
 LIBRARY_LABELS = {"ImageMobject": "Image", "SVGMobject": "SVG"}  # menu names that differ from the type
 
 
@@ -362,22 +397,78 @@ def _build_axes(spec: Spec) -> m.Axes:
     )
 
 
-def build_child(parent: Spec, spec: Spec) -> m.Mobject:
-    """A child object built against its parent (ADR 0024): a graph on its axes."""
-    return _child_cached(parent.model_dump_json(), spec.model_dump_json()).copy()
+def build_child(parent: Spec, spec: Spec, graphs: dict[str, Spec] | None = None) -> m.Mobject:
+    """A child object built against its parent (ADR 0024): a graph on its axes, or an object
+    built from one of its graphs (``graphs``: the referenced graphs' specs by id, ADR 0030)."""
+    refs = json.dumps({k: v.model_dump(mode="json") for k, v in sorted((graphs or {}).items())})
+    return _child_cached(parent.model_dump_json(), spec.model_dump_json(), refs).copy()
 
 
 @lru_cache(maxsize=256)
-def _child_cached(parent_json: str, spec_json: str) -> m.Mobject:
+def _child_cached(parent_json: str, spec_json: str, refs_json: str = "{}") -> m.Mobject:
     parent, spec = Spec.model_validate_json(parent_json), Spec.model_validate_json(spec_json)
-    if spec.type != "Graph" or parent.type != "Axes":
+    if spec.type not in AXES_OBJECTS or parent.type != "Axes":
         raise ValueError(f"no child object {spec.type!r} on {parent.type!r}")
     axes = _build_cached(parent_json)  # the same axes, centred the same way, the root draws
-    x_range = spec.params.get("x_range") or _axes_param(parent, "x_range")
-    graph = plot_runs(axes, spec.params["expression"], float(x_range[0]), float(x_range[1]))
-    graph.set_stroke(m.YELLOW, width=4)  # Manim's plot default
-    _apply_style(graph, spec.style)
-    return graph
+    refs = {k: Spec.model_validate(v) for k, v in json.loads(refs_json).items()}
+
+    def graph_of(name: str) -> m.VMobject | None:
+        target = spec.params.get(name)
+        if not target:
+            return None
+        if target not in refs:
+            raise ValueError(f"{spec.type}: graph {target!r} was not given")
+        return _child_cached(parent_json, refs[target].model_dump_json())
+
+    p = spec.params
+    if spec.type == "Graph":
+        x_range = p.get("x_range") or _axes_param(parent, "x_range")
+        mob = plot_runs(axes, p["expression"], float(x_range[0]), float(x_range[1]))
+        mob.set_stroke(m.YELLOW, width=4)  # Manim's plot default
+        _give_function(mob, axes, p["expression"], float(x_range[0]), float(x_range[1]))
+    elif spec.type == "Point":
+        mob = m.Dot(
+            axes.c2p(float(p.get("x", 1.0)), float(p.get("y", 1.0))), radius=float(p.get("radius", 0.08))
+        )
+    elif spec.type == "Area":
+        x0, x1 = (float(v) for v in p.get("x_range", (0.0, 2.0))[:2])
+        mob = axes.get_area(graph_of("graph"), x_range=(x0, x1), bounded_graph=graph_of("bounded_graph"))
+    elif spec.type == "RiemannRectangles":
+        x0, x1 = (float(v) for v in p.get("x_range", (0.0, 3.0))[:2])
+        mob = axes.get_riemann_rectangles(
+            graph_of("graph"),
+            x_range=(x0, x1),
+            dx=float(p.get("dx", 0.25)),
+            input_sample_type=p.get("sample", "left"),
+        )
+    elif spec.type == "AxisLabels":
+        mob = axes.get_axis_labels(m.MathTex(p.get("x_label", "x")), m.MathTex(p.get("y_label", "y")))
+    else:  # GraphLabel: next to the graph's point, not moved onto Manim's screen (ADR 0030)
+        graph = graph_of("graph")
+        mob = m.MathTex(p.get("label", "f(x)"))
+        point = axes.input_to_graph_point(float(p.get("x", 2.0)), graph)
+        mob.next_to(point, getattr(m, p.get("direction", "UR")), buff=m.MED_SMALL_BUFF)
+        mob.set_color(graph.get_color())  # as get_graph_label
+    _apply_style(mob, spec.style)
+    return mob
+
+
+def _give_function(graph: m.VMobject, axes: m.Axes, expression: str, x0: float, x1: float) -> None:
+    """What Manim's Axes helpers read from a graph (ADR 0030): its function, clamped into the
+    axes' y range (0 where undefined) so areas and rectangles never get a NaN point."""
+    from .expressions import compile_expression
+
+    f = compile_expression(expression)
+    y0, y1 = float(axes.y_range[0]), float(axes.y_range[1])
+
+    def underlying(x: float) -> float:
+        with np.errstate(all="ignore"):
+            y = float(f(np.array([x], dtype=float))[0])
+        return min(max(y, y0), y1) if math.isfinite(y) else 0.0
+
+    graph.underlying_function = underlying
+    graph.function = lambda x: axes.c2p(x, underlying(x))
+    graph.t_min, graph.t_max = min(x0, x1), max(x0, x1)
 
 
 def plot_runs(axes: m.Axes, expression: str, x0: float, x1: float) -> m.VMobject:

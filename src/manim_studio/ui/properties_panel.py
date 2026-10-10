@@ -35,6 +35,7 @@ from ..core.schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
     DIRECTIONS,
+    GRAPH_PARAMS,
     RASTER_TYPES,
     ClipParam,
     Easing,
@@ -470,6 +471,16 @@ class PropertiesPanel(QWidget):
             commit = self._op(path, partial(set_param, name=param.name), f"Change {param.title.lower()}")
             if layer.spec.type in CODE_TYPES:
                 commit = self._trusting(commit)
+            if param.kind == "graph":  # a graph on the same axes (ADR 0030)
+                graphs = [
+                    x for x in self.project.children(layer.parent_id) if x.spec and x.spec.type == "Graph"
+                ]
+                choices = [(x.name or x.id, x.id) for x in graphs]
+                required = dict(GRAPH_PARAMS.get(layer.spec.type, ())).get(param.name, True)
+                if not required:
+                    choices.insert(0, ("(the x axis)", ""))
+                rows.append((param.title, path, ChoiceField(commit, choices)))
+                continue
             rows.append((param.title, path, _param_field(param, commit)))
         self._section(layer.spec.type, rows)
         if layer.spec.type in CODE_TYPES:

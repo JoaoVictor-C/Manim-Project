@@ -51,6 +51,7 @@ timeline and canvas, with the real build worker and renderer.
 - ✅ **P3f** — [plan](plans/p3f-render-ahead.md): frames rendered ahead in a preview process, played from a cache (ADR 0028)
 
 - ✅ **P3g** — [plan](plans/p3g-child-trees.md): graphs animate with their axes; turning along a path (ADR 0029)
+- ✅ **P3h** — [plan](plans/p3h-axes-objects.md): points, areas, Riemann rectangles and labels on axes (ADR 0030)
 
 ## Phase 4
 

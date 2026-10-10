@@ -17,17 +17,23 @@ from manim_studio.core import adapter
 from manim_studio.core.adapter import CHILD_ONLY_TYPES, LIBRARY, MOBJECT_PARAMS, MOBJECT_TYPES, Param
 from manim_studio.core.schema import CODE_TYPES, TEXT_TYPES, Spec
 
-LATEX_TYPES = {"MathTex", "Tex", "Axes"}  # Axes: its numbers are LaTeX
+LATEX_TYPES = {"MathTex", "Tex", "Axes", "AxisLabels", "GraphLabel"}  # Axes: its numbers are LaTeX
 
 
 def _marks(type_name: str):
     return [pytest.mark.latex] if type_name in LATEX_TYPES else []
 
 
+GRAPHS = {  # what objects on axes may be built from (ADR 0030)
+    "g": Spec(type="Graph", params={"expression": "sin(x)"}),
+    "h": Spec(type="Graph", params={"expression": "x**2/10 - 1"}),
+}
+
+
 def _build(spec: Spec):
-    """Roots build alone; a graph builds on default axes (ADR 0024)."""
+    """Roots build alone; objects on axes build on default axes, from the graphs above (ADR 0024)."""
     if spec.type in CHILD_ONLY_TYPES:
-        return adapter.build_child(Spec(type="Axes"), spec)
+        return adapter.build_child(Spec(type="Axes"), spec, GRAPHS)
     return adapter.build_mobject(spec)
 
 
@@ -85,7 +91,9 @@ def test_param_value_falls_back_to_the_default() -> None:
 
 
 def _media(type_name: str, image) -> dict:
-    """A file for the media types (ADR 0027)."""
+    """A file for the media types (ADR 0027), a graph for objects built from one (ADR 0030)."""
+    if any(p.kind == "graph" for p in MOBJECT_PARAMS.get(type_name, ())):
+        return {"graph": "g"}
     if type_name == "ImageMobject":
         return {"path": image("a.png", (255, 0, 0))}
     return {"path": image("a.svg", (255, 0, 0))} if type_name == "SVGMobject" else {}
@@ -111,6 +119,8 @@ def _other(param: Param, image) -> object:
         return next(c for c in param.choices if c != param.default)
     if param.kind == "point":
         return (param.default[0] - 0.5, param.default[1] + 0.7)
+    if param.kind == "graph":
+        return "h"
     if param.kind == "path":
         return image("b.svg" if "svg" in param.file_filter else "b.png", (0, 0, 255))
     if param.name == "expression":

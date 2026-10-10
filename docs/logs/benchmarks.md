@@ -374,3 +374,13 @@ smaller (0.05-0.11 MB, 4500-9700 frames in 512 MB); zlib 6: compress 23-26 ms,
 show 8-16 ms, 28-68×. A second probe (machine loaded): whole-frame evaluation
 97 / 146 ms, one keyed MathTex alone **2.6-3.7 ms**, the 400-path SVG mid-draw
 alone 50 ms. → ADR 0028.
+
+### B42 — Objects on axes with Manim's helpers · 2026-10-10
+`benchmarks/bench_axes_objects.py`, the editor's default axes and graphs
+(sin(x), x²/10 - 1) given `function` / `underlying_function` / `t_min` /
+`t_max` so Manim's helpers accept them (without, `get_area` fails: our graphs
+are plain VMobjects). Build cold (again): Dot at `c2p` **0.4 ms**; `get_area`
+**30 ms** (between two graphs 60 ms); `get_riemann_rectangles` dx 0.25 **12 ms**
+(12 leaves); `get_axis_labels` **2.6 s** cold, 5.6 ms warm (LaTeX); a graph label
+1.3 s cold, 4.9 ms warm. Create, FadeIn and DrawBorderThenFill on each, played
+in order vs scrubbed: diff **0**, all visible. → ADR 0030.

@@ -60,7 +60,7 @@ def test_add_graph_on_the_selected_axes(window, qt_app) -> None:
     assert len(window.project.children("axes")) == 2  # refused
     assert window.messages[-1].startswith("Add graph:")
     layers.select("sin")
-    assert not layers.add_graph_action.isEnabled()  # graphs go on axes
+    assert layers.add_graph_action.isEnabled()  # on the graph's axes (ADR 0030)
 
 
 def test_a_graph_shows_its_formula_and_only_its_opacity(window, qt_app) -> None:
