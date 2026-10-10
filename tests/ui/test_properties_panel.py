@@ -294,6 +294,23 @@ def test_every_transform_property_has_a_keys_toggle(panel) -> None:
     assert {"keys.position", "keys.scale", "keys.rotation", "keys.opacity"} <= set(panel.fields)
 
 
+def test_the_anchor_point_field_moves_the_pivot_without_keys(panel) -> None:
+    panel.playhead = lambda: 0.5  # ball's scale is keyed: the drawing is kept at 0.5 s only
+    panel.show_layer("ball")
+    assert "keys.anchor" not in panel.fields  # base only (ADR 0021)
+    assert panel.fields["base.anchor"].x.value() == 0.0
+    panel.fields["base.anchor"].commit((0.5, 0.0))
+    ball = layer(panel, "ball")
+    assert ball.base.anchor == (0.5, 0.0)
+    assert "anchor" not in ball.tracks and set(ball.tracks) == {"scale"}
+    assert ball.base.position != (0.0, 0.0)  # compensated
+    assert undo_texts(panel)[-1] == "Move anchor"
+    assert "keeps its place at this frame only" in panel.messages[-1]
+    panel.show_layer("box")
+    panel.fields["base.anchor"].commit((0.5, 0.0))
+    assert layer(panel, "box").base.position == (0.0, 0.0)  # nothing turned: nothing to compensate
+
+
 def test_editing_a_keyed_field_sets_a_key_at_the_playhead(panel) -> None:
     panel.playhead = lambda: 0.4  # ball's scale is keyed 1.0 at 0 s and 2.0 at 1 s
     panel.show_layer("ball")

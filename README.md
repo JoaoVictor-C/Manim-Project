@@ -39,7 +39,11 @@ MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
 On the canvas: click an object to select it (Alt+click: the one behind), drag
 to move it (Shift: one axis, Escape cancels), arrow keys nudge it (Shift: 10 px).
 The selected object has handles: drag a corner to scale it, the round knob to
-rotate it (Shift snaps to 10 % / 15°). With **Keys** on for a property
+rotate it (Shift snaps to 10 % / 15°). Both turn about the small cross, the
+object's **anchor**: Ctrl+drag the cross to move it (Shift snaps to the box's
+corners, edge midpoints and centre; Ctrl+double-click centres it) — the object
+stays where it is, and from then on rotates and scales about that point, like a
+pendulum about its top end. With **Keys** on for a property
 (Properties > Transform), changing it sets a key at the playhead instead; with
 **Edit > Auto-key** on, the first change already animates — move the playhead,
 pose the object, and it moves there over time.

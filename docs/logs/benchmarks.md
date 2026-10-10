@@ -272,3 +272,13 @@ in. Frames at shuffled alphas equal frames in order: **max diff 0**. Begin
 equation: mean diff 0.01 (re-aligned paths on a few pixels; the target layer
 takes over at the clip end). Unequal duplicate groups (`a^2+b^2+c^2` ->
 `x^2+y^2`: three `2` vs two, two `+` vs one) also exact. → ADR 0020.
+
+### B34 — Anchor point model and compensation · 2026-10-10
+`benchmarks/bench_anchor.py`, 1000 random transforms (rotation ±360°, scale
+0.1-4) and 20 points each, with `world(p) = A (p - P) + P + position`:
+anchor (0, 0) vs the old `A p + position`: **max error 0**; moving the anchor
+and adding `(I - A)(old - new)` to the position: image unchanged, **max error
+1.4e-14**; the world pivot `anchor + position` under any other rotation and
+scale: **0**. The limit: with rotation keyed 0° -> 90° and the anchor moved at
+45°, the same rigid offset is exact at that time (6e-17) and **1.06 units off**
+at 0° (a 3-unit line, anchor moved from its middle to its top). → ADR 0021.

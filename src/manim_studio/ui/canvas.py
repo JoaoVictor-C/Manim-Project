@@ -35,6 +35,7 @@ class Outline:
     bounds: QRectF
     anchor: tuple[float, float]
     box: Box  # oriented: the frame the handles live in (P2a)
+    snaps: np.ndarray  # where the pivot cross snaps: the unpadded box's corners, edge midpoints, centre (P2f)
 
 
 class CanvasWidget(QWidget):
@@ -147,7 +148,10 @@ class CanvasWidget(QWidget):
         pivot, rotation, _ = self._evaluator.layer_frame(layer, t)
         anchor = (float(pivot[0]), float(pivot[1]))
         box = oriented_box(points, anchor, rotation, MIN_BOX_PX / self.px_per_unit())
-        return Outline(path, path.boundingRect(), anchor, box)
+        snaps = oriented_box(
+            points, anchor, rotation
+        ).snap_points()  # a line snaps to its ends, not beside them
+        return Outline(path, path.boundingRect(), anchor, box, snaps)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -178,6 +182,7 @@ class CanvasWidget(QWidget):
         painter.setPen(pen)
         painter.drawLine(QPointF(cx - 6, cy), QPointF(cx + 6, cy))
         painter.drawLine(QPointF(cx, cy - 6), QPointF(cx, cy + 6))
+        painter.drawEllipse(QPointF(cx, cy), 3.0, 3.0)  # the pivot: drag it to move the anchor (P2f)
         # handles: corner squares scale, the knob rotates (P2a)
         painter.setBrush(QColor("#0f172a"))
         half = HANDLE_PX / 2
@@ -212,7 +217,7 @@ class CanvasWidget(QWidget):
         if self.tool is None or self._canvas is None or event.button() != Qt.MouseButton.LeftButton:
             super().mouseDoubleClickEvent(event)
             return
-        self.tool.double_click(event.position())
+        self.tool.double_click(event.position(), event.modifiers())
 
     def mouseMoveEvent(self, event) -> None:
         if self.tool is not None and self._canvas is not None:

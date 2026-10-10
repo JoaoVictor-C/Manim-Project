@@ -16,7 +16,15 @@ import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 SCHEMA_VERSION = 1
 TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
@@ -134,6 +142,15 @@ class Transform2D(BaseModel):
     scale: float = 1.0
     rotation: float = 0.0  # degrees, counter-clockwise
     opacity: float = Field(default=1.0, ge=0, le=1)
+    # The pivot of rotating and scaling, in local units (ADR 0021): base only, never keyed.
+    anchor: Vec2 = (0.0, 0.0)
+
+    @model_serializer(mode="wrap")
+    def _omit_default_anchor(self, handler):
+        data = handler(self)
+        if tuple(self.anchor) == (0.0, 0.0):
+            data.pop("anchor", None)  # files without anchors save as before
+        return data
 
 
 class Lifetime(BaseModel):
