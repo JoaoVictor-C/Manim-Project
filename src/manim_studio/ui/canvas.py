@@ -17,6 +17,7 @@ from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
+from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas
 from ..render.cairo_export import render_frame
@@ -130,7 +131,7 @@ class CanvasWidget(QWidget):
             return None
         mob = drawn[0] if len(drawn) == 1 else m.Group(*drawn)
         path = QPainterPath()
-        if isinstance(mob, m.ImageMobject):
+        if isinstance(mob, (m.ImageMobject, CodeFrame)):  # a rectangle: UL, UR, DL, DR
             points = mob.points[:4, :2].copy()
             ul, ur, dl, dr = (QPointF(*points[i]) for i in range(4))
             path.moveTo(ul)

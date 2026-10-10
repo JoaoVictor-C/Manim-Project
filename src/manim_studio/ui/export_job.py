@@ -39,9 +39,11 @@ class ExportJob(QObject):
         cache_dir: Path,
         *,
         program: str = sys.executable,
+        trust_code: bool = False,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
+        self.trust_code = trust_code  # run code layers missing from the cache (ADR 0019)
         self.project, self.output, self.cache_dir = project, Path(output), Path(cache_dir)
         self._program = program
         self._snapshot: Path | None = None
@@ -74,6 +76,7 @@ class ExportJob(QObject):
                 str(self.cache_dir),
                 "--progress",
                 "json",
+                *(["--trust-code"] if self.trust_code else []),
             ]
         )
         process.setWorkingDirectory(os.getcwd())  # relative image paths resolve as in the editor

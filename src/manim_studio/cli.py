@@ -27,6 +27,11 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument(
         "--progress", choices=("text", "json"), default="text", help="json: one flushed JSON object per line"
     )
+    render.add_argument(
+        "--trust-code",
+        action="store_true",
+        help="render code layers that are not cached yet (runs the project's Python code; ADR 0019)",
+    )
 
     edit = sub.add_parser("edit", help="open the editor")
     edit.add_argument("project", type=Path, nargs="?")
@@ -42,10 +47,16 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.main_window import run
 
         return run([sys.argv[0]] + ([str(args.project)] if args.project else []))
-    return _render(args.project, args.output, args.cache_dir, args.progress)
+    return _render(args.project, args.output, args.cache_dir, args.progress, args.trust_code)
 
 
-def _render(project_path: Path, output: Path, cache_dir: Path | None = None, mode: str = "text") -> int:
+def _render(
+    project_path: Path,
+    output: Path,
+    cache_dir: Path | None = None,
+    mode: str = "text",
+    trust_code: bool = False,
+) -> int:
     from .core import adapter
     from .core.schema import Project
     from .render.cairo_export import export_video
@@ -65,20 +76,51 @@ def _render(project_path: Path, output: Path, cache_dir: Path | None = None, mod
             print(f"\rframe {done}/{total}", end="", flush=True)
 
     start = time.perf_counter()
+    warnings = _render_code_layers(project, trust_code, mode)
     try:
         result = export_video(project, output, progress)
     except OSError as exc:
         return _fail(f"cannot write {output}: {exc.strerror or exc}")
+    warnings += [result.warning] if result.warning else []
     if mode == "json":
-        if result.warning:
-            _emit({"warning": result.warning})
+        for warning in warnings:
+            _emit({"warning": warning})
         _emit({"done": str(result.path)})
     else:
         print(f"\nwrote {result.path}")
-        if result.warning:
-            print(f"warning: {result.warning}", file=sys.stderr)
+        for warning in warnings:
+            print(f"warning: {warning}", file=sys.stderr)
     log.info("rendered %s -> %s in %.1fs", project_path, result.path, time.perf_counter() - start)
     return 0
+
+
+def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
+    """Render code layers missing from the cache (ADR 0019); warnings for those left as placeholders."""
+    from .code_runner import CodeError, Job, render_code
+    from .core.evaluator import Evaluator
+    from .core.schema import CODE_TYPES
+
+    evaluator = Evaluator(project)
+    canvas, warnings = project.canvas, []
+    for layer in project.layers:
+        if layer.spec is None or layer.spec.type not in CODE_TYPES:
+            continue
+        key = evaluator.code_key(layer)
+        if evaluator.code_cache.has(key):
+            continue
+        if not trust_code:
+            warnings.append(f"code layer {layer.id!r} is not rendered (pass --trust-code to run its code)")
+            continue
+        if mode == "text":
+            print(f"rendering code layer {layer.id}...", flush=True)
+        code = str(layer.spec.params.get("code", ""))
+        job = Job(key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height)
+        try:
+            render_code(job, evaluator.code_cache)
+        except CodeError as error:
+            where = f" (line {error.line})" if error.line else ""
+            warnings.append(f"code layer {layer.id!r} failed{where}: {error}")
+    return warnings
 
 
 def _emit(message: dict) -> None:

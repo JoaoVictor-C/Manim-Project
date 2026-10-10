@@ -19,11 +19,15 @@ so what you see is what you export ([ADR 0002](adr/0002-editor-owns-manims-clock
 src/manim_studio/
 ├── cli.py               entry point: `manim-studio render | edit`
 ├── worker.py            build worker process: warms Manim's text cache (ADR 0015)
+├── code_runner.py       renders a code layer's Scene into the frame cache (single-use process)
 ├── logging_config.py    console + rotating file logging (ADR 0011)
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
 │   ├── edits.py         edits → new validated snapshot + edit kind (ADR 0013, 0014)
 │   ├── parts.py         part layers: keys → exact TeX spans, markers, split terms (ADR 0012)
+│   ├── code_cache.py    code layer frames: cropped premultiplied zlib frames, eviction (ADR 0019)
+│   ├── code_frame.py    a cached frame as a mobject; painted by Cairo, hit by alpha (ADR 0019)
+│   ├── trust.py         which code may run: hashes in a per-user store (ADR 0019)
 │   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)
@@ -35,6 +39,7 @@ src/manim_studio/
 └── ui/                  PySide6
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
+    ├── code_render.py   keeps code layers rendered with warm single-use spares (ADR 0019)
     ├── selection.py     the one selection shared by every view (ADR 0016)
     ├── canvas_tools.py  click to select; move, scale, rotate, nudge; stopwatch rule (ADR 0016, 0018)
     ├── gizmo.py         handle geometry: oriented box, scale/angle from drags (pure)

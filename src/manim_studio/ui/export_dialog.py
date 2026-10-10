@@ -41,8 +41,10 @@ class ExportDialog(QDialog):
         default_output: Path,
         cache_dir: Path,
         parent: QWidget | None = None,
+        trusted: Callable[[Project], bool] = lambda project: False,
     ) -> None:
         super().__init__(parent)
+        self.trusted = trusted  # may code layers run? (ADR 0019)
         self.setWindowTitle("Export video")
         self.setModal(False)
         self.snapshot, self.cache_dir = snapshot, cache_dir
@@ -105,7 +107,8 @@ class ExportDialog(QDialog):
             self.path.setText(str(output))
         self.result_path = None
         self._first_progress = None
-        self.job = ExportJob(self.snapshot(), output, self.cache_dir, parent=self)
+        project = self.snapshot()
+        self.job = ExportJob(project, output, self.cache_dir, trust_code=self.trusted(project), parent=self)
         self.job.progress.connect(self._on_progress)
         self.job.finished.connect(self._on_finished)
         self.job.failed.connect(self._on_failed)

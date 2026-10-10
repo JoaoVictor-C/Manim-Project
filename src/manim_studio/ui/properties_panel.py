@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -30,12 +31,13 @@ from PySide6.QtWidgets import (
 from ..core import adapter, edits, parts
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
-from ..core.schema import CLIP_KIND_INFO, RASTER_TYPES, Easing, Layer, PartKey, Project
+from ..core.schema import CLIP_KIND_INFO, CODE_TYPES, RASTER_TYPES, Easing, Layer, PartKey, Project
 from .build_service import BuildService
 from .curve_editor import ease_label, edit_curve
 from .fields import (
     BoolField,
     ChoiceField,
+    CodeField,
     ColorField,
     Field,
     FloatField,
@@ -188,6 +190,13 @@ class PropertiesPanel(QWidget):
         self._shown_props: tuple[str, ...] = ()  # keys view: the properties keyed at key_time
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
+        # Code layers (ADR 0019), set by the window: status text, retry, and trusting applied code.
+        self.code_status: Callable[[str], str | None] = lambda layer_id: None
+        self.code_failed: Callable[[str], bool] = lambda layer_id: False
+        self.retry_code: Callable[[str], None] = lambda layer_id: None
+        self.trust_code: Callable[[str], None] = lambda code: None
+        self.code_label: QLabel | None = None
+        self.retry_button: QPushButton | None = None
         # "Custom curve...": shows the curve editor; tests replace it (P2b)
         self.curve_dialog: Callable[[Easing | None], Easing | None] = lambda ease: edit_curve(self, ease)
 
@@ -236,7 +245,7 @@ class PropertiesPanel(QWidget):
             self._part_section()
         else:
             self._object_section(layer)
-            if layer.spec.type not in RASTER_TYPES:
+            if layer.spec.type not in RASTER_TYPES | CODE_TYPES:  # no style on images or code
                 self._style_section()
         self._transform_section(layer)
         self._lifetime_section()
@@ -313,6 +322,7 @@ class PropertiesPanel(QWidget):
 
     def _rebuild(self) -> None:
         self._generation += 1
+        self.code_label = self.retry_button = None
         self.fields.clear()
         self._getters.clear()
         self._keys.clear()
@@ -421,8 +431,44 @@ class PropertiesPanel(QWidget):
             path = f"params.{param.name}"
             self._register(path, lambda layer, p=param: adapter.param_value(layer.spec, p))
             commit = self._op(path, partial(set_param, name=param.name), f"Change {param.title.lower()}")
+            if layer.spec.type in CODE_TYPES:
+                commit = self._trusting(commit)
             rows.append((param.title, path, _param_field(param, commit)))
         self._section(layer.spec.type, rows)
+        if layer.spec.type in CODE_TYPES:
+            self._code_status_row(layer.id)
+
+    def _trusting(self, commit: Callable[[Any], None]) -> Callable[[Any], None]:
+        """Code the user applies here is theirs: trust it, then apply it (ADR 0019)."""
+
+        def apply(value: Any) -> None:
+            self.trust_code(str(value))
+            commit(value)
+
+        return apply
+
+    def _code_status_row(self, layer_id: str) -> None:
+        box = QWidget()
+        line = QHBoxLayout(box)
+        line.setContentsMargins(0, 0, 0, 0)
+        self.code_label = QLabel()
+        self.code_label.setWordWrap(True)
+        self.retry_button = QPushButton("Run again")
+        self.retry_button.clicked.connect(lambda: self.retry_code(layer_id))
+        line.addWidget(self.code_label, 1)
+        line.addWidget(self.retry_button)
+        self.body_layout.addWidget(box)
+        self.refresh_code_status(layer_id)
+
+    def refresh_code_status(self, layer_id: str) -> None:
+        """Show a code layer's render status (queued, rendering, ready, error, untrusted)."""
+        if self.code_label is None or layer_id != self.layer_id or self.clip_id or self.key_time is not None:
+            return
+        try:
+            self.code_label.setText(self.code_status(layer_id) or "")
+            self.retry_button.setVisible(self.code_failed(layer_id))
+        except RuntimeError:  # the row was rebuilt meanwhile
+            self.code_label = self.retry_button = None
 
     def _part_section(self) -> None:
         """The part's key: which piece of its parent's TeX it is (ADR 0012)."""
@@ -589,6 +635,8 @@ def _param_field(param: Param, commit: Callable[[Any], None]) -> Field:
         return PointField(commit)
     if param.kind == "path":
         return PathField(commit)
+    if param.name == "code":
+        return CodeField(commit)
     if param.multiline:
         return LongTextField(commit)
     return TextField(commit, "default" if param.name == "font" else "")

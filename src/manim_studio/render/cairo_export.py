@@ -12,6 +12,7 @@ import av
 import manim as m
 import numpy as np
 
+from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas, Project
 from ..logging_config import get_logger
@@ -31,9 +32,23 @@ def make_camera(canvas: Canvas) -> m.Camera:
 
 
 def render_frame(camera: m.Camera, mobjects: Iterable[m.Mobject]) -> np.ndarray:
-    """RGBA uint8 array of shape (height, width, 4)."""
+    """RGBA uint8 array of shape (height, width, 4).
+
+    Code layer frames (ADR 0019) are painted by Cairo between runs of ordinary
+    mobjects, so they keep their place in the stacking order.
+    """
     camera.reset()
-    camera.capture_mobjects(list(mobjects))
+    run: list[m.Mobject] = []
+    for mob in mobjects:
+        if isinstance(mob, CodeFrame):
+            if run:
+                camera.capture_mobjects(run)
+                run = []
+            mob.paint(camera)
+        else:
+            run.append(mob)
+    if run:
+        camera.capture_mobjects(run)
     return np.array(camera.pixel_array, copy=True)
 
 

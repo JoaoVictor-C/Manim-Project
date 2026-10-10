@@ -12,6 +12,9 @@ produce the frame at any time ``t`` in any order:
 
 The frame at ``t`` is therefore a pure function of (project, t).
 
+A code layer (ADR 0019) is not evaluated at all: its frames were rendered by
+real Manim into ``code_cache``, and ``t`` picks one (a placeholder until then).
+
 An object with part layers (ADR 0012) is evaluated as one tree: its build holds
 every part's glyphs, a checkpoint is the whole object after a set of finished
 clips of the tree, a clip animates only its layer's glyphs, and each layer
@@ -33,8 +36,10 @@ import numpy as np
 
 from ..logging_config import get_logger
 from . import adapter, parts
+from .code_cache import CodeCache, cache_key
+from .code_frame import CodeFrame
 from .edits import Edit, EditKind
-from .schema import Clip, Keyframe, Layer, Project, Spec, Transform2D, infer_lifetime
+from .schema import CODE_TYPES, Clip, Keyframe, Layer, Project, Spec, Transform2D, infer_lifetime
 
 log = get_logger(__name__)
 
@@ -62,8 +67,9 @@ class _Tree:
 
 
 class Evaluator:
-    def __init__(self, project: Project) -> None:
+    def __init__(self, project: Project, code_cache: CodeCache | None = None) -> None:
         self.project = project
+        self._code_cache = code_cache
         self._base: dict[str, m.Mobject] = {}
         self._checkpoints: dict[tuple[str, str], m.Mobject] = {}
         self._active: dict[tuple, _Active] = {}
@@ -234,6 +240,8 @@ class Evaluator:
         start, end = self.lifetime(layer)
         if not (start <= t < end):  # the lifetime gates everything, clips included
             return None
+        if layer.spec.type in CODE_TYPES:
+            return self._code_at(layer, t, start)
         for index, clip in enumerate(layer.clips):
             if clip.start <= t < clip.end:
                 alpha = (t - clip.start) / clip.duration
@@ -275,6 +283,29 @@ class Evaluator:
         active = self._active[key]
         active.anim.interpolate(alpha)
         return active.drawn
+
+    # -- code layers (ADR 0019) ------------------------------------------------
+
+    @property
+    def code_cache(self) -> CodeCache:
+        if self._code_cache is None:
+            self._code_cache = CodeCache(adapter.cache_dir() / "code")
+        return self._code_cache
+
+    def code_key(self, layer: Layer) -> str:
+        return code_key(self.project, layer)
+
+    def _code_at(self, layer: Layer, t: float, start: float) -> m.Mobject | None:
+        """The cached frame at ``t`` (the last one held), or a placeholder before it is rendered."""
+        clip = self.code_cache.open(self.code_key(layer))
+        if clip is None:
+            return self._to_world(_code_placeholder(), layer, t)
+        crop = clip.crop(math.floor((t - start) * clip.fps + 1e-6))
+        if crop is None:
+            return None  # an empty frame: nothing drawn
+        tr = self.transform_at(layer, t)
+        a, b = _affine(tr)
+        return CodeFrame(crop, self.project.canvas, a, b, tr.opacity)
 
     # -- objects with parts (ADR 0012) -----------------------------------------
 
@@ -462,6 +493,15 @@ class Evaluator:
         return proxy
 
 
+def code_key(project: Project, layer: Layer) -> str:
+    """The cache entry a code layer's frames live under (its code + what the render depends on)."""
+    canvas = project.canvas
+    code = str(layer.spec.params.get("code", ""))
+    return cache_key(
+        code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, adapter.MANIM_VERSION
+    )
+
+
 def layer_transform(layer: Layer, t: float) -> Transform2D:
     """The layer's transform at ``t``: each property from its keyframes, else the base."""
     base = layer.base
@@ -501,6 +541,17 @@ def _sample(track: list[Keyframe] | None, t: float, default):
 
 _IDENTITY = Transform2D()
 _EYE = np.eye(2)
+_PLACEHOLDER: list[m.Mobject] = []
+
+
+def _code_placeholder() -> m.Mobject:
+    """A dashed box standing in for a code layer whose frames are not rendered (yet)."""
+    if not _PLACEHOLDER:
+        box = m.DashedVMobject(m.Rectangle(width=4.0, height=2.25), num_dashes=48)
+        box.set_stroke(m.ManimColor("#94a3b8"), width=3, opacity=0.9)
+        _PLACEHOLDER.append(box)
+    return _PLACEHOLDER[0]
+
 
 # Everything Manim's Cairo camera reads from a VMobject besides its points.
 _VMOBJECT_STATE = (

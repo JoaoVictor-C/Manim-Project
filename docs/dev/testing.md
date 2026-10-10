@@ -38,6 +38,11 @@ subprocesses — the build worker and the renderer — and LaTeX).
 `ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
+`ui/test_acceptance_p2d.py` puts a real code layer under an equation through
+the UI (random scrubbing equals playback, export equals the editor) and checks
+that a project with untrusted code runs nothing. Tests never touch your trusted
+code store (`MANIM_STUDIO_TRUST_FILE` points at a temporary file) and render no
+code layers unless a test opts in (`MANIM_STUDIO_CODE=0` by default).
 `ui/test_curve_editor.py` rechecks every fitted ease against Manim;
 `core/test_part_layers.py` checks frames of objects with parts against the same
 animations played on the glyphs by hand.

@@ -15,6 +15,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Tests that run the CLI or editor must not write into the user's real log folder.
 os.environ["MANIM_STUDIO_LOG_DIR"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-logs-")))
+# Tests never read or write the user's trusted-code store (ADR 0019).
+os.environ["MANIM_STUDIO_TRUST_FILE"] = str(
+    Path(tempfile.mkdtemp(prefix="manim-studio-test-trust-")) / "trusted.json"
+)
+# Editor windows in tests render no code layers unless a test opts in (ADR 0019).
+os.environ["MANIM_STUDIO_CODE"] = "0"
 # Editor windows in tests build synchronously; the worker has its own tests (ADR 0015).
 os.environ["MANIM_STUDIO_WORKER"] = "0"
 
@@ -43,6 +49,7 @@ def _no_unsaved_changes_dialog(request, monkeypatch):
 
     monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
     monkeypatch.setattr(MainWindow, "ask_stop_export", lambda self: "stop")
+    monkeypatch.setattr(MainWindow, "ask_trust", lambda self, names: "skip")
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

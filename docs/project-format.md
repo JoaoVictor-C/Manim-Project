@@ -64,7 +64,11 @@ with parts yet.
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`.
+  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `Code`.
+- `Code` (ADR 0019) holds Python in `params.code`: one `Scene` subclass
+  (`from manim import *` and `numpy as np` are implied). It is rendered once
+  into a frame cache, plays from the layer's start and holds its last frame;
+  it has no clips. It runs only when trusted on this computer.
 - `params`: keyword arguments of the Manim constructor. `Text`/`MathTex`/`Tex`
   take their string in `text`; `ImageMobject` takes `path`.
 - `style`: `fill`, `fill_opacity`, `stroke`, `stroke_width`, `stroke_opacity`.
