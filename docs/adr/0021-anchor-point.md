@@ -26,6 +26,10 @@ position when the anchor moves so the layer does not jump.
 - `position` keeps its meaning (where the build centre goes). We did not adopt
   After Effects' "position is where the anchor sits": it would change the
   meaning of every saved project and of part positions.
+- On the canvas, **Ctrl+drag** on the pivot cross moves the anchor (Shift
+  snaps to the box's corners, edge midpoints and centre) and Ctrl+double-click
+  centres it; a plain drag on the cross still moves the object, which is
+  where people grab a new object (acceptance tests S3, P2b and v1 do).
 - The format change is additive; the default is not written.
 
 ## Consequences

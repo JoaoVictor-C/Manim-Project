@@ -11,8 +11,13 @@
 * drag: move the selected object, previewed live and recorded as one undo step
   ("Move layer"); Shift locks the dominant axis; Escape cancels;
 * arrow keys: nudge 1 px (Shift: 10 px); a held key is one undo step;
-* handles (P2a): a corner scales about the layer position (Shift: steps of
-  10 %), the knob rotates about it (Shift: 15 degree steps).
+* handles (P2a): a corner scales about the layer's pivot (Shift: steps of
+  10 %), the knob rotates about it (Shift: 15 degree steps);
+* the pivot cross (P2f, ADR 0021): Ctrl+drag on it moves the anchor while the
+  object stays put ("Move anchor"; Shift snaps to the box's corners, edge
+  midpoints and centre); Ctrl+double-click centres the anchor. Without Ctrl a
+  press on the cross moves the object: the cross sits on the middle of every
+  new object, where people grab it.
 
 The stopwatch rule decides what a move edits: a layer with position keyframes
 gets a key at the playhead (snapped to the nearest frame first, so preview and
@@ -36,7 +41,16 @@ from ..core.schema import Layer, Project
 from ..render.hit_test import hit_layers
 from .canvas import CanvasWidget
 from .document import Document
-from .gizmo import GRAB_PX, KNOB_OFFSET_PX, angle_delta, handle_at, scale_from, snap_angle
+from .gizmo import (
+    GRAB_PX,
+    KNOB_OFFSET_PX,
+    SHIFTS_ELSEWHERE,
+    angle_delta,
+    handle_at,
+    nearest,
+    scale_from,
+    snap_angle,
+)
 from .selection import Selection
 
 NUDGE_PX = 1.0
@@ -52,18 +66,25 @@ ARROWS = {
 @dataclass
 class _Drag:
     layer_id: str
-    prop: str  # "position", "scale" or "rotation"
+    prop: str  # "position", "scale", "rotation" or "anchor"
     press: np.ndarray  # cursor at press, Manim units
     start: object  # the property's value at press
-    pivot: np.ndarray  # the layer position: scaling and rotating happen about it
+    pivot: np.ndarray  # the world pivot: scaling and rotating happen about it
     key_time: float | None  # the frame a key goes to; None = base value (ADR 0016)
     base: Project  # snapshot at press
     to_local: np.ndarray  # world move -> change of position (a part under a scaled/rotated object)
     previous: np.ndarray | None = None  # rotation: last cursor point, to sum angle deltas
     turned: float = 0.0  # rotation: total angle swept so far
+    to_anchor: np.ndarray | None = None  # anchor: world move of the pivot -> change of the anchor
+    snaps: np.ndarray | None = None  # anchor: where Ctrl snaps the pivot (world)
 
 
-VERBS = {"position": "Move", "scale": "Scale", "rotation": "Rotate"}
+VERBS = {
+    "position": "Move layer",
+    "scale": "Scale layer",
+    "rotation": "Rotate layer",
+    "anchor": "Move anchor",
+}
 DEGREES = "\N{DEGREE SIGN}"
 
 
@@ -84,7 +105,7 @@ class MoveTool(QObject):
         self.playhead, self.seek = playhead, seek
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
         self._drag: _Drag | None = None
-        self._pending: tuple[np.ndarray, bool, QPointF] | None = None
+        self._pending: tuple[np.ndarray, Qt.KeyboardModifier, QPointF] | None = None
         self._scheduled = False
         canvas.tool = self
 
@@ -100,8 +121,11 @@ class MoveTool(QObject):
         point = self.canvas.to_units(pos)
         current = self.selection.layer_id
         alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
+        if modifiers & Qt.KeyboardModifier.ControlModifier and self._cross_under(point):
+            self._start_drag(current, "anchor", point)  # 1. Ctrl on the pivot cross
+            return
         handle = None if alt else self._handle_under(point)
-        if handle is not None:  # 1. a handle of the selected layer
+        if handle is not None:  # 2. a handle of the selected layer
             self._start_drag(current, "scale" if handle == "scale" else "rotation", point)
             return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
@@ -111,21 +135,29 @@ class MoveTool(QObject):
                 index = hits.index(current) + 1 if current in hits else 0
                 self.selection.select_layer(hits[index % len(hits)])
             return
-        if current is not None and self._inside_selected_box(point):  # 2. the selected box
+        if current is not None and self._inside_selected_box(point):  # 3. the selected box
             target = current
-        elif hits:  # 3. whatever is under the cursor (the object, unless inside it already)
+        elif hits:  # 4. whatever is under the cursor (the object, unless inside it already)
             target = self._click_target(hits[0], current)
-        else:  # 4. empty canvas
+        else:  # 5. empty canvas
             self.selection.clear()
             return
         self.selection.select_layer(target)
         self._start_drag(target, "position", point)
 
-    def double_click(self, pos: QPointF) -> None:
-        """Select one level deeper toward the part under the cursor (drill into an object)."""
+    def double_click(
+        self, pos: QPointF, modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier
+    ) -> None:
+        """Select one level deeper toward the part under the cursor (drill into an object).
+
+        Ctrl+double-click on the selected layer's pivot cross centres the anchor instead.
+        """
         if self._drag is not None:
             self.cancel()
         point = self.canvas.to_units(pos)
+        if modifiers & Qt.KeyboardModifier.ControlModifier and self._cross_under(point):
+            self._centre_anchor()
+            return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
         hits = hit_layers(layers, point, self.canvas.px_per_unit())
         if not hits:
@@ -153,8 +185,7 @@ class MoveTool(QObject):
     def move(self, pos: QPointF, modifiers: Qt.KeyboardModifier) -> None:
         if self._drag is None:
             return
-        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
-        self._pending = (self.canvas.to_units(pos), shift, QPointF(pos))
+        self._pending = (self.canvas.to_units(pos), modifiers, QPointF(pos))
         if not self._scheduled:
             self._scheduled = True
             QTimer.singleShot(0, self.apply_pending)
@@ -163,10 +194,11 @@ class MoveTool(QObject):
         if self._drag is None:
             return
         self.apply_pending()
-        verb = VERBS[self._drag.prop]
-        self._drag = None
+        drag, self._drag = self._drag, None
         self.canvas.readout = None
-        self.document.commit_preview(f"{verb} layer")
+        self.document.commit_preview(VERBS[drag.prop])
+        if drag.prop == "anchor" and edits.anchor_shifts_elsewhere(self.project.layer(drag.layer_id)):
+            self.message.emit(SHIFTS_ELSEWHERE)
 
     def cancel(self) -> None:
         if self._drag is not None:
@@ -181,9 +213,19 @@ class MoveTool(QObject):
         drag = self._drag
         if drag is None or self._pending is None:
             return
-        point, shift, pos = self._pending
+        point, modifiers, pos = self._pending
         self._pending = None
+        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
         readout = None
+        if drag.prop == "anchor":
+            target = drag.pivot + (point - drag.press)
+            if shift:
+                target = nearest(drag.snaps, target)
+            delta = drag.to_anchor @ (target - drag.pivot)
+            value = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
+            self.canvas.readout = (pos, f"anchor {value[0]:.2f}, {value[1]:.2f}")
+            self.document.preview(edits.set_anchor(drag.base, drag.layer_id, value, self.playhead()))
+            return
         if drag.prop == "position":
             delta = point - drag.press
             if shift:
@@ -233,14 +275,39 @@ class MoveTool(QObject):
         if self._morph_playing(layer_id):
             self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
             return
-        key_time = self._key_time(layer, prop)
+        key_time = None if prop == "anchor" else self._key_time(layer, prop)  # anchors are never keyed
         start = self._value(layer, prop, key_time)
         at = key_time if key_time is not None else self.playhead()
         pivot, _rotation, to_local = self.canvas.evaluator.layer_frame(layer, at)
         self._drag = _Drag(
             layer_id, prop, point, start, pivot, key_time, self.project, to_local, previous=point
         )
+        if prop == "anchor":
+            self._drag.to_anchor = self._to_anchor(layer, at, to_local)
+            self._drag.snaps = self._selected_outline().box.snap_points()
         self.document.begin_preview()
+
+    @staticmethod
+    def _to_anchor(layer: Layer, t: float, to_local: np.ndarray) -> np.ndarray:
+        """World move of the pivot -> change of the anchor: the parent's inverse, then the layer's."""
+        tr = layer_transform(layer, t)
+        angle = np.radians(tr.rotation)
+        own = tr.scale * np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+        return np.linalg.pinv(own) @ to_local  # pinv: a layer scaled to 0 must not raise
+
+    def _centre_anchor(self) -> None:
+        """Put the selected layer's anchor at the centre of its drawing's box."""
+        layer = self.project.layer(self.selection.layer_id)
+        if self._morph_playing(layer.id):
+            self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
+            return
+        t = self.playhead()
+        pivot, _rotation, to_local = self.canvas.evaluator.layer_frame(layer, t)
+        delta = self._to_anchor(layer, t, to_local) @ (self._selected_outline().box.centre - pivot)
+        anchor = (layer.base.anchor[0] + float(delta[0]), layer.base.anchor[1] + float(delta[1]))
+        self.document.apply(edits.set_anchor(self.project, layer.id, anchor, t), "Centre anchor")
+        if edits.anchor_shifts_elsewhere(self.project.layer(layer.id)):
+            self.message.emit(SHIFTS_ELSEWHERE)
 
     def _key_time(self, layer: Layer, prop: str) -> float | None:
         """None for base edits; else the playhead's frame, moving the playhead onto it."""
@@ -286,6 +353,14 @@ class MoveTool(QObject):
             return None
         ppu = self.canvas.px_per_unit()
         return handle_at(outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu)
+
+    def _cross_under(self, point: np.ndarray) -> bool:
+        """Whether ``point`` is on the selected layer's pivot cross."""
+        outline = self._selected_outline()
+        if outline is None:
+            return False
+        distance = np.linalg.norm(point - np.asarray(outline.anchor)) * self.canvas.px_per_unit()
+        return bool(distance <= GRAB_PX)
 
     def _inside_selected_box(self, point: np.ndarray) -> bool:
         outline = self._selected_outline()

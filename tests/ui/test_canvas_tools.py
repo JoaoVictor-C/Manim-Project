@@ -46,6 +46,11 @@ def project() -> Project:
                 clips=[Clip(id="m", kind="Transform", start=1.0, duration=1.0, to_layer="dst")],
             ),
             Layer(id="dst", spec=Spec(type="Star", style=FILLED), base=Transform2D(position=(5.0, -2.0))),
+            Layer(
+                id="tiny",
+                spec=Spec(type="Circle", params={"radius": 0.15}, style=FILLED),
+                base=Transform2D(position=(-5.0, -3.0)),
+            ),
         ],
     )
 
@@ -316,3 +321,101 @@ def test_the_auto_key_menu_drives_canvas_edits(window, qt_app) -> None:
     window.seek(1.0)
     drag(window, px(window, 1.0, 0.0), px(window, 1.0, 1.0), qt_app)
     assert [k.t for k in window.project.layer("dot").tracks["position"]] == [0.0, 1.0]
+
+
+# -- the pivot cross (P2f.2, ADR 0021) ------------------------------------------------
+
+
+def drawn_points(window, layer_id: str):
+    import numpy as np
+
+    mob = dict(window.canvas.evaluator.frame_layers(window.t))[layer_id]
+    return np.concatenate([sub.points[:, :2] for sub in mob.family_members_with_points()])
+
+
+def turn(window, layer_id: str, degrees: float) -> None:
+    from manim_studio.core import edits
+
+    window.document.apply(edits.update_layer(window.project, layer_id, base={"rotation": degrees}), "Rotate")
+
+
+def test_dragging_the_pivot_cross_moves_the_anchor_and_not_the_object(window, qt_app) -> None:
+    import numpy as np
+
+    turn(window, "big", 30.0)
+    window.selection.set("big")
+    before = drawn_points(window, "big")
+    count = window.document.undo_stack.count()
+    drag(window, px(window, 0.0, 0.0), px(window, 1.0, 1.5), qt_app, Qt.KeyboardModifier.ControlModifier)
+    layer = window.project.layer("big")
+    pivot, _, _ = window.canvas.evaluator.layer_frame(layer, window.t)
+    assert pivot == pytest.approx((1.0, 1.5), abs=0.03)
+    assert layer.base.anchor != (0.0, 0.0)
+    assert np.allclose(drawn_points(window, "big"), before, atol=1e-6)  # the object stayed put
+    assert window.document.undo_stack.count() == count + 1
+    assert window.document.undo_stack.undoText() == "Move anchor"
+    window.document.undo_stack.undo()
+    assert window.project.layer("big").base.anchor == (0.0, 0.0)
+
+
+def test_shift_snaps_the_pivot_to_a_corner_of_the_box(window, qt_app) -> None:
+    turn(window, "big", 30.0)
+    window.selection.set("big")
+    corner = window.canvas.outline.box.corners[2]  # top-right of the turned 4x4 square
+    near = px(window, corner[0] - 0.2, corner[1] + 0.15)
+    drag(
+        window,
+        px(window, 0.0, 0.0),
+        near,
+        qt_app,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    assert window.project.layer("big").base.anchor == pytest.approx((2.0, 2.0), abs=1e-6)
+
+
+def test_without_ctrl_a_press_on_the_cross_moves_the_object(window, qt_app) -> None:
+    for layer_id, (x, y) in (("tiny", (-5.0, -3.0)), ("big", (0.0, 0.0))):
+        window.selection.set(layer_id)
+        drag(window, px(window, x, y), px(window, x + 1.0, y), qt_app)
+        layer = window.project.layer(layer_id)
+        assert layer.base.anchor == (0.0, 0.0)
+        assert layer.base.position == pytest.approx((x + 1.0, y), abs=0.02)
+
+
+def test_double_clicking_the_cross_centres_the_anchor(window, qt_app) -> None:
+    from manim_studio.core import edits
+
+    window.document.apply(edits.set_anchor(window.project, "big", (1.0, 1.0), 0.0), "Anchor")
+    window.selection.set("big")
+    mouse(window, QEvent.Type.MouseButtonDblClick, px(window, 1.0, 1.0), Qt.KeyboardModifier.ControlModifier)
+    layer = window.project.layer("big")
+    assert layer.base.anchor == pytest.approx((0.0, 0.0), abs=1e-6)
+    assert window.document.undo_stack.undoText() == "Centre anchor"
+    assert window.selection.layer_id == "big"  # not a drill-in
+
+
+def test_the_knob_turns_the_object_about_its_anchor(window, qt_app) -> None:
+    from manim_studio.core import edits
+
+    window.document.apply(edits.set_anchor(window.project, "big", (2.0, 2.0), 0.0), "Anchor")
+    window.selection.set("big")
+    _, knob = handles(window)
+    pivot = px(window, 2.0, 2.0)
+    offset = knob - pivot
+    quarter = pivot + QPointF(offset.y(), -offset.x())  # a quarter turn counter-clockwise (y down)
+    drag(window, knob, quarter, qt_app)
+    layer = window.project.layer("big")
+    assert layer.base.rotation == pytest.approx(90, abs=1)
+    pivot_after, _, _ = window.canvas.evaluator.layer_frame(layer, window.t)
+    assert pivot_after == pytest.approx((2.0, 2.0))
+
+
+def test_moving_the_anchor_with_rotation_keyed_warns(window, qt_app) -> None:
+    from manim_studio.core import edits
+    from manim_studio.ui.canvas_tools import SHIFTS_ELSEWHERE
+
+    window.document.apply(edits.set_key(window.project, "big", "rotation", 2.0, 90.0), "Key")
+    window.selection.set("big")
+    drag(window, px(window, 0.0, 0.0), px(window, 0.5, 0.5), qt_app, Qt.KeyboardModifier.ControlModifier)
+    assert window.messages[-1] == SHIFTS_ELSEWHERE
+    assert "rotation" in window.project.layer("big").tracks

@@ -39,17 +39,20 @@ position key (a rigid shift of the path). It never creates keys.
 
 ## Gizmo
 
-- **Drag the pivot cross** to move the anchor; the object stays put (live
-  preview, one undo step *Move anchor*, Escape cancels). The cross is grabbed
-  within 6 px, after the rotate knob and corner handles and before the body.
-- The cross can only be grabbed when the selected box's **longer side is at
-  least 36 px**; smaller objects drag as bodies (set their anchor in
-  Properties). A line's box is thin but long, so lines keep their cross.
-- **Ctrl** snaps the pivot to the box's corners, edge midpoints and centre.
-- **Double-click** the cross: the anchor goes to the centre of the drawing's
-  box (for a code layer, of its picture, not the canvas origin).
+- **Ctrl+drag the pivot cross** (within 6 px) to move the anchor; the object
+  stays put (live preview, one undo step *Move anchor*, Escape cancels).
+  Without Ctrl a press on the cross moves the object, as before.
+- **Shift** snaps the pivot to the box's corners, edge midpoints and centre
+  (Shift snaps scale and rotation too).
+- **Ctrl+double-click** the cross: the anchor goes to the centre of the
+  drawing's box (for a code layer, of its picture, not the canvas origin).
 - Properties: an **Anchor point** field in Transform (no Keys toggle), applied
   at the playhead through `set_anchor`; type 0, 0 for the default.
+- *Changed during P2f.2:* the session chose a plain drag on the cross, guarded
+  to boxes whose longer side is ≥ 36 px. Four acceptance tests (S3, P2b, v1)
+  then failed: each adds an object and drags it **by its middle**, which is
+  exactly where a new object's cross sits. Moving the anchor is rare, moving
+  the object is common, so the anchor needs Ctrl and the size guard is gone.
 
 ## Evaluator
 

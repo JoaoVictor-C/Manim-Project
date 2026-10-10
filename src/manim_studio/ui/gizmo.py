@@ -2,12 +2,13 @@
 
 Everything is in Manim units (y up, angles in degrees counter-clockwise), the
 same space the evaluator places layers in: world = R(rotation) S(scale) local
-+ position. The pivot of scaling and rotating is therefore the layer position.
++ position, turned about the layer's pivot (its anchor, ADR 0021).
 
 * ``oriented_box`` — the box around a drawn object in the layer's own frame,
   so handles stay on the shape when it is rotated;
 * ``scale_from`` / ``angle_delta`` — what a handle drag means;
-* ``handle_at`` — which handle (if any) is under the cursor.
+* ``handle_at`` — which handle (if any) is under the cursor;
+* ``Box.snap_points`` / ``nearest`` — where the pivot cross snaps (P2f).
 """
 
 from __future__ import annotations
@@ -23,6 +24,9 @@ GRAB_PX = 6.0  # how close the cursor must be to grab a handle
 KNOB_OFFSET_PX = 24.0  # rotate knob distance beyond the top edge
 MIN_BOX_PX = 12.0  # flat shapes (a horizontal line) still get a usable box
 SCALE_LIMITS = (0.01, 100.0)
+SHIFTS_ELSEWHERE = (  # status note after moving the anchor of a layer with keyed rotation/scale
+    "Anchor moved: with rotation or scale keyed, the object keeps its place at this frame only."
+)
 SCALE_SNAP = 0.1
 ANGLE_SNAP = 15.0
 
@@ -46,6 +50,15 @@ class Box:
         """The rotate knob: beyond the middle of the top edge, along the box's up direction."""
         top_middle = (self.corners[2] + self.corners[3]) / 2
         return top_middle + self.up * offset
+
+    @property
+    def centre(self) -> np.ndarray:
+        return self.corners.mean(axis=0)
+
+    def snap_points(self) -> np.ndarray:
+        """Corners, edge midpoints and the centre: where the pivot cross snaps (9, 2)."""
+        middles = (self.corners + np.roll(self.corners, -1, axis=0)) / 2
+        return np.vstack([self.corners, middles, self.centre])
 
     def contains(self, p: np.ndarray, margin: float = 0.0) -> bool:
         local = _rotate(np.asarray(p, float) - self.pivot, -self.rotation)
@@ -75,6 +88,11 @@ def handle_at(box: Box, p, grab: float, knob_offset: float) -> Handle | None:
     if (np.linalg.norm(box.corners - p, axis=1) <= grab).any():
         return "scale"
     return None
+
+
+def nearest(points: np.ndarray, p) -> np.ndarray:
+    """The row of ``points`` closest to ``p``."""
+    return points[int(np.argmin(np.linalg.norm(points - np.asarray(p, float), axis=1)))]
 
 
 def scale_from(pivot, start_point, point, start_scale: float, snap: bool = False) -> float:

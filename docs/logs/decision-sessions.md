@@ -256,3 +256,8 @@ left open, so ADRs can cite it.
   scale/rotate drags take their pivot from `layer_frame` → it returns the world
   pivot; keyed positions with any ease stay exact under a rigid shift
   (confirmed); keyed rotation does not (measured, warned).
+- **Reversed in implementation:** the session's answer to "crosshair-first or
+  body-first with a modifier" was crosshair-first. Four existing acceptance
+  tests then failed because they drag a new object by its middle — where its
+  cross is — so the anchor now moves with **Ctrl+drag** (Shift snaps), and the
+  36 px guard was dropped.

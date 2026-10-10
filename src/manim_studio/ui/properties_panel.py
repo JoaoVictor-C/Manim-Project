@@ -47,6 +47,7 @@ from .fields import (
     PointField,
     TextField,
 )
+from .gizmo import SHIFTS_ELSEWHERE
 
 CUSTOM_CURVE = "custom-curve"  # the "Custom curve..." entry of an easing list
 STYLE_KEYS = ("fill", "fill_opacity", "stroke", "stroke_width")
@@ -97,6 +98,13 @@ def set_transform(
         raise edits.EditError(f"no layer {layer_id!r}")
     value = tuple(value) if isinstance(value, list) else value
     return edits.set_property(project, layer_id, name, value, at(), auto_key=auto_key())
+
+
+def set_anchor(project: Project, layer_id: str, value: Any, at: Callable[[], float]) -> edits.Edit:
+    """The anchor point field: moves the pivot, keeping the drawing at the playhead (ADR 0021)."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    return edits.set_anchor(project, layer_id, tuple(value), at())
 
 
 def set_animated(
@@ -517,7 +525,27 @@ class PropertiesPanel(QWidget):
             toggle = BoolField(self._op(key_path, animate, f"Animate {label.lower()}"), "Keys")
             toggle.widget.setToolTip(f"Keyframes for {label.lower()}: on = changes set a key at the playhead")
             rows.append((label, [(path, field), (key_path, toggle)]))
+            if name == "position":
+                rows.append(self._anchor_row())
         self._section("Transform", rows)
+
+    def _anchor_row(self):
+        """The anchor point (ADR 0021): base only, so no Keys toggle."""
+        path = "base.anchor"
+        self._register(path, lambda layer: layer.base.anchor)
+
+        def op(project: Project, layer_id: str, value: Any) -> edits.Edit:
+            edit = set_anchor(project, layer_id, value, at=lambda: self.playhead())
+            if edits.anchor_shifts_elsewhere(edit.project.layer(layer_id)):
+                self.message.emit(SHIFTS_ELSEWHERE)
+            return edit
+
+        field = PointField(self._op(path, op, "Move anchor"))
+        field.widget.setToolTip(
+            "The point it rotates and scales about, in its own units (0, 0 = its centre). "
+            "Ctrl+drag the cross on the canvas to move it."
+        )
+        return ("Anchor point", [(path, field)])
 
     def _transform_value(self, layer: Layer, name: str):
         """A keyed property shows its value at the playhead; otherwise its base value."""

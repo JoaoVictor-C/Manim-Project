@@ -12,6 +12,7 @@ from manim_studio.ui.gizmo import (
     SCALE_LIMITS,
     angle_delta,
     handle_at,
+    nearest,
     oriented_box,
     scale_from,
     snap_angle,
@@ -81,3 +82,13 @@ def test_angle_delta_is_signed_and_sums_through_full_turns() -> None:
 def test_snap_angle() -> None:
     assert snap_angle(22.0, True) == 15 and snap_angle(23.0, True) == 30
     assert snap_angle(23.0, False) == 23
+
+
+def test_snap_points_are_corners_edge_midpoints_and_centre() -> None:
+    box = oriented_box(square(2, (1, 1), 30), (1, 1), 30)
+    snaps = box.snap_points()
+    assert snaps.shape == (9, 2)
+    assert np.allclose(snaps[:4], box.corners)
+    assert np.allclose(snaps[4], (box.corners[0] + box.corners[1]) / 2)
+    assert np.allclose(snaps[8], (1, 1))
+    assert np.allclose(nearest(snaps, box.corners[2] + 0.1), box.corners[2])
