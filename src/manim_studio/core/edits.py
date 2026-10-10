@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import parts
-from .schema import Clip, Easing, Keyframe, Layer, PartKey, Project, Spec
+from .schema import Clip, Easing, Keyframe, Layer, PartKey, Project, Spec, clip_params
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
 _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec": 3}
@@ -50,10 +50,18 @@ class Edit:
 
 
 def update_clip(project: Project, layer_id: str, clip_id: str, **fields: Any) -> Edit:
-    """Change fields of one clip (validated; raises ``ValidationError`` if invalid)."""
+    """Change fields of one clip (validated; raises ``ValidationError`` if invalid).
+
+    A new kind keeps only the params it registers (ADR 0022): ``Write`` would
+    not accept a fade's ``shift``.
+    """
     layer = _layer(project, layer_id)
-    if not any(c.id == clip_id for c in layer.clips):
+    clip = next((c for c in layer.clips if c.id == clip_id), None)
+    if clip is None:
         raise EditError(f"layer {layer_id!r} has no clip {clip_id!r}")
+    if "kind" in fields and fields["kind"] != clip.kind and "params" not in fields:
+        names = {param.name for param in clip_params(fields["kind"])}
+        fields = {**fields, "params": {k: v for k, v in clip.params.items() if k in names}}
     clips = [
         {**c.model_dump(by_alias=True), **fields} if c.id == clip_id else c.model_dump(by_alias=True)
         for c in layer.clips

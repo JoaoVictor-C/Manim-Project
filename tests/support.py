@@ -10,7 +10,7 @@ import numpy as np
 
 from manim_studio.core import adapter
 from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Easing, Layer, Project, Spec
+from manim_studio.core.schema import CLIP_KIND_INFO, Canvas, Clip, Easing, Layer, Project, Spec
 from manim_studio.render.cairo_export import make_camera, render_frame
 
 CANVAS = Canvas(width_px=320, height_px=180, fps=15, duration=1.0)
@@ -34,12 +34,14 @@ def single_clip_project(kind: str, spec: Spec, ease: Easing | None = None) -> Pr
 def sequential_reference(kind: str, spec: Spec, ease: Easing | None = None) -> list[np.ndarray]:
     """Frames exactly as ``Scene.play`` produces them: begin, interpolate in order."""
     camera = make_camera(CANVAS)
-    anim = adapter.make_animation(kind, adapter.build_mobject(spec), ease, {})
+    mob = adapter.build_mobject(spec)
+    anim = adapter.make_animation(kind, mob, ease, {})
     anim.begin()
+    drawn = [mob, anim.mobject] if CLIP_KIND_INFO[kind].overlay else [anim.mobject]  # ADR 0022
     frames = []
     for t in FRAMES:
         anim.interpolate(t / 1.0)
-        frames.append(render_frame(camera, [anim.mobject]))
+        frames.append(render_frame(camera, drawn))
     return frames
 
 

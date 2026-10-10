@@ -111,17 +111,31 @@ segment **leaving** this keyframe: either `{"name": <Manim rate function>}`
 | `kind` | see table below |
 | `start`, `duration` | seconds |
 | `ease` | optional Easing; omit to keep the animation's own default (e.g. Indicate's there-and-back) |
-| `params` | extra keyword arguments for the Manim animation |
+| `params` | keyword arguments for the Manim animation; the registered ones (below) are validated, others pass through unverified |
 | `to_layer` | morph clips only: the layer this one turns into |
 
 | category | kinds | effect on lifetime |
 |---|---|---|
-| content (introducer) | Create, Write, DrawBorderThenFill, FadeIn, GrowFromCenter, SpinInFromNothing | starts it |
-| content (remover) | Uncreate, Unwrite, FadeOut, ShrinkToCenter | ends it |
-| emphasis | Indicate, Wiggle, ApplyWave | none (returns to rest) |
-| morph | Transform, FadeTransform, TransformMatchingShapes | ends this layer, starts `to_layer` |
+| content (introducer) | Create, Write, DrawBorderThenFill, FadeIn, GrowFromCenter, GrowFromEdge, SpinInFromNothing, SpiralIn, AddTextLetterByLetter | starts it |
+| content (remover) | Uncreate, Unwrite, FadeOut, ShrinkToCenter, RemoveTextLetterByLetter | ends it |
+| emphasis | Indicate, Wiggle, ApplyWave, Circumscribe, Flash, FocusOn | none (returns to rest) |
+| morph | Transform, ClockwiseTransform, CounterclockwiseTransform, FadeTransform, FadeTransformPieces, TransformMatchingShapes, TransformMatchingTex | ends this layer, starts `to_layer` |
 
-`ImageMobject` layers accept fades, growth/shrink and Indicate only.
+`ImageMobject` layers accept no kind that draws paths (Create, Write, Wiggle,
+SpiralIn, ...). The letter-by-letter kinds need `Text`; TransformMatchingTex
+needs MathTex/Tex at both ends. Circumscribe, Flash and FocusOn are *overlays*:
+the object stays as it is and the frame, flash lines or spotlight are drawn with
+it, turning and scaling with the layer (ADR 0022).
+
+Registered clip params (ADR 0022):
+
+| kind | param | values |
+|---|---|---|
+| FadeIn, FadeOut | `shift` | `"UP"`, `"DOWN"`, `"LEFT"`, `"RIGHT"` or `[x, y]`; omitted = no movement |
+| GrowFromEdge | `edge` | a direction as above; default `"DOWN"` |
+| Indicate | `color`, `scale_factor` | `"#rrggbb"` (default `#FFFF00`); 1–3 (default 1.2) |
+| Circumscribe | `shape`, `color` | `"rectangle"` or `"circle"`; a colour |
+| Flash, FocusOn | `color` | a colour |
 
 ## Validation rules
 

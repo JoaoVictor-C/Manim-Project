@@ -15,7 +15,7 @@ import random
 
 import pytest
 
-from manim_studio.core import edits
+from manim_studio.core import adapter, edits
 from manim_studio.core.evaluator import Evaluator
 from manim_studio.core.schema import (
     CLIP_KIND_INFO,
@@ -58,15 +58,15 @@ def random_project(rng: random.Random) -> Project:
     layers = []
     for i in range(n_layers):
         limit = CANVAS.duration - 0.3 if (with_morph and i == 0) else CANVAS.duration
+        spec = rng.choice(SPECS)
+        kinds = [k for k in NON_MORPH if k in adapter.allowed_clip_kinds(spec.type)]
         clips, t = [], round(rng.uniform(0, 0.2), 2)
         for j in range(rng.randint(0, 3)):
             duration = round(rng.uniform(0.15, 0.4), 2)
             if t + duration > limit:
                 break
             clips.append(
-                Clip(
-                    id=f"c{j}", kind=rng.choice(NON_MORPH), start=t, duration=duration, ease=rng.choice(EASES)
-                )
+                Clip(id=f"c{j}", kind=rng.choice(kinds), start=t, duration=duration, ease=rng.choice(EASES))
             )
             t = round(t + duration + rng.choice([0, 0, 0.1]), 2)
         tracks = {}
@@ -82,7 +82,7 @@ def random_project(rng: random.Random) -> Project:
         layers.append(
             Layer(
                 id=f"l{i}",
-                spec=rng.choice(SPECS),
+                spec=spec,
                 base=Transform2D(scale=rng.uniform(0.6, 1.2), rotation=rng.uniform(-30, 30)),
                 tracks=tracks,
                 clips=clips,

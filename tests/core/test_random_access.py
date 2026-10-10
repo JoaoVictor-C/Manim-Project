@@ -35,6 +35,8 @@ MORPH = [
 @pytest.mark.parametrize("spec", [SQUARE, TEXT], ids=lambda s: s.type)
 @pytest.mark.parametrize("kind", NON_MORPH)
 def test_single_clip_random_access(kind: str, spec) -> None:
+    if kind not in adapter.allowed_clip_kinds(spec.type):
+        pytest.skip(f"{kind} is not offered on {spec.type}")
     project = single_clip_project(kind, spec)
     reference = sequential_reference(kind, spec)
     n = len(FRAMES)

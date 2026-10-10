@@ -108,13 +108,12 @@ def test_morph_rules_on_part_trees() -> None:
     )
     with pytest.raises(ValidationError, match="starts after 'one' begins morphing"):
         project(extra_parts=[late])
-    square = Layer(
-        id="sq",
-        spec=Spec(type="Square"),
-        clips=[Clip(id="x", kind="TransformMatchingTex", start=0, duration=1, to_layer="t")],
-    )
-    with pytest.raises(ValidationError, match="needs MathTex or Tex at both ends"):
-        Project(layers=[square, Layer(id="t", spec=Spec(type="MathTex", params={"text": "x"}))])
+    with pytest.raises(ValidationError, match="TransformMatchingTex needs MathTex or Tex, not Square"):
+        Layer(
+            id="sq",
+            spec=Spec(type="Square"),
+            clips=[Clip(id="x", kind="TransformMatchingTex", start=0, duration=1, to_layer="t")],
+        )
     assert "TransformMatchingTex" in adapter.allowed_clip_kinds("MathTex")
     assert "TransformMatchingTex" not in adapter.allowed_clip_kinds("Square")
 
