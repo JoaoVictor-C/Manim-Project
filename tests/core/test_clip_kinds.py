@@ -49,6 +49,8 @@ def samples() -> list[tuple[str, dict]]:
         for param in params:
             if param.kind == "direction":
                 values = [*DIRECTIONS, [0.5, -1.0]]
+            elif param.kind == "layer":
+                continue  # a path layer: the two-layer harness in test_paths.py
             elif param.kind == "choice":
                 values = list(param.choices)
             elif param.kind == "color":

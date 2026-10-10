@@ -61,7 +61,8 @@ def test_unknown_rate_function_raises() -> None:
 def test_content_and_emphasis_clips_clamp_overshoot(kind: str) -> None:
     """ADR 0007: an overshooting curve must not push Create/Write/... past their end."""
     overshoot = Easing(bezier=(0.3, 1.8, 0.6, -0.8))
-    anim = adapter.make_animation(kind, adapter.build_mobject(Spec(type="Square")), overshoot, {})
+    path = adapter.build_mobject(Spec(type="Circle")) if CLIP_KIND_INFO[kind].category == "motion" else None
+    anim = adapter.make_animation(kind, adapter.build_mobject(Spec(type="Square")), overshoot, {}, path)
     samples = [anim.rate_func(i / 100) for i in range(101)]
     assert min(samples) >= 0.0
     assert max(samples) <= 1.0

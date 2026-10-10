@@ -532,6 +532,33 @@ def keyed_pieces(
     return pieces(source), pieces(target)
 
 
+class TabledMoveAlongPath(m.MoveAlongPath):
+    """MoveAlongPath that measures its path once (ADR 0025).
+
+    Manim's ``point_from_proportion`` measures every curve of the path on every
+    frame (23.6 ms on a 399-curve graph, B38); the same points come from an
+    arc-length table built here (0.005 ms).
+    """
+
+    def __init__(self, mobject: m.Mobject, path: m.VMobject, **kwargs: Any) -> None:
+        super().__init__(mobject, path, **kwargs)
+        count = path.get_num_curves()
+        self._curves = [path.get_nth_curve_function(i) for i in range(count)]
+        self._lengths = np.array([path.get_nth_curve_length(i) for i in range(count)])
+        self._cumulative = np.concatenate([[0.0], np.cumsum(self._lengths)])
+
+    def _point(self, alpha: float) -> np.ndarray:
+        if not self._curves:
+            return self.path.get_center()
+        target = min(max(alpha, 0.0), 1.0) * self._cumulative[-1]
+        i = min(int(np.searchsorted(self._cumulative, target, side="right")) - 1, len(self._curves) - 1)
+        length = self._lengths[i]
+        return self._curves[i]((target - self._cumulative[i]) / length if length > 0 else 0.0)
+
+    def interpolate_mobject(self, alpha: float) -> None:
+        self.mobject.move_to(self._point(self.rate_func(alpha)))
+
+
 class KeyedTransformMatching(TransformMatchingAbstractBase):
     """TransformMatchingTex on pieces that already carry their keys (``keyed_pieces``)."""
 
@@ -565,6 +592,7 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "Circumscribe": m.Circumscribe,  # a Succession: made random-access below (ADR 0022)
     "Flash": m.Flash,
     "FocusOn": m.FocusOn,
+    "MoveAlongPath": TabledMoveAlongPath,  # the evaluator passes the path in local units (ADR 0025)
     "Transform": m.ReplacementTransform,  # ADR 0005: the source hands off to the target
     "ClockwiseTransform": m.ClockwiseTransform,
     "CounterclockwiseTransform": m.CounterclockwiseTransform,
@@ -584,6 +612,8 @@ def allowed_clip_kinds(mobject_type: str) -> list[str]:
         for kind, info in CLIP_KIND_INFO.items()
         if info.only_types is None or mobject_type in info.only_types  # e.g. letter by letter: Text
     ]
+    if mobject_type in CHILD_ONLY_TYPES:  # a graph is locked to its axes: it cannot travel (ADR 0025)
+        kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "motion"]
     if mobject_type in RASTER_TYPES:
         return [k for k in kinds if not CLIP_KIND_INFO[k].vector_only]
     return kinds
@@ -610,6 +640,9 @@ def clip_kwargs(kind: str, params: dict[str, Any]) -> dict[str, Any]:
             value = np.array(vector, dtype=float)
         elif param.kind == "color":
             value = m.ManimColor(value)
+        elif param.kind == "layer":
+            kwargs.pop(param.name, None)  # resolved by the evaluator into the target mobject
+            continue
         elif param.kind == "choice" and param.name == "shape":
             value = SHAPES[value]
         kwargs[param.name] = value
@@ -682,9 +715,9 @@ def make_animation(
         kwargs.setdefault("scale_about_point", center)
         kwargs.setdefault("rotate_about_point", center)
     # run_time is irrelevant: the evaluator owns the clock and passes alpha.
-    if info.category == "morph":
+    if info.category in ("morph", "motion"):
         if target is None:
-            raise ValueError(f"{kind} needs a target layer")
+            raise ValueError(f"{kind} needs a target (the morph's end or the path)")
         anim = cls(mobject, target, **kwargs)
     else:
         anim = cls(mobject, **kwargs)

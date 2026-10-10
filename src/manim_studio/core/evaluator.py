@@ -112,7 +112,7 @@ class Evaluator:
             for index, clip in enumerate(layer.clips, start=1):
                 if clip.info.category == "morph":
                     break  # the layer hands off to its morph target here
-                if (layer.id, clip.id) not in self._checkpoints:
+                if (layer.id, clip.id, self._path_sigs(layer, index)) not in self._checkpoints:
                     missing.append((layer, index))
         return missing
 
@@ -240,10 +240,12 @@ class Evaluator:
         if index == 0:
             return self._base_mobject(layer)
         prev = layer.clips[index - 1]
-        key = (layer.id, prev.id)
+        key = (layer.id, prev.id, self._path_sigs(layer, index))  # a moved path re-runs (ADR 0025)
         if key not in self._checkpoints:
             working = self._state_before(layer, index - 1).copy()
-            anim = adapter.make_animation(prev.kind, working, prev.ease, prev.params)
+            anim = adapter.make_animation(
+                prev.kind, working, prev.ease, prev.params, self._path_target(layer, prev)
+            )
             anim.begin()
             anim.finish()
             # An overlay (Flash lines, a Circumscribe frame) leaves the object as it was (ADR 0022).
@@ -268,10 +270,12 @@ class Evaluator:
         return self._to_world(self._state_before(layer, index), layer, t)
 
     def _activate(self, layer: Layer, index: int, clip: Clip) -> _Active:
-        key = (layer.id, clip.id)
+        key = (layer.id, clip.id, self._path_sigs(layer, index + 1))
         if key not in self._active:
             working = self._state_before(layer, index).copy()
-            anim = adapter.make_animation(clip.kind, working, clip.ease, clip.params)
+            anim = adapter.make_animation(
+                clip.kind, working, clip.ease, clip.params, self._path_target(layer, clip)
+            )
             anim.begin()
             drawn = m.Group(working, anim.mobject) if clip.info.overlay else anim.mobject  # ADR 0022
             self._active[key] = _Active(anim, drawn)
@@ -323,14 +327,57 @@ class Evaluator:
     def _end_signature(self, layer: Layer, t: float):
         """What one end of a morph depends on besides edits that drop caches anyway."""
         if layer.id not in self._has_parts:
+            paths = self._path_sigs(layer, sum(1 for c in layer.clips if c.end <= t))  # ADR 0025
             if layer.is_child:  # a graph's world shape also depends on its axes (ADR 0024)
-                return self.transform_at(layer, t), self.transform_at(self._layers[layer.parent_id], t)
-            return self.transform_at(layer, t)
+                return self.transform_at(layer, t), self.transform_at(self._layers[layer.parent_id], t), paths
+            return self.transform_at(layer, t), paths
         tree = self._tree(layer)
         finished = tuple((lay.id, c.id) for lay, c in self._tree_clips(layer, tree) if c.end <= t)
         return finished, tuple(
             (member, self.transform_at(self._layers[member], t)) for member in tree.members
         )
+
+    # -- paths (ADR 0025) ------------------------------------------------------
+
+    def _world_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """``p -> a p + b`` from a root's or child object's local units to world at ``t``."""
+        a, b = _affine(self.transform_at(layer, t))
+        if layer.is_child and not layer.is_part:
+            pa, pb = _affine(self.transform_at(self._layers[layer.parent_id], t))
+            a, b = pa @ a, pa @ b + pb
+        return a, b
+
+    def _path_signature(self, layer: Layer, clip: Clip) -> str:
+        """What a path clip's run depends on: both layers' transforms at its start, the path's build."""
+        path = self._layers[clip.params["path"]]
+        chain = [layer, path] + ([self._layers[path.parent_id]] if path.is_child else [])
+        transforms = [self.transform_at(x, clip.start).model_dump_json() for x in chain]
+        builds = [x.spec.model_dump_json() for x in chain[1:]]
+        return "|".join(transforms + builds)
+
+    def _path_sigs(self, layer: Layer, count: int) -> tuple[str, ...]:
+        """Signatures of the path clips among the layer's first ``count`` clips (cache keys)."""
+        return tuple(
+            self._path_signature(layer, c) for c in layer.clips[:count] if c.info.category == "motion"
+        )
+
+    def _path_target(self, layer: Layer, clip: Clip) -> m.Mobject | None:
+        """A motion clip's path in the mover's local units, from the path layer's rest shape
+        in world at the clip's start (never its clip state: no recursion between layers)."""
+        if clip.info.category != "motion":
+            return None
+        path_layer = self._layers[clip.params["path"]]
+        path = self._base_mobject(path_layer).copy()
+        a_path, b_path = self._world_affine(path_layer, clip.start)
+        a_mover, b_mover = self._world_affine(layer, clip.start)
+        inverse = np.linalg.pinv(a_mover)  # a mover scaled to 0 must not raise
+        linear, offset = inverse @ a_path, inverse @ (b_path - b_mover)
+        matrix = np.array(
+            [[linear[0, 0], linear[0, 1], 0.0], [linear[1, 0], linear[1, 1], 0.0], [0.0, 0.0, 1.0]]
+        )
+        for sub in path.family_members_with_points():
+            sub.points = sub.points @ matrix.T + np.array([offset[0], offset[1], 0.0])
+        return path
 
     # -- code layers (ADR 0019) ------------------------------------------------
 
