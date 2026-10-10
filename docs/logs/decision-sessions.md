@@ -433,3 +433,21 @@ left open, so ADRs can cite it.
   Manim's default screen, not the project's → own placement; an area's spec
   does not change when its graph does → classified changed, build keys include
   the graph; text glyphs as paths → excluded.
+
+## Session 23 — P4a Python export · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0010; probes B43 (both forms rendered by Manim); a list of the
+  editor's semantic differences from plain Manim code.
+- **Decisions:** whole-project choice between readable and exact; the readable
+  subset; code shape (variables, z_index, clusters, waits, morph replacement,
+  fresh path shapes); helpers for clamped eases, Wiggle's pivot and Bézier
+  eases; deterministic text checked by compile; exact form through a package
+  `StudioScene` (→ ADR 0031). Plan:
+  [../plans/p4a-python-export.md](../plans/p4a-python-export.md).
+- **Critiques that changed the plan:** the adapter's clamped eases and pinned
+  Wiggle are not plain Manim → helpers; a later-added object would draw on top
+  → z_index per layer; a morph target with its own lifetime could be in the
+  scene before the morph → exact; missing media would raise in plain Manim →
+  exact; the text must be deterministic → snapshot test too.

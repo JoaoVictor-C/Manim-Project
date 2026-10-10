@@ -384,3 +384,17 @@ are plain VMobjects). Build cold (again): Dot at `c2p` **0.4 ms**; `get_area`
 (12 leaves); `get_axis_labels` **2.6 s** cold, 5.6 ms warm (LaTeX); a graph label
 1.3 s cold, 4.9 ms warm. Create, FadeIn and DrawBorderThenFill on each, played
 in order vs scrubbed: diff **0**, all visible. → ADR 0030.
+
+### B43 — Exported Python rendered by Manim · 2026-10-10
+Probes for P4a at 320×180, 10 fps, rendered with `manim render` and compared
+frame by frame with the editor's export (both h264). **Exact form** (a holder
+whose updater sets its submobjects to the evaluator's frame, then `wait`):
+mean abs diff **0.3** levels per frame, aligned. Two traps: a plain updater
+(not dt-based) makes Manim freeze the `wait` into one repeated frame, and
+accumulating dt in a tracker shows each frame one step late; reading
+`self.renderer.time` inside a dt updater gives the frame's own time.
+**Readable form** (hand-written: `self.add`, `AnimationGroup(Create(..),
+Succession(Wait(0.5), FadeIn(..)))`, `self.wait`, `Indicate`): mean abs diff
+≤ **0.5** per frame. Code-layer frames are plain Mobjects Manim's camera skips;
+`Camera.display_funcs` (checked in insertion order) lets them paint themselves.
+→ ADR 0031.
