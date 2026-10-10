@@ -127,6 +127,13 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Anchor point (P2f, ADR 0021): `Transform2D.anchor`, the point a layer rotates
+  and scales about (objects, parts, code layers); base only, never keyed, not
+  written while (0, 0). `edits.set_anchor` keeps the drawing in place by
+  compensating the base position and every position key (exact unless rotation
+  or scale is keyed — the status bar says so). Canvas: Ctrl+drag the pivot cross
+  (Shift snaps to the box's corners, edge midpoints and centre; Ctrl+double-click
+  centres it); the handles turn about the anchor. Properties: *Anchor point*.
 - LaTeX renders left half-written by a killed process (a build worker past its
   timeout) are compiled again instead of failing that formula for good
   (adapter patch on `tex_to_svg_file`, ADR 0007).

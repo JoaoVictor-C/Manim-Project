@@ -284,7 +284,7 @@ class MoveTool(QObject):
         )
         if prop == "anchor":
             self._drag.to_anchor = self._to_anchor(layer, at, to_local)
-            self._drag.snaps = self._selected_outline().box.snap_points()
+            self._drag.snaps = self._selected_outline().snaps
         self.document.begin_preview()
 
     @staticmethod

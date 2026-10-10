@@ -35,6 +35,7 @@ class Outline:
     bounds: QRectF
     anchor: tuple[float, float]
     box: Box  # oriented: the frame the handles live in (P2a)
+    snaps: np.ndarray  # where the pivot cross snaps: the unpadded box's corners, edge midpoints, centre (P2f)
 
 
 class CanvasWidget(QWidget):
@@ -147,7 +148,10 @@ class CanvasWidget(QWidget):
         pivot, rotation, _ = self._evaluator.layer_frame(layer, t)
         anchor = (float(pivot[0]), float(pivot[1]))
         box = oriented_box(points, anchor, rotation, MIN_BOX_PX / self.px_per_unit())
-        return Outline(path, path.boundingRect(), anchor, box)
+        snaps = oriented_box(
+            points, anchor, rotation
+        ).snap_points()  # a line snaps to its ends, not beside them
+        return Outline(path, path.boundingRect(), anchor, box, snaps)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)

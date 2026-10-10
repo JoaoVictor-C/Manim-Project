@@ -1,6 +1,6 @@
 # P2f — Anchor (pivot) gizmo: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2f.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 13](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.82)
 - **Evidence:** benchmark B34 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -70,3 +70,13 @@ position key (a rigid shift of the path). It never creates keys.
 | P2f.1 | schema field, evaluator pivot, `set_anchor` | unit tests: anchor 0 = old, pivot fixed under rotation, compensation (base, keyed position, keyed rotation warning, no keys made), parts under a rotated parent, file unchanged without anchors |
 | P2f.2 | canvas: drag/snap/reset the cross; Properties field | tool tests: drag keeps the image, Ctrl snaps, the 36 px guard, double-click centres, one undo step |
 | P2f.3 | acceptance, ADR 0021, docs | the pendulum: anchor dragged to the top of a line, rotation keys -30 → 30 → -30, the top stays fixed in every frame, export matches the editor |
+
+## Outcome
+
+Done on 2026-10-10. Two changes from the session's plan, both forced by tests:
+
+- the anchor moves with **Ctrl+drag** on the cross, not a plain drag (see
+  *Gizmo*): four acceptance tests drag new objects by their middle;
+- the pivot snaps to the **unpadded** box: thin shapes get a 12 px minimum
+  box for their handles, and the pendulum test snapped beside the line's end
+  instead of onto it.
