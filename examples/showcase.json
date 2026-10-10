@@ -1,0 +1,514 @@
+{
+  "schema_version": 1,
+  "canvas": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "background": "#0f172a",
+    "frame_height": 8.0,
+    "duration": 10.0
+  },
+  "layers": [
+    {
+      "id": "title",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Manim Studio",
+          "font_size": 44
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          3.3
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 0.8,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "fadeout-1",
+          "kind": "FadeOut",
+          "start": 9.0,
+          "duration": 0.8,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "eq",
+      "name": "",
+      "spec": {
+        "type": "MathTex",
+        "params": {
+          "text": "a^2 + b^2 = c^2",
+          "font_size": 72
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          1.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "write-1",
+          "kind": "Write",
+          "start": 0.8,
+          "duration": 1.5,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "a2",
+      "name": "a^2",
+      "spec": null,
+      "parent_id": "eq",
+      "part": {
+        "tex": "a^2",
+        "occurrence": 0
+      },
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 3.0,
+            "value": [
+              0.0,
+              0.0
+            ],
+            "ease": {
+              "name": null,
+              "bezier": [
+                0.7,
+                0.0,
+                0.2,
+                1.0
+              ]
+            }
+          },
+          {
+            "t": 3.8,
+            "value": [
+              0.0,
+              0.9
+            ],
+            "ease": {
+              "name": null,
+              "bezier": [
+                0.34,
+                1.56,
+                0.64,
+                1.0
+              ]
+            }
+          },
+          {
+            "t": 4.8,
+            "value": [
+              0.0,
+              0.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": []
+    },
+    {
+      "id": "b2",
+      "name": "b^2",
+      "spec": null,
+      "parent_id": "eq",
+      "part": {
+        "tex": "b^2",
+        "occurrence": 0
+      },
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "indicate-1",
+          "kind": "Indicate",
+          "start": 2.6,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "name": "c^2",
+      "spec": null,
+      "parent_id": "eq",
+      "part": {
+        "tex": "c^2",
+        "occurrence": 0
+      },
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "wiggle-1",
+          "kind": "Wiggle",
+          "start": 4.0,
+          "duration": 1.2,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "fadeout-1",
+          "kind": "FadeOut",
+          "start": 6.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "square",
+      "name": "",
+      "spec": {
+        "type": "Square",
+        "params": {
+          "side_length": 1.6
+        },
+        "style": {
+          "fill": "#6366f1",
+          "fill_opacity": 0.6
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -4.2,
+          -1.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "rotation": [
+          {
+            "t": 2.5,
+            "value": 0.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 5.0,
+            "value": 180.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ],
+        "scale": [
+          {
+            "t": 2.5,
+            "value": 1.0,
+            "ease": {
+              "name": null,
+              "bezier": [
+                0.34,
+                1.56,
+                0.64,
+                1.0
+              ]
+            }
+          },
+          {
+            "t": 4.0,
+            "value": 1.4,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "create-1",
+          "kind": "Create",
+          "start": 1.5,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "transform-1",
+          "kind": "Transform",
+          "start": 5.5,
+          "duration": 1.5,
+          "ease": null,
+          "params": {},
+          "to_layer": "circle"
+        }
+      ]
+    },
+    {
+      "id": "circle",
+      "name": "",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 1.0
+        },
+        "style": {
+          "fill": "#f43f5e",
+          "fill_opacity": 0.6
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -4.2,
+          -1.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "indicate-1",
+          "kind": "Indicate",
+          "start": 7.5,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "star",
+      "name": "",
+      "spec": {
+        "type": "Star",
+        "params": {
+          "n": 6,
+          "outer_radius": 0.7
+        },
+        "style": {
+          "fill": "#facc15",
+          "fill_opacity": 0.9
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          -2.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "opacity": [
+          {
+            "t": 3.0,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.0,
+            "value": 0.3,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 5.0,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 6.0,
+            "value": 0.3,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 7.0,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ],
+        "rotation": [
+          {
+            "t": 3.0,
+            "value": 0.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 9.0,
+            "value": 360.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "growfromcenter-1",
+          "kind": "GrowFromCenter",
+          "start": 2.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "orbit",
+      "name": "Orbit (code)",
+      "spec": {
+        "type": "Code",
+        "params": {
+          "code": "class Orbit(Scene):\n    def construct(self):\n        t = ValueTracker(0)\n        sun = Dot(radius=0.18, color=ORANGE)\n        planet = Dot(radius=0.1, color=TEAL).add_updater(\n            lambda d: d.move_to([1.6 * np.cos(t.get_value()), 1.0 * np.sin(t.get_value()), 0])\n        )\n        moon = Dot(radius=0.05, color=WHITE).add_updater(\n            lambda d: d.move_to(\n                planet.get_center()\n                + 0.4 * np.array([np.cos(5 * t.get_value()), np.sin(5 * t.get_value()), 0])\n            )\n        )\n        planet.update()\n        moon.update()  # in place before the trail starts, or it begins with a line from the origin\n        trail = TracedPath(moon.get_center, stroke_color=BLUE_B, stroke_width=2, dissipating_time=1.5)\n        orbit = Ellipse(width=3.2, height=2.0, stroke_color=GREY_B, stroke_width=1.5)\n        self.add(orbit, trail, sun, planet, moon)\n        self.play(t.animate.set_value(2 * TAU), run_time=7, rate_func=linear)\n"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          4.2,
+          -1.5
+        ],
+        "scale": 0.9,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 1.0,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    }
+  ]
+}
