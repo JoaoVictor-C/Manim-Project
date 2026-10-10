@@ -38,6 +38,7 @@ from ..core import adapter, parts
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
+from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
@@ -176,6 +177,7 @@ class MainWindow(QMainWindow):
             ("&Save", QKeySequence.StandardKey.Save, self.save),
             ("Save &As...", QKeySequence.StandardKey.SaveAs, self.save_as),
             ("&Export Video...", QKeySequence("Ctrl+E"), self.show_export_dialog),
+            ("Export &Python...", QKeySequence(), self.export_python),
         ):
             action = QAction(text, self)
             action.setShortcut(shortcut)
@@ -429,6 +431,35 @@ class MainWindow(QMainWindow):
         if self.render_ahead is not None:
             self.render_ahead.layers_changed({layer_id})
         self.refresh()
+
+    # -- Python export (ADR 0031) ------------------------------------------------------
+
+    def export_python(self) -> None:
+        if self.project is None:
+            self.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        start = self.path.with_suffix(".py") if self.path else Path.cwd() / "scene.py"
+        name = self.ask_python_path(start)
+        if name:
+            self.write_python(Path(name))
+
+    def ask_python_path(self, start: Path) -> str:
+        name, _ = QFileDialog.getSaveFileName(self, "Export Python", str(start), "Python (*.py)")
+        return name
+
+    def write_python(self, path: Path) -> PythonExport:
+        """Write the project as a Manim scene: readable when it can be, exact otherwise."""
+        export = to_python(self.project, class_name(path.stem), str(adapter.cache_dir() / "code"))
+        path.write_text(export.code, encoding="utf-8")
+        log.info("python export %s (%s)", path, "readable" if export.readable else "exact")
+        if export.readable:
+            self.statusBar().showMessage(f"Wrote {path.name}: readable Manim code", 10000)
+        else:
+            reasons = "; ".join(export.problems[:3]) + (" ..." if len(export.problems) > 3 else "")
+            self.statusBar().showMessage(
+                f"Wrote {path.name}: exact scene (needs Manim Studio) - {reasons}", 15000
+            )
+        return export
 
     # -- export (S4, ADR 0017) -------------------------------------------------------
 

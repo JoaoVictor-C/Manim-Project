@@ -55,6 +55,12 @@ subprocesses — the build worker and the renderer — and LaTeX).
 `ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
+`ui/test_acceptance_p4a.py` exports a project built in the editor with File >
+Export Python... both ways (readable, then exact after a key is set) and renders
+each file with `manim render` against the editor's frames;
+`core/test_python_export.py` checks the reasons for the exact form, a text
+snapshot (`golden_readable_export.txt` - regenerate it when the output changes
+on purpose), the code-frame painter, and renders both forms.
 `ui/test_acceptance_p3h.py` builds the area under sin(x), rectangles and labels
 through Parts > Add to axes and checks them against Manim's helpers (scrub =
 play, export = editor); `core/test_axes_objects.py` renders every type against

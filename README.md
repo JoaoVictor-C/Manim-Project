@@ -108,6 +108,11 @@ circle - right-click its row and choose **Add clip > Move > MoveAlongPath** and
 the layer to follow; the clip's Properties let you pick another path, and
 **Turn: along** makes the object turn with the path as it goes.
 
+**File > Export Python...** writes the project as a Manim scene you can keep
+working on in code: plain, readable `self.play` code when the timeline allows
+it, otherwise a scene that plays the project exactly through Manim Studio (its
+header says why). `manim-studio python project.json scene.py` does the same.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

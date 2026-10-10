@@ -59,3 +59,4 @@ need one.
 | [0028](0028-render-ahead-cache.md) | Render-ahead cache | Accepted |
 | [0029](0029-child-objects-in-the-tree.md) | Child objects animate with their object | Accepted |
 | [0030](0030-objects-on-axes.md) | Points, areas, rectangles and labels on axes | Accepted |
+| [0031](0031-python-export.md) | Python export: readable when it can be, exact otherwise | Accepted |

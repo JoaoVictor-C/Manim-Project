@@ -127,6 +127,14 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Python export (P4a, ADR 0031): *File > Export Python...* and
+  `manim-studio python PROJECT OUT.py` write a Manim scene. Projects plain Manim
+  can express become readable code (a variable per layer, `self.play` groups
+  with `Succession` per object, waits, z-order, helpers for the editor's
+  clamped eases, Wiggle pivot and Bézier eases); any other project becomes an
+  exact scene that plays it through `manim_studio.manim_scene.StudioScene`,
+  with the reasons in its header. Both render with `manim render` to what the
+  editor shows (B43, B44).
 - Objects on axes (P3h, ADR 0030): *Parts > Add to axes* adds a Point, an Area
   (under a graph or between two), RiemannRectangles, AxisLabels and a
   GraphLabel, built with Manim's own Axes helpers and locked to their axes like

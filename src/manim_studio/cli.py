@@ -1,4 +1,4 @@
-"""Command line entry point: ``manim-studio render`` and ``manim-studio edit``."""
+"""Command line entry point: ``manim-studio render``, ``python`` and ``edit``."""
 
 from __future__ import annotations
 
@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="render code layers that are not cached yet (runs the project's Python code; ADR 0019)",
     )
 
+    python = sub.add_parser("python", help="write a project.json as a Manim scene file (ADR 0031)")
+    python.add_argument("project", type=Path)
+    python.add_argument("output", type=Path)
+    python.add_argument("--scene", help="the scene class name (default: from the output file's name)")
+    python.add_argument("--cache-dir", type=Path, help="the editor's cache: code layers' frames (exact form)")
+
     edit = sub.add_parser("edit", help="open the editor")
     edit.add_argument("project", type=Path, nargs="?")
     return parser
@@ -47,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.main_window import run
 
         return run([sys.argv[0]] + ([str(args.project)] if args.project else []))
+    if args.command == "python":
+        return _python(args.project, args.output, args.scene, args.cache_dir)
     return _render(args.project, args.output, args.cache_dir, args.progress, args.trust_code)
 
 
@@ -91,6 +99,29 @@ def _render(
         for warning in warnings:
             print(f"warning: {warning}", file=sys.stderr)
     log.info("rendered %s -> %s in %.1fs", project_path, result.path, time.perf_counter() - start)
+    return 0
+
+
+def _python(project_path: Path, output: Path, scene: str | None, cache_dir: Path | None) -> int:
+    """Write the project as Manim code: readable when it can be, exact otherwise (ADR 0031)."""
+    from .core.python_export import class_name, to_python
+    from .core.schema import Project
+
+    try:
+        project = Project.model_validate_json(project_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return _fail(f"cannot read {project_path}: {exc.strerror or exc}")
+    except ValidationError as exc:
+        return _fail(f"{project_path} is not a valid project:\n{exc}")
+    code_dir = (cache_dir or project_path.resolve().parent / ".cache" / "manim") / "code"
+    export = to_python(project, scene or class_name(output.stem), str(code_dir))
+    try:
+        output.write_text(export.code, encoding="utf-8")
+    except OSError as exc:
+        return _fail(f"cannot write {output}: {exc.strerror or exc}")
+    print(f"wrote {output} ({'readable' if export.readable else 'exact'})")
+    for problem in export.problems:
+        print(f"  exact because: {problem}")
     return 0
 
 
