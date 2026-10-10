@@ -241,3 +241,10 @@ capture runs **no measurable cost** (5.2 ms total), max channel error 1.5.
 A fresh process per render: Python up 0.2-0.3 s, Manim imported at **5.8-7.8 s**,
 first frame at 6.6-8.7 s, done at 7.2-9.3 s — the import is ~85 % of the wait.
 → ADR 0019.
+
+### B31 — Code layer edit to frames with a warm spare · 2026-10-10
+`tests/ui/test_code_render.py::test_a_warm_spare_renders_real_code_in_about_a_second`:
+`CodeRenderService` with a spare that has already imported Manim; the code of a
+layer changes to a 1 s scene (`Create(Square())`, 32x18 @ 10 fps). From
+`sync()` to every frame in the cache: **0.15-0.24 s** (3 runs), against 6.6-8.7 s
+to the *first* frame for a cold process (B30). → P2d.3 accepted.

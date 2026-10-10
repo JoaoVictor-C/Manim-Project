@@ -293,12 +293,7 @@ class Evaluator:
         return self._code_cache
 
     def code_key(self, layer: Layer) -> str:
-        """The cache entry a code layer's frames live under (code + what the render depends on)."""
-        canvas = self.project.canvas
-        code = str(layer.spec.params.get("code", ""))
-        return cache_key(
-            code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, adapter.MANIM_VERSION
-        )
+        return code_key(self.project, layer)
 
     def _code_at(self, layer: Layer, t: float, start: float) -> m.Mobject | None:
         """The cached frame at ``t`` (the last one held), or a placeholder before it is rendered."""
@@ -496,6 +491,15 @@ class Evaluator:
             if opacity != 1:
                 _multiply_opacity(dst, opacity)
         return proxy
+
+
+def code_key(project: Project, layer: Layer) -> str:
+    """The cache entry a code layer's frames live under (its code + what the render depends on)."""
+    canvas = project.canvas
+    code = str(layer.spec.params.get("code", ""))
+    return cache_key(
+        code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, adapter.MANIM_VERSION
+    )
 
 
 def layer_transform(layer: Layer, t: float) -> Transform2D:
