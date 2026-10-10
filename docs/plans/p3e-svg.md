@@ -1,6 +1,6 @@
 # P3e — SVG import: implementation plan
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 19](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B40 in [../logs/benchmarks.md](../logs/benchmarks.md)

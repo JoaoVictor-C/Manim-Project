@@ -44,7 +44,7 @@ timeline and canvas, with the real build worker and renderer.
 ## Phase 3
 
 - ✅ **P3b** — [plan](plans/p3b-graphs.md): axes and function graphs as child layers (ADR 0024)
-- **P3e** — [plan](plans/p3e-svg.md): SVG layers; media files tracked on disk, missing files drawn as placeholders (ADR 0027)
+- ✅ **P3e** — [plan](plans/p3e-svg.md): SVG layers; media files tracked on disk, missing files drawn as placeholders (ADR 0027)
 - ✅ **P3c** — [plan](plans/p3c-move-along-path.md): MoveAlongPath clips along another layer's shape (ADR 0025)
 - ✅ **P3d** — [plan](plans/p3d-curved-paths.md): curved position paths between keys (ADR 0026)
 - ✅ **P3a** — [plan](plans/p3a-viewport.md): viewport zoom/pan with a re-framed camera (ADR 0023)

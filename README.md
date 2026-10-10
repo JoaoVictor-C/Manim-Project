@@ -34,7 +34,7 @@ Right-click a row to add an animation clip there, right-click a clip (or press
 Delete) to remove it.
 
 In the Layers panel: **Add** creates an object from the library (shapes, Text,
-MathTex, Tex, images) on top; Delete removes the selected layer; Up/Down
+MathTex, Tex, images, SVG drawings) on top; Delete removes the selected layer; Up/Down
 (Ctrl+] / Ctrl+[) or dragging changes the stacking order; double-click renames.
 **Ctrl+wheel** on the canvas zooms about the cursor, the wheel pans (Shift+wheel
 sideways), and so does dragging with the middle button; **View > Fit** (Ctrl+0)
@@ -57,6 +57,11 @@ canvas with a square per key: drag a square to move that key, double-click it
 to make the key smooth (handles appear) or straight again, and drag a handle to
 bend the path - the other handle of a smooth key turns with it (hold Alt to
 move one handle only).
+
+Images and SVG drawings are read from their files: save a drawing again in
+another program and it is redrawn when you come back to the editor (or press
+F5). A file that is missing or cannot be read shows as a dashed box, and the
+status bar says which.
 
 Keyframes show as diamonds on each timeline row: click one to see its values
 and easing in Properties, drag it to retime, press Delete to remove it, or

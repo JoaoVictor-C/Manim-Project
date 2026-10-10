@@ -127,6 +127,19 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- SVG layers (P3e, ADR 0027): *Add > SVG* brings in a vector drawing with its
+  own colours (style fields override them); every clip kind applies, so it can
+  be drawn on with Create, Write or DrawBorderThenFill, and MoveAlongPath can
+  follow it (its longest path). Media files (SVG and images) are tracked by
+  modification time and size: a file saved again in another program is redrawn
+  when you come back to the editor or press **F5** (*View > Reload Media*).
+  Missing, unreadable, broken or empty files no longer break frames or the
+  export: a dashed placeholder is drawn and the status bar names them.
+  `adapter.media_signature`, `adapter.media_problem`, `Evaluator.check_media`,
+  `Evaluator.media_errors`.
+- Tests fail when an exception is raised inside a Qt slot (Qt printed and
+  swallowed it, so such tests passed).
+
 - Curved position paths (P3d, ADR 0026): position keys may carry in/out
   tangents; such segments are cubic Beziers walked by arc length (the ease
   keeps meaning speed along the path; 128-sample tables, B39), straight ones
@@ -256,6 +269,8 @@ All notable changes to this project are documented here. The format follows
 - `zip()` calls on equal-length sequences are now `strict=True`.
 
 ### Fixed
+- The timeline drew nothing after a MoveAlongPath clip: motion clips had no
+  colour and the rebuild raised (P3c).
 - The build-worker cache test compared against a fixed 150 ms and failed on a
   busy machine (every build several times slower); it now compares warm builds
   with cold builds in the same run.
