@@ -11,7 +11,7 @@ the video frame shows, dimmed. Widget pixels map to Manim units (y up) through
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import manim as m
 import numpy as np
@@ -23,6 +23,7 @@ from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas
 from ..render.cairo_export import render_frame
+from ..render.preview import PreviewView, preview_camera
 from ..render.qt_paths import vmobject_path
 from . import motion_overlay, viewport
 from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
@@ -59,7 +60,7 @@ class CanvasWidget(QWidget):
         self._canvas: Canvas | None = None
         self._evaluator: Evaluator | None = None
         self._camera: m.Camera | None = None
-        self._camera_size: tuple[int, int] = (0, 0)
+        self._camera_view: PreviewView | None = None
         self._image: QImage | None = None
         self.half_resolution = False
         self.last_render_ms = 0.0
@@ -149,21 +150,12 @@ class CanvasWidget(QWidget):
     def render_at(self, t: float) -> None:
         if self._canvas is None or self._evaluator is None:
             return
-        geo = self.geometry_now()
-        scale = self.devicePixelRatioF() * (0.5 if self.half_resolution else 1.0)
-        size = (max(2, int(self.width() * scale)), max(2, int(self.height() * scale)))
-        frame = (self.width() / geo.ppu, self.height() / geo.ppu)  # the camera covers the widget
-        if self._camera is None or (size, frame) != self._camera_size:
-            self._camera = m.Camera(
-                pixel_width=size[0],
-                pixel_height=size[1],
-                frame_width=frame[0],
-                frame_height=frame[1],
-                background_color=m.ManimColor(self._canvas.background),
-                background_opacity=1.0,
-            )
-            self._camera_size = (size, frame)
-        self._camera.frame_center = np.array([geo.centre[0], geo.centre[1], 0.0])
+        view = self.preview_view()
+        if self._camera is None or replace(view, centre=(0, 0)) != replace(self._camera_view, centre=(0, 0)):
+            self._camera = preview_camera(view)
+        elif view.centre != self._camera_view.centre:  # a pan: same camera, moved
+            self._camera.frame_center = np.array([view.centre[0], view.centre[1], 0.0])
+        self._camera_view = view
         start = time.perf_counter()
         layers = self._evaluator.frame_layers(t)
         pixels = render_frame(self._camera, [mob for _, mob in layers])
@@ -173,6 +165,19 @@ class CanvasWidget(QWidget):
         height, width = pixels.shape[:2]
         self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.update()
+
+    def preview_view(self) -> PreviewView:
+        """How the frame is framed now (ADR 0028): the camera covers the whole widget."""
+        geo = self.geometry_now()
+        scale = self.devicePixelRatioF() * (0.5 if self.half_resolution else 1.0)
+        return PreviewView(
+            pixel_width=max(2, int(self.width() * scale)),
+            pixel_height=max(2, int(self.height() * scale)),
+            frame_width=self.width() / geo.ppu,
+            frame_height=self.height() / geo.ppu,
+            centre=(float(geo.centre[0]), float(geo.centre[1])),
+            background=self._canvas.background,
+        )
 
     def _motion(self, t: float) -> motion_overlay.MotionPath | None:
         if self.playing or not self.selected_layer or self._evaluator is None:
