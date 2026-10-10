@@ -182,7 +182,14 @@ def test_font_size_does_not_wait(panel) -> None:
 
 def test_clip_fields_and_kind_choices(panel) -> None:
     panel.show_clip("ball", "i")
-    assert set(panel.fields) == {"clip.kind", "clip.start", "clip.duration", "clip.ease"}
+    assert set(panel.fields) == {
+        "clip.kind",
+        "clip.start",
+        "clip.duration",
+        "clip.ease",
+        "clip.params.color",  # Indicate's registered params (ADR 0022)
+        "clip.params.scale_factor",
+    }
     kinds = [
         panel.fields["clip.kind"].widget.itemText(i) for i in range(panel.fields["clip.kind"].widget.count())
     ]
@@ -198,6 +205,38 @@ def test_clip_edits(panel) -> None:
     clip = layer(panel, "ball").clips[1]
     assert (clip.kind, clip.duration, clip.ease.bezier) == ("Wiggle", 0.25, (0.42, 0.0, 0.58, 1.0))
     assert undo_texts(panel) == ["Change animation", "Trim clip", "Change easing"]
+
+
+def test_clip_params_follow_the_kind(panel) -> None:
+    panel.show_clip("ball", "i")
+    assert panel.fields["clip.params.color"].button.text() == "#FFFF00"  # the default, shown
+    panel.fields["clip.params.color"].commit("#22d3ee")
+    panel.fields["clip.params.scale_factor"].commit(1.6)
+    assert layer(panel, "ball").clips[1].params == {"color": "#22d3ee", "scale_factor": 1.6}
+    panel.fields["clip.params.color"].commit(None)  # back to the default
+    assert layer(panel, "ball").clips[1].params == {"scale_factor": 1.6}
+    panel.fields["clip.kind"].commit("Circumscribe")
+    assert layer(panel, "ball").clips[1].params == {}  # Circumscribe has no scale factor
+    assert {"clip.params.shape", "clip.params.color"} <= set(panel.fields)  # rebuilt for the new kind
+    assert "clip.params.scale_factor" not in panel.fields
+    panel.fields["clip.params.shape"].commit("circle")
+    assert layer(panel, "ball").clips[1].params == {"shape": "circle"}
+    assert undo_texts(panel)[-1] == "Change shape"
+
+
+def test_a_fade_can_come_from_a_side(panel) -> None:
+    panel.show_clip("ball", "c")  # Create
+    panel.fields["clip.kind"].commit("FadeIn")
+    field = panel.fields["clip.params.shift"]
+    assert [field.widget.itemText(i) for i in range(field.widget.count())] == [
+        "None",
+        "Up",
+        "Down",
+        "Left",
+        "Right",
+    ]
+    field.commit("LEFT")
+    assert layer(panel, "ball").clips[0].params == {"shift": "LEFT"}
 
 
 def test_an_overlapping_start_is_refused_and_reverted(panel) -> None:

@@ -22,7 +22,16 @@ from manim.utils import rate_functions
 
 from ..logging_config import get_logger
 from . import parts
-from .schema import CLIP_KIND_INFO, CODE_TYPES, PART_PARENT_TYPES, RASTER_TYPES, TEXT_TYPES, Easing, Spec
+from .schema import (
+    CLIP_KIND_INFO,
+    CODE_TYPES,
+    DIRECTIONS,
+    RASTER_TYPES,
+    TEXT_TYPES,
+    Easing,
+    Spec,
+    clip_params,
+)
 
 log = get_logger(__name__)
 
@@ -428,12 +437,22 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "FadeOut": m.FadeOut,
     "GrowFromCenter": m.GrowFromCenter,
     "SpinInFromNothing": m.SpinInFromNothing,
+    "GrowFromEdge": m.GrowFromEdge,
+    "SpiralIn": m.SpiralIn,
+    "AddTextLetterByLetter": m.AddTextLetterByLetter,
+    "RemoveTextLetterByLetter": m.RemoveTextLetterByLetter,
     "ShrinkToCenter": m.ShrinkToCenter,
     "Indicate": m.Indicate,
     "Wiggle": m.Wiggle,
     "ApplyWave": m.ApplyWave,
+    "Circumscribe": m.Circumscribe,  # a Succession: made random-access below (ADR 0022)
+    "Flash": m.Flash,
+    "FocusOn": m.FocusOn,
     "Transform": m.ReplacementTransform,  # ADR 0005: the source hands off to the target
+    "ClockwiseTransform": m.ClockwiseTransform,
+    "CounterclockwiseTransform": m.CounterclockwiseTransform,
     "FadeTransform": m.FadeTransform,
+    "FadeTransformPieces": m.FadeTransformPieces,
     "TransformMatchingShapes": m.TransformMatchingShapes,
     "TransformMatchingTex": KeyedTransformMatching,  # fed keyed_pieces by the evaluator (ADR 0020)
 }
@@ -443,12 +462,87 @@ def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
     if mobject_type in CODE_TYPES:
         return []  # code layers animate inside their code (ADR 0019)
-    kinds = list(CLIP_KIND_INFO)
-    if mobject_type not in PART_PARENT_TYPES:
-        kinds.remove("TransformMatchingTex")  # matches TeX terms (ADR 0020)
+    kinds = [
+        kind
+        for kind, info in CLIP_KIND_INFO.items()
+        if info.only_types is None or mobject_type in info.only_types  # e.g. letter by letter: Text
+    ]
     if mobject_type in RASTER_TYPES:
         return [k for k in kinds if not CLIP_KIND_INFO[k].vector_only]
     return kinds
+
+
+SHAPES = {"rectangle": m.Rectangle, "circle": m.Circle}  # Circumscribe's shape choice
+
+
+def clip_kwargs(kind: str, params: dict[str, Any]) -> dict[str, Any]:
+    """A clip's params as Manim keyword arguments (ADR 0022).
+
+    Registered params get their defaults and are converted (direction names and
+    [x, y] vectors to 3D vectors, hex colours to ManimColor, shape names to
+    classes); any other key passes through unchanged.
+    """
+    kwargs = dict(params)
+    for param in clip_params(kind):
+        value = params.get(param.name, param.default)
+        if value is None:
+            kwargs.pop(param.name, None)
+            continue
+        if param.kind == "direction":
+            vector = getattr(m, value) if value in DIRECTIONS else [*value, 0.0][:3]
+            value = np.array(vector, dtype=float)
+        elif param.kind == "color":
+            value = m.ManimColor(value)
+        elif param.kind == "choice" and param.name == "shape":
+            value = SHAPES[value]
+        kwargs[param.name] = value
+    return kwargs
+
+
+def _random_access(anim: m.Succession) -> m.Succession:
+    """Let a Succession be interpolated at any alpha, in any order (ADR 0022).
+
+    Manim's Succession needs a scene and only moves forward: it finishes each
+    part as time passes it and never goes back. Here every part is begun and
+    finished once at begin, with a snapshot of the drawn family before each;
+    a frame restores the snapshot of the part holding its time and interpolates
+    that part alone.
+    """
+    anim.scene = None
+    parts, timings, snapshots = anim.animations, anim.anims_with_timings, []
+    # What a scene would show: the parts' mobjects (Succession's own group stays empty).
+    drawn = {id(part.mobject): part.mobject for part in parts if part.mobject is not None}
+    anim.mobject = m.Group(*drawn.values())
+
+    def begin() -> None:
+        for part in parts:
+            snapshots.append(anim.mobject.copy())
+            part.begin()
+            part.finish()
+        _restore(anim.mobject, snapshots[0])
+
+    def interpolate(alpha: float) -> None:
+        t = anim.rate_func(alpha) * anim.max_end_time
+        index = next((i for i, w in enumerate(timings) if t < w["end"]), len(parts) - 1)
+        _restore(anim.mobject, snapshots[index])
+        part, start = parts[index], timings[index]["start"]
+        part.interpolate(min(max((t - start) / part.run_time, 0.0), 1.0) if part.run_time else 1.0)
+
+    def finish() -> None:
+        interpolate(1.0)
+
+    anim.begin, anim.interpolate, anim.finish = begin, interpolate, finish
+    return anim
+
+
+def _restore(mobject: m.Mobject, snapshot: m.Mobject) -> None:
+    """Points and colours of ``snapshot`` written into ``mobject`` (same structure)."""
+    for dst, src in zip(mobject.get_family(), snapshot.get_family(), strict=True):
+        dst.points = src.points.copy()
+        if isinstance(src, m.VMobject):
+            for attr in ("fill_rgbas", "stroke_rgbas", "background_stroke_rgbas"):
+                setattr(dst, attr, getattr(src, attr).copy())
+            dst.stroke_width = src.stroke_width
 
 
 def make_animation(
@@ -460,7 +554,7 @@ def make_animation(
 ) -> m.Animation:
     info = CLIP_KIND_INFO[kind]
     cls = ANIMATION_CLASSES[kind]
-    kwargs = dict(params)
+    kwargs = clip_kwargs(kind, params)
     if ease is not None:
         kwargs["rate_func"] = rate_func(ease)
     if kind == "Wiggle":
@@ -477,6 +571,8 @@ def make_animation(
         anim = cls(mobject, target, **kwargs)
     else:
         anim = cls(mobject, **kwargs)
+    if isinstance(anim, m.Succession):
+        _random_access(anim)
     if info.clamps_alpha:
         raw = anim.rate_func
         anim.rate_func = lambda x: min(1.0, max(0.0, raw(x)))

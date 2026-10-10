@@ -282,3 +282,31 @@ and adding `(I - A)(old - new)` to the position: image unchanged, **max error
 scale: **0**. The limit: with rotation keyed 0° -> 90° and the anchor moved at
 45°, the same rigid offset is exact at that time (6e-17) and **1.06 units off**
 at 0° (a 3-unit line, anchor moved from its middle to its top). → ADR 0021.
+
+### B35 — Candidate clip kinds against the random-access rule · 2026-10-10
+`benchmarks/bench_clip_kinds.py`: each candidate rendered as `Scene.play` would
+(begin, interpolate in order) vs a fresh animation per frame vs one animation
+scrubbed in shuffled order, on Square, Text and MathTex (320x180 @ 15 fps).
+**Exact (max diff 0):** GrowFromEdge, GrowFromPoint, SpiralIn, FadeIn/FadeOut
+with `shift`, AddTextLetterByLetter / RemoveTextLetterByLetter (Text), Flash,
+FocusOn, Indicate with `color`/`scale_factor`, ClockwiseTransform,
+CounterclockwiseTransform, FadeTransformPieces; begin + one frame 0.3-17 ms.
+Broadcast exact but **111 ms** (Text) / **299 ms** (MathTex) to begin.
+ShowPassingFlash raises on all three. Circumscribe and Blink are `Succession`s:
+they need a scene and only play forward; with a patch that snapshots the drawn
+family before each part and restores it per frame they match Manim's
+sequential output **exactly in reversed and shuffled order** (begin 0.1-0.3 ms
+for Circumscribe). Blink leaves a Square **98 levels** off its shape at the end.
+On a 60x40 RGBA image: the same exact set except SpiralIn (raises) and
+ShowPassingFlash (VMobjects only). → ADR 0022.
+
+*Correction (same day, during P2g.3):* the Circumscribe numbers above drew the
+Succession's own `mobject`, which is an **empty** group — a scene shows the
+frame because `_setup_scene` adds the parts' mobjects separately — so they
+compared nothing. Re-measured (`check_circumscribe` in the script) against
+unpatched Circumscribe played forward, drawing the object and the parts'
+mobjects: the frame is visible (up to 230 levels off the plain object) and the
+patched animation matches **exactly** (diff 0) in reversed and shuffled order
+on Square, Text, MathTex and an image, for the default, `shape=Circle`, and the
+three-part `fade_in=True, fade_out=True` variant; at the end the object is
+unchanged. The adapter now draws the parts' mobjects.

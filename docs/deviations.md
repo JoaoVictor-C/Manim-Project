@@ -22,6 +22,25 @@ An easing curve that overshoots (e.g. `cubic-bezier(0.34, 1.56, 0.64, 1)`)
 would make `Create`/`Write` draw past their end. Content and emphasis clips
 clamp the eased alpha; morph clips and keyframes may overshoot.
 
+## Circumscribe plays its parts from snapshots
+
+**Manim:** `Circumscribe` is a `Succession` (draw the frame, then remove it).
+A Succession needs a scene and only moves forward: it finishes each part as
+time passes it, so it cannot go back to an earlier alpha.
+
+**Manim Studio:** the adapter begins and finishes every part once, keeping a
+snapshot of the drawn frame before each; a frame restores the snapshot of the
+part holding its time and interpolates that part. The frames equal Manim's
+sequential output (B35); scrubbing back now works.
+
+## Overlays turn and scale with their layer
+
+Circumscribe, Flash and FocusOn draw something next to the object. Like every
+clip (ADR 0004) they play in the layer's own space, so a layer scaled 3x gets
+3x longer flash lines and a rotated layer gets a turned frame — a script that
+scales or rotates the object first draws them at their usual size, axis-aligned.
+The editor and the export agree.
+
 ## Robustness patches (output unchanged)
 
 - **Half-written LaTeX renders are compiled again.** Manim reuses

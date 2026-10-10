@@ -127,6 +127,17 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- More clip kinds (P2g, ADR 0022): GrowFromEdge, SpiralIn, Add/RemoveTextLetterByLetter
+  (Text only), Circumscribe, Flash, FocusOn, ClockwiseTransform,
+  CounterclockwiseTransform, FadeTransformPieces. **Clip params** registered per
+  kind and shown in Properties (fade `shift`, grow `edge`, Indicate colour and
+  scale, Circumscribe shape and colour, Flash/FocusOn colour); validated on load,
+  unregistered keys pass through; changing a clip's kind drops params it does
+  not take. **Overlay clips** draw the object plus what the animation adds,
+  also on parts. Type restrictions (`only_types`) are validated on load.
+  Circumscribe is a Succession made random-access by an adapter patch
+  (deviations.md). Rejected with measured reasons (B35): GrowFromPoint,
+  Broadcast, ShowPassingFlash, Blink.
 - Anchor point (P2f, ADR 0021): `Transform2D.anchor`, the point a layer rotates
   and scales about (objects, parts, code layers); base only, never keyed, not
   written while (0, 0). `edits.set_anchor` keeps the drawing in place by

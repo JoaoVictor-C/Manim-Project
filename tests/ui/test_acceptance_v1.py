@@ -43,7 +43,9 @@ def wait_until(qt_app, condition, timeout: float = 90.0) -> None:
 
 def menu_action(menu, *path: str):
     for title in path:
-        found = next(a for a in menu.actions() if a.text().replace("&", "") == title)
+        found = next(  # skip section headers: the library has a "Text" section and a Text item
+            a for a in menu.actions() if a.text().replace("&", "") == title and not a.isSeparator()
+        )
         menu = found.menu() or found
     return found
 

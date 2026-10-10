@@ -233,7 +233,8 @@ class Evaluator:
             anim = adapter.make_animation(prev.kind, working, prev.ease, prev.params)
             anim.begin()
             anim.finish()
-            self._checkpoints[key] = anim.mobject
+            # An overlay (Flash lines, a Circumscribe frame) leaves the object as it was (ADR 0022).
+            self._checkpoints[key] = working if prev.info.overlay else anim.mobject
         return self._checkpoints[key]
 
     def _layer_at(self, layer: Layer, t: float) -> m.Mobject | None:
@@ -259,7 +260,8 @@ class Evaluator:
             working = self._state_before(layer, index).copy()
             anim = adapter.make_animation(clip.kind, working, clip.ease, clip.params)
             anim.begin()
-            self._active[key] = _Active(anim, anim.mobject)
+            drawn = m.Group(working, anim.mobject) if clip.info.overlay else anim.mobject  # ADR 0022
+            self._active[key] = _Active(anim, drawn)
         return self._active[key]
 
     def _morph_at(self, layer: Layer, index: int, clip: Clip, alpha: float) -> m.Mobject:
@@ -437,6 +439,7 @@ class Evaluator:
         clips = self._tree_clips(root, tree)
         finished = tuple((layer.id, c.id) for layer, c in clips if c.end <= t)
         source = list(self._tree_state(root, finished).family_members_with_points())
+        overlays: dict[str, m.Mobject] = {}  # member -> what its overlay clip draws (ADR 0022)
         for layer, clip in clips:
             if not (clip.start <= t < clip.end):
                 continue
@@ -452,17 +455,21 @@ class Evaluator:
             active.anim.interpolate((t - clip.start) / clip.duration)
             for i in tree.regions[layer.id]:
                 source[i] = active.leaves[i]
+            if clip.info.overlay:
+                overlays[layer.id] = active.anim.mobject
         out = []
         for member in tree.members:
             layer = self._layers[member]
             glyphs = tree.owned[member]
-            if not glyphs:
+            if not glyphs and member not in overlays:
                 continue
             if member != root.id:
                 member_start, member_end = self.lifetime(layer)
                 if not (member_start <= t < member_end):
                     continue
             local = m.VGroup(*(source[i] for i in glyphs))
+            if member in overlays:
+                local = m.Group(local, overlays[member])
             out.append((member, self._project_local(local, member, *self._member_affine(tree, layer, t))))
         return out
 

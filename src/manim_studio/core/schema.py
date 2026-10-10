@@ -30,6 +30,7 @@ SCHEMA_VERSION = 1
 TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
+PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "morph"]
@@ -41,6 +42,8 @@ class ClipKindInfo:
     introducer: bool = False  # the layer becomes visible at the clip start
     remover: bool = False  # the layer disappears at the clip end
     vector_only: bool = False  # needs a VMobject (not allowed on images)
+    overlay: bool = False  # draws something besides the object: both are shown (ADR 0022)
+    only_types: frozenset[str] | None = None  # the object types it works on; None = any
 
     @property
     def clamps_alpha(self) -> bool:
@@ -58,15 +61,89 @@ CLIP_KIND_INFO: dict[str, ClipKindInfo] = {
     "FadeOut": ClipKindInfo("content", remover=True),
     "GrowFromCenter": ClipKindInfo("content", introducer=True),
     "SpinInFromNothing": ClipKindInfo("content", introducer=True),
+    "GrowFromEdge": ClipKindInfo("content", introducer=True),
+    "SpiralIn": ClipKindInfo("content", introducer=True, vector_only=True),
+    "AddTextLetterByLetter": ClipKindInfo("content", introducer=True, only_types=frozenset({"Text"})),
+    "RemoveTextLetterByLetter": ClipKindInfo("content", remover=True, only_types=frozenset({"Text"})),
     "ShrinkToCenter": ClipKindInfo("content", remover=True),
     "Indicate": ClipKindInfo("emphasis"),
     "Wiggle": ClipKindInfo("emphasis", vector_only=True),
     "ApplyWave": ClipKindInfo("emphasis", vector_only=True),
+    "Circumscribe": ClipKindInfo("emphasis", overlay=True),
+    "Flash": ClipKindInfo("emphasis", overlay=True),
+    "FocusOn": ClipKindInfo("emphasis", overlay=True),
     "Transform": ClipKindInfo("morph"),
+    "ClockwiseTransform": ClipKindInfo("morph"),
+    "CounterclockwiseTransform": ClipKindInfo("morph"),
     "FadeTransform": ClipKindInfo("morph"),
+    "FadeTransformPieces": ClipKindInfo("morph"),
     "TransformMatchingShapes": ClipKindInfo("morph"),
-    "TransformMatchingTex": ClipKindInfo("morph"),  # MathTex/Tex only (ADR 0020)
+    "TransformMatchingTex": ClipKindInfo("morph", only_types=PART_PARENT_TYPES),  # both ends TeX (ADR 0020)
 }
+
+ClipParamKind = Literal["direction", "color", "float", "choice"]
+DIRECTIONS = ("UP", "DOWN", "LEFT", "RIGHT")  # Manim's names; a vector is accepted too
+
+
+@dataclass(frozen=True)
+class ClipParam:
+    """A clip parameter the editor exposes and the random-access harness samples (ADR 0022)."""
+
+    name: str  # the Manim keyword argument
+    label: str
+    kind: ClipParamKind
+    default: Any = None  # None: not passed (Manim's own default, e.g. no shift)
+    minimum: float | None = None
+    maximum: float | None = None
+    step: float = 0.1
+    choices: tuple[str, ...] = ()
+
+    def check(self, value: Any) -> str | None:
+        """Why ``value`` is not acceptable, or None."""
+        if self.kind == "direction":
+            if value in DIRECTIONS:
+                return None
+            numbers = isinstance(value, (list, tuple)) and len(value) in (2, 3)
+            if numbers and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value):
+                return None
+            return f"a direction ({', '.join(DIRECTIONS)}) or an [x, y] vector"
+        if self.kind == "color":
+            ok = isinstance(value, str) and len(value) in (4, 7) and value.startswith("#")
+            if ok and all(c in "0123456789abcdefABCDEF" for c in value[1:]):
+                return None
+            return "a colour like #ffcc00"
+        if self.kind == "float":
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                low = self.minimum if self.minimum is not None else -math.inf
+                high = self.maximum if self.maximum is not None else math.inf
+                if low <= value <= high:
+                    return None
+            return f"a number from {self.minimum:g} to {self.maximum:g}"
+        if value in self.choices:
+            return None
+        return f"one of {', '.join(self.choices)}"
+
+
+_YELLOW = "#FFFF00"  # Manim's YELLOW: the default of its indications
+CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
+    "FadeIn": (ClipParam("shift", "Moving", "direction"),),
+    "FadeOut": (ClipParam("shift", "Moving", "direction"),),
+    "GrowFromEdge": (ClipParam("edge", "From edge", "direction", default="DOWN"),),
+    "Indicate": (
+        ClipParam("color", "Colour", "color", default=_YELLOW),
+        ClipParam("scale_factor", "Scale", "float", default=1.2, minimum=1.0, maximum=3.0, step=0.05),
+    ),
+    "Circumscribe": (
+        ClipParam("shape", "Shape", "choice", default="rectangle", choices=("rectangle", "circle")),
+        ClipParam("color", "Colour", "color", default=_YELLOW),
+    ),
+    "Flash": (ClipParam("color", "Colour", "color", default=_YELLOW),),
+    "FocusOn": (ClipParam("color", "Colour", "color", default="#888888"),),
+}
+
+
+def clip_params(kind: str) -> tuple[ClipParam, ...]:
+    return CLIP_PARAMS.get(kind, ())
 
 
 class Canvas(BaseModel):
@@ -134,6 +211,9 @@ class Clip(BaseModel):
             raise ValueError(f"clip {self.id!r}: {self.kind} needs to_layer (the layer it turns into)")
         if not is_morph and self.to_layer:
             raise ValueError(f"clip {self.id!r}: to_layer is only valid on morph clips")
+        for param in clip_params(self.kind):  # registered params; other keys pass through (ADR 0022)
+            if param.name in self.params and (problem := param.check(self.params[param.name])):
+                raise ValueError(f"clip {self.id!r}: {self.kind} {param.name} must be {problem}")
         return self
 
 
@@ -161,7 +241,6 @@ class Lifetime(BaseModel):
 
 
 TrackName = Literal["position", "scale", "rotation", "opacity"]
-PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
 
 
 class PartKey(BaseModel):
@@ -199,12 +278,13 @@ class Layer(BaseModel):
             )
         if self.spec is not None and self.spec.type in CODE_TYPES and self.clips:
             raise ValueError(f"layer {self.id!r}: code layers have no clips (animate inside the code)")
-        if self.spec is not None and self.spec.type in RASTER_TYPES:
+        if self.spec is not None:
             for clip in self.clips:
-                if clip.info.vector_only:
+                if clip.info.vector_only and self.spec.type in RASTER_TYPES:
                     raise ValueError(
                         f"layer {self.id!r}: {clip.kind} needs a vector object, not {self.spec.type}"
                     )
+                _check_only_types(self.id, clip, self.spec.type)
         ordered = sorted(self.clips, key=lambda c: c.start)
         for a, b in itertools.pairwise(ordered):
             if b.start < a.end - 1e-9:
@@ -216,6 +296,14 @@ class Layer(BaseModel):
         for track in self.tracks.values():
             track.sort(key=lambda k: k.t)
         return self
+
+
+def _check_only_types(layer_id: str, clip: Clip, mobject_type: str) -> None:
+    only = clip.info.only_types
+    if only is not None and mobject_type not in only:
+        raise ValueError(
+            f"layer {layer_id!r}: {clip.kind} needs {' or '.join(sorted(only))}, not {mobject_type}"
+        )
 
 
 class Project(BaseModel):
@@ -273,6 +361,12 @@ class Project(BaseModel):
                     f"layer {layer.id!r}: parts are only supported on MathTex and Tex, not {node.spec.type}"
                 )
         for layer in self.layers:
+            if layer.parent_id is not None:  # a part animates glyphs of its root's type
+                node = layer
+                while node.parent_id is not None:
+                    node = by_id[node.parent_id]
+                for clip in layer.clips:
+                    _check_only_types(layer.id, clip, node.spec.type)
             for clip in layer.clips:
                 if clip.to_layer and layer.parent_id is not None:
                     raise ValueError(

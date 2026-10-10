@@ -38,7 +38,8 @@ timeline and canvas, with the real build worker and renderer.
 - ✅ **P2f** — [plan](plans/p2f-anchor-gizmo.md): anchor (pivot) gizmo (ADR 0021) —
   rotate and scale about any point: pendulums, clock hands, hinges
 - ✅ **P2b** — [plan](plans/p2b-keyframes.md): keyframes on the timeline, key view, easing curve editor
-- More clip kinds through the allow-list harness
+- ✅ **P2g** — [plan](plans/p2g-clip-kinds.md): more clip kinds, clip parameters and
+  overlay clips (Circumscribe, Flash, FocusOn) through the allow-list harness (ADR 0022)
 
 ## Phase 3
 
