@@ -47,6 +47,14 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     what depends on them (morph partners, their whole object, layers moving along
     them) can change their frames only while they are alive, before or after.
     """
+    closure = changed_layers(old, new)
+    if closure is None:
+        return None
+    return _merge(_lifetimes(old, closure) + _lifetimes(new, closure)) if closure else []
+
+
+def changed_layers(old: Project, new: Project) -> set[str] | None:
+    """The layers whose frames can differ (see ``changed_spans``); None when the canvas changed."""
     if old.model_dump(exclude={"layers"}) != new.model_dump(exclude={"layers"}):
         return None
     before = {layer.id: layer for layer in old.layers}
@@ -54,10 +62,8 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     changed = {i for i in before.keys() | after.keys() if before.get(i) != after.get(i)}
     changed |= _moved(old, new)
     if not changed:
-        return []
-    closure = _closure(old, changed) | _closure(new, changed)
-    spans = _lifetimes(old, closure) + _lifetimes(new, closure)
-    return _merge(spans)
+        return set()
+    return _closure(old, changed) | _closure(new, changed)
 
 
 def _moved(old: Project, new: Project) -> set[str]:
