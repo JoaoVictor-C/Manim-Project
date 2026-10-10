@@ -26,7 +26,9 @@ from support import (
     single_clip_project,
 )
 
-NON_MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category != "morph"]
+NON_MORPH = [
+    k for k, v in CLIP_KIND_INFO.items() if v.category not in ("morph", "motion")
+]  # motion: test_paths.py
 MORPH = [
     k for k, v in CLIP_KIND_INFO.items() if v.category == "morph" and k != "TransformMatchingTex"
 ]  # TeX only: test_matching_tex.py

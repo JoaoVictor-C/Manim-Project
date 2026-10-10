@@ -316,3 +316,22 @@ left open, so ADRs can cite it.
   refuses → one `keyable_props` for schema and UI; the harness only built root
   specs → extended to child specs; an axes edit left graph morph caches stale →
   children classified `spec`.
+
+## Session 17 — P3c MoveAlongPath plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on
+  `max_loops`, confidence **0.80**; the last question (refuse or explain a drag
+  the path fully compensates) was decided in the synthesis: explain.
+- **Input:** ADR 0005, 0013, 0022, 0024; measurement B38; a read of
+  `remove_layer` and the checkpoint keys.
+- **Decisions:** Manim semantics in the mover's local frame with the path
+  layer's rest shape mapped in at clip start; signature-keyed caches; roots
+  only; an arc-length table patch (→ ADR 0025). Plan:
+  [../plans/p3c-move-along-path.md](../plans/p3c-move-along-path.md).
+- **Critiques that changed the plan:** checkpoints keyed by (layer, clip)
+  would go stale when the path layer moves → keyed by path signatures, also in
+  the idle precompute and morph bake keys; parts (tree clips) and locked graphs
+  as movers → roots only; deleting the path layer → its clips are dropped; the
+  harness had only one layer → a two-layer case; reading the path's animated
+  state would let layers recurse → rest shape only; an un-keyed drag after the
+  run would silently do nothing → a status hint.

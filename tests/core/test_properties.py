@@ -45,7 +45,9 @@ EASES = [
     Easing(name="there_and_back"),
     Easing(bezier=(0.34, 1.56, 0.64, 1.0)),
 ]
-NON_MORPH = [k for k, v in CLIP_KIND_INFO.items() if v.category != "morph"]
+NON_MORPH = [
+    k for k, v in CLIP_KIND_INFO.items() if v.category not in ("morph", "motion")
+]  # motion: 2 layers
 MORPH = [
     k for k, v in CLIP_KIND_INFO.items() if v.category == "morph" and k != "TransformMatchingTex"
 ]  # TeX only

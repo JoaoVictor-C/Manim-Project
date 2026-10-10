@@ -651,6 +651,11 @@ class PropertiesPanel(QWidget):
                 path, lambda layer, p=param: self._clip(layer.id, clip_id).params.get(p.name, p.default)
             )
             op = partial(set_clip_param, clip_id=clip_id, name=param.name)
+            if param.kind == "layer":  # a path layer (ADR 0025)
+                choices = [(other.name or other.id, other.id) for other in self.project.path_layers(layer.id)]
+                commit = self._op(path, op, f"Change {param.label.lower()}")
+                rows.append((param.label, path, ChoiceField(commit, choices)))
+                continue
             rows.append(
                 (
                     param.label,

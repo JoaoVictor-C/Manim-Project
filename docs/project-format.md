@@ -139,6 +139,7 @@ segment **leaving** this keyframe: either `{"name": <Manim rate function>}`
 | content (introducer) | Create, Write, DrawBorderThenFill, FadeIn, GrowFromCenter, GrowFromEdge, SpinInFromNothing, SpiralIn, AddTextLetterByLetter | starts it |
 | content (remover) | Uncreate, Unwrite, FadeOut, ShrinkToCenter, RemoveTextLetterByLetter | ends it |
 | emphasis | Indicate, Wiggle, ApplyWave, Circumscribe, Flash, FocusOn | none (returns to rest) |
+| motion | MoveAlongPath (root objects only; `params.path` names the layer to follow) | none |
 | morph | Transform, ClockwiseTransform, CounterclockwiseTransform, FadeTransform, FadeTransformPieces, TransformMatchingShapes, TransformMatchingTex | ends this layer, starts `to_layer` |
 
 `ImageMobject` layers accept no kind that draws paths (Create, Write, Wiggle,
@@ -156,6 +157,13 @@ Registered clip params (ADR 0022):
 | Indicate | `color`, `scale_factor` | `"#rrggbb"` (default `#FFFF00`); 1–3 (default 1.2) |
 | Circumscribe | `shape`, `color` | `"rectangle"` or `"circle"`; a colour |
 | Flash, FocusOn | `color` | a colour |
+| MoveAlongPath | `path` | the id of another layer (not the object itself or its parts, not a part, code layer or image) |
+
+**MoveAlongPath** (ADR 0025) moves the object's centre along the path layer's
+shape as it is at the clip's start - its built shape under its transform (and
+its axes' for a graph), not its animation. The object jumps to the path's start
+when the clip begins and stays at its end afterwards. Deleting the path layer
+removes the clips that follow it.
 
 ## Validation rules
 

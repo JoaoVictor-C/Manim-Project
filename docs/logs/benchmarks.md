@@ -332,3 +332,12 @@ digits, empty Manim cache), **31 ms** warm. `axes.plot(sin)` on [-5, 5]:
 in order vs shuffled: **scrub diff 0** (the graph is visible: 191-206 levels).
 Bad values: `log(x)` and `sqrt(x)` on [-5, 5] leave 204 of 400 points NaN;
 `tan(x)` reaches |y| 85 and `1/x` 5.6e13 (rendered as spikes). → ADR 0024.
+
+### B38 — MoveAlongPath · 2026-10-10
+`benchmarks/bench_move_along_path.py`: a dot moved along a circle (8 curves), a
+line (1) and a sin(x) graph on default axes (399), in order vs shuffled:
+**scrub diff 0** on all three. With a linear rate the dot's centre lands on
+`path.point_from_proportion(alpha)` to **2e-16**. One `interpolate`: **0.09 ms**
+(line), **0.48 ms** (circle), **23.6 ms** (graph) - `point_from_proportion`
+measures every curve on every call. An arc-length table built once gives the
+same points (max diff **1e-16**) in **0.005 ms**. → ADR 0025.

@@ -35,7 +35,7 @@ CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": frozenset({"Graph"})}  # child
 LOCKED_TYPES = frozenset({"Graph"})  # follow their parent exactly: only opacity is their own
 
 Vec2 = tuple[float, float]
-ClipCategory = Literal["content", "emphasis", "morph"]
+ClipCategory = Literal["content", "emphasis", "motion", "morph"]
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,7 @@ CLIP_KIND_INFO: dict[str, ClipKindInfo] = {
     "Circumscribe": ClipKindInfo("emphasis", overlay=True),
     "Flash": ClipKindInfo("emphasis", overlay=True),
     "FocusOn": ClipKindInfo("emphasis", overlay=True),
+    "MoveAlongPath": ClipKindInfo("motion"),  # along another layer's shape, roots only (ADR 0025)
     "Transform": ClipKindInfo("morph"),
     "ClockwiseTransform": ClipKindInfo("morph"),
     "CounterclockwiseTransform": ClipKindInfo("morph"),
@@ -83,7 +84,7 @@ CLIP_KIND_INFO: dict[str, ClipKindInfo] = {
     "TransformMatchingTex": ClipKindInfo("morph", only_types=PART_PARENT_TYPES),  # both ends TeX (ADR 0020)
 }
 
-ClipParamKind = Literal["direction", "color", "float", "choice"]
+ClipParamKind = Literal["direction", "color", "float", "choice", "layer"]
 DIRECTIONS = ("UP", "DOWN", "LEFT", "RIGHT")  # Manim's names; a vector is accepted too
 
 
@@ -121,6 +122,8 @@ class ClipParam:
                 if low <= value <= high:
                     return None
             return f"a number from {self.minimum:g} to {self.maximum:g}"
+        if self.kind == "layer":  # another layer's id; the project checks it exists (ADR 0025)
+            return None if isinstance(value, str) and value else "a layer id"
         if value in self.choices:
             return None
         return f"one of {', '.join(self.choices)}"
@@ -141,6 +144,7 @@ CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
     ),
     "Flash": (ClipParam("color", "Colour", "color", default=_YELLOW),),
     "FocusOn": (ClipParam("color", "Colour", "color", default="#888888"),),
+    "MoveAlongPath": (ClipParam("path", "Path", "layer"),),
 }
 
 
@@ -360,6 +364,7 @@ class Project(BaseModel):
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
         self._tree_rules()
+        self._path_rules()
         targeted: dict[str, str] = {}
         for layer in self.layers:
             for clip in layer.clips:
@@ -381,6 +386,22 @@ class Project(BaseModel):
                     )
                 targeted[clip.to_layer] = layer.id
         return self
+
+    def _path_rules(self) -> None:
+        """ADR 0025: motion clips move root objects along another layer's shape."""
+        by_id = {layer.id: layer for layer in self.layers}
+        for layer in self.layers:
+            for clip in layer.clips:
+                if clip.info.category != "motion":
+                    continue
+                if layer.is_child:
+                    raise ValueError(f"clip {clip.id!r}: {clip.kind} moves whole objects, not {layer.id!r}")
+                path = by_id.get(clip.params.get("path"))
+                if path is None:
+                    raise ValueError(f"clip {clip.id!r}: {clip.kind} needs a path layer")
+                inside = {layer.id} | {d.id for d in self.descendants(layer.id)}
+                if path.id in inside or path.is_part or path.spec.type in CODE_TYPES | RASTER_TYPES:
+                    raise ValueError(f"clip {clip.id!r}: {path.id!r} cannot be its path")
 
     def _tree_rules(self) -> None:
         """ADR 0012: parts hang under MathTex/Tex roots; no clip on a part overlaps an ancestor's
@@ -448,6 +469,18 @@ class Project(BaseModel):
                                 f"clip {clip.id!r} on {layer.id!r} starts after {node.id!r} begins "
                                 f"morphing ({other.id!r}): it would never be seen"
                             )
+
+    def path_layers(self, mover_id: str) -> list[Layer]:
+        """Layers ``mover_id`` may travel along (ADR 0025): not itself or its descendants,
+        not parts, code or images."""
+        inside = {mover_id} | {d.id for d in self.descendants(mover_id)}
+        return [
+            layer
+            for layer in self.layers
+            if layer.id not in inside
+            and not layer.is_part
+            and layer.spec.type not in CODE_TYPES | RASTER_TYPES
+        ]
 
     def morph_sources(self) -> dict[str, Clip]:
         """target layer id -> the morph clip that hands off to it (ADR 0005)."""

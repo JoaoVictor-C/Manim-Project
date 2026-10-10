@@ -110,9 +110,11 @@ def remove_layer(project: Project, layer_id: str) -> Edit:
     for layer in project.layers:
         if layer.id in gone:
             continue
-        if any(c.to_layer in gone for c in layer.clips):
-            data = layer.model_dump(by_alias=True)
-            data["clips"] = [c for c in data["clips"] if c["to_layer"] not in gone]
+        if any(c.to_layer in gone or c.params.get("path") in gone for c in layer.clips):
+            data = layer.model_dump(by_alias=True)  # and clips following a deleted path (ADR 0025)
+            data["clips"] = [
+                c for c in data["clips"] if c["to_layer"] not in gone and c["params"].get("path") not in gone
+            ]
             layer = Layer.model_validate(data)
         layers.append(layer)
     return _replace_layers(project, layers)

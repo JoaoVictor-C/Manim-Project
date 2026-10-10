@@ -127,6 +127,15 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- MoveAlongPath clips (P3c, ADR 0025): a root object travels along another
+  layer's shape (a graph, a circle, a line) - *Add clip > Move > MoveAlongPath*.
+  The path layer's rest shape at the clip's start is mapped into the object's
+  local frame and Manim's MoveAlongPath runs there; caches are keyed by the
+  path's signature, so moving or editing either layer re-runs it exactly.
+  Deleting the path layer drops its clips. An adapter patch measures the path
+  once (23.6 ms -> 0.005 ms per frame on a graph, same points, B38). A drag that
+  the path cancels out shows a hint. `Project.path_layers`; clip param kind
+  `layer`; category `motion`. The graphs example now has a dot on the parabola.
 - Axes and function graphs (P3b, ADR 0024): `Axes` in the library; graphs are
   child objects (`parent_id` + their own spec) added with *Parts > Add graph...*,
   plotted from a whitelist expression (`core/expressions.py`: parsed, never
