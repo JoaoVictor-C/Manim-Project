@@ -19,7 +19,10 @@ gone, and the export shows what the editor shows.
   (default 2, 0.05–50). The file's colours are kept; `style` keys override them
   when present (as on every other vector object).
 - Not a raster type: every clip kind applies. It can be a MoveAlongPath path
-  (the longest of its drawn paths is followed).
+  (the longest of its drawn paths is followed; a drawing that cannot be read
+  sends the follower to its placeholder's centre).
+- Manim's own SVG cache is keyed by the file's name, not its contents, so it is
+  bypassed; builds are cached per signature here.
 - Library: **Media → SVG**, which asks for a file (`*.svg`); cancelling adds nothing.
 
 ## Media files
@@ -27,9 +30,10 @@ gone, and the export shows what the editor shows.
 - `adapter.media_signature(spec)`: `"<mtime_ns>:<size>"` for `ImageMobject` and
   `SVGMobject` specs, `"missing"` when the file cannot be stat-ed, `None` for
   other types. Builds of media specs are cached by (spec, signature).
-- A media build that fails (`OSError`, `ParseError`, `ValueError`, or an SVG with
-  no drawable path) returns a **dashed placeholder** box of the layer's height
-  (16:9); `adapter.media_problem(spec)` gives the message.
+- A media build that fails (any error while reading the file - B40 saw `OSError`
+  and `ParseError` - or an SVG with no drawable path) returns a **dashed
+  placeholder** box of the layer's height (16:9); `adapter.media_problem(spec)`
+  gives the message.
 - The evaluator records the signature each media layer's base was built from
   (path signatures of MoveAlongPath clips include it). **`check_media()`**
   re-stats media layers and invalidates the changed ones like a spec edit,

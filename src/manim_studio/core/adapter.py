@@ -26,6 +26,7 @@ from .schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
     DIRECTIONS,
+    MEDIA_TYPES,
     RASTER_TYPES,
     TEXT_TYPES,
     Easing,
@@ -99,7 +100,7 @@ _tex_mobject.tex_to_svg_file = _tex_to_svg_file
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}
 
 MOBJECT_TYPES: dict[str, type] = {
-    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | RASTER_TYPES | {"Axes"})
+    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | {"Axes"})
 }
 CHILD_ONLY_TYPES = frozenset({"Graph"})  # built with their parent (build_child, ADR 0024)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
@@ -121,6 +122,7 @@ class Param:
     step: float = 0.1
     choices: tuple[str, ...] = ()
     multiline: bool = False  # long text (LaTeX) gets a text box
+    file_filter: str = ""  # path params: the file dialog's filter (blank = images)
 
     @property
     def title(self) -> str:
@@ -142,7 +144,7 @@ _SIZE = {"minimum": 0.01, "maximum": 50.0}
 _FONT_SIZE = Param("font_size", "float", 48.0, "Font size", minimum=4, maximum=400, step=1)
 
 # Hand-curated: what each object type lets the user change. Keys are Spec.params
-# names; "text" and "path" are passed positionally by _build_cached. Anything not
+# names; "text" and "path" are passed positionally by _build. Anything not
 # listed is still accepted from JSON but not shown. Style (fill/stroke) and the
 # layer transform are separate.
 MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
@@ -171,6 +173,10 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     "MathTex": (Param("text", "text", r"e^{i\pi} + 1 = 0", "LaTeX (math)", multiline=True), _FONT_SIZE),
     "Tex": (Param("text", "text", r"Hello \LaTeX", "LaTeX (text)", multiline=True), _FONT_SIZE),
     "ImageMobject": (Param("path", "path", "", "Image file"),),
+    "SVGMobject": (
+        Param("path", "path", "", "SVG file", file_filter="SVG drawings (*.svg)"),
+        Param("height", "float", 2.0, minimum=0.05, maximum=50.0, step=0.1),
+    ),
     # Axes and their graphs (ADR 0024); a graph's own params, its parent supplies the coordinates.
     "Axes": (
         Param("x_range", "point", (-5.0, 5.0), "x from / to"),
@@ -193,12 +199,13 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
 LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
     ("Text", ("Text", "MathTex", "Tex")),
-    ("Media", ("ImageMobject",)),
+    ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
     ("Python", ("Code",)),
 )
 
 _REQUIRED = {"text", "path", "code", "expression"}  # always written to the spec
+LIBRARY_LABELS = {"ImageMobject": "Image", "SVGMobject": "SVG"}  # menu names that differ from the type
 
 
 def default_spec(type_name: str, **params: Any) -> Spec:
@@ -215,20 +222,97 @@ def param_value(spec: Spec, param: Param) -> Any:
     return tuple(value) if param.kind == "point" else value
 
 
-def build_mobject(spec: Spec) -> m.Mobject:
-    """Build a mobject centred on the origin; the layer transform places it."""
+def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
+    """Build a mobject centred on the origin; the layer transform places it.
+
+    A media object (image, SVG) is built from its file as it is at ``signature``
+    (``media_signature`` when not given); a file that cannot be drawn gives a
+    dashed placeholder instead of an error (ADR 0027).
+    """
     if spec.type in CODE_TYPES:
         raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
     cls = MOBJECT_TYPES.get(spec.type)
     if cls is None:
         raise ValueError(f"unsupported mobject type {spec.type!r}")
-    mob = _build_cached(spec.model_dump_json()).copy()
+    if spec.type in MEDIA_TYPES:
+        built = _media_cached(spec.model_dump_json(), signature or media_signature(spec))
+        return (built if isinstance(built, m.Mobject) else media_placeholder(spec)).copy()
+    return _build_cached(spec.model_dump_json()).copy()
+
+
+MISSING = "missing"  # the signature of a file that cannot be found or read
+
+
+def media_signature(spec: Spec) -> str | None:
+    """What a media object's build depends on besides its spec: its file's modification
+    time and size (``MISSING`` when it cannot be stat-ed); ``None`` for other types."""
+    if spec.type not in MEDIA_TYPES:
+        return None
+    path = str(spec.params.get("path") or "")
+    try:
+        stat = os.stat(path) if path else None
+    except OSError:
+        stat = None
+    return f"{stat.st_mtime_ns}:{stat.st_size}" if stat is not None else MISSING
+
+
+def media_problem(spec: Spec, signature: str | None = None) -> str | None:
+    """Why a media object cannot be drawn (it shows a placeholder), or None."""
+    if spec.type not in MEDIA_TYPES:
+        return None
+    built = _media_cached(spec.model_dump_json(), signature or media_signature(spec))
+    return None if isinstance(built, m.Mobject) else built
+
+
+@lru_cache(maxsize=256)
+def _media_cached(spec_json: str, signature: str) -> m.Mobject | str:
+    """The built media object, or the reason it cannot be built (both cached per signature)."""
+    spec = Spec.model_validate_json(spec_json)
+    if not spec.params.get("path"):
+        return "no file chosen"
+    if signature == MISSING:
+        return "file not found"
+    try:
+        mob = _build(spec)
+    except Exception as exc:  # a broken file must never break a frame or an export (ADR 0027)
+        log.warning("cannot draw %s: %s", spec.params.get("path"), exc)
+        return f"cannot read the file ({type(exc).__name__})"
+    if spec.type == "SVGMobject" and not mob.family_members_with_points():
+        return "the drawing is empty"
     return mob
+
+
+@lru_cache(maxsize=32)
+def _placeholder(height: float) -> m.Mobject:
+    box = m.DashedVMobject(m.Rectangle(width=height * 16 / 9, height=height), num_dashes=48)
+    box.set_stroke(m.ManimColor("#94a3b8"), width=3, opacity=0.9)
+    return box
+
+
+def media_placeholder(spec: Spec) -> m.Mobject:
+    """A dashed 16:9 box the object's height, standing in for a file that cannot be drawn."""
+    height = float(spec.params.get("height", 2.0)) if spec.type == "SVGMobject" else 2.0
+    return _placeholder(height)
+
+
+def longest_path(mob: m.Mobject) -> m.Mobject:
+    """What a MoveAlongPath follows on ``mob`` (ADR 0025, 0027): the object itself when it
+    has points of its own, else its longest drawn member (an SVG's or a text's)."""
+    if mob.has_points() or not mob.family_members_with_points():
+        return mob
+    return max(mob.family_members_with_points(), key=_polygon_length)
+
+
+def _polygon_length(mob: m.Mobject) -> float:
+    return float(np.linalg.norm(np.diff(mob.points, axis=0), axis=1).sum())
 
 
 @lru_cache(maxsize=256)
 def _build_cached(spec_json: str) -> m.Mobject:
-    spec = Spec.model_validate_json(spec_json)
+    return _build(Spec.model_validate_json(spec_json))
+
+
+def _build(spec: Spec) -> m.Mobject:
     cls = MOBJECT_TYPES[spec.type]
     params = dict(spec.params)
     for param in MOBJECT_PARAMS.get(spec.type, ()):
@@ -241,7 +325,11 @@ def _build_cached(spec_json: str) -> m.Mobject:
     elif spec.type in TEXT_TYPES:
         text = params.pop("text", "")
         mob = cls(parts.mark(text, spans) if spans else text, **params)
-    elif spec.type == "ImageMobject":
+    elif spec.type == "SVGMobject":
+        # Manim's own SVG cache is keyed by the file's name, not its contents: an edited
+        # file would come back as it was. Builds are cached here per signature instead.
+        mob = cls(params.pop("path"), use_svg_cache=False, **params)
+    elif spec.type in MEDIA_TYPES:
         mob = cls(params.pop("path"), **params)
     else:
         mob = cls(**params)

@@ -355,8 +355,9 @@ segments keep the formula. → ADR 0026.
 ### B40 — SVG import · 2026-10-10
 `benchmarks/bench_svg.py`, Manim's `SVGMobject` on a 3-path SVG (rect, circle,
 open path; fills and strokes) and a 400-path one. Small: **7 ms** to build,
-1 ms again; large: **198 ms** cold, 64 ms again (Manim caches the parse by file
-hash). Colours survive (one fill per path), height normalised to 2. Create,
+1 ms again; large: **198 ms** cold, 64 ms again (Manim caches the parse - keyed
+by the file *name*, not its contents, so P3e bypasses it and caches per file
+signature). Colours survive (one fill per path), height normalised to 2. Create,
 DrawBorderThenFill, Write and FadeIn played in order vs scrubbed in a shuffled
 order: max diff **0**, the drawing visible (~249 levels). A missing file raises
 `OSError`, malformed XML `ParseError`, an empty `<svg/>` builds 0 paths of

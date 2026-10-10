@@ -12,6 +12,10 @@ produce the frame at any time ``t`` in any order:
 
 The frame at ``t`` is therefore a pure function of (project, t).
 
+An image or SVG layer (ADR 0027) is built from its file as it was when the
+layer was first drawn; ``check_media`` notices files changed on disk since and
+rebuilds those layers. A file that cannot be drawn shows a dashed placeholder.
+
 A code layer (ADR 0019) is not evaluated at all: its frames were rendered by
 real Manim into ``code_cache``, and ``t`` picks one (a placeholder until then).
 
@@ -39,7 +43,7 @@ from . import adapter, motion_paths, parts
 from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
-from .schema import CODE_TYPES, Clip, Keyframe, Layer, Project, Spec, Transform2D, infer_lifetime
+from .schema import CODE_TYPES, MEDIA_TYPES, Clip, Keyframe, Layer, Project, Spec, Transform2D, infer_lifetime
 
 log = get_logger(__name__)
 
@@ -76,6 +80,7 @@ class Evaluator:
         self._proxies: dict[str, m.Mobject] = {}
         self._trees: dict[str, _Tree] = {}
         self._tree_states: dict[tuple[str, tuple[ClipKey, ...]], m.Mobject] = {}
+        self._media: dict[str, str] = {}  # media layer -> the file signature its build is from
         self._index()
 
     def _index(self) -> None:
@@ -179,6 +184,41 @@ class Evaluator:
             self._trees.pop(layer_id, None)
             if old_builds.get(layer_id) != new_builds.get(layer_id):
                 self._base.pop(layer_id, None)
+                self._media.pop(layer_id, None)
+
+    def check_media(self) -> set[str]:
+        """Re-read the media files on disk (ADR 0027): layers whose file changed since they
+        were built are rebuilt, like a spec edit. Returns their ids."""
+        changed = {
+            layer.id
+            for layer in self.project.layers
+            if layer.id in self._media and adapter.media_signature(layer.spec) != self._media[layer.id]
+        }
+        if changed:
+            self.invalidate(self.project, changed, "spec")
+            for layer_id in changed:  # the spec is the same: drop the builds explicitly
+                self._base.pop(layer_id, None)
+                self._media.pop(layer_id, None)
+            log.info("media changed on disk: %s", sorted(changed))
+        return changed
+
+    def media_errors(self) -> dict[str, str]:
+        """Media layers that show a placeholder, and why (ADR 0027)."""
+        out = {}
+        for layer in self.project.layers:
+            problem = adapter.media_problem(layer.spec, self._media_signature(layer))
+            if problem is not None:
+                out[layer.id] = problem
+        return out
+
+    def _media_signature(self, layer: Layer) -> str | None:
+        """The file signature this layer is drawn from (stat-ed once, then kept until
+        ``check_media`` or an edit of the layer); None for non-media layers."""
+        if layer.spec.type not in MEDIA_TYPES:
+            return None
+        if layer.id not in self._media:
+            self._media[layer.id] = adapter.media_signature(layer.spec)
+        return self._media[layer.id]
 
     def frame(self, t: float) -> list[m.Mobject]:
         """World-space mobjects to draw at time ``t``, back to front.
@@ -230,7 +270,8 @@ class Evaluator:
                 built = adapter.build_child(self._layers[layer.parent_id].spec, layer.spec)
             else:
                 built = adapter.build_mobject(
-                    self._tree(layer).spec if layer.id in self._has_parts else layer.spec
+                    self._tree(layer).spec if layer.id in self._has_parts else layer.spec,
+                    self._media_signature(layer),
                 )
             self._base[layer.id] = built
         return self._base[layer.id]
@@ -348,11 +389,12 @@ class Evaluator:
         return a, b
 
     def _path_signature(self, layer: Layer, clip: Clip) -> str:
-        """What a path clip's run depends on: both layers' transforms at its start, the path's build."""
+        """What a path clip's run depends on: both layers' transforms at its start, the path's build
+        (its file's signature too, for an SVG: ADR 0027)."""
         path = self._layers[clip.params["path"]]
         chain = [layer, path] + ([self._layers[path.parent_id]] if path.is_child else [])
         transforms = [self.transform_at(x, clip.start).model_dump_json() for x in chain]
-        builds = [x.spec.model_dump_json() for x in chain[1:]]
+        builds = [f"{x.spec.model_dump_json()}@{self._media_signature(x)}" for x in chain[1:]]
         return "|".join(transforms + builds)
 
     def _path_sigs(self, layer: Layer, count: int) -> tuple[str, ...]:
@@ -367,7 +409,11 @@ class Evaluator:
         if clip.info.category != "motion":
             return None
         path_layer = self._layers[clip.params["path"]]
-        path = self._base_mobject(path_layer).copy()
+        if adapter.media_problem(path_layer.spec, self._media_signature(path_layer)) is not None:
+            # A drawing that cannot be read: go to its placeholder's centre and stay (ADR 0027).
+            path = m.VectorizedPoint(self._base_mobject(path_layer).get_center())
+        else:
+            path = adapter.longest_path(self._base_mobject(path_layer)).copy()
         a_path, b_path = self._world_affine(path_layer, clip.start)
         a_mover, b_mover = self._world_affine(layer, clip.start)
         inverse = np.linalg.pinv(a_mover)  # a mover scaled to 0 must not raise

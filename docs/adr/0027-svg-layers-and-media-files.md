@@ -15,7 +15,8 @@ the spec alone), and a missing file broke every frame the layer was in.
 
 - An **`SVGMobject`** layer: a file path and a height. The file's colours are
   kept; style fields, when set, override them. All clip kinds apply, vector ones
-  included. MoveAlongPath along an SVG follows its **longest** drawn path.
+  included. MoveAlongPath along an SVG (or any group) follows its **longest**
+  drawn path.
 - **Media files are tracked by signature** (modification time and size). Builds
   are cached by spec and signature; the evaluator remembers which signature each
   layer was built from, and a changed file is treated as a spec edit of that

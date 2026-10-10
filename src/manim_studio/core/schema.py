@@ -29,6 +29,7 @@ from pydantic import (
 SCHEMA_VERSION = 1
 TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
+MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
 CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": frozenset({"Graph"})}  # child objects (ADR 0024)
