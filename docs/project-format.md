@@ -62,8 +62,11 @@ clips may not start after its object begins morphing.
 key). Today: a `Graph` under an `Axes` root. A graph is plotted in its axes'
 coordinates, drawn right after them, moves with them and lives within their
 lifetime. It is **locked** to them: its `base` keeps the default position,
-scale, rotation and anchor, and only `opacity` may have a track. Its clips are
-its own; it may morph into another layer (typically another graph).
+scale, rotation and anchor, and only `opacity` may have a track. Its clips
+animate it alone; a clip on the axes animates the axes **with** their graphs, as
+one object (ADR 0029), so a graph's clips may not overlap the axes' clips. A
+graph may morph into another layer (typically another graph); a morph of the
+axes takes their graphs along.
 
 ```json
 { "id": "sin", "parent_id": "axes", "spec": { "type": "Graph",
@@ -165,7 +168,7 @@ Registered clip params (ADR 0022):
 | Indicate | `color`, `scale_factor` | `"#rrggbb"` (default `#FFFF00`); 1–3 (default 1.2) |
 | Circumscribe | `shape`, `color` | `"rectangle"` or `"circle"`; a colour |
 | Flash, FocusOn | `color` | a colour |
-| MoveAlongPath | `path` | the id of another layer (not the object itself or its parts, not a part, code layer or image); a group such as an SVG is followed along its longest path |
+| MoveAlongPath | `path`, `rotate` | `path`: the id of another layer (not the object itself or its parts, not a part, code layer or image); a group such as an SVG is followed along its longest path. `rotate`: `"no"` (default) or `"along"` - turn with the path, by its change of direction since the clip's start |
 
 **MoveAlongPath** (ADR 0025) moves the object's centre along the path layer's
 shape as it is at the clip's start - its built shape under its transform (and

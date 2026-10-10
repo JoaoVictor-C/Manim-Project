@@ -145,7 +145,11 @@ CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
     ),
     "Flash": (ClipParam("color", "Colour", "color", default=_YELLOW),),
     "FocusOn": (ClipParam("color", "Colour", "color", default="#888888"),),
-    "MoveAlongPath": (ClipParam("path", "Path", "layer"),),
+    "MoveAlongPath": (
+        ClipParam("path", "Path", "layer"),
+        # ADR 0029: turn with the path, by its change of direction since the clip's start
+        ClipParam("rotate", "Turn", "choice", default="no", choices=("no", "along")),
+    ),
 }
 
 
@@ -474,7 +478,7 @@ class Project(BaseModel):
                             f"clip {clip.id!r}: TransformMatchingTex needs MathTex or Tex at both ends"
                         )
             node = layer
-            while layer.is_part and node.parent_id is not None:  # parts share their root's glyphs
+            while layer.is_child and node.parent_id is not None:  # members share their object's clips
                 node = by_id[node.parent_id]
                 for clip in layer.clips:
                     for other in node.clips:

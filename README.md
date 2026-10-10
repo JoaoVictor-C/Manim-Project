@@ -96,12 +96,15 @@ split the equations into terms when a symbol repeats.
 **Graphs**: add **Axes** from the library (*Graphing*), select them and use
 **Parts > Add graph...** with a function of x such as `sin(x)` or
 `exp(-x**2)`. The graph sits on the axes and moves with them; animate it like
-any layer (Create it, Turn it into another graph). Double-click a graph to edit
+any layer (Create it, Turn it into another graph). A clip on the axes animates
+the whole figure - fade it in or out, indicate it, or send it along a path, and
+the graphs come along. Double-click a graph to edit
 its formula, range and colour in Properties.
 
 To make something travel along a shape - a dot along a graph, around a
 circle - right-click its row and choose **Add clip > Move > MoveAlongPath** and
-the layer to follow; the clip's Properties let you pick another path.
+the layer to follow; the clip's Properties let you pick another path, and
+**Turn: along** makes the object turn with the path as it goes.
 
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**

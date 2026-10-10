@@ -1,6 +1,6 @@
 # 0025. Moving along another layer's path
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by [0029](0029-child-objects-in-the-tree.md): objects with parts or children travel; `rotate`)
 - **Date:** 2026-10-10
 - **Deciders:** João Victor
 

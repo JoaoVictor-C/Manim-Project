@@ -127,6 +127,14 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Graphs animate with their axes (P3g, ADR 0029): an object with child
+  objects evaluates as one tree, like an equation with parts, so a clip on the
+  axes animates the axes with their graphs (FadeIn/FadeOut, Indicate, Wiggle,
+  Create, MoveAlongPath, a whole-figure morph); graph clips and graph-to-graph
+  morphs work as before inside the tree. A graph clip may no longer overlap a
+  clip of its axes.
+- MoveAlongPath `rotate: along` (P3g, ADR 0029): the object turns with the path,
+  by its change of direction since the clip's start (Properties: *Turn*).
 - Render ahead (P3f, ADR 0028): a preview process renders frames ahead of the
   playhead with the canvas's own camera, so a kept frame is the live frame bit
   for bit; the editor keeps them zlib-compressed (512 MB) and plays and scrubs
@@ -280,6 +288,8 @@ All notable changes to this project are documented here. The format follows
 - `zip()` calls on equal-length sequences are now `strict=True`.
 
 ### Fixed
+- A MoveAlongPath clip on an equation with parts crashed ("needs a target"); objects
+  with parts or child objects can now travel along a path (P3g).
 - The timeline drew nothing after a MoveAlongPath clip: motion clips had no
   colour and the rebuild raised (P3c).
 - The build-worker cache test compared against a fixed 150 ms and failed on a
