@@ -1,6 +1,6 @@
 # 0009. Playback scheduling: frame dropping, idle checkpoints, gc.freeze
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by [0028](0028-render-ahead-cache.md): playback shows grid frames)
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 

@@ -55,6 +55,14 @@ subprocesses — the build worker and the renderer — and LaTeX).
 `ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
+`ui/test_acceptance_p3f.py` opens the stress scene with the real preview
+process, waits for every frame, then checks playback shows kept frames equal
+to live ones, an edit to a late layer keeps the early frames and a zoom
+refills; `ui/test_render_ahead.py` drives the same wiring with an in-process
+stand-in, `ui/test_preview_process.py` the process itself (bit-exact frames,
+generations, views, restart), `core/test_frame_cache.py` the spans (checked
+exhaustively against rendered frames) and the store. Tests run with
+`MANIM_STUDIO_PREVIEW=0` unless they opt in.
 `ui/test_acceptance_p3e.py` adds an SVG through Media > SVG, draws it on with
 DrawBorderThenFill, rewrites and deletes the file (redrawn on activation,
 placeholder and message) and exports; `core/test_svg.py` covers colours, the

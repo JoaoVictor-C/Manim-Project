@@ -127,6 +127,17 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Render ahead (P3f, ADR 0028): a preview process renders frames ahead of the
+  playhead with the canvas's own camera, so a kept frame is the live frame bit
+  for bit; the editor keeps them zlib-compressed (512 MB) and plays and scrubs
+  from them, drawing the selection outline from the selected object alone
+  (`Evaluator.object_frame`). An edit drops only the frames it can change - the
+  lifetimes, before and after, of the changed layers and what depends on them
+  (`core/frame_cache.changed_spans`); a zoom, pan or resize refills the cache
+  for the new view; finished code renders and reloaded media drop their
+  layers' frames. Playback now shows the export's frame grid. *View > Render
+  Ahead* turns it off; the readout shows how many frames are ready. On the
+  stress scene a cached seek costs 0.7 ms against 27 ms live.
 - SVG layers (P3e, ADR 0027): *Add > SVG* brings in a vector drawing with its
   own colours (style fields override them); every clip kind applies, so it can
   be drawn on with Create, Write or DrawBorderThenFill, and MoveAlongPath can

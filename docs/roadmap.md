@@ -48,7 +48,7 @@ timeline and canvas, with the real build worker and renderer.
 - ✅ **P3c** — [plan](plans/p3c-move-along-path.md): MoveAlongPath clips along another layer's shape (ADR 0025)
 - ✅ **P3d** — [plan](plans/p3d-curved-paths.md): curved position paths between keys (ADR 0026)
 - ✅ **P3a** — [plan](plans/p3a-viewport.md): viewport zoom/pan with a re-framed camera (ADR 0023)
-- **P3f** — [plan](plans/p3f-render-ahead.md): frames rendered ahead in a preview process, played from a cache (ADR 0028)
+- ✅ **P3f** — [plan](plans/p3f-render-ahead.md): frames rendered ahead in a preview process, played from a cache (ADR 0028)
 
 ## Phase 4
 
