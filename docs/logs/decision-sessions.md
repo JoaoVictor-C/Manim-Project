@@ -375,3 +375,25 @@ left open, so ADRs can cite it.
   notice a save in another program → check on activation (watchers break on
   atomic saves); a stat before every frame scales with media layers → dropped;
   the first path of a logo may be a dot → the longest path.
+
+## Session 20 — P3f render-ahead cache plan · 2026-10-10
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** ADR 0009, 0013, 0015, 0019, 0023, 0027; measurement B41 and a
+  single-object evaluation probe; a read of the canvas render path, the build
+  worker client and the code cache.
+- **Decisions:** a long-lived preview render process with its own evaluator;
+  frames on the fps grid, playback quantised to it; one shared preview camera so
+  cached frames equal live ones; zlib frames in a 512 MB store evicting far from
+  the playhead; invalidation by diffing projects (closure of changed layers,
+  their old and new lifetimes); overlays from `Evaluator.object_frame`; live
+  rendering when a frame is not cached (→ ADR 0028). Plan:
+  [../plans/p3f-render-ahead.md](../plans/p3f-render-ahead.md).
+- **Critiques that changed the plan:** two camera constructions could differ →
+  one shared function, device pixels; media changes are not project diffs → a
+  media message; hiding the outline while playing (and rendering live when
+  paused with a selection) would keep scrubbing slow → evaluate the selected
+  object alone (measured ~3 ms); a view change is not an edit → frames carry
+  their view; code renders finishing → invalidate that layer; two timing rules
+  in one playback → always quantise.

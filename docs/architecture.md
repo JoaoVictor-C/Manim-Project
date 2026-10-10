@@ -20,12 +20,14 @@ src/manim_studio/
 ├── cli.py               entry point: `manim-studio render | edit`
 ├── worker.py            build worker process: warms Manim's text cache (ADR 0015)
 ├── code_runner.py       renders a code layer's Scene into the frame cache (single-use process)
+├── preview.py           preview render process: frames ahead of the playhead (ADR 0028)
 ├── logging_config.py    console + rotating file logging (ADR 0011)
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
 │   ├── edits.py         edits → new validated snapshot + edit kind (ADR 0013, 0014)
 │   ├── parts.py         part layers: keys → exact TeX spans, markers, split terms (ADR 0012)
 │   ├── motion_paths.py  curved position segments: Beziers walked by arc length, split (ADR 0026)
+│   ├── frame_cache.py   preview frames: the fps grid, what an edit changes, the frame store (ADR 0028)
 │   ├── expressions.py   graph formulas: a whitelist over Python's syntax tree, never eval (ADR 0024)
 │   ├── code_cache.py    code layer frames: cropped premultiplied zlib frames, eviction (ADR 0019)
 │   ├── code_frame.py    a cached frame as a mobject; painted by Cairo, hit by alpha (ADR 0019)
@@ -36,6 +38,7 @@ src/manim_studio/
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)
 ├── render/
 │   ├── cairo_export.py  Manim Cairo camera → frames → PyAV/libx264
+│   ├── preview.py       the preview camera shared by canvas and preview process (ADR 0028)
 │   ├── qt_paths.py      Manim geometry → QPainterPath (outlines)
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
@@ -51,6 +54,8 @@ src/manim_studio/
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
+    ├── preview_client.py QProcess client for preview.py: latest state, restart, give up
+    ├── render_ahead.py  the kept frames: invalidation on edits, requests, decoding (ADR 0028)
     ├── timeline/
     │   ├── model.py     pure geometry: TimeScale, snapping, clamping (no Qt)
     │   └── view.py      QGraphicsView: rows, clip bars, ruler, playhead, drags
@@ -90,6 +95,10 @@ the worker builds them, Manim's disk cache keeps the result, and the edit is
 committed once the editor's own build will be a cache hit (ADR 0015).
 Exports run as a second process (`manim-studio render --progress json`), so the
 editor keeps working while a video renders (ADR 0017).
+The **preview process** (`python -m manim_studio.preview`) holds its own copy of
+the project and renders frames ahead of the playhead with the canvas's camera;
+the editor keeps them compressed and shows them instead of rendering live,
+dropping only the frames an edit can change (ADR 0028).
 
 ## Core concepts
 

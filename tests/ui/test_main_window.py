@@ -79,7 +79,8 @@ def test_invalid_project_shows_error_and_keeps_state(window, tmp_path, monkeypat
 
 @pytest.mark.ui
 def test_playback_follows_wall_clock_and_drops_frames(window, monkeypatch) -> None:
-    """ADR 0009: playback time = elapsed wall-clock time, however slow frames are."""
+    """ADR 0009: playback time = elapsed wall-clock time, however slow frames are, shown on
+    the export's frame grid (ADR 0028)."""
     from manim_studio.ui import main_window as mw
 
     clock = [100.0]
@@ -88,7 +89,8 @@ def test_playback_follows_wall_clock_and_drops_frames(window, monkeypatch) -> No
     window.play()
     clock[0] += 0.75  # one tick arrives late: no catch-up frames, just the current time
     window._on_play_tick()
-    assert window.t == pytest.approx(1.75)
+    fps = window.project.canvas.fps
+    assert window.t == pytest.approx(int(1.75 * fps) / fps)  # the grid frame showing at 1.75 s
     clock[0] += 100  # past the end: stops at the last moment and pauses
     window._on_play_tick()
     assert window.t == pytest.approx(window.project.canvas.duration)
@@ -116,13 +118,14 @@ def test_step_moves_one_frame_and_pauses(window) -> None:
 
 @pytest.mark.ui
 def test_half_resolution_halves_the_render(window) -> None:
-    (full, frame) = window.canvas._camera_size  # pixel size, and the world area it shows
+    full = window.canvas.preview_view()  # pixel size, and the world area it shows
     window._set_half_resolution(True)
-    (half, half_frame) = window.canvas._camera_size
-    assert half[0] == pytest.approx(full[0] / 2, abs=1)
-    assert half_frame == frame  # fewer pixels, same picture
+    half = window.canvas.preview_view()
+    assert half.pixel_width == pytest.approx(full.pixel_width / 2, abs=1)
+    assert (half.frame_width, half.frame_height) == (full.frame_width, full.frame_height)  # same picture
+    assert window.canvas._camera.pixel_width == half.pixel_width
     window._set_half_resolution(False)
-    assert window.canvas._camera_size == (full, frame)
+    assert window.canvas.preview_view() == full
 
 
 @pytest.mark.ui

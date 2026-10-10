@@ -58,6 +58,11 @@ to make the key smooth (handles appear) or straight again, and drag a handle to
 bend the path - the other handle of a smooth key turns with it (hold Alt to
 move one handle only).
 
+While you work, frames are rendered ahead of the playhead in a second process
+and kept, so heavy scenes play and scrub smoothly once ready (the readout under
+the canvas counts them; *View > Render Ahead* turns this off). Changing
+something only re-renders the frames it affects.
+
 Images and SVG drawings are read from their files: save a drawing again in
 another program and it is redrawn when you come back to the editor (or press
 F5). A file that is missing or cannot be read shows as a dashed box, and the

@@ -239,18 +239,28 @@ class Evaluator:
         """
         out: list[tuple[str, m.Mobject]] = []
         for layer in self.project.layers:
-            if layer.parent_id is not None:
-                continue  # drawn with its object
-            if layer.id in self._has_parts:
-                out.extend(self._tree_at(layer, t))
-            else:
-                mob = self._layer_at(layer, t)
-                if mob is not None:
-                    out.append((layer.id, mob))
-            for child in self._objects.get(layer.id, ()):  # graphs on their axes (ADR 0024)
-                mob = self._layer_at(child, t)
-                if mob is not None:
-                    out.append((child.id, mob))
+            if layer.parent_id is None:  # parts and child objects are drawn with their object
+                out.extend(self._object_at(layer, t))
+        return out
+
+    def object_frame(self, layer_id: str, t: float) -> list[tuple[str, m.Mobject]]:
+        """The pairs ``frame_layers(t)`` yields for the object ``layer_id`` belongs to (its
+        root, parts and child objects), evaluating nothing else: the selection outline over
+        a cached frame (ADR 0028). The same buffer rules apply."""
+        return self._object_at(self.project.root_of(layer_id), t)
+
+    def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
+        out: list[tuple[str, m.Mobject]] = []
+        if root.id in self._has_parts:
+            out.extend(self._tree_at(root, t))
+        else:
+            mob = self._layer_at(root, t)
+            if mob is not None:
+                out.append((root.id, mob))
+        for child in self._objects.get(root.id, ()):  # graphs on their axes (ADR 0024)
+            mob = self._layer_at(child, t)
+            if mob is not None:
+                out.append((child.id, mob))
         return out
 
     # -- lifetime --------------------------------------------------------------

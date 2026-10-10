@@ -362,3 +362,15 @@ DrawBorderThenFill, Write and FadeIn played in order vs scrubbed in a shuffled
 order: max diff **0**, the drawing visible (~249 levels). A missing file raises
 `OSError`, malformed XML `ParseError`, an empty `<svg/>` builds 0 paths of
 height 0; a `stat` costs ~35 us. → ADR 0027.
+
+### B41 — Render-ahead: making, keeping and showing a preview frame · 2026-10-10
+`benchmarks/bench_render_ahead.py`, camera 1100×620 (a typical canvas widget),
+frames warmed first (checkpoints and active clips built). Evaluate + Cairo per
+frame: stress scene median **58 ms** (p90 70, max 182); heavy scene (stress + a
+400-path SVG drawn on + axes with two graphs) median **131 ms** (p90 178, max
+301) - about 7 fps. Keeping a frame: raw RGBA 2.6 MB (196 frames in 512 MB, shown
+in 1-3 ms); zlib level 1: compress 14 ms, decompress + QImage **8-12 ms**, 23-50×
+smaller (0.05-0.11 MB, 4500-9700 frames in 512 MB); zlib 6: compress 23-26 ms,
+show 8-16 ms, 28-68×. A second probe (machine loaded): whole-frame evaluation
+97 / 146 ms, one keyed MathTex alone **2.6-3.7 ms**, the 400-path SVG mid-draw
+alone 50 ms. → ADR 0028.

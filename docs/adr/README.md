@@ -56,3 +56,4 @@ need one.
 | [0025](0025-move-along-path.md) | Moving along another layer's path | Accepted |
 | [0026](0026-curved-position-paths.md) | Curved position paths | Accepted |
 | [0027](0027-svg-layers-and-media-files.md) | SVG layers and media files | Accepted |
+| [0028](0028-render-ahead-cache.md) | Render-ahead cache | Accepted |

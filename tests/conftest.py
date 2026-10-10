@@ -23,6 +23,8 @@ os.environ["MANIM_STUDIO_TRUST_FILE"] = str(
 os.environ["MANIM_STUDIO_CODE"] = "0"
 # Editor windows in tests build synchronously; the worker has its own tests (ADR 0015).
 os.environ["MANIM_STUDIO_WORKER"] = "0"
+# ... and render no frames ahead unless a test opts in (ADR 0028).
+os.environ["MANIM_STUDIO_PREVIEW"] = "0"
 
 # Must run before any test builds a mobject: sets the cache dir and finds MiKTeX.
 SHARED_CACHE = ROOT / ".cache" / "manim"

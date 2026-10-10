@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 from ..core import adapter, parts
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
+from ..core.frame_cache import frame_index, frame_time
 from ..core.schema import TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
@@ -47,7 +48,9 @@ from .code_render import make_code_renderer
 from .document import Document
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
+from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
+from .render_ahead import RenderAhead
 from .selection import Selection
 from .timeline.view import TimelineView
 from .viewport import ZOOM_STEP
@@ -74,6 +77,7 @@ class MainWindow(QMainWindow):
         self.path: Path | None = None
         self.evaluator: Evaluator | None = None
         self._media_errors: dict[str, str] = {}  # media layers drawn as placeholders (ADR 0027)
+        self.render_ahead: RenderAhead | None = None  # started with the first project (ADR 0028)
         self.t = 0.0
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
         # Every panel edit goes through the build service (ADR 0015).
@@ -133,7 +137,7 @@ class MainWindow(QMainWindow):
         self.properties.code_failed = lambda i: (s := self.code.status(i)) is not None and s.state == "error"
         self.properties.retry_code = self.code.retry
         self.code.statusChanged.connect(self.properties.refresh_code_status)
-        self.code.rendered.connect(lambda _layer_id: self.refresh())
+        self.code.rendered.connect(self._on_code_rendered)
         self.properties_dock = self._dock(
             "Properties", self.properties, Qt.DockWidgetArea.RightDockWidgetArea
         )
@@ -195,6 +199,10 @@ class MainWindow(QMainWindow):
         half = QAction("Half-resolution playback", self, checkable=True)
         half.toggled.connect(self._set_half_resolution)
         view_menu.addAction(half)
+        self.render_ahead_action = QAction("Render Ahead", self, checkable=True, checked=True)
+        self.render_ahead_action.setToolTip("Render frames ahead of the playhead in another process")
+        self.render_ahead_action.toggled.connect(self._set_render_ahead)
+        view_menu.addAction(self.render_ahead_action)
         view_menu.addSeparator()  # the canvas view (ADR 0023)
         for text, keys, slot in (
             ("Zoom &In", ("Ctrl+=", "Ctrl++"), lambda: self.canvas.zoom(ZOOM_STEP)),
@@ -261,6 +269,10 @@ class MainWindow(QMainWindow):
         self.layers.setEnabled(True)
         self.evaluator = Evaluator(project, self.code.cache)  # frames where the renderer writes them
         self.canvas.set_scene(project.canvas, self.evaluator)
+        if self.render_ahead is None and self.render_ahead_action.isChecked():
+            self._start_render_ahead()
+        if self.render_ahead is not None:
+            self.render_ahead.reset(project)
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
         self._update_title()
         self.seek(0.0)
@@ -298,6 +310,8 @@ class MainWindow(QMainWindow):
         assert self.evaluator is not None
         before = self.evaluator.project
         self.evaluator.apply(Edit(project, kind, layer_ids))
+        if self.render_ahead is not None:
+            self.render_ahead.changed(project)
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
@@ -320,6 +334,8 @@ class MainWindow(QMainWindow):
         changed = self.evaluator.check_media()
         if changed:
             log.info("media reloaded: %s", sorted(changed))
+            if self.render_ahead is not None:
+                self.render_ahead.layers_changed(changed, media=True)
             self.refresh()
             self.idle_timer.start()  # their checkpoints were dropped (ADR 0009)
         if not self.report_media(force=report) and report:
@@ -389,7 +405,30 @@ class MainWindow(QMainWindow):
             self.export_dialog.close()
         self.builds.client.stop()
         self.code.stop()
+        if self.render_ahead is not None:
+            self.render_ahead.stop()
         super().closeEvent(event)
+
+    # -- render ahead (ADR 0028) ---------------------------------------------------------
+
+    def _start_render_ahead(self) -> None:
+        self.render_ahead = RenderAhead(make_preview(adapter.cache_dir(), self), self)
+        self.render_ahead.progress.connect(self._update_readout)
+        self.canvas.render_ahead = self.render_ahead
+
+    def _set_render_ahead(self, enabled: bool) -> None:
+        if not enabled and self.render_ahead is not None:
+            self.render_ahead.stop()
+            self.render_ahead = self.canvas.render_ahead = None
+        elif enabled and self.render_ahead is None and self.project is not None:
+            self._start_render_ahead()
+            self.render_ahead.reset(self.project)
+        self.refresh()
+
+    def _on_code_rendered(self, layer_id: str) -> None:
+        if self.render_ahead is not None:
+            self.render_ahead.layers_changed({layer_id})
+        self.refresh()
 
     # -- export (S4, ADR 0017) -------------------------------------------------------
 
@@ -500,11 +539,22 @@ class MainWindow(QMainWindow):
     def refresh(self) -> None:
         if self.project is None:
             return
+        if self.render_ahead is not None:
+            self.render_ahead.set_playhead(self.t)
         self.canvas.render_at(self.t)
+        self._update_readout()
+
+    def _update_readout(self) -> None:
+        if self.project is None:
+            return
         fps = self.project.canvas.fps
+        ahead = ""
+        if self.render_ahead is not None and self.render_ahead.active:
+            ahead = f"   ahead {len(self.render_ahead.store)}/{self.render_ahead.store.total}"
+        source = "cached" if self.canvas.from_cache else f"{self.canvas.last_render_ms:4.1f} ms"
         self.time_label.setText(
-            f"{self.t:5.2f} s  frame {int(self.t * fps):4d}  ({self.canvas.last_render_ms:4.1f} ms)"
-            f"   {self.canvas.zoom_label()}"
+            f"{self.t:5.2f} s  frame {frame_index(self.t, fps):4d}  ({source})"
+            f"   {self.canvas.zoom_label()}{ahead}"
         )
 
     def step(self, frames: int) -> None:
@@ -547,6 +597,8 @@ class MainWindow(QMainWindow):
         assert self.project is not None and self._play_origin is not None
         wall0, t0 = self._play_origin
         t = t0 + (time.perf_counter() - wall0)  # wall clock: slow frames are dropped, never queued
+        fps = self.project.canvas.fps
+        t = frame_time(frame_index(t, fps), fps)  # the frames the export has (ADR 0028)
         if t >= self.project.canvas.duration:
             self.seek(self.project.canvas.duration)
             self.pause()
