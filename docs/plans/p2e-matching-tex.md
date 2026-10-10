@@ -1,6 +1,6 @@
 # P2e — TransformMatchingTex between equations: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2e.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 12](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B33 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -66,3 +66,10 @@ v1.
 | P2e.1 | clip kind, keyed animation in the adapter, schema relaxation + new rules | unit tests: keys, dissolve fallback, schema |
 | P2e.2 | evaluator: tree morphs, bake key | frames vs hand-built Manim; random access; timing-edit cache test |
 | P2e.3 | UI menus, acceptance, ADR 0020, docs | split two equations, morph through the UI, scrub = play, export = editor |
+
+## Outcome
+
+Done on 2026-10-10, as planned. The timeline offers *Turn into* on objects
+with parts (not on parts) and lists only TeX targets for TransformMatchingTex,
+never code layers. The showcase example now ends its equation with
+`a^2 + b^2 = c^2` -> `c^2 = a^2 + b^2`.

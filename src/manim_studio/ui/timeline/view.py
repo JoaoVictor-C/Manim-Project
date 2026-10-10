@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 
 from ...core import adapter, edits
 from ...core.evaluator import layer_transform
-from ...core.schema import CLIP_KIND_INFO, Clip, Layer, Project
+from ...core.schema import CLIP_KIND_INFO, CODE_TYPES, PART_PARENT_TYPES, Clip, Layer, Project
 from ...logging_config import get_logger
 from ..document import Document
 from .model import (
@@ -479,11 +479,9 @@ class TimelineView(QGraphicsView):
             add.setTitle("Add clip (no room here)")
             return menu
         start, length = placement
-        in_tree = layer.is_part or bool(self.project.children(layer.id))
         kinds = adapter.allowed_clip_kinds(self.project.root_of(layer.id).spec.type)
-        if in_tree:  # morphs are not supported on objects with parts yet (ADR 0012)
+        if layer.is_part:  # a part cannot morph; its object can (ADR 0020)
             kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "morph"]
-        targets = self._morph_targets(layer)
         for category, title in (
             ("content", "Appear / disappear"),
             ("emphasis", "Emphasis"),
@@ -498,6 +496,7 @@ class TimelineView(QGraphicsView):
                     menu_for.addAction(kind, lambda k=kind: self.add_clip(layer.id, k, start, length))
                     continue
                 sub = menu_for.addMenu(kind)
+                targets = self._morph_targets(layer, kind)
                 sub.setEnabled(bool(targets))
                 for target in targets:
                     sub.addAction(
@@ -550,15 +549,18 @@ class TimelineView(QGraphicsView):
             self.selected_key = None
         self._apply(lambda p: edits.remove_keys(p, layer_id, t), "Delete keys")
 
-    def _morph_targets(self, layer: Layer) -> list[Layer]:
+    def _morph_targets(self, layer: Layer, kind: str) -> list[Layer]:
+        """Objects a layer can turn into with ``kind``: not parts, code or already targeted."""
         taken = self.project.morph_sources()
+        tex_only = kind == "TransformMatchingTex"  # ADR 0020
         return [
             other
             for other in self.rows()
             if other.id != layer.id
             and other.id not in taken
             and not other.is_part
-            and not self.project.children(other.id)
+            and other.spec.type not in CODE_TYPES
+            and (not tex_only or other.spec.type in PART_PARENT_TYPES)
         ]
 
     def add_clip(

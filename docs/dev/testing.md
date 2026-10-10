@@ -51,6 +51,9 @@ subprocesses — the build worker and the renderer — and LaTeX).
 `ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
+`ui/test_acceptance_p2e.py` turns one split equation into another through the
+timeline menu (scrub = play, export = editor); `core/test_matching_tex.py`
+checks the keyed matching against hand-built Manim.
 `ui/test_acceptance_p2d.py` puts a real code layer under an equation through
 the UI (random scrubbing equals playback, export equals the editor) and checks
 that a project with untrusted code runs nothing. Tests never touch your trusted

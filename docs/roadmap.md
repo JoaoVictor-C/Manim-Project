@@ -30,7 +30,7 @@ timeline and canvas, with the real build worker and renderer.
 
 - ✅ **P2c** — [plan](plans/p2c-part-layers.md): part layers (ADR 0012) — animate
   the terms of an equation as their own layers
-- **P2e** — [plan](plans/p2e-matching-tex.md): TransformMatchingTex between equations (ADR 0020)
+- ✅ **P2e** — [plan](plans/p2e-matching-tex.md): TransformMatchingTex between equations (ADR 0020)
 - ✅ **P2d** — [plan](plans/p2d-code-layers.md): code layers (ADR 0019) — a layer
   holding user-written Manim code, rendered into a frame cache and composited
   (for what the visual model cannot express: updaters, ValueTracker, simulations)

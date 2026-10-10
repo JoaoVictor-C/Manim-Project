@@ -10,7 +10,8 @@ What is in it (10 s, 1280x720 @ 30 fps):
 * a title that fades in and out;
 * an equation written in, split into terms (part layers, ADR 0012): ``b^2`` is
   indicated, ``a^2`` jumps up and back with keyframes on a custom bezier curve,
-  ``c^2`` wiggles and then fades out while the rest of the equation stays;
+  ``c^2`` wiggles; then the equation turns into ``c^2 = a^2 + b^2`` with
+  TransformMatchingTex, each term flying to its new place (ADR 0020);
 * a square that is drawn, spins and grows on keyframes, then morphs into a circle;
 * a star that grows from its centre and pulses its opacity;
 * a code layer (ADR 0019): real Manim code with a ValueTracker, an updater and a
@@ -85,7 +86,13 @@ def build() -> Project:
     apply(edits.set_key_ease(p, "a2", 3.0, SNAPPY))
     apply(edits.set_key_ease(p, "a2", 3.8, SPRING))
     apply(edits.add_clip(p, "c2", "Wiggle", 4.0, 1.2))
-    apply(edits.add_clip(p, "c2", "FadeOut", 6.0, 1.0))
+    # ... then the whole equation turns into another, term by term (ADR 0020)
+    eq2_tex = r"c^2 = a^2 + b^2"
+    eq2 = Spec(type="MathTex", params={"text": eq2_tex, "font_size": 72})
+    apply(edits.add_layer(p, eq2, layer_id="eq2"))
+    apply(edits.update_layer(p, "eq2", base={"position": (0.0, 1.6)}))
+    apply(edits.add_parts(p, "eq2", parts.split_terms(eq2_tex), layer_ids=["c2b", "a2b", "b2b"]))
+    apply(edits.add_clip(p, "eq", "TransformMatchingTex", 6.2, 1.4, to_layer="eq2"))
 
     # Square: drawn, spins and grows on keyframes, then turns into a circle
     square = Spec(type="Square", params={"side_length": 1.6}, style={"fill": "#6366f1", "fill_opacity": 0.6})

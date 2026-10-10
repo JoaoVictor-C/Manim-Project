@@ -121,6 +121,12 @@ All notable changes to this project are documented here. The format follows
   to add keys at the playhead. Properties shows a selected key's time, values
   and easing (disabled on a last key, where no motion follows). `edits.retime_keys`,
   `remove_keys`, `set_key_ease`; `Selection.key_time`.
+- TransformMatchingTex (P2e, ADR 0020): turn one equation into another term by
+  term. Pieces are keyed by their part's TeX where both equations have that
+  part, and by glyph shape otherwise; matching pieces transform, the rest fade.
+  Objects with parts can now morph and be morphed into (ADR 0012 amended);
+  the morph cache follows the trees' finished clips and member transforms.
+  Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
 - LaTeX renders left half-written by a killed process (a build worker past its
   timeout) are compiled again instead of failing that formula for good
   (adapter patch on `tex_to_svg_file`, ADR 0007).
