@@ -55,7 +55,7 @@ timeline and canvas, with the real build worker and renderer.
 
 ## Phase 4
 
-- **P4a** — [plan](plans/p4a-python-export.md): one-way Python export, readable or exact (ADR 0010, 0031)
+- ✅ **P4a** — [plan](plans/p4a-python-export.md): one-way Python export, readable or exact (ADR 0010, 0031)
 - Plugin API for custom mobjects
 - Simulated layers (updaters, TracedPath) with replay from checkpoints
 - Audio track

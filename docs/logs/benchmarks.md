@@ -398,3 +398,12 @@ Succession(Wait(0.5), FadeIn(..)))`, `self.wait`, `Indicate`): mean abs diff
 ≤ **0.5** per frame. Code-layer frames are plain Mobjects Manim's camera skips;
 `Camera.display_funcs` (checked in insertion order) lets them paint themselves.
 → ADR 0031.
+
+### B44 — Generated Python rendered by Manim · 2026-10-10
+`benchmarks/bench_python_export.py`, the test suite's rich project (an
+overlapping group, a gap, a morph, MoveAlongPath, Wiggle, clamped and Bézier
+eases) at 320×180, 10 fps. Readable form: generated in **2.5 ms** (98 lines),
+`manim render` 2.6 s, worst per-frame mean difference from the editor **0.52**.
+Exact form (a keyframed dot added): generated in 0.5 ms, rendered in 2.2 s,
+worst **1.39** (h264 on a moving dot). Follows B43. → ADR 0031.
+

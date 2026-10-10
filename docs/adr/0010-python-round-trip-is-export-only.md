@@ -1,6 +1,6 @@
 # 0010. Python round-trip is one-way export
 
-- **Status:** Accepted
+- **Status:** Accepted (implemented by [0031](0031-python-export.md))
 - **Date:** 2026-10-09
 - **Deciders:** João Victor
 

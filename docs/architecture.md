@@ -21,6 +21,7 @@ src/manim_studio/
 ├── worker.py            build worker process: warms Manim's text cache (ADR 0015)
 ├── code_runner.py       renders a code layer's Scene into the frame cache (single-use process)
 ├── preview.py           preview render process: frames ahead of the playhead (ADR 0028)
+├── manim_scene.py       StudioScene: exported exact scenes play the project through Manim (ADR 0031)
 ├── logging_config.py    console + rotating file logging (ADR 0011)
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
@@ -28,6 +29,7 @@ src/manim_studio/
 │   ├── parts.py         part layers: keys → exact TeX spans, markers, split terms (ADR 0012)
 │   ├── motion_paths.py  curved position segments: Beziers walked by arc length, split (ADR 0026)
 │   ├── frame_cache.py   preview frames: the fps grid, what an edit changes, the frame store (ADR 0028)
+│   ├── python_export.py the project as Manim code: readable or exact (ADR 0031)
 │   ├── expressions.py   graph formulas: a whitelist over Python's syntax tree, never eval (ADR 0024)
 │   ├── code_cache.py    code layer frames: cropped premultiplied zlib frames, eviction (ADR 0019)
 │   ├── code_frame.py    a cached frame as a mobject; painted by Cairo, hit by alpha (ADR 0019)

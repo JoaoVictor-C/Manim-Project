@@ -13,6 +13,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_graphs.py` | expression compiler, Axes build, plotting, graph clips under scrubbing — B37 |
 | `bench_move_along_path.py` | MoveAlongPath under scrubbing, its cost, an arc-length table — B38 |
 | `bench_spatial_paths.py` | curved position segments: raw vs arc-length walking, table cost — B39 |
+| `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |
 | `bench_render_ahead.py` | preview frame cost at widget size, keeping frames (raw, zlib), showing them again — B41 |
 | `bench_svg.py` | SVGMobject build cost, colours, drawing clips under scrubbing — B40 |

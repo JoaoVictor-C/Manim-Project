@@ -1,6 +1,6 @@
 # P4a — Python export
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 23](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B43 in [../logs/benchmarks.md](../logs/benchmarks.md)
