@@ -206,7 +206,8 @@ class Evaluator:
         """Media layers that show a placeholder, and why (ADR 0027)."""
         out = {}
         for layer in self.project.layers:
-            problem = adapter.media_problem(layer.spec, self._media_signature(layer))
+            signature = self._media_signature(layer)
+            problem = adapter.media_problem(layer.spec, signature) if signature is not None else None
             if problem is not None:
                 out[layer.id] = problem
         return out
@@ -214,7 +215,7 @@ class Evaluator:
     def _media_signature(self, layer: Layer) -> str | None:
         """The file signature this layer is drawn from (stat-ed once, then kept until
         ``check_media`` or an edit of the layer); None for non-media layers."""
-        if layer.spec.type not in MEDIA_TYPES:
+        if layer.spec is None or layer.spec.type not in MEDIA_TYPES:  # parts have no spec
             return None
         if layer.id not in self._media:
             self._media[layer.id] = adapter.media_signature(layer.spec)
@@ -409,7 +410,8 @@ class Evaluator:
         if clip.info.category != "motion":
             return None
         path_layer = self._layers[clip.params["path"]]
-        if adapter.media_problem(path_layer.spec, self._media_signature(path_layer)) is not None:
+        signature = self._media_signature(path_layer)
+        if signature is not None and adapter.media_problem(path_layer.spec, signature) is not None:
             # A drawing that cannot be read: go to its placeholder's centre and stay (ADR 0027).
             path = m.VectorizedPoint(self._base_mobject(path_layer).get_center())
         else:
