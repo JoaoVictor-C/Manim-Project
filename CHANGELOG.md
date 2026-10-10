@@ -127,6 +127,15 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Curved position paths (P3d, ADR 0026): position keys may carry in/out
+  tangents; such segments are cubic Beziers walked by arc length (the ease
+  keeps meaning speed along the path; 128-sample tables, B39), straight ones
+  keep the exact linear formula, overshoots continue along the end tangent.
+  The canvas draws the selected layer's motion path: drag key squares, bend
+  tangent handles (a smooth key stays aligned, Alt breaks it), double-click to
+  smooth/straighten. Edits keep tangents; a key added inside a curve splits it
+  so its shape stays. `core/motion_paths.py`, `ui/motion_overlay.py`,
+  `edits.set_tangents`, `edits.smooth_key`, `Evaluator.position_frame`.
 - MoveAlongPath clips (P3c, ADR 0025): a root object travels along another
   layer's shape (a graph, a circle, a line) - *Add clip > Move > MoveAlongPath*.
   The path layer's rest shape at the clip's start is mapped into the object's

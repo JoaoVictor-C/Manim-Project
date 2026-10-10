@@ -1,6 +1,6 @@
 # P3d — Curved position paths: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p3d.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 18](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.84)
 - **Evidence:** benchmark B39 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -60,3 +60,9 @@ Squares and handles are hit after the transform handles, before the body.
 | P3d.1 | schema, `core/motion_paths.py`, evaluation, edits keep tangents, split | old frames unchanged; arc-length positions; overshoot; edits keep tangents; split keeps the shape |
 | P3d.2 | canvas overlay and gestures | drag a square, bend a handle (aligned / Alt), smooth/straight toggle, one undo step each |
 | P3d.3 | acceptance, ADR 0026, docs | the Goal's scenario through real events, export = editor |
+
+## Outcome
+
+Done on 2026-10-10, as planned, with one input detail found by a test: Alt+press
+on a tangent handle starts the one-handle bend (Alt+click elsewhere still cycles
+to the object behind).

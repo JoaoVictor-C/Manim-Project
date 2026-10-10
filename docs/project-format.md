@@ -119,6 +119,12 @@ segment **leaving** this keyframe: either `{"name": <Manim rate function>}`
 (`linear`, `smooth`, `rush_into`, `there_and_back`, `ease_in_out_sine`, …) or
 `{"bezier": [x1, y1, x2, y2]}` (CSS `cubic-bezier`; y may overshoot).
 
+Position keys may carry `"in_tangent"` / `"out_tangent"` (`[dx, dy]`, relative
+to the key's value; written only when set - ADR 0026). A segment whose first
+key has an out tangent or whose second key has an in tangent is the cubic
+Bezier `p0, p0 + out, p1 + in, p1`; the ease then gives the fraction of its
+length travelled. Segments without tangents are straight, as before.
+
 ## Clip
 
 ```json
