@@ -187,6 +187,27 @@ def test_an_overlay_clip_checkpoints_the_object_not_the_overlay() -> None:
     assert diff <= TOLERANCE
 
 
+@pytest.mark.parametrize("params", [{}, {"fade_in": True, "fade_out": True}], ids=["flash", "three-parts"])
+def test_circumscribe_matches_manim_played_forward(params: dict) -> None:
+    """Against Manim's own Succession played in order, drawn as a scene shows it (B35)."""
+    camera = make_camera(CANVAS)
+    mob = adapter.build_mobject(SQUARE)
+    forward = m.Circumscribe(mob, **params)
+    forward.scene = None
+    forward.begin()
+    shown = list({id(p.mobject): p.mobject for p in forward.animations}.values())
+    expected = []
+    for t in FRAMES:
+        forward.interpolate(t)
+        expected.append(render_frame(camera, [mob, *shown]))
+    plain = render_frame(camera, [adapter.build_mobject(SQUARE)])
+    assert max(max_diff(frame, plain) for frame in expected) > 100  # the frame is really drawn
+    clip = Clip(id="c", kind="Circumscribe", start=0, duration=1, params=params)
+    project = Project(canvas=CANVAS, layers=[Layer(id="a", spec=SQUARE, clips=[clip])])
+    order = list(reversed(range(len(FRAMES)))) + random.Random(9).sample(range(len(FRAMES)), len(FRAMES))
+    assert_frames_equal(expected, render_in_order(project, order), "circumscribe")
+
+
 def test_an_overlay_turns_with_its_layer() -> None:
     clip = Clip(id="c", kind="Circumscribe", start=0, duration=1, params={"color": "#22d3ee"})
     base = Transform2D(rotation=30.0, position=(1.0, 0.0))

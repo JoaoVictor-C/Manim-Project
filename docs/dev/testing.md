@@ -51,6 +51,11 @@ subprocesses — the build worker and the renderer — and LaTeX).
 `ui/test_acceptance_p2c.py` are the Phase 2 acceptance tests (scale/rotate and
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
+`ui/test_acceptance_p2g.py` circles a term of a split equation with
+Circumscribe from the timeline, recolours it and fades a title in from the left
+through Properties (scrub = play, export = editor); `core/test_clip_kinds.py`
+samples every registered clip param through the random-access harness and
+checks Circumscribe against Manim's own Succession played forward.
 `ui/test_acceptance_p2f.py` drags a line's pivot cross to its top end, keys a
 swing through Properties, and checks the top stays put in every frame and in
 the export; `core/test_anchor.py` checks the anchored transform against Manim.

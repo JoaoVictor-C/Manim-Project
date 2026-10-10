@@ -53,6 +53,13 @@ and easing in Properties, drag it to retime, press Delete to remove it, or
 right-click a row to add a key at the playhead. Any easing list ends in
 **Custom curve...**, which opens a curve editor with two draggable handles.
 
+Clips are added from a row's right-click menu (**Add clip**), grouped into
+*Appear / disappear*, *Emphasis* and *Turn into*. Select a clip to change it in
+Properties: some have options there — the side a fade moves toward, the edge
+something grows from, the colour of an Indicate, a Flash or a Circumscribe
+(rectangle or circle). Circumscribe, Flash and FocusOn draw next to the object
+without changing it, and work on single terms of an equation too.
+
 **Parts** animate a piece of an equation on its own: select a MathTex or Tex
 layer and use **Parts > Add part...** (type the TeX of the term, e.g. `b^2`) or
 **Parts > Split into terms**. Parts sit under their equation in the Layers

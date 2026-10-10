@@ -1,6 +1,6 @@
 # P2g — More clip kinds, clip parameters and overlay clips: implementation plan
 
-- **Status:** In progress
+- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2g.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 14](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.84)
 - **Evidence:** benchmark B35 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -79,3 +79,14 @@ sequential output in reversed and shuffled order.
 | P2g.1 | registry fields, kinds, `CLIP_PARAMS` + validation + conversion, Succession patch | harness over registry × {Square, Text, image} × param samples; load-time validation tests |
 | P2g.2 | evaluator overlays for objects and parts | frames vs hand-built Manim; checkpoint after an overlay; overlay on a fully partitioned root |
 | P2g.3 | Properties param rows, kind change drops params, menus; acceptance; ADR 0022, deviations, docs | the Goal's scenario through the UI, scrub = play, export = editor |
+
+## Outcome
+
+Done on 2026-10-10, as planned, with one correction found by the acceptance
+test: a `Succession`'s own mobject is an empty group (a scene draws the parts'
+mobjects, added in `_setup_scene`), so Circumscribe drew nothing and the B35
+probe for it had compared two empty frames. The patch now draws the parts'
+mobjects; re-measured against Manim's Succession played forward it is exact,
+and `test_circumscribe_matches_manim_played_forward` checks that the frame is
+really drawn. The library's "Text" section header no longer shadows its Text
+item in test menu lookups.

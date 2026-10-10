@@ -298,4 +298,15 @@ family before each part and restores it per frame they match Manim's
 sequential output **exactly in reversed and shuffled order** (begin 0.1-0.3 ms
 for Circumscribe). Blink leaves a Square **98 levels** off its shape at the end.
 On a 60x40 RGBA image: the same exact set except SpiralIn (raises) and
-ShowPassingFlash (VMobjects only); Circumscribe with the patch exact. → ADR 0022.
+ShowPassingFlash (VMobjects only). → ADR 0022.
+
+*Correction (same day, during P2g.3):* the Circumscribe numbers above drew the
+Succession's own `mobject`, which is an **empty** group — a scene shows the
+frame because `_setup_scene` adds the parts' mobjects separately — so they
+compared nothing. Re-measured (`check_circumscribe` in the script) against
+unpatched Circumscribe played forward, drawing the object and the parts'
+mobjects: the frame is visible (up to 230 levels off the plain object) and the
+patched animation matches **exactly** (diff 0) in reversed and shuffled order
+on Square, Text, MathTex and an image, for the default, `shape=Circle`, and the
+three-part `fade_in=True, fade_out=True` variant; at the end the object is
+unchanged. The adapter now draws the parts' mobjects.

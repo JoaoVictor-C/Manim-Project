@@ -31,7 +31,18 @@ from PySide6.QtWidgets import (
 from ..core import adapter, edits, parts
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
-from ..core.schema import CLIP_KIND_INFO, CODE_TYPES, RASTER_TYPES, Easing, Layer, PartKey, Project
+from ..core.schema import (
+    CLIP_KIND_INFO,
+    CODE_TYPES,
+    DIRECTIONS,
+    RASTER_TYPES,
+    ClipParam,
+    Easing,
+    Layer,
+    PartKey,
+    Project,
+    clip_params,
+)
 from .build_service import BuildService
 from .curve_editor import ease_label, edit_curve
 from .fields import (
@@ -105,6 +116,19 @@ def set_anchor(project: Project, layer_id: str, value: Any, at: Callable[[], flo
     if not _has(project, layer_id):
         raise edits.EditError(f"no layer {layer_id!r}")
     return edits.set_anchor(project, layer_id, tuple(value), at())
+
+
+def set_clip_param(project: Project, layer_id: str, value: Any, clip_id: str, name: str) -> edits.Edit:
+    """One registered clip param; None goes back to its default (ADR 0022)."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    clip = next((c for c in project.layer(layer_id).clips if c.id == clip_id), None)
+    if clip is None:
+        raise edits.EditError(f"layer {layer_id!r} has no clip {clip_id!r}")
+    params = {k: v for k, v in clip.params.items() if k != name}
+    if value is not None:
+        params[name] = value
+    return edits.update_clip(project, layer_id, clip_id, params=params)
 
 
 def set_animated(
@@ -196,6 +220,7 @@ class PropertiesPanel(QWidget):
         self._keys: dict[str, Hashable] = {}
         self._generation = 0  # bumped on every rebuild: old widgets can no longer commit
         self._shown_props: tuple[str, ...] = ()  # keys view: the properties keyed at key_time
+        self._shown_kind: str | None = None  # clip view: the kind whose params are shown (ADR 0022)
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
         # Code layers (ADR 0019), set by the window: status text, retry, and trusting applied code.
@@ -296,6 +321,9 @@ class PropertiesPanel(QWidget):
         layer = self.project.layer(self.layer_id)
         if self.clip_id is not None and self._clip(self.layer_id, self.clip_id) is None:
             self.show_layer(self.layer_id)
+            return
+        if self.clip_id is not None and self._clip(self.layer_id, self.clip_id).kind != self._shown_kind:
+            self.show_clip(self.layer_id, self.clip_id)  # another kind has other params
             return
         if self.key_time is not None:
             keyed = _keyed_props(layer, self.key_time, self.project.canvas.fps)
@@ -613,6 +641,20 @@ class PropertiesPanel(QWidget):
             path = f"clip.{name}"
             self._register(path, getter(name))
             rows.append((label, path, field))
+        for param in clip_params(clip.kind):  # registered params only (ADR 0022)
+            path = f"clip.params.{param.name}"
+            self._register(
+                path, lambda layer, p=param: self._clip(layer.id, clip_id).params.get(p.name, p.default)
+            )
+            op = partial(set_clip_param, clip_id=clip_id, name=param.name)
+            rows.append(
+                (
+                    param.label,
+                    path,
+                    _clip_param_field(param, self._op(path, op, f"Change {param.label.lower()}")),
+                )
+            )
+        self._shown_kind = clip.kind
         self._section("Clip", rows)
 
     # -- committing -------------------------------------------------------------------
@@ -649,6 +691,17 @@ class PropertiesPanel(QWidget):
 
 def _call(op: Callable[..., edits.Edit], project: Project, *, layer_id: str, value: Any) -> edits.Edit:
     return op(project, layer_id=layer_id, value=value)
+
+
+def _clip_param_field(param: ClipParam, commit: Callable[[Any], None]) -> Field:
+    if param.kind == "direction":
+        none = [("None", None)] if param.default is None else []
+        return ChoiceField(commit, none + [(d.title(), d) for d in DIRECTIONS])
+    if param.kind == "color":
+        return ColorField(commit)
+    if param.kind == "float":
+        return FloatField(commit, param.minimum, param.maximum, param.step, 2)
+    return ChoiceField(commit, [(c.title(), c) for c in param.choices])
 
 
 def _param_field(param: Param, commit: Callable[[Any], None]) -> Field:

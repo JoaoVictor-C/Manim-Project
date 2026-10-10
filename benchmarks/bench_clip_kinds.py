@@ -27,9 +27,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.render.cairo_export import make_camera, render_frame  # noqa: E402
-from support import CANVAS, FRAMES, MATH, SQUARE, TEXT  # noqa: E402
+from manim_studio.core import adapter
+from manim_studio.render.cairo_export import make_camera, render_frame
+from support import CANVAS, FRAMES, MATH, SQUARE, TEXT
 
 CANDIDATES: dict[str, tuple[type, dict, bool]] = {  # kind: (class, kwargs, overlay)
     "GrowFromEdge": (m.GrowFromEdge, {"edge": m.DOWN}, False),
@@ -39,8 +39,7 @@ CANDIDATES: dict[str, tuple[type, dict, bool]] = {  # kind: (class, kwargs, over
     "FadeOut(shift)": (m.FadeOut, {"shift": m.DOWN}, False),
     "AddTextLetterByLetter": (m.AddTextLetterByLetter, {}, False),
     "RemoveTextLetterByLetter": (m.RemoveTextLetterByLetter, {}, False),
-    "Blink": (m.Blink, {}, False),
-    "Circumscribe": (m.Circumscribe, {}, True),
+    "Blink": (m.Blink, {}, False),  # a Succession: errors without a scene
     "Flash": (m.Flash, {}, True),
     "FocusOn": (m.FocusOn, {}, True),
     "Broadcast": (m.Broadcast, {}, True),
@@ -74,10 +73,15 @@ def check(cls, kwargs, spec, overlay: bool) -> str:
             reference.append(frame(camera, mob, anim, overlay))
         anim.interpolate(1.0)
         anim.finish()
-        unchanged = np.allclose(
-            mob.family_members_with_points()[0].points, adapter.build_mobject(spec).family_members_with_points()[0].points
-        ) if mob.family_members_with_points() else None
-    except Exception as exc:  # noqa: BLE001 - a probe: report and go on
+        unchanged = (
+            np.allclose(
+                mob.family_members_with_points()[0].points,
+                adapter.build_mobject(spec).family_members_with_points()[0].points,
+            )
+            if mob.family_members_with_points()
+            else None
+        )
+    except Exception as exc:
         return f"error: {type(exc).__name__}: {str(exc)[:60]}"
     worst_fresh = 0
     for i, t in enumerate(FRAMES):
@@ -85,7 +89,9 @@ def check(cls, kwargs, spec, overlay: bool) -> str:
         a2 = cls(mob2, **kwargs)
         a2.begin()
         a2.interpolate(t)
-        worst_fresh = max(worst_fresh, int(np.abs(frame(camera, mob2, a2, overlay).astype(int) - reference[i]).max()))
+        worst_fresh = max(
+            worst_fresh, int(np.abs(frame(camera, mob2, a2, overlay).astype(int) - reference[i]).max())
+        )
     mob3 = adapter.build_mobject(spec)
     a3 = cls(mob3, **kwargs)
     a3.begin()
@@ -93,7 +99,9 @@ def check(cls, kwargs, spec, overlay: bool) -> str:
     worst_scrub = 0
     for i in order:
         a3.interpolate(FRAMES[i])
-        worst_scrub = max(worst_scrub, int(np.abs(frame(camera, mob3, a3, overlay).astype(int) - reference[i]).max()))
+        worst_scrub = max(
+            worst_scrub, int(np.abs(frame(camera, mob3, a3, overlay).astype(int) - reference[i]).max())
+        )
     verdict = "ok" if worst_fresh <= 1 and worst_scrub <= 1 else "FAIL"
     return f"{verdict} fresh {worst_fresh:3d} scrub {worst_scrub:3d} end-unchanged {unchanged} {cost:6.1f} ms"
 
@@ -117,12 +125,46 @@ def check_morph(cls) -> str:
     return f"{'ok' if worst <= 1 else 'FAIL'} scrub {worst:3d}"
 
 
+def check_circumscribe(spec, params: dict) -> str:
+    """The adapter's random-access Circumscribe vs Manim's, played forward as a scene shows it.
+
+    A Succession's own ``mobject`` is an empty group: a scene draws the parts'
+    mobjects (added by ``_setup_scene``), so the reference does the same.
+    """
+    camera = make_camera(CANVAS)
+    mob = adapter.build_mobject(spec)
+    forward = m.Circumscribe(mob, **params)
+    forward.scene = None
+    forward.begin()
+    shown = list({id(p.mobject): p.mobject for p in forward.animations}.values())
+    reference = []
+    for t in FRAMES:
+        forward.interpolate(t)
+        reference.append(render_frame(camera, [mob, *shown]))
+    plain = render_frame(camera, [adapter.build_mobject(spec)])
+    visible = max(int(np.abs(r.astype(int) - plain).max()) for r in reference)
+    mob2 = adapter.build_mobject(spec)
+    editor = {k: ("circle" if v is m.Circle else v) for k, v in params.items()}
+    anim = adapter.make_animation("Circumscribe", mob2, None, editor)
+    anim.begin()
+    worst = 0
+    order = list(reversed(range(len(FRAMES)))) + random.Random(0).sample(range(len(FRAMES)), len(FRAMES))
+    for i in order:
+        anim.interpolate(FRAMES[i])
+        got = render_frame(camera, [mob2, anim.mobject])
+        worst = max(worst, int(np.abs(got.astype(int) - reference[i]).max()))
+    return f"{'ok' if worst <= 1 else 'FAIL'} frame visible {visible:3d} scrub {worst:3d}"
+
+
 def main() -> None:
     adapter.configure(Path(__file__).resolve().parents[1] / ".cache" / "manim")
     for kind, (cls, kwargs, overlay) in CANDIDATES.items():
         specs = (TEXT,) if "Letter" in kind else (SQUARE, TEXT, MATH)
         for spec in specs:
             print(f"{kind:26s} {spec.type:8s} {check(cls, kwargs, spec, overlay)}", flush=True)
+    for params in ({}, {"shape": m.Circle}, {"fade_in": True, "fade_out": True}):
+        for spec in (SQUARE, TEXT, MATH):
+            print(f"Circumscribe{list(params)!s:20s} {spec.type:8s} {check_circumscribe(spec, params)}")
     for kind, cls in MORPHS.items():
         print(f"{kind:26s} Square   {check_morph(cls)}", flush=True)
 

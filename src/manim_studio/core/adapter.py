@@ -510,6 +510,9 @@ def _random_access(anim: m.Succession) -> m.Succession:
     """
     anim.scene = None
     parts, timings, snapshots = anim.animations, anim.anims_with_timings, []
+    # What a scene would show: the parts' mobjects (Succession's own group stays empty).
+    drawn = {id(part.mobject): part.mobject for part in parts if part.mobject is not None}
+    anim.mobject = m.Group(*drawn.values())
 
     def begin() -> None:
         for part in parts:
