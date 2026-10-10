@@ -474,7 +474,7 @@ class Project(BaseModel):
                             f"clip {clip.id!r}: TransformMatchingTex needs MathTex or Tex at both ends"
                         )
             node = layer
-            while layer.is_part and node.parent_id is not None:  # parts share their root's glyphs
+            while layer.is_child and node.parent_id is not None:  # members share their object's clips
                 node = by_id[node.parent_id]
                 for clip in layer.clips:
                     for other in node.clips:

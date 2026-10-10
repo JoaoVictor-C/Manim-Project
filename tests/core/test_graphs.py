@@ -125,11 +125,16 @@ def test_a_graph_is_locked_to_its_axes_but_can_fade() -> None:
     assert keyable_props(Layer(id="axes", spec=AXES)) == ("position", "scale", "rotation", "opacity")
 
 
-def test_part_rules_do_not_apply_to_graphs() -> None:
+def test_a_graph_may_morph_but_not_overlap_its_axes_clips() -> None:
+    """Unlike a part, a graph can turn into another; like a part, its clips cannot overlap its
+    object's - a clip on the axes animates the graphs too (ADR 0029)."""
     write_axes = {"clips": [Clip(id="c", kind="Create", start=0, duration=1)]}
-    create = Clip(id="c", kind="Create", start=0.5, duration=1)  # overlaps the axes' clip
+    create = Clip(id="c", kind="Create", start=1, duration=1)
     morph = Clip(id="m", kind="Transform", start=2, duration=1, to_layer="p")
     chart(graph(clips=[create, morph]), graph("p", PARABOLA), axes_fields=write_axes)
+    overlapping = Clip(id="c", kind="Create", start=0.5, duration=1)
+    with pytest.raises(ValidationError, match="overlaps"):
+        chart(graph(clips=[overlapping]), axes_fields=write_axes)
 
 
 def test_add_child_puts_the_graph_after_its_family_and_moving_it_alone_is_refused() -> None:
@@ -234,14 +239,18 @@ def test_a_graph_turns_into_another_graph() -> None:
 def test_editing_the_axes_plots_the_graphs_again() -> None:
     project = chart(graph(clips=[Clip(id="c", kind="Create", start=0, duration=1)]))
     evaluator = Evaluator(project)
-    before = evaluator.frame_layers(0.5)[1][1].points.copy()
+    before = points(evaluator.frame_layers(0.5)[1][1]).copy()
     taller = Spec(type="Axes", params={"y_range": [-1.0, 1.0]})
     edit = edits.update_layer(project, "axes", spec=taller)
     assert edit.kind == "spec" and "g" in edit.layer_ids
     evaluator.apply(edit)
-    after = evaluator.frame_layers(0.5)[1][1].points
-    assert not np.allclose(before, after)  # sin(x) now spans the full height
-    assert after.shape == Evaluator(edit.project).frame_layers(0.5)[1][1].points.shape
+    after = points(evaluator.frame_layers(0.5)[1][1])
+    assert before.shape != after.shape or not np.allclose(before, after)  # sin(x) now spans the full height
+    assert np.array_equal(after, points(Evaluator(edit.project).frame_layers(0.5)[1][1]))
+
+
+def points(mob) -> np.ndarray:
+    return np.concatenate([sub.points for sub in mob.family_members_with_points()])
 
 
 def test_a_graph_lives_within_its_axes_lifetime() -> None:

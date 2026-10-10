@@ -19,10 +19,12 @@ rebuilds those layers. A file that cannot be drawn shows a dashed placeholder.
 A code layer (ADR 0019) is not evaluated at all: its frames were rendered by
 real Manim into ``code_cache``, and ``t`` picks one (a placeholder until then).
 
-An object with part layers (ADR 0012) is evaluated as one tree: its build holds
-every part's glyphs, a checkpoint is the whole object after a set of finished
-clips of the tree, a clip animates only its layer's glyphs, and each layer
-draws the glyphs it owns through its transform composed with its ancestors'.
+An object with part layers (ADR 0012) or child objects (ADR 0029) is evaluated
+as one tree: its build holds every member's glyphs, a checkpoint is the whole
+object after a set of finished clips of the tree, a clip animates only its
+layer's glyphs (the root's: all of them), and each layer draws the glyphs it
+owns through its transform composed with its ancestors'. A child object can
+morph: while it does, the hand-off draws instead of its glyphs.
 
 Edits are applied with ``invalidate`` / ``apply`` and an edit kind (ADR 0008,
 ADR 0013): timing and transform edits keep every cache, clip and spec edits drop
@@ -61,13 +63,19 @@ class _Active:
 
 @dataclass(frozen=True)
 class _Tree:
-    """An object with parts, resolved against its build (ADR 0012)."""
+    """An object with parts or child objects, resolved against its build (ADR 0012, 0029)."""
 
     spec: Spec  # what the root is built from (its spec plus marker spans)
-    members: tuple[str, ...]  # root, then resolved parts (parents first)
+    members: tuple[str, ...]  # root, then resolved parts (parents first) or child objects
     regions: dict[str, tuple[int, ...]]  # member -> glyph indices it animates
     owned: dict[str, tuple[int, ...]]  # member -> glyph indices it draws
-    centres: dict[str, np.ndarray]  # part -> rest centre of its glyphs (its pivot)
+    centres: dict[str, np.ndarray]  # part -> rest centre of its glyphs (its pivot); none for children
+    drawn: dict[str, tuple[int, ...]] | None = None  # owned glyphs not inside another owned glyph
+
+    def draws(self, member: str) -> tuple[int, ...]:
+        """The glyphs to put in a member's drawn group: an axis line carries its ticks, so the ticks
+        are not added again (a morph aligns the group's structure, ADR 0029)."""
+        return self.owned[member] if self.drawn is None else self.drawn[member]
 
 
 class Evaluator:
@@ -86,11 +94,10 @@ class Evaluator:
     def _index(self) -> None:
         self._morph_into: dict[str, tuple[Layer, Clip]] = {}
         self._layers: dict[str, Layer] = {layer.id: layer for layer in self.project.layers}
-        self._has_parts = {layer.parent_id for layer in self.project.layers if layer.is_part}
-        self._objects: dict[str, list[Layer]] = {}  # root -> its child objects, drawn after it (ADR 0024)
-        for layer in self.project.layers:
-            if layer.is_child and not layer.is_part:
-                self._objects.setdefault(layer.parent_id, []).append(layer)
+        # Roots evaluated as trees: with parts (ADR 0012) or child objects (ADR 0029).
+        self._trees_of = {
+            self.project.root_of(layer.id).id for layer in self.project.layers if layer.parent_id is not None
+        }
         for layer in self.project.layers:
             for clip in layer.clips:
                 if clip.to_layer:
@@ -109,9 +116,9 @@ class Evaluator:
         for layer in self.project.layers:
             if layer.is_part:
                 continue
-            if layer.id in self._has_parts:
+            if layer.id in self._trees_of:
                 for finished in self._tree_milestones(layer):
-                    if finished and (layer.id, finished) not in self._tree_states:
+                    if finished and self._tree_key(layer, finished) not in self._tree_states:
                         missing.append((layer, finished))
                 continue
             for index, clip in enumerate(layer.clips, start=1):
@@ -250,18 +257,10 @@ class Evaluator:
         return self._object_at(self.project.root_of(layer_id), t)
 
     def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
-        out: list[tuple[str, m.Mobject]] = []
-        if root.id in self._has_parts:
-            out.extend(self._tree_at(root, t))
-        else:
-            mob = self._layer_at(root, t)
-            if mob is not None:
-                out.append((root.id, mob))
-        for child in self._objects.get(root.id, ()):  # graphs on their axes (ADR 0024)
-            mob = self._layer_at(child, t)
-            if mob is not None:
-                out.append((child.id, mob))
-        return out
+        if root.id in self._trees_of:  # its parts or child objects too (ADR 0012, 0029)
+            return self._tree_at(root, t)
+        mob = self._layer_at(root, t)
+        return [(root.id, mob)] if mob is not None else []
 
     # -- lifetime --------------------------------------------------------------
 
@@ -276,14 +275,13 @@ class Evaluator:
     # -- local state (clips) ---------------------------------------------------
 
     def _base_mobject(self, layer: Layer) -> m.Mobject:
+        if layer.id in self._trees_of:
+            self._tree(layer)  # builds the whole object
         if layer.id not in self._base:
-            if layer.is_child:  # a child object is built against its parent (ADR 0024)
+            if layer.is_child:  # a child object alone, built against its parent (a path, ADR 0025)
                 built = adapter.build_child(self._layers[layer.parent_id].spec, layer.spec)
             else:
-                built = adapter.build_mobject(
-                    self._tree(layer).spec if layer.id in self._has_parts else layer.spec,
-                    self._media_signature(layer),
-                )
+                built = adapter.build_mobject(layer.spec, self._media_signature(layer))
             self._base[layer.id] = built
         return self._base[layer.id]
 
@@ -367,27 +365,31 @@ class Evaluator:
         object (a target, which appears when the morph ends). Copies: drawings
         are shared buffers and the animation mutates its inputs.
         """
-        if layer.id in self._has_parts:
+        if layer.id in self._trees_of:
             groups = []
-            for member, mob in self._tree_members_at(layer, t):
+            for member, mob in self._tree_members_at(layer, t, morphs=False):
                 part = self._layers[member].part
                 groups.append((part.tex if part is not None else None, mob.copy()))
             return groups
+        if layer.is_child and not layer.is_part:  # a child object as its tree draws it (ADR 0029)
+            root = self.project.root_of(layer.id)
+            members = self._tree_members_at(root, t, morphs=False)
+            drawn = [mob.copy() for member, mob in members if member == layer.id]
+            return [(None, drawn[0] if drawn else m.VGroup())]
         local = self._state_before(layer, index) if index is not None else self._base_mobject(layer)
         return [(None, self._to_world(local, layer, t).copy())]
 
     def _end_signature(self, layer: Layer, t: float):
         """What one end of a morph depends on besides edits that drop caches anyway."""
-        if layer.id not in self._has_parts:
+        if layer.is_child and not layer.is_part:  # drawn by its tree: depends on all of it (ADR 0029)
+            layer = self.project.root_of(layer.id)
+        if layer.id not in self._trees_of:
             paths = self._path_sigs(layer, sum(1 for c in layer.clips if c.end <= t))  # ADR 0025
-            if layer.is_child:  # a graph's world shape also depends on its axes (ADR 0024)
-                return self.transform_at(layer, t), self.transform_at(self._layers[layer.parent_id], t), paths
             return self.transform_at(layer, t), paths
         tree = self._tree(layer)
         finished = tuple((lay.id, c.id) for lay, c in self._tree_clips(layer, tree) if c.end <= t)
-        return finished, tuple(
-            (member, self.transform_at(self._layers[member], t)) for member in tree.members
-        )
+        members = tuple((member, self.transform_at(self._layers[member], t)) for member in tree.members)
+        return finished, members, self._tree_paths(layer, finished)
 
     # -- paths (ADR 0025) ------------------------------------------------------
 
@@ -466,6 +468,11 @@ class Evaluator:
         tree = self._trees.get(root.id)
         if tree is not None:
             return tree
+        children = [x for x in self.project.layers if x.parent_id == root.id and not x.is_part]
+        if children:
+            tree = self._child_tree(root, children)
+            self._trees[root.id] = tree
+            return tree
         resolution = parts.resolve(self.project, root.id)
         spec = parts.build_spec(self.project, root.id, resolution)
         if root.id not in self._base:
@@ -490,6 +497,39 @@ class Evaluator:
         tree = _Tree(spec, members, regions, owned, centres)
         self._trees[root.id] = tree
         return tree
+
+    def _child_tree(self, root: Layer, children: list[Layer]) -> _Tree:
+        """An object and its child objects (ADR 0029): the root's build, then each child's built
+        against it; a child owns its slice of the glyphs and pivots as before (no rest centre)."""
+        if root.id not in self._base:
+            builds = [adapter.build_mobject(root.spec, self._media_signature(root))]
+            builds += [adapter.build_child(root.spec, child.spec) for child in children]
+            vector = all(isinstance(b, m.VMobject) for b in builds)
+            self._base[root.id] = m.VGroup(*builds) if vector else m.Group(*builds)
+        group = self._base[root.id]
+        counts = [len(sub.family_members_with_points()) for sub in group.submobjects]
+        starts = list(itertools.accumulate([0, *counts]))
+        members = (root.id, *(child.id for child in children))
+        owned = {member: tuple(range(starts[i], starts[i + 1])) for i, member in enumerate(members)}
+        regions = {**owned, root.id: tuple(range(starts[-1]))}
+        leaves = group.family_members_with_points()
+        inner = {  # glyphs inside another glyph's family (an axis' ticks)
+            id(sub) for leaf in leaves for sub in leaf.get_family()[1:] if len(sub.points)
+        }
+        drawn = {member: tuple(i for i in owned[member] if id(leaves[i]) not in inner) for member in members}
+        return _Tree(root.spec, members, regions, owned, {}, drawn)
+
+    def _tree_key(self, root: Layer, finished: tuple[ClipKey, ...]) -> tuple:
+        """A tree state's cache key: the finished clips and the paths its root ran along (ADR 0025)."""
+        return (root.id, finished, self._tree_paths(root, finished))
+
+    def _tree_paths(self, root: Layer, finished: tuple[ClipKey, ...]) -> tuple[str, ...]:
+        clips = {c.id: c for c in root.clips}
+        return tuple(
+            self._path_signature(root, clips[clip_id])
+            for layer_id, clip_id in finished
+            if layer_id == root.id and clips[clip_id].info.category == "motion"
+        )
 
     def _tree_clips(self, root: Layer, tree: _Tree) -> list[tuple[Layer, Clip]]:
         """Clips of the tree's layers that animate glyphs, by start time (then tree order)."""
@@ -518,7 +558,7 @@ class Evaluator:
         """The whole object after ``finished`` clips, applied in that order (never mutate it)."""
         if not finished:
             return self._base_mobject(root)
-        key = (root.id, finished)
+        key = self._tree_key(root, finished)
         if key not in self._tree_states:
             work = self._tree_state(root, finished[:-1]).copy()
             layer_id, clip_id = finished[-1]
@@ -539,7 +579,8 @@ class Evaluator:
         else:
             leaves = work.family_members_with_points()
             target = m.VGroup(*(leaves[i] for i in self._tree(root).regions[layer.id]))
-        return adapter.make_animation(clip.kind, target, clip.ease, clip.params)
+        path = self._path_target(root, clip) if layer.id == root.id else None  # roots travel (ADR 0025)
+        return adapter.make_animation(clip.kind, target, clip.ease, clip.params, path)
 
     def _tree_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
         start, end = self.lifetime(root)
@@ -550,8 +591,10 @@ class Evaluator:
                 return [(root.id, self._morph_at(root, index, clip, (t - clip.start) / clip.duration))]
         return self._tree_members_at(root, t)
 
-    def _tree_members_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
-        """The tree's members as drawn at ``t``, ignoring morphs (also a morph's ends)."""
+    def _tree_members_at(self, root: Layer, t: float, morphs: bool = True) -> list[tuple[str, m.Mobject]]:
+        """The tree's members as drawn at ``t``, ignoring the whole tree's morphs (also a morph's
+        ends). A member morphing draws the hand-off instead of its glyphs, unless ``morphs`` is
+        False (a morph's own ends: no morph is evaluated inside another)."""
         start, end = self.lifetime(root)
         if not (start <= t <= end):
             return []
@@ -564,7 +607,7 @@ class Evaluator:
             if not (clip.start <= t < clip.end):
                 continue
             before = tuple((other.id, c.id) for other, c in clips if c.end <= clip.start)
-            key = (layer.id, clip.id, before)
+            key = (layer.id, clip.id, before, self._tree_paths(root, (*before, (layer.id, clip.id))))
             active = self._active.get(key)
             if active is None:
                 work = self._tree_state(root, before).copy()
@@ -587,11 +630,21 @@ class Evaluator:
                 member_start, member_end = self.lifetime(layer)
                 if not (member_start <= t < member_end):
                     continue
-            local = m.VGroup(*(source[i] for i in glyphs))
+                morph = self._member_morph(layer, t) if morphs else None
+                if morph is not None:  # a child object turning into another (ADR 0029)
+                    out.append((member, morph))
+                    continue
+            local = m.VGroup(*(source[i] for i in tree.draws(member)))
             if member in overlays:
                 local = m.Group(local, overlays[member])
             out.append((member, self._project_local(local, member, *self._member_affine(tree, layer, t))))
         return out
+
+    def _member_morph(self, layer: Layer, t: float) -> m.Mobject | None:
+        for index, clip in enumerate(layer.clips):
+            if clip.to_layer and clip.start <= t < clip.end:
+                return self._morph_at(layer, index, clip, (t - clip.start) / clip.duration)
+        return None
 
     def _member_affine(self, tree: _Tree, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray, float]:
         """World affine (A, b) and opacity of a tree member: ancestors' transforms, then its own."""
@@ -690,9 +743,13 @@ class Evaluator:
 
 
 def _builds(project: Project) -> dict[str, object]:
-    """What each layer's base object is built from: roots with their parts' spans, child objects
-    with their parent's spec (an axes edit re-plots its graphs)."""
-    out: dict[str, object] = {root.id: parts.build_spec(project, root.id) for root in project.roots()}
+    """What each layer's base object is built from: roots with their parts' spans and their child
+    objects' specs (a graph edit rebuilds its axes' tree, ADR 0029), child objects with their
+    parent's spec (an axes edit re-plots its graphs)."""
+    out: dict[str, object] = {}
+    for root in project.roots():
+        children = tuple(x.spec for x in project.layers if x.parent_id == root.id and not x.is_part)
+        out[root.id] = (parts.build_spec(project, root.id), children)
     for layer in project.layers:
         if layer.is_child and not layer.is_part:
             out[layer.id] = (project.layer(layer.parent_id).spec, layer.spec)
