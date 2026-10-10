@@ -15,7 +15,7 @@ from PIL import Image
 
 from manim_studio.core import adapter
 from manim_studio.core.adapter import LIBRARY, MOBJECT_PARAMS, MOBJECT_TYPES, Param
-from manim_studio.core.schema import TEXT_TYPES, Spec
+from manim_studio.core.schema import CODE_TYPES, TEXT_TYPES, Spec
 
 LATEX_TYPES = {"MathTex", "Tex"}
 
@@ -24,11 +24,10 @@ def _marks(type_name: str):
     return [pytest.mark.latex] if type_name in LATEX_TYPES else []
 
 
-ALL_TYPES = [pytest.param(t, marks=_marks(t)) for t in sorted(MOBJECT_PARAMS)]
+BUILT = sorted(set(MOBJECT_PARAMS) - CODE_TYPES)  # code layers are rendered, not built (ADR 0019)
+ALL_TYPES = [pytest.param(t, marks=_marks(t)) for t in BUILT]
 ALL_PARAMS = [
-    pytest.param(t, p, marks=_marks(t), id=f"{t}.{p.name}")
-    for t in sorted(MOBJECT_PARAMS)
-    for p in MOBJECT_PARAMS[t]
+    pytest.param(t, p, marks=_marks(t), id=f"{t}.{p.name}") for t in BUILT for p in MOBJECT_PARAMS[t]
 ]
 
 
@@ -43,9 +42,9 @@ def image(tmp_path: Path):
 
 
 def test_registry_and_library_cover_every_type_once() -> None:
-    assert set(MOBJECT_PARAMS) == set(MOBJECT_TYPES)
+    assert set(MOBJECT_PARAMS) == set(MOBJECT_TYPES) | CODE_TYPES
     listed = [t for _, types in LIBRARY for t in types]
-    assert sorted(listed) == sorted(MOBJECT_TYPES)
+    assert sorted(listed) == sorted(set(MOBJECT_TYPES) | CODE_TYPES)
 
 
 def test_defaults_are_within_bounds_and_choices() -> None:

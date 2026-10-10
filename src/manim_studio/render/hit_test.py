@@ -26,6 +26,8 @@ from collections.abc import Sequence
 import manim as m
 import numpy as np
 
+from ..core.code_frame import CodeFrame
+
 VISIBLE_ALPHA = 0.02
 TOLERANCE_PX = 4.0
 _TEXT_CLASSES = (m.Text, m.SingleStringMathTex)
@@ -50,6 +52,8 @@ def hit_layers(
 
 
 def hits(mob: m.Mobject, p: np.ndarray, tolerance: float) -> bool:
+    if isinstance(mob, CodeFrame):
+        return mob.hit(p)  # a code layer: on a visible pixel of its frame (ADR 0019)
     if isinstance(mob, m.ImageMobject):
         return _image_hit(mob, p)
     family = [sub for sub in mob.family_members_with_points() if isinstance(sub, m.VMobject)]

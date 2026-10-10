@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validat
 SCHEMA_VERSION = 1
 TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
+CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "morph"]
@@ -178,6 +179,8 @@ class Layer(BaseModel):
             raise ValueError(
                 f"layer {self.id!r}: duplicate clip ids {sorted({i for i in ids if ids.count(i) > 1})}"
             )
+        if self.spec is not None and self.spec.type in CODE_TYPES and self.clips:
+            raise ValueError(f"layer {self.id!r}: code layers have no clips (animate inside the code)")
         if self.spec is not None and self.spec.type in RASTER_TYPES:
             for clip in self.clips:
                 if clip.info.vector_only:
@@ -220,6 +223,9 @@ class Project(BaseModel):
                     raise ValueError(
                         f"clip {clip.id!r} on layer {layer.id!r}: to_layer {clip.to_layer!r} is missing"
                     )
+                target = next(other for other in self.layers if other.id == clip.to_layer)
+                if target.spec is not None and target.spec.type in CODE_TYPES:
+                    raise ValueError(f"clip {clip.id!r}: a layer cannot morph into a code layer")
                 if clip.to_layer == layer.id:
                     raise ValueError(f"clip {clip.id!r}: a layer cannot morph into itself")
                 if clip.to_layer in targeted:

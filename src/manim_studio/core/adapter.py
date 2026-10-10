@@ -20,7 +20,7 @@ from manim.utils import rate_functions
 
 from ..logging_config import get_logger
 from . import parts
-from .schema import CLIP_KIND_INFO, RASTER_TYPES, TEXT_TYPES, Easing, Spec
+from .schema import CLIP_KIND_INFO, CODE_TYPES, RASTER_TYPES, TEXT_TYPES, Easing, Spec
 
 log = get_logger(__name__)
 
@@ -77,6 +77,17 @@ class Param:
         return self.label or self.name.replace("_", " ").capitalize()
 
 
+MANIM_VERSION = m.__version__
+CODE_STARTER = """class Orbit(Scene):
+    def construct(self):
+        t = ValueTracker(0)
+        dot = Dot(color=YELLOW).add_updater(
+            lambda d: d.move_to([2 * np.cos(t.get_value()), 2 * np.sin(t.get_value()), 0])
+        )
+        self.add(TracedPath(dot.get_center, stroke_color=YELLOW, stroke_width=4), dot)
+        self.play(t.animate.set_value(TAU), run_time=3, rate_func=linear)
+"""
+
 _SIZE = {"minimum": 0.01, "maximum": 50.0}
 _FONT_SIZE = Param("font_size", "float", 48.0, "Font size", minimum=4, maximum=400, step=1)
 
@@ -110,6 +121,8 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     "MathTex": (Param("text", "text", r"e^{i\pi} + 1 = 0", "LaTeX (math)", multiline=True), _FONT_SIZE),
     "Tex": (Param("text", "text", r"Hello \LaTeX", "LaTeX (text)", multiline=True), _FONT_SIZE),
     "ImageMobject": (Param("path", "path", "", "Image file"),),
+    # A code layer (ADR 0019): one Scene subclass; `from manim import *` and numpy as np are implied.
+    "Code": (Param("code", "text", CODE_STARTER, "Manim code (one Scene)", multiline=True),),
 }
 
 # The object library (S2 plan): menu sections in order.
@@ -117,9 +130,10 @@ LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
     ("Text", ("Text", "MathTex", "Tex")),
     ("Media", ("ImageMobject",)),
+    ("Code", ("Code",)),
 )
 
-_REQUIRED = {"text", "path"}  # positional in Manim: always written to the spec
+_REQUIRED = {"text", "path", "code"}  # always written to the spec
 
 
 def default_spec(type_name: str, **params: Any) -> Spec:
@@ -138,6 +152,8 @@ def param_value(spec: Spec, param: Param) -> Any:
 
 def build_mobject(spec: Spec) -> m.Mobject:
     """Build a mobject centred on the origin; the layer transform places it."""
+    if spec.type in CODE_TYPES:
+        raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
     cls = MOBJECT_TYPES.get(spec.type)
     if cls is None:
         raise ValueError(f"unsupported mobject type {spec.type!r}")
@@ -338,6 +354,8 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
 
 def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
+    if mobject_type in CODE_TYPES:
+        return []  # code layers animate inside their code (ADR 0019)
     if mobject_type in RASTER_TYPES:
         return [k for k, info in CLIP_KIND_INFO.items() if not info.vector_only]
     return list(CLIP_KIND_INFO)
