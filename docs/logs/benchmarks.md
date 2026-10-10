@@ -341,3 +341,13 @@ line (1) and a sin(x) graph on default axes (399), in order vs shuffled:
 (line), **0.48 ms** (circle), **23.6 ms** (graph) - `point_from_proportion`
 measures every curve on every call. An arc-length table built once gives the
 same points (max diff **1e-16**) in **0.005 ms**. → ADR 0025.
+
+### B39 — Curved position segments · 2026-10-10
+`benchmarks/bench_spatial_paths.py`, an S-shaped cubic Bezier (p0 (-4, -1),
+p1 (3, 1.5), handles (4, 5) and (-1, 3)) walked at 61 uniform steps of u.
+Raw `B(u)`: step lengths vary **3.4x**. By arc length with an n-sample table:
+n=16 1.100 (error 1.2e-2 units), n=32 1.037 (2.8e-3), n=64 1.010 (6.9e-4),
+**n=128 1.002 (1.6e-4)**; 12 us per sample, **37 us** to build the table. Zero
+tangents: raw walking is not linear in u (6.7e-1 off); arc-length walking
+through the table is 9.6e-4 off the exact linear formula - so straight
+segments keep the formula. → ADR 0026.

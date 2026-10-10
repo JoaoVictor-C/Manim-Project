@@ -52,6 +52,12 @@ pendulum about its top end. With **Keys** on for a property
 **Edit > Auto-key** on, the first change already animates — move the playhead,
 pose the object, and it moves there over time.
 
+When the selected object has position keys, its **motion path** shows on the
+canvas with a square per key: drag a square to move that key, double-click it
+to make the key smooth (handles appear) or straight again, and drag a handle to
+bend the path - the other handle of a smooth key turns with it (hold Alt to
+move one handle only).
+
 Keyframes show as diamonds on each timeline row: click one to see its values
 and easing in Properties, drag it to retime, press Delete to remove it, or
 right-click a row to add a key at the playhead. Any easing list ends in

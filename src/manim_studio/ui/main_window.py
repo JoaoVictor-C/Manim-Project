@@ -486,10 +486,14 @@ class MainWindow(QMainWindow):
         self._play_origin = (time.perf_counter(), self.t)
         self.play_timer.start(int(1000 / self.project.canvas.fps))
         self.play_button.setText("Pause")
+        self.canvas.playing = True
 
     def pause(self) -> None:
         self.play_timer.stop()
         self.play_button.setText("Play")
+        if self.canvas.playing:
+            self.canvas.playing = False
+            self.refresh()  # the motion path comes back
 
     def _on_play_tick(self) -> None:
         assert self.project is not None and self._play_origin is not None

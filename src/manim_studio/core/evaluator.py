@@ -35,7 +35,7 @@ import manim as m
 import numpy as np
 
 from ..logging_config import get_logger
-from . import adapter, parts
+from . import adapter, motion_paths, parts
 from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
@@ -553,6 +553,20 @@ class Evaluator:
     def transform_at(self, layer: Layer, t: float) -> Transform2D:
         return layer_transform(layer, t)
 
+    def position_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """``(a, b)`` with ``world pivot = a @ position + b`` at ``t`` (the motion path, ADR 0026)."""
+        anchor = np.array(self.transform_at(layer, t).anchor, dtype=float)
+        if layer.parent_id is None:
+            return np.eye(2), anchor
+        parent = self._layers[layer.parent_id]
+        if layer.is_part:
+            tree = self._tree(self.project.root_of(layer.id))
+            a, b, _ = self._member_affine(tree, parent, t)
+            centre = tree.centres.get(layer.id, np.zeros(3))[:2]
+            return a, a @ (centre + anchor) + b
+        a, b = _affine(self.transform_at(parent, t))
+        return a, a @ anchor + b
+
     def layer_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, float, np.ndarray]:
         """Where a layer's gizmo lives: its pivot and rotation in world space, and the
         map from a world-space move to a change of its own ``position``.
@@ -674,6 +688,8 @@ def _sample(track: list[Keyframe] | None, t: float, default):
     for k0, k1 in itertools.pairwise(track):
         if k0.t <= t < k1.t:
             u = adapter.rate_func(k0.ease)((t - k0.t) / (k1.t - k0.t))
+            if k0.out_tangent is not None or k1.in_tangent is not None:  # a curved path (ADR 0026)
+                return motion_paths.point_at(k0.value, k0.out_tangent, k1.in_tangent, k1.value, u)
             if isinstance(k0.value, tuple):
                 return tuple(a + (b - a) * u for a, b in zip(k0.value, k1.value, strict=True))
             return k0.value + (k1.value - k0.value) * u
