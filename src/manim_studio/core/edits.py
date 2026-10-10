@@ -204,6 +204,7 @@ def add_clip(
     to_layer: str | None = None,
     ease: Easing | None = None,
     clip_id: str | None = None,
+    params: dict[str, Any] | None = None,
 ) -> Edit:
     """Add a clip to a layer's lane (validated: no overlap, nothing after a morph)."""
     layer = _layer(project, layer_id)
@@ -214,6 +215,7 @@ def add_clip(
         duration=duration,
         to_layer=to_layer,
         ease=ease,
+        params=params or {},
     )
     return _replace_layer(project, layer_id, {"clips": [*layer.clips, clip]})
 

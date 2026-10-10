@@ -7,13 +7,14 @@ Run it, then open the project in the editor or render it:
 
 What is in it (10 s, 1280x720 @ 30 fps):
 
-* a title that fades in and out;
+* a title that fades in from the left and out;
 * an equation written in, split into terms (part layers, ADR 0012): ``b^2`` is
   indicated, ``a^2`` jumps up and back with keyframes on a custom bezier curve,
   ``c^2`` wiggles; then the equation turns into ``c^2 = a^2 + b^2`` with
-  TransformMatchingTex, each term flying to its new place (ADR 0020);
+  TransformMatchingTex, each term flying to its new place (ADR 0020), and its
+  ``c^2`` is circled with Circumscribe (ADR 0022);
 * a square that is drawn, spins and grows on keyframes, then morphs into a circle;
-* a star that grows from its centre and pulses its opacity;
+* a star that grows from its centre, pulses its opacity and flashes;
 * a pendulum (ADR 0021): a rod and a bob that both turn about the same pivot,
   set with their anchors — the rod's at its top end, the bob's far outside it;
 * a code layer (ADR 0019): real Manim code with a ValueTracker, an updater and a
@@ -72,7 +73,7 @@ def build() -> Project:
         )
     )
     apply(edits.update_layer(p, "title", base={"position": (0.0, 3.3)}))
-    apply(edits.add_clip(p, "title", "FadeIn", 0.0, 0.8))
+    apply(edits.add_clip(p, "title", "FadeIn", 0.0, 0.8, params={"shift": "RIGHT"}))  # in from the left
     apply(edits.add_clip(p, "title", "FadeOut", 9.0, 0.8))
 
     # Equation with part layers
@@ -95,6 +96,8 @@ def build() -> Project:
     apply(edits.update_layer(p, "eq2", base={"position": (0.0, 1.6)}))
     apply(edits.add_parts(p, "eq2", parts.split_terms(eq2_tex), layer_ids=["c2b", "a2b", "b2b"]))
     apply(edits.add_clip(p, "eq", "TransformMatchingTex", 6.2, 1.4, to_layer="eq2"))
+    # ... and its c^2 is circled (an overlay clip on a part, ADR 0022)
+    apply(edits.add_clip(p, "c2b", "Circumscribe", 8.0, 1.2, params={"shape": "circle", "color": "#22d3ee"}))
 
     # Square: drawn, spins and grows on keyframes, then turns into a circle
     square = Spec(type="Square", params={"side_length": 1.6}, style={"fill": "#6366f1", "fill_opacity": 0.6})
@@ -123,6 +126,7 @@ def build() -> Project:
         apply(edits.set_key(p, "star", "opacity", t, value))
     apply(edits.set_key(p, "star", "rotation", 3.0, 0.0))
     apply(edits.set_key(p, "star", "rotation", 9.0, 360.0))
+    apply(edits.add_clip(p, "star", "Flash", 7.4, 0.8, params={"color": "#fde047"}))
 
     # Pendulum: rod and bob swing about one pivot through their anchors (ADR 0021)
     pivot = (-5.6, 3.2)

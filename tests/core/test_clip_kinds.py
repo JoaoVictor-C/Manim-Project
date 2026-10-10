@@ -262,3 +262,11 @@ def test_new_morph_kinds_hand_off_like_transform() -> None:
         evaluator = Evaluator(Project(canvas=CANVAS, layers=layers))
         assert [i for i, _ in evaluator.frame_layers(0.5)] == ["a"]
         assert [i for i, _ in evaluator.frame_layers(1.0)] == ["b"]
+
+
+def test_add_clip_takes_params() -> None:
+    project = Project(canvas=CANVAS, layers=[Layer(id="a", spec=SQUARE)])
+    edit = edits.add_clip(project, "a", "Flash", 0.0, 0.5, params={"color": "#fde047"})
+    assert edit.project.layers[0].clips[0].params == {"color": "#fde047"}
+    with pytest.raises(ValidationError, match="color must be a colour"):
+        edits.add_clip(project, "a", "Flash", 0.0, 0.5, params={"color": "gold"})

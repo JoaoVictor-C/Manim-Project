@@ -43,7 +43,9 @@
           "start": 0.0,
           "duration": 0.8,
           "ease": null,
-          "params": {},
+          "params": {
+            "shift": "RIGHT"
+          },
           "to_layer": null
         },
         {
@@ -298,7 +300,20 @@
         "out": null
       },
       "tracks": {},
-      "clips": []
+      "clips": [
+        {
+          "id": "circumscribe-1",
+          "kind": "Circumscribe",
+          "start": 8.0,
+          "duration": 1.2,
+          "ease": null,
+          "params": {
+            "shape": "circle",
+            "color": "#22d3ee"
+          },
+          "to_layer": null
+        }
+      ]
     },
     {
       "id": "a2b",
@@ -582,6 +597,17 @@
           "duration": 1.0,
           "ease": null,
           "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "flash-1",
+          "kind": "Flash",
+          "start": 7.4,
+          "duration": 0.8,
+          "ease": null,
+          "params": {
+            "color": "#fde047"
+          },
           "to_layer": null
         }
       ]
