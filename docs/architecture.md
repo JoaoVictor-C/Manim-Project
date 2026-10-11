@@ -22,6 +22,7 @@ src/manim_studio/
 ├── code_runner.py       renders a code layer's Scene into the frame cache (single-use process)
 ├── preview.py           preview render process: frames ahead of the playhead (ADR 0028)
 ├── manim_scene.py       StudioScene: exported exact scenes play the project through Manim (ADR 0031)
+├── plugins.py           public plugin API: ObjectType, register, loading plugin folders (ADR 0032)
 ├── logging_config.py    console + rotating file logging (ADR 0011)
 ├── core/                no Qt imports allowed here
 │   ├── schema.py        project document (pydantic): Project, Layer, Clip, Keyframe
@@ -55,6 +56,7 @@ src/manim_studio/
     ├── curve_editor.py  easing curve editor: bezier handles, presets, fitted named eases
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
+    ├── plugins_dialog.py Help > Plugins: loaded plugins, their types, failures (ADR 0032)
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
     ├── preview_client.py QProcess client for preview.py: latest state, restart, give up
     ├── render_ahead.py  the kept frames: invalidation on edits, requests, decoding (ADR 0028)

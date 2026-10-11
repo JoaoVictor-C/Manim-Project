@@ -209,12 +209,14 @@ class Evaluator:
             log.info("media changed on disk: %s", sorted(changed))
         return changed
 
-    def media_errors(self) -> dict[str, str]:
-        """Media layers that show a placeholder, and why (ADR 0027)."""
+    def build_errors(self) -> dict[str, str]:
+        """Layers that show a placeholder, and why: unreadable media (ADR 0027), a failing or
+        missing plugin (ADR 0032)."""
         out = {}
         for layer in self.project.layers:
-            signature = self._media_signature(layer)
-            problem = adapter.media_problem(layer.spec, signature) if signature is not None else None
+            if layer.spec is None or layer.parent_id is not None:
+                continue
+            problem = adapter.build_problem(layer.spec, self._media_signature(layer))
             if problem is not None:
                 out[layer.id] = problem
         return out
@@ -424,8 +426,8 @@ class Evaluator:
             return None
         path_layer = self._layers[clip.params["path"]]
         signature = self._media_signature(path_layer)
-        if signature is not None and adapter.media_problem(path_layer.spec, signature) is not None:
-            # A drawing that cannot be read: go to its placeholder's centre and stay (ADR 0027).
+        if adapter.build_problem(path_layer.spec, signature) is not None:
+            # A drawing that cannot be built: go to its placeholder's centre and stay (ADR 0027, 0032).
             path = m.VectorizedPoint(self._base_mobject(path_layer).get_center())
         else:
             path = adapter.longest_path(self._base_mobject(path_layer)).copy()

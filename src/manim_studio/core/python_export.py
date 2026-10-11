@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 import manim as m
 import numpy as np
 
+from .. import plugins
 from . import adapter
 from .schema import (
     CODE_TYPES,
@@ -91,8 +92,10 @@ def readable_problems(project: Project) -> list[str]:
             out.append(f"{name(layer)}: turning along a path")
         if layer.id in morph_targets and (layer.lifetime.in_ is not None or layer.lifetime.out is not None):
             out.append(f"{name(layer)}: a morph target with its own lifetime")
-        if adapter.media_problem(layer.spec) is not None:
-            out.append(f"{name(layer)}: {adapter.media_problem(layer.spec)}")
+        if layer.spec.type in plugins.TYPES:
+            out.append(f"{name(layer)}: a plugin object")
+        elif adapter.build_problem(layer.spec) is not None:
+            out.append(f"{name(layer)}: {adapter.build_problem(layer.spec)}")
     clusters = _clusters(project)
     for t, layer_id, _ in _lifetime_events(project):
         if any(start + EPS < t < end - EPS for start, end, _ in clusters):

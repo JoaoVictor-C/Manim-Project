@@ -103,7 +103,7 @@ def _media(type_name: str, image) -> dict:
 def test_every_library_object_builds(type_name: str, image) -> None:
     spec = adapter.default_spec(type_name, **_media(type_name, image))
     mob = _build(spec)
-    assert adapter.media_problem(spec) is None  # drawn, not a placeholder
+    assert adapter.build_problem(spec) is None  # drawn, not a placeholder
     if type_name not in CHILD_ONLY_TYPES:  # a graph sits where its function puts it
         assert abs(mob.get_center()).max() < 1e-6
 

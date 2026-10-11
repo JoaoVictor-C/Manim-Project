@@ -86,6 +86,18 @@ stand-in, `ui/test_preview_process.py` the process itself (bit-exact frames,
 generations, views, restart), `core/test_frame_cache.py` the spans (checked
 exhaustively against rendered frames) and the store. Tests run with
 `MANIM_STUDIO_PREVIEW=0` unless they opt in.
+Tests never load the developer's plugins: conftest points
+`MANIM_STUDIO_PLUGINS` at an empty folder before the adapter is imported.
+`core/test_plugins.py` registers types directly and loads plugin folders and
+fake entry points (load order, a broken file, a name clash), and covers the
+build checks (VMobject, determinism, failures, missing plugins), the clip
+harness on a plugin object, warm keys and the exact Python export;
+`ui/test_plugins_ui.py` the library, Properties, *Help > Plugins...* and the
+messages. `ui/test_acceptance_p4b.py` copies `examples/plugins/pendulum.py`
+into a plugin folder and runs the editor with its real build worker and
+preview process: the pendulum is added, edited, drawn on, rendered ahead,
+exported to video and to an exact Python scene rendered by `manim render`, all
+matching the editor.
 `ui/test_acceptance_p3e.py` adds an SVG through Media > SVG, draws it on with
 DrawBorderThenFill, rewrites and deletes the file (redrawn on activation,
 placeholder and message) and exports; `core/test_svg.py` covers colours, the

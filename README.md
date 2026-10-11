@@ -113,6 +113,12 @@ working on in code: plain, readable `self.play` code when the timeline allows
 it, otherwise a scene that plays the project exactly through Manim Studio (its
 header says why). `manim-studio python project.json scene.py` does the same.
 
+**Plugins** add your own objects: put a `.py` file that registers an object
+type in `~/.manim-studio/plugins` and restart the editor. It appears in the
+library with its own controls in Properties and animates and exports like any
+object; see `examples/plugins/pendulum.py` and *Help > Plugins...*. Plugins are
+Python code you install, so they run without asking.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press
