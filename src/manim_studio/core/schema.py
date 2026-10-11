@@ -409,17 +409,52 @@ class AudioClip(BaseModel):
         return self
 
 
+class Cue(BaseModel):
+    """A subtitle (ADR 0035): ``text`` shown from ``start`` until ``end``."""
+
+    id: str
+    start: float = Field(ge=0)
+    end: float
+    text: str = ""
+
+    @model_validator(mode="after")
+    def _ends_after_start(self) -> Cue:
+        if self.end <= self.start:
+            raise ValueError(f"subtitle {self.id!r} must end after it starts")
+        return self
+
+
+class SubtitleStyle(BaseModel):
+    """How every subtitle looks (ADR 0035)."""
+
+    font_size: PositiveFloat = 26.0
+    y: float = -3.52  # the centre of the subtitle, in scene units
+    colour: str = "#f8fafc"
+    band: bool = True  # a box behind the text
+    band_colour: str = "#020617"
+    band_opacity: float = Field(default=0.72, ge=0, le=1)
+    fade: float = Field(default=0.15, ge=0)  # seconds in and out
+    burn_in: bool = True  # drawn into the frames (an .srt is written either way)
+    max_width: PositiveFloat = 12.5  # scene units; longer lines wrap, then shrink to fit
+
+
 class Project(BaseModel):
     schema_version: int = SCHEMA_VERSION
     canvas: Canvas = Field(default_factory=Canvas)
     layers: list[Layer] = Field(default_factory=list)  # first = back, last = front
     audio: list[AudioClip] = Field(default_factory=list)  # mixed together (ADR 0034)
+    subtitles: list[Cue] = Field(default_factory=list)  # one lane, in time order (ADR 0035)
+    subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
 
     @model_serializer(mode="wrap")
-    def _omit_no_audio(self, handler):
+    def _omit_unused(self, handler):
         data = handler(self)
         if not self.audio:
             data.pop("audio", None)  # files without sound save as before
+        if not self.subtitles:
+            data.pop("subtitles", None)
+        if self.subtitle_style == SubtitleStyle():
+            data.pop("subtitle_style", None)
         return data
 
     @model_validator(mode="after")
@@ -427,9 +462,14 @@ class Project(BaseModel):
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"unsupported schema_version {self.schema_version} (expected {SCHEMA_VERSION})")
         ids = [layer.id for layer in self.layers] + [clip.id for clip in self.audio]
+        ids += [cue.id for cue in self.subtitles]
         duplicates = {i for i in ids if ids.count(i) > 1}
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
+        self.subtitles = sorted(self.subtitles, key=lambda cue: cue.start)
+        for a, b in itertools.pairwise(self.subtitles):
+            if b.start < a.end - 1e-9:
+                raise ValueError(f"subtitles {a.id!r} and {b.id!r} overlap")
         self._tree_rules()
         self._path_rules()
         self._graph_refs()

@@ -37,6 +37,7 @@ src/manim_studio/
 │   ├── trust.py         which code may run: hashes in a per-user store (ADR 0019)
 │   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
 │   ├── audio.py         the project's sound: decode, peaks, one mix for playback and export (ADR 0034)
+│   ├── subtitles.py     subtitles: wrapping, .srt read/write, placing cues, changed spans (ADR 0035)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)

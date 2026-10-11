@@ -219,6 +219,7 @@ class PropertiesPanel(QWidget):
         self.clip_id: str | None = None
         self.key_time: float | None = None
         self.audio_id: str | None = None  # a sound is shown (ADR 0034)
+        self.subtitle_id: str | None = None  # a subtitle is shown (ADR 0035)
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
@@ -264,7 +265,7 @@ class PropertiesPanel(QWidget):
     # -- selection ----------------------------------------------------------------
 
     def show_nothing(self) -> None:
-        self.layer_id = self.clip_id = self.key_time = self.audio_id = None
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = self.subtitle_id = None
         self._rebuild()
         self.title.setText("Select a layer, a clip or a keyframe.")
 
@@ -273,6 +274,7 @@ class PropertiesPanel(QWidget):
             self.show_nothing()
             return
         self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, None, None, None
+        self.subtitle_id = None
         self._rebuild()
         layer = self.project.layer(layer_id)
         self._section(
@@ -294,6 +296,7 @@ class PropertiesPanel(QWidget):
             self.show_nothing()
             return
         self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, clip_id, None, None
+        self.subtitle_id = None
         self._rebuild()
         self._clip_section(self.project.layer(layer_id), self._clip(layer_id, clip_id))
         self.body_layout.addStretch(1)
@@ -308,6 +311,7 @@ class PropertiesPanel(QWidget):
             self.show_layer(layer_id)
             return
         self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, None, t, None
+        self.subtitle_id = None
         self._rebuild()
         self._key_section(self.project.layer(layer_id), t)
         self.body_layout.addStretch(1)
@@ -319,7 +323,7 @@ class PropertiesPanel(QWidget):
         if clip is None:
             self.show_nothing()
             return
-        self.layer_id = self.clip_id = self.key_time = None
+        self.layer_id = self.clip_id = self.key_time = self.subtitle_id = None
         self.audio_id = audio_id
         self._rebuild()
         generation = self._generation
@@ -356,6 +360,102 @@ class PropertiesPanel(QWidget):
         self.body_layout.addStretch(1)
         self.refresh()
 
+    def show_subtitle(self, cue_id: str) -> None:
+        """A subtitle (ADR 0035): its times and text, and the style every subtitle shares."""
+        if not any(c.id == cue_id for c in self.project.subtitles):
+            self.show_nothing()
+            return
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = None
+        self.subtitle_id = cue_id
+        self._rebuild()
+        generation = self._generation
+
+        def commit(op: Callable[..., edits.Edit], name: str, text: str) -> Callable[[Any], None]:
+            def apply(value: Any) -> None:
+                if generation != self._generation:
+                    return
+                try:
+                    self.document.apply(op(self.project, **{name: value}), text)
+                except (edits.EditError, ValidationError) as exc:
+                    self.message.emit(f"{text}: {_first_error(exc)}")
+                    self.refresh(force=True)
+
+            return apply
+
+        def cue_op(project: Project, **fields: Any) -> edits.Edit:
+            return edits.update_cue(project, cue_id, **fields)
+
+        seconds = {"minimum": 0.0, "maximum": 36000.0, "step": 0.1, "suffix": " s"}
+        self._section(
+            "Subtitle",
+            [
+                ("Start", "cue.start", FloatField(commit(cue_op, "start", "Move subtitle"), **seconds)),
+                ("End", "cue.end", FloatField(commit(cue_op, "end", "Move subtitle"), **seconds)),
+                ("Text", "cue.text", LongTextField(commit(cue_op, "text", "Edit subtitle"))),
+            ],
+        )
+        style = edits.set_subtitle_style
+        self._section(
+            "Subtitle style (all subtitles)",
+            [
+                (
+                    "Size",
+                    "subtitle_style.font_size",
+                    FloatField(commit(style, "font_size", "Subtitle size"), 6, 120, 1),
+                ),
+                (
+                    "Height",
+                    "subtitle_style.y",
+                    FloatField(commit(style, "y", "Subtitle height"), -10, 10, 0.1),
+                ),
+                ("Colour", "subtitle_style.colour", ColorField(commit(style, "colour", "Subtitle colour"))),
+                (
+                    "Band",
+                    "subtitle_style.band",
+                    BoolField(commit(style, "band", "Subtitle band"), "Box behind the text"),
+                ),
+                (
+                    "Band colour",
+                    "subtitle_style.band_colour",
+                    ColorField(commit(style, "band_colour", "Band colour")),
+                ),
+                (
+                    "Band opacity",
+                    "subtitle_style.band_opacity",
+                    FloatField(commit(style, "band_opacity", "Band opacity"), 0, 1, 0.05),
+                ),
+                (
+                    "Fade",
+                    "subtitle_style.fade",
+                    FloatField(commit(style, "fade", "Subtitle fade"), **seconds),
+                ),
+                (
+                    "Width",
+                    "subtitle_style.max_width",
+                    FloatField(commit(style, "max_width", "Subtitle width"), 1, 30, 0.5),
+                ),
+                (
+                    "Burn in",
+                    "subtitle_style.burn_in",
+                    BoolField(commit(style, "burn_in", "Burn in subtitles"), "Draw them into the video"),
+                ),
+            ],
+        )
+        self.body_layout.addStretch(1)
+        self.refresh()
+
+    def _refresh_subtitle(self, force: bool) -> None:
+        cue = next((c for c in self.project.subtitles if c.id == self.subtitle_id), None)
+        if cue is None:
+            self.show_nothing()
+            return
+        self.title.setText(f"<b>Subtitle</b> {cue.start:g} - {cue.end:g} s")
+        for path, field in self.fields.items():
+            if field.has_focus() and not force:
+                continue
+            owner, name = path.split(".", 1)
+            field.set_value(getattr(cue if owner == "cue" else self.project.subtitle_style, name))
+
     def _refresh_audio(self, force: bool) -> None:
         clip = next((c for c in self.project.audio if c.id == self.audio_id), None)
         if clip is None:
@@ -372,6 +472,9 @@ class PropertiesPanel(QWidget):
         """Show the document's values (or a pending value) in every field not being edited."""
         if self.audio_id is not None:
             self._refresh_audio(force)
+            return
+        if self.subtitle_id is not None:
+            self._refresh_subtitle(force)
             return
         if self.layer_id is None:
             return

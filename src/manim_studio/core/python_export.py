@@ -60,6 +60,16 @@ def to_python(
     return PythonExport(code, True, [])
 
 
+def subcaptions(project: Project) -> list[str]:
+    """``add_subcaption`` calls: Manim writes the subtitles as an .srt beside its video (ADR 0035)."""
+    return [
+        f"self.add_subcaption({cue.text.strip()!r}, "
+        f"duration={_num(cue.end - cue.start)}, offset={_num(cue.start)})"
+        for cue in project.subtitles
+        if cue.text.strip()
+    ]
+
+
 def class_name(stem: str) -> str:
     """A scene class name from a file name: 'my intro' -> 'MyIntro'."""
     words = re.findall(r"[A-Za-z0-9]+", stem)
@@ -111,6 +121,8 @@ def readable_problems(project: Project) -> list[str]:
             out.append(f"{label}: a faded sound")
         if clip.end > project.canvas.duration + EPS:
             out.append(f"{label}: a sound longer than the scene")
+    if project.subtitles and project.subtitle_style.burn_in:  # ADR 0035: drawn by the editor
+        out.append("subtitles: burned into the frames")
     clusters = _clusters(project)
     for t, layer_id, _ in _lifetime_events(project):
         if any(start + EPS < t < end - EPS for start, end, _ in clusters):
@@ -197,10 +209,11 @@ class _Readable:
     # sound (ADR 0034)
 
     def _sounds(self) -> list[str]:
-        return [
+        sounds = [
             f"self.add_sound({clip.path!r}, time_offset={_num(clip.start)}, gain={_num(clip.gain)})"
             for clip in self.project.audio
         ]
+        return sounds + subcaptions(self.project)
 
     # objects
 

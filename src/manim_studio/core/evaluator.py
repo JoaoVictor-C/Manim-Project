@@ -51,7 +51,7 @@ import numpy as np
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import adapter, motion_paths, parts
+from . import adapter, motion_paths, parts, subtitles
 from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
@@ -289,7 +289,18 @@ class Evaluator:
         The returned mobjects are shared render buffers: draw them before the
         next call, and never mutate them.
         """
-        return [mob for _, mob in self.frame_layers(t)]
+        return [*(mob for _, mob in self.frame_layers(t)), *self.overlay(t)]
+
+    def overlay(self, t: float) -> list[m.Mobject]:
+        """What is drawn over every layer at ``t``: the subtitle, when burned in (ADR 0035).
+        Same buffer rules as ``frame``."""
+        style = self.project.subtitle_style
+        cue = subtitles.visible(self.project, t) if style.burn_in else None
+        built = adapter.subtitle_mobject(cue.text, style) if cue is not None else None
+        if built is None:
+            return []
+        alpha = subtitles.opacity(cue, style, t)
+        return [self._project_local(built, "subtitle", _EYE, np.zeros(2), alpha)]
 
     def frame_layers(self, t: float) -> list[tuple[str, m.Mobject]]:
         """``frame(t)`` with the id of the layer each mobject belongs to.

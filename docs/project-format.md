@@ -79,6 +79,19 @@ axes takes their graphs along.
   "params": { "expression": "sin(x)", "x_range": [-5, 5] }, "style": { "stroke": "#38bdf8" } } }
 ```
 
+**Subtitles** (ADR 0035): `subtitles` is a list of cues (`id`, `start`, `end`,
+`text`) that never overlap; `subtitle_style` sets how all of them look:
+`font_size`, `y` (the centre of a one-line subtitle; more lines grow upwards),
+`colour`, `band` with `band_colour` and `band_opacity`, `fade` (seconds),
+`burn_in` (drawn into the frames) and `max_width` (longer lines wrap, then
+shrink). Both are saved only when used. Ids are unique among layers, sounds and
+cues.
+
+```json
+"subtitles": [{ "id": "cue-1", "start": 0.5, "end": 2.0, "text": "Hello there" }],
+"subtitle_style": { "font_size": 30, "colour": "#facc15" }
+```
+
 **Audio** (ADR 0034): a project may have a list of sounds, saved only when it is
 not empty. Each plays `duration` seconds of its file from `offset` (the trimmed
 start), beginning at `start` on the timeline, with a `gain` in dB and linear

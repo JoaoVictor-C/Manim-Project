@@ -127,6 +127,16 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Subtitle track (P5a, ADR 0035): **Edit > Add Subtitle** (Ctrl+T) puts a
+  subtitle at the playhead; subtitles get their own timeline row (drag to move,
+  drag an edge to trim, Delete) and are edited in Properties, with one style for
+  all of them (size, height, colour, a band behind the text, fade, width, burn
+  in). Long lines wrap between words and shrink if still too wide; extra lines
+  grow upwards. **File > Import / Export Subtitles** reads and writes `.srt`
+  (tolerant of byte-order marks, CRLF, missing numbers, tags and overlapping
+  cues). The exported video has them burned in and an `.srt` beside it; Python
+  exports add them as subcaptions, so `manim render` writes the same `.srt`.
+  Editing a subtitle re-renders only its own frames (B48).
 - Explainer example: `examples/build_explainer.py` builds "What is a derivative?",
   a 95-second lesson with subtitles, section headers, formulas, a secant sliding
   into the tangent, a tangent riding the curve with a traced tail, and

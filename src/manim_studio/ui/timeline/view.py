@@ -16,7 +16,10 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 * keyframes (P2b): one diamond per key time on the bottom of the row; click
   selects, drag retimes every key at that time, Delete removes them; the row
   menu adds a key at the playhead. Diamonds win over clip bars within 5 px.
-* sounds (P4d, ADR 0034): one row per sound under the layers, with its waveform;
+* subtitles (P5a, ADR 0035): one row under the layers with a bar per cue showing
+  its text; drag to move, drag an edge to trim (cues never overlap), Delete or
+  the row menu removes one, the row menu adds one where it was clicked;
+* sounds (P4d, ADR 0034): one row per sound under the subtitles, with its waveform;
   drag to move, drag an edge to trim (the left edge trims the file's start),
   Delete or the row menu removes it.
 """
@@ -39,7 +42,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, audio, edits
+from ...core import adapter, audio, edits, subtitles
 from ...core.evaluator import layer_transform
 from ...core.schema import (
     CLIP_KIND_INFO,
@@ -48,6 +51,7 @@ from ...core.schema import (
     TRACE_TYPES,
     AudioClip,
     Clip,
+    Cue,
     Layer,
     Project,
     keyable_props,
@@ -84,6 +88,7 @@ TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
 
 CATEGORY_COLORS = {"content": "#3b82f6", "emphasis": "#f59e0b", "motion": "#10b981", "morph": "#a855f7"}
 AUDIO_COLOR = QColor("#0f766e")
+CUE_COLOR = QColor("#854d0e")
 WAVE_COLOR = QColor(204, 251, 241, 190)
 PEAKS_PER_SECOND = 100
 LIFETIME_COLOR = QColor(255, 255, 255, 28)
@@ -146,6 +151,32 @@ class AudioItem(QGraphicsRectItem):
             painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.name)
 
 
+class CueItem(QGraphicsRectItem):
+    """A subtitle's bar (ADR 0035), showing its text."""
+
+    def __init__(self, cue: Cue, rect: QRectF, selected: bool) -> None:
+        super().__init__(rect)
+        self.cue_id, self.text = cue.id, " ".join(cue.text.split())
+        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 90), 2 if selected else 1))
+        self.setToolTip(cue.text)
+        self.setZValue(2)
+
+    def paint(
+        self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
+    ) -> None:
+        rect = self.rect()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(CUE_COLOR)
+        painter.setPen(self.pen())
+        painter.drawRoundedRect(rect, 4, 4)
+        if rect.width() > 24:
+            painter.setPen(QColor("#ffffff"))
+            label = painter.fontMetrics().elidedText(
+                self.text, Qt.TextElideMode.ElideRight, int(rect.width() - 10)
+            )
+            painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, label)
+
+
 class KeyItem(QGraphicsPolygonItem):
     """Every key of one layer at one time (P2b)."""
 
@@ -197,12 +228,26 @@ class LayerHeader(QWidget):
                 text = "\u21b3 " + text
             rect = QRectF(8 + indent, y, HEADER_WIDTH - 12 - indent, ROW_HEIGHT)
             painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, text)
-        for i, clip in enumerate(project.audio):  # sounds under the layers (ADR 0034)
-            y = RULER_HEIGHT + (len(rows) + i) * ROW_HEIGHT - scroll
+        y = RULER_HEIGHT + len(rows) * ROW_HEIGHT - scroll  # the subtitles (ADR 0035)
+        if y + ROW_HEIGHT >= RULER_HEIGHT:
+            painter.drawText(
+                QRectF(8, y, HEADER_WIDTH - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, "Subtitles"
+            )
+        for i, clip in enumerate(project.audio):  # sounds under the subtitles (ADR 0034)
+            y = RULER_HEIGHT + (len(rows) + 1 + i) * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT >= RULER_HEIGHT:
                 rect = QRectF(8, y, HEADER_WIDTH - 12, ROW_HEIGHT)
                 painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, "\u266a " + (clip.name or clip.id))
         painter.fillRect(0, 0, HEADER_WIDTH, RULER_HEIGHT, RULER_BACKGROUND)
+
+
+@dataclass
+class _CueDrag:
+    cue_id: str
+    mode: Edge | None  # None = move
+    press_x: float
+    base: Project
+    cue: Cue
 
 
 @dataclass
@@ -229,6 +274,7 @@ class TimelineView(QGraphicsView):
     clipSelected = Signal(str, str)  # layer id, clip id
     keySelected = Signal(str, float)  # layer id, key time
     audioSelected = Signal(str)  # a sound's id (ADR 0034)
+    subtitleSelected = Signal(str)  # a cue's id (ADR 0035)
     message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -249,8 +295,10 @@ class TimelineView(QGraphicsView):
         self.selected: tuple[str, str] | None = None
         self.selected_key: tuple[str, float] | None = None
         self.selected_audio: str | None = None
+        self.selected_cue: str | None = None
         self._drag: _Drag | None = None
         self._audio_drag: _AudioDrag | None = None
+        self._cue_drag: _CueDrag | None = None
         self._key_drag: _KeyDrag | None = None
         self._last_key_t = 0.0
         self._scrubbing = False
@@ -273,7 +321,9 @@ class TimelineView(QGraphicsView):
         self.selected = None
         self.selected_key = None
         self.selected_audio = None
+        self.selected_cue = None
         self._audio_drag = None
+        self._cue_drag = None
         self._drag = None
         self._key_drag = None
         self.sync()
@@ -286,6 +336,17 @@ class TimelineView(QGraphicsView):
             self.selected, self.selected_key = selected, selected_key
             self.sync()
 
+    def set_selected_subtitle(self, cue_id: str | None) -> None:
+        if cue_id != self.selected_cue:
+            self.selected_cue = cue_id
+            self.sync()
+
+    def subtitle_row_at(self, viewport_y: float) -> bool:
+        """Whether this height is the Subtitles row."""
+        if self.project is None or viewport_y < RULER_HEIGHT:
+            return False
+        return int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT) == len(self.rows())
+
     def set_selected_audio(self, audio_id: str | None) -> None:
         if audio_id != self.selected_audio:
             self.selected_audio = audio_id
@@ -295,7 +356,9 @@ class TimelineView(QGraphicsView):
         """The sound whose row is at this height (rows under the layers)."""
         if self.project is None or viewport_y < RULER_HEIGHT:
             return None
-        row = int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT) - len(self.rows())
+        row = (
+            int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT) - len(self.rows()) - 1
+        )
         return self.project.audio[row] if 0 <= row < len(self.project.audio) else None
 
     def rows(self) -> list[Layer]:
@@ -327,9 +390,18 @@ class TimelineView(QGraphicsView):
         if project is None:
             return
         width = self.scale.x(project.canvas.duration)
-        height = RULER_HEIGHT + (len(project.layers) + len(project.audio)) * ROW_HEIGHT
+        height = RULER_HEIGHT + (len(project.layers) + 1 + len(project.audio)) * ROW_HEIGHT
         scene.setSceneRect(0, 0, width + 40, height)
-        first_audio_row = len(self.rows())
+        subtitle_top = RULER_HEIGHT + len(self.rows()) * ROW_HEIGHT
+        for cue in project.subtitles:  # the Subtitles row (ADR 0035)
+            rect = QRectF(
+                self.scale.x(cue.start),
+                subtitle_top + CLIP_MARGIN,
+                max(2.0, self.scale.x(cue.end) - self.scale.x(cue.start)),
+                ROW_HEIGHT - 2 * CLIP_MARGIN,
+            )
+            scene.addItem(CueItem(cue, rect, cue.id == self.selected_cue))
+        first_audio_row = len(self.rows()) + 1
         for row, layer in enumerate(self.rows()):
             top = RULER_HEIGHT + row * ROW_HEIGHT
             start, end = project.lifetime(layer.id)
@@ -373,6 +445,9 @@ class TimelineView(QGraphicsView):
 
     def key_items(self) -> list[KeyItem]:
         return [item for item in self.scene().items() if isinstance(item, KeyItem)]
+
+    def cue_items(self) -> list[CueItem]:
+        return [item for item in self.scene().items() if isinstance(item, CueItem)]
 
     def audio_items(self) -> list[AudioItem]:
         return [item for item in self.scene().items() if isinstance(item, AudioItem)]
@@ -471,9 +546,21 @@ class TimelineView(QGraphicsView):
             self.document.begin_preview()
             self.sync()
             return
+        bar, edge = self._hit(pos, CueItem)
+        if bar is not None:  # a subtitle (ADR 0035)
+            self.selected = self.selected_key = self.selected_audio = None
+            self.selected_cue = bar.cue_id
+            self.subtitleSelected.emit(bar.cue_id)
+            base = self.project
+            cue = next(c for c in base.subtitles if c.id == bar.cue_id)
+            self._cue_drag = _CueDrag(bar.cue_id, edge, self.mapToScene(pos.toPoint()).x(), base, cue)
+            self.document.begin_preview()
+            self.sync()
+            return
         sound, edge = self._hit(pos, AudioItem)
         if sound is not None:  # a sound (ADR 0034)
             self.selected, self.selected_key, self.selected_audio = None, None, sound.audio_id
+            self.selected_cue = None
             self.audioSelected.emit(sound.audio_id)
             base = self.project
             clip = next(c for c in base.audio if c.id == sound.audio_id)
@@ -487,7 +574,7 @@ class TimelineView(QGraphicsView):
         if item is None:
             return
         self.selected_key = None
-        self.selected_audio = None
+        self.selected_audio = self.selected_cue = None
         self.selected = (item.layer_id, item.clip_id)
         self.clipSelected.emit(item.layer_id, item.clip_id)
         base = self.project
@@ -501,7 +588,12 @@ class TimelineView(QGraphicsView):
         if self._scrubbing:
             self._scrub(pos.x())
             return
-        if self._drag is None and self._key_drag is None and self._audio_drag is None:
+        if (
+            self._drag is None
+            and self._key_drag is None
+            and self._audio_drag is None
+            and self._cue_drag is None
+        ):
             self._update_cursor(pos)
             return
         snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
@@ -530,6 +622,12 @@ class TimelineView(QGraphicsView):
             self._audio_drag = None
             self.document.commit_preview(f"{verb} sound")
             return
+        if self._cue_drag is not None:
+            self.apply_pending()
+            verb = "Move" if self._cue_drag.mode is None else "Trim"
+            self._cue_drag = None
+            self.document.commit_preview(f"{verb} subtitle")
+            return
         if self._drag is None:
             super().mouseReleaseEvent(event)
             return
@@ -539,16 +637,21 @@ class TimelineView(QGraphicsView):
         self.document.commit_preview(f"{verb} clip")
 
     def keyPressEvent(self, event) -> None:
-        dragging = self._drag is not None or self._key_drag is not None or self._audio_drag is not None
+        drags = (self._drag, self._key_drag, self._audio_drag, self._cue_drag)
+        dragging = any(drag is not None for drag in drags)
         if event.key() == Qt.Key.Key_Escape and dragging:
             self._drag = None
             self._key_drag = None
             self._audio_drag = None
+            self._cue_drag = None
             self._pending = None
             self.document.cancel_preview()
             return
         deleting = event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
         if deleting and not dragging:
+            if self.selected_cue:
+                self.delete_subtitle(self.selected_cue)
+                return
             if self.selected_audio:
                 self.delete_audio(self.selected_audio)
                 return
@@ -572,6 +675,17 @@ class TimelineView(QGraphicsView):
         if self.project is None or self._drag is not None or self._key_drag is not None:
             return None
         menu = QMenu(self)
+        if self.subtitle_row_at(pos.y()):  # the Subtitles row (ADR 0035)
+            bar, _edge = self._hit(pos, CueItem)
+            if bar is not None:
+                cue_id = bar.cue_id
+                menu.addAction("Delete subtitle", lambda: self.delete_subtitle(cue_id))
+                return menu
+            t = self.scale.t(self.mapToScene(pos.toPoint()).x())
+            place = subtitles.place_cue(self.project, max(0.0, t))
+            add = menu.addAction("Add subtitle here", lambda: self.add_subtitle(*place))
+            add.setEnabled(place is not None)
+            return menu
         sound = self.audio_at(pos.y())
         if sound is not None:  # a sound's row (ADR 0034)
             menu.addAction("Delete sound", lambda: self.delete_audio(sound.id))
@@ -741,6 +855,19 @@ class TimelineView(QGraphicsView):
             self.selected = None
         self._apply(lambda p: edits.remove_clip(p, layer_id, clip_id), "Delete clip")
 
+    def add_subtitle(self, start: float, end: float) -> None:
+        self._apply(lambda p: edits.add_cue(p, start, end, "New subtitle"), "Add subtitle")
+        cue = next((c for c in self.project.subtitles if c.start == start), None)
+        if cue is not None:
+            self.selected_cue = cue.id
+            self.sync()
+            self.subtitleSelected.emit(cue.id)
+
+    def delete_subtitle(self, cue_id: str) -> None:
+        if self.selected_cue == cue_id:
+            self.selected_cue = None
+        self._apply(lambda p: edits.remove_cue(p, cue_id), "Delete subtitle")
+
     def delete_audio(self, audio_id: str) -> None:
         if self.selected_audio == audio_id:
             self.selected_audio = None
@@ -756,6 +883,8 @@ class TimelineView(QGraphicsView):
         item, edge = self._hit(pos) if pos.y() >= RULER_HEIGHT else (None, None)
         if item is None and pos.y() >= RULER_HEIGHT:
             item, edge = self._hit(pos, AudioItem)
+        if item is None and pos.y() >= RULER_HEIGHT:
+            item, edge = self._hit(pos, CueItem)
         if item is None:
             self.viewport().unsetCursor()
         elif edge is not None:
@@ -780,6 +909,9 @@ class TimelineView(QGraphicsView):
         if self._audio_drag is not None and self._pending is not None:
             self._apply_audio_drag()
             return
+        if self._cue_drag is not None and self._pending is not None:
+            self._apply_cue_drag()
+            return
         if self._drag is None or self._pending is None:
             return
         scene_x, snapping = self._pending
@@ -803,6 +935,37 @@ class TimelineView(QGraphicsView):
             edge_t = (drag.clip.start if drag.mode == "start" else drag.clip.end) + delta
             start, end = drag_trim(layer, drag.clip_id, drag.mode, edge_t, **common)
             edit = edits.trim_clip(base, drag.layer_id, drag.clip_id, start=start, end=end)
+        self.document.preview(edit)
+
+    def _apply_cue_drag(self) -> None:
+        """Move a subtitle, or trim one of its ends: on frames, snapping to clip edges and the
+        playhead, never into its neighbours (one lane, ADR 0035)."""
+        scene_x, snapping = self._pending
+        self._pending = None
+        drag, base = self._cue_drag, self._cue_drag.base
+        cue, fps = drag.cue, base.canvas.fps
+        delta = self.scale.seconds(scene_x - drag.press_x)
+        candidates = snap_candidates(base, self.playhead)
+        others = [c for c in base.subtitles if c.id != cue.id]
+        low = max([c.end for c in others if c.end <= cue.start + 1e-9], default=0.0)
+        high = min([c.start for c in others if c.start >= cue.end - 1e-9], default=base.canvas.duration)
+        frame = 1 / fps
+        if drag.mode is None:
+            length = cue.end - cue.start
+            start = min(
+                max(snap(cue.start + delta, candidates, self.scale, fps, snapping), low), high - length
+            )
+            edit = edits.update_cue(base, cue.id, start=start, end=start + length)
+        elif drag.mode == "start":
+            start = min(
+                max(snap(cue.start + delta, candidates, self.scale, fps, snapping), low), cue.end - frame
+            )
+            edit = edits.update_cue(base, cue.id, start=start)
+        else:
+            end = max(
+                min(snap(cue.end + delta, candidates, self.scale, fps, snapping), high), cue.start + frame
+            )
+            edit = edits.update_cue(base, cue.id, end=end)
         self.document.preview(edit)
 
     def _apply_audio_drag(self) -> None:

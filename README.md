@@ -119,6 +119,11 @@ library with its own controls in Properties and animates and exports like any
 object; see `examples/plugins/pendulum.py` and *Help > Plugins...*. Plugins are
 Python code you install, so they run without asking.
 
+**Subtitles**: **Edit > Add Subtitle** (Ctrl+T) adds one at the playhead; type
+it in Properties, where one style sets how all subtitles look. They have their
+own row on the timeline, and **File > Import / Export Subtitles** reads and
+writes `.srt` files. The exported video shows them and gets an `.srt` beside it.
+
 **Sound**: **File > Import Audio...** adds a sound at the playhead. It appears
 as a row with its waveform under the layers: drag it to move it, drag its edges
 to trim it, and set its gain and fades in Properties. Playing the timeline plays

@@ -12,7 +12,7 @@ import av
 import manim as m
 import numpy as np
 
-from ..core import audio
+from ..core import audio, subtitles
 from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas, Project
@@ -86,7 +86,10 @@ def export_video(project: Project, out_path: Path, progress=None, replace_timeou
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
-    return _finish(partial, out_path, replace_timeout)
+    exported = _finish(partial, out_path, replace_timeout)
+    if project.subtitles:  # an .srt beside the video, burned in or not (ADR 0035)
+        exported.path.with_suffix(".srt").write_text(subtitles.write_srt(project.subtitles), encoding="utf-8")
+    return exported
 
 
 def _finish(partial: Path, out_path: Path, timeout: float) -> Exported:

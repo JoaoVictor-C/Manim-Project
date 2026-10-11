@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, parts
+from ..core import adapter, audio, edits, parts, subtitles
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
@@ -153,6 +153,7 @@ class MainWindow(QMainWindow):
         self.timeline.clipSelected.connect(self.selection.set)
         self.timeline.keySelected.connect(self.selection.set_key)
         self.timeline.audioSelected.connect(self.selection.set_audio)
+        self.timeline.subtitleSelected.connect(self.selection.set_subtitle)
         self.properties.keyMoved.connect(self.selection.set_key)
         self.selection.changed.connect(self._on_selection_changed)
         self.move_tool = MoveTool(self.canvas, self.document, self.selection, lambda: self.t, self.seek, self)
@@ -187,6 +188,8 @@ class MainWindow(QMainWindow):
             ("&Export Video...", QKeySequence("Ctrl+E"), self.show_export_dialog),
             ("Export &Python...", QKeySequence(), self.export_python),
             ("Import &Audio...", QKeySequence(), self.import_audio),
+            ("Import &Subtitles...", QKeySequence(), self.import_subtitles),
+            ("Export Su&btitles...", QKeySequence(), self.export_subtitles),
         ):
             action = QAction(text, self)
             action.setShortcut(shortcut)
@@ -199,6 +202,11 @@ class MainWindow(QMainWindow):
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addActions([undo, redo])
         edit_menu.addSeparator()
+        add_subtitle = QAction("Add &Subtitle", self)
+        add_subtitle.setShortcut(QKeySequence("Ctrl+T"))
+        add_subtitle.setToolTip("A subtitle at the playhead (ADR 0035)")
+        add_subtitle.triggered.connect(self.add_subtitle)
+        edit_menu.addAction(add_subtitle)
         self.auto_key_action = QAction("&Auto-key", self, checkable=True)
         self.auto_key_action.setToolTip("Changing an object's transform sets keyframes at the playhead")
         edit_menu.addAction(self.auto_key_action)
@@ -301,6 +309,7 @@ class MainWindow(QMainWindow):
         gc.freeze()  # measured: removes the gen-2 GC hitches during playback
         self.idle_timer.start()
         self.code.sync(project)
+        self._warm_subtitles(project)
         self._media_errors = {}
         self.report_media()
         untrusted = self.trust.untrusted(project)
@@ -339,6 +348,8 @@ class MainWindow(QMainWindow):
         if kind == "spec":
             self._warn_retargeted(before, project)
             self.report_media()  # a re-picked file may not be drawable
+        if (project.subtitles, project.subtitle_style) != (before.subtitles, before.subtitle_style):
+            self._warm_subtitles(project)
         if project.audio != before.audio:
             self.report_media()  # a sound's file may be missing (ADR 0034)
             if self.play_timer.isActive() and self._audio_signature != audio.mix_signature(project):
@@ -408,8 +419,11 @@ class MainWindow(QMainWindow):
         self.layers.update_buttons()
         self.timeline.set_selected(layer_id, clip_id, key_time)
         self.timeline.set_selected_audio(self.selection.audio_id)
+        self.timeline.set_selected_subtitle(self.selection.subtitle_id)
         if self.selection.audio_id is not None:
             self.properties.show_audio(self.selection.audio_id)
+        elif self.selection.subtitle_id is not None:
+            self.properties.show_subtitle(self.selection.subtitle_id)
         elif key_time is not None:
             self.properties.show_key(layer_id, key_time)
         elif clip_id is not None:
@@ -479,6 +493,73 @@ class MainWindow(QMainWindow):
         name = self.ask_python_path(start)
         if name:
             self.write_python(Path(name))
+
+    # -- subtitles (ADR 0035) ---------------------------------------------------
+
+    def _warm_subtitles(self, project: Project) -> None:
+        """Build the subtitles' text in the worker ahead of time; edits never wait for it."""
+        style = project.subtitle_style
+        self.builds.prewarm(
+            [spec for cue in project.subtitles for spec in subtitles.line_specs(cue.text, style)]
+        )
+
+    def add_subtitle(self) -> None:
+        """Edit > Add Subtitle: a cue at the playhead (or after the cue under it), selected for typing."""
+        if self.project is None:
+            return
+        place = subtitles.place_cue(self.project, self.t)
+        if place is None:
+            self.statusBar().showMessage("No room for a subtitle here", 5000)
+            return
+        edit = edits.add_cue(self.project, *place, text="New subtitle")
+        self.document.apply(edit, "Add subtitle")
+        cue = next(c for c in edit.project.subtitles if c.start == place[0])
+        self.selection.set_subtitle(cue.id)
+
+    def import_subtitles(self) -> None:
+        """File > Import Subtitles...: an .srt replaces the subtitles (one undo step)."""
+        if self.project is None:
+            return
+        name = self.ask_subtitles_path()
+        if not name:
+            return
+        try:
+            cues = subtitles.read_srt(Path(name).read_text(encoding="utf-8-sig", errors="replace"))
+        except OSError as exc:
+            self.statusBar().showMessage(f"Cannot read {Path(name).name}: {exc}", 10000)
+            return
+        if not cues:
+            self.statusBar().showMessage(f"No subtitles found in {Path(name).name}", 10000)
+            return
+        self.document.apply(edits.set_subtitles(self.project, cues), "Import subtitles")
+        late = sum(1 for cue in cues if cue.end > self.project.canvas.duration)
+        note = f" ({late} after the end of the video)" if late else ""
+        self.statusBar().showMessage(f"Imported {len(cues)} subtitles from {Path(name).name}{note}", 10000)
+
+    def export_subtitles(self) -> None:
+        if self.project is None or not self.project.subtitles:
+            self.statusBar().showMessage("There are no subtitles to export", 5000)
+            return
+        name = self.ask_subtitles_save_path()
+        if not name:
+            return
+        Path(name).write_text(subtitles.write_srt(self.project.subtitles), encoding="utf-8")
+        self.statusBar().showMessage(
+            f"Wrote {len(self.project.subtitles)} subtitles to {Path(name).name}", 10000
+        )
+
+    def ask_subtitles_path(self) -> str:
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Import Subtitles", "", "Subtitles (*.srt);;All files (*)"
+        )
+        return name
+
+    def ask_subtitles_save_path(self) -> str:
+        start = str(self.path.with_suffix(".srt")) if self.path is not None else ""
+        name, _ = QFileDialog.getSaveFileName(self, "Export Subtitles", start, "Subtitles (*.srt)")
+        return name
+
+    # -- sounds (ADR 0034) -------------------------------------------------------
 
     def import_audio(self) -> None:
         """File > Import Audio...: a sound at the playhead, playing the whole file (ADR 0034)."""
