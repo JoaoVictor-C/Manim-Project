@@ -105,11 +105,13 @@ def add_layer(
 
 
 def remove_layer(project: Project, layer_id: str) -> Edit:
-    """Delete a layer with its parts, and morph clips that turn another layer into one of them."""
+    """Delete a layer with its parts, and morph clips that turn another layer into one of them
+    (and what is drawn from it: objects on a deleted graph, traces of it)."""
     _layer(project, layer_id)
     gone = {layer_id} | {d.id for d in project.descendants(layer_id)}
-    while True:  # and what is built from a deleted graph (ADR 0030)
+    while True:  # and what is built from a deleted graph (ADR 0030), traces of what is deleted (ADR 0033)
         more = {x.id for x in project.layers if x.id not in gone and set(project.referenced_graphs(x)) & gone}
+        more |= project.traces_of(gone) - gone
         if not more:
             break
         gone |= more

@@ -19,6 +19,22 @@ object types when imported::
 editor builds each type twice on first use and refuses one that differs. The
 editor centres the result, applies style and animates it like any object.
 
+A plugin can also add a *simulation*, a layer stepped frame by frame like a
+Manim updater (ADR 0033)::
+
+    def start(params):
+        return (params["angle"], 0.0)  # the state: any value, copied before each step
+
+    def step(state, dt, params):  # dt = 1 / fps
+        ...
+        return new_state
+
+    register(Simulation("Swing", start, step, draw, point=bob, params=(...)))
+
+``draw(state, params)`` returns the VMobject for a state, in the layer's own
+units (not re-centred); ``point(state, params)`` gives ``(x, y)``, the point a
+traced path follows (default: the drawing's centre).
+
 Plugins are loaded once per process when ``manim_studio.core.adapter`` is
 imported, so the editor, its helper processes, the export and exported scenes
 all know the same types. They are code you installed: they run without a
@@ -57,10 +73,29 @@ class ObjectType:
     slow: bool = False  # builds take long (e.g. LaTeX): the build worker builds them first (ADR 0015)
 
 
-TYPES: dict[str, ObjectType] = {}  # registered types by name
+@dataclass(frozen=True)
+class Simulation:
+    """A simulated layer type (ADR 0033): a state stepped once per frame and drawn."""
+
+    name: str
+    start: Callable[[dict[str, Any]], Any]
+    step: Callable[[Any, float, dict[str, Any]], Any]
+    draw: Callable[[Any, dict[str, Any]], Any]
+    point: Callable[[Any, dict[str, Any]], Any] | None = None  # what a traced path follows
+    params: tuple = ()
+    section: str = "Plugins"
+    label: str | None = None
+
+
+TYPES: dict[str, ObjectType] = {}  # registered object types by name
+SIMULATIONS: dict[str, Simulation] = {}  # registered simulations by name
 loaded: dict[str, list[str]] = {}  # plugin -> the types it registered
 problems: dict[str, str] = {}  # plugin -> why it was skipped
 _current: list[str] = []  # the plugin being loaded (to attribute its types)
+
+
+def is_plugin_type(name: str) -> bool:
+    return name in TYPES or name in SIMULATIONS
 
 
 def __getattr__(name: str):
@@ -71,16 +106,21 @@ def __getattr__(name: str):
     raise AttributeError(name)
 
 
-def register(object_type: ObjectType) -> None:
-    """Add an object type: to the library, Properties and the builders of every process."""
+def register(object_type: ObjectType | Simulation) -> None:
+    """Add an object type or a simulation: to the library, Properties and every process."""
     from .core import adapter
 
     if not object_type.name.isidentifier():
         raise ValueError(f"{object_type.name!r} is not a valid type name")
-    if object_type.name in adapter.MOBJECT_PARAMS or object_type.name in TYPES:
+    taken = object_type.name in adapter.MOBJECT_PARAMS or object_type.name in TYPES | SIMULATIONS
+    if taken or object_type.name in adapter.CHILD_ONLY_TYPES:
         raise ValueError(f"the type name {object_type.name!r} is already taken")
-    TYPES[object_type.name] = object_type
-    adapter.MOBJECT_TYPES[object_type.name] = object_type.build
+    if isinstance(object_type, Simulation):
+        SIMULATIONS[object_type.name] = object_type
+        adapter.MOBJECT_TYPES[object_type.name] = object_type.draw
+    else:
+        TYPES[object_type.name] = object_type
+        adapter.MOBJECT_TYPES[object_type.name] = object_type.build
     adapter.MOBJECT_PARAMS[object_type.name] = tuple(object_type.params)
     adapter.LIBRARY_LABELS[object_type.name] = object_type.label or object_type.name
     for i, (section, names) in enumerate(adapter.LIBRARY):
@@ -98,6 +138,7 @@ def unregister(name: str) -> None:
     from .core import adapter
 
     TYPES.pop(name, None)
+    SIMULATIONS.pop(name, None)
     adapter.MOBJECT_TYPES.pop(name, None)
     adapter.MOBJECT_PARAMS.pop(name, None)
     adapter.LIBRARY_LABELS.pop(name, None)

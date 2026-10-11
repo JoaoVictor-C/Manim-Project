@@ -36,9 +36,11 @@ run such scenes but cannot be edited visually or traced.
 - **Replay from checkpoints.** Each process caches trace points and simulation
   states (a state every 30 frames and the latest one; states are deep-copied
   before stepping), keyed by what they are computed from: the layer's spec, fps,
-  first frame and the layers the target is evaluated from. Trace points are
-  sampled before any layer is drawn, so the shared per-layer buffers of a frame
-  stay valid. Render-ahead drops a trace's frames when its target changes.
+  first frame and the layers the target is evaluated from. Sampling evaluates
+  the target at earlier times in its own drawing buffers, always ending at the
+  frame's time, so a target already drawn in the frame keeps that frame's state
+  (the session planned a sampling pass before drawing; it proved redundant).
+  Render-ahead drops a trace's frames when its target changes.
 - **No clips** on simulated layers: lifetime and keyed transform and opacity
   only. Python exports with simulated layers are exact (ADR 0031). Simulations
   get the first-use determinism check of ADR 0032; load refuses a trace of a

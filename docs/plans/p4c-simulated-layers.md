@@ -53,7 +53,8 @@ and to an exact Python scene that match the editor.
   through its world transform; a plain root's clip-state centre + offset through
   its world transform; a part or child object: its drawing's world centre +
   offset through its world transform.
-- `frame_layers` and `object_frame` sample trace points before drawing.
+- Sampling ends at the frame's own time, so the target's buffers end in the frame's state
+  (a sampling pass before drawing was planned and proved redundant: mutation-checked).
 - `frame_cache._closure` adds traces of changed layers; `remove_layer` deletes
   traces of a deleted layer.
 - Python export: traces and simulations make it exact.

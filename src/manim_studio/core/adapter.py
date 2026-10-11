@@ -7,6 +7,7 @@ on Manim internals is meant to live here so a Manim upgrade touches one file.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -33,6 +34,7 @@ from .schema import (
     MEDIA_TYPES,
     RASTER_TYPES,
     TEXT_TYPES,
+    TRACE_TYPES,
     Easing,
     Spec,
     clip_params,
@@ -104,13 +106,14 @@ _tex_mobject.tex_to_svg_file = _tex_to_svg_file
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}
 
 MOBJECT_TYPES: dict[str, type] = {
-    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | {"Axes"})
+    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | {"Axes", "TracedPath"})
 }
 CHILD_ONLY_TYPES = AXES_OBJECTS  # built with their parent (build_child, ADR 0024, 0030)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
 
-ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph"]  # graph: a sibling's id
+# graph: a sibling's id; layer: another layer's id (a traced path's target, ADR 0033)
+ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph", "layer"]
 
 
 @dataclass(frozen=True)
@@ -230,6 +233,12 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     ),
     # A code layer (ADR 0019): one Scene subclass; `from manim import *` and numpy as np are implied.
     "Code": (Param("code", "text", CODE_STARTER, "Manim code (one Scene)", multiline=True),),
+    # Where another layer has been, frame by frame (ADR 0033).
+    "TracedPath": (
+        Param("target", "layer", "", "Trace"),
+        Param("offset", "point", (0.0, 0.0), "Point (from its centre)"),
+        Param("dissipate", "float", 0.0, "Fade after (s, 0 = never)", minimum=0.0, maximum=600.0, step=0.1),
+    ),
 }
 
 # The object library (S2 plan): menu sections in order.
@@ -239,11 +248,13 @@ LIBRARY: list[tuple[str, tuple[str, ...]]] = [
     ("Text", ("Text", "MathTex", "Tex")),
     ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
+    ("Simulation", ("TracedPath",)),
     ("Python", ("Code",)),
 ]
 
-_REQUIRED = {"text", "path", "code", "expression", "graph"}  # always written to the spec
-LIBRARY_LABELS = {"ImageMobject": "Image", "SVGMobject": "SVG"}  # menu names that differ from the type
+_REQUIRED = {"text", "path", "code", "expression", "graph", "target"}  # always written to the spec
+LIBRARY_LABELS = {"ImageMobject": "Image", "SVGMobject": "SVG", "TracedPath": "Traced path"}
+SIMULATION_CHECKPOINT = 30  # a simulation state is kept every this many steps (B46: replays are cheap)
 
 
 def default_spec(type_name: str, **params: Any) -> Spec:
@@ -272,6 +283,14 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
         raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
     if spec.type not in MOBJECT_TYPES:
         return _placeholder(2.0).copy()  # build_problem says why
+    if spec.type in TRACE_TYPES:
+        return trace_mobject([], spec.style)  # drawn frame by frame by the evaluator (ADR 0033)
+    if spec.type in plugins.SIMULATIONS:  # its start state; the evaluator steps it (ADR 0033)
+        if simulation_problem(spec) is not None:
+            return _placeholder(2.0).copy()
+        sim = plugins.SIMULATIONS[spec.type]
+        params = plugin_params(spec, sim.params)
+        return simulation_drawing(spec, sim.draw(sim.start(dict(params)), dict(params)))
     if spec.type in plugins.TYPES:
         built = _plugin_cached(spec.model_dump_json())
         return (built if isinstance(built, m.Mobject) else _placeholder(2.0)).copy()
@@ -306,6 +325,8 @@ def build_problem(spec: Spec, signature: str | None = None) -> str | None:
     if spec.type in plugins.TYPES:
         built = _plugin_cached(spec.model_dump_json())
         return None if isinstance(built, m.Mobject) else built
+    if spec.type in plugins.SIMULATIONS:
+        return simulation_problem(spec)
     return media_problem(spec, signature)
 
 
@@ -318,12 +339,7 @@ def _plugin_cached(spec_json: str) -> m.Mobject | str:
     of each type is done twice: a plugin must be a pure function of its params."""
     spec = Spec.model_validate_json(spec_json)
     object_type = plugins.TYPES[spec.type]
-    params = {p.name: param_value(spec, p) for p in object_type.params}
-    params.update({k: v for k, v in spec.params.items() if k not in params})
-    for p in object_type.params:
-        if p.kind == "point":
-            x, y = params[p.name][:2]
-            params[p.name] = [float(x), float(y), 0.0]
+    params = plugin_params(spec, object_type.params)
     try:
         mob = object_type.build(dict(params))
         if not isinstance(mob, m.VMobject):
@@ -359,10 +375,79 @@ def _same_drawing(a: m.Mobject, b: m.Mobject) -> bool:
     return True
 
 
+def plugin_params(spec: Spec, params: tuple[Param, ...]) -> dict[str, Any]:
+    """What a plugin is called with: every registered param (defaults filled, points as
+    ``[x, y, 0]``) and any other param the spec has."""
+    out = {p.name: param_value(spec, p) for p in params}
+    out.update({k: v for k, v in spec.params.items() if k not in out})
+    for p in params:
+        if p.kind == "point":
+            x, y = out[p.name][:2]
+            out[p.name] = [float(x), float(y), 0.0]
+    return out
+
+
 def forget_plugin_builds() -> None:
     """Drop cached plugin builds (a type was unregistered: tests)."""
     _plugin_cached.cache_clear()
     _CHECKED.clear()
+    _simulation_cached_problem.cache_clear()
+
+
+# --- simulated layers (ADR 0033) ----------------------------------------------
+
+
+def simulation_problem(spec: Spec) -> str | None:
+    """Why a simulation cannot run (a failure, a drawing that is not a VMobject, steps that
+    differ when run twice), or None. Its first steps are run twice and compared."""
+    return _simulation_cached_problem(spec.model_dump_json())
+
+
+@lru_cache(maxsize=256)
+def _simulation_cached_problem(spec_json: str) -> str | None:
+    spec = Spec.model_validate_json(spec_json)
+    sim = plugins.SIMULATIONS[spec.type]
+    params = plugin_params(spec, sim.params)
+
+    def run() -> list[m.Mobject]:
+        state = sim.start(dict(params))
+        drawings = [sim.draw(copy.deepcopy(state), dict(params))]
+        for _ in range(3):
+            state = sim.step(copy.deepcopy(state), 1 / 30, dict(params))
+            drawings.append(sim.draw(copy.deepcopy(state), dict(params)))
+        return drawings
+
+    try:
+        first, second = run(), run()
+    except Exception as exc:  # a broken plugin must never break a frame (ADR 0032)
+        log.warning("simulation %s failed: %s", spec.type, exc)
+        return f"the {spec.type} simulation failed: {type(exc).__name__}: {exc}"
+    for drawing in first:
+        if not isinstance(drawing, m.VMobject):
+            return f"the {spec.type} simulation must draw a VMobject, not {type(drawing).__name__}"
+    if not all(_same_drawing(a, b) for a, b in zip(first, second, strict=True)):
+        return f"the {spec.type} simulation runs differently each time (it must depend only on its params)"
+    return None
+
+
+def simulation_drawing(spec: Spec, drawing: m.VMobject) -> m.VMobject:
+    """A simulation's drawing with the layer's style, in its own units (not re-centred)."""
+    _apply_style(drawing, spec.style)
+    return drawing
+
+
+def trace_mobject(runs: list[np.ndarray], style: dict[str, Any]) -> m.VMobject:
+    """A traced path through runs of points (a new sub-path per run; one point is a zero-length
+    line, as in Manim's TracedPath), white and 2 wide unless styled."""
+    mob = m.VMobject(stroke_color=m.WHITE, stroke_width=2, fill_opacity=0.0)
+    for run in runs:
+        points = np.asarray(run, dtype=float)
+        if len(points) == 1:
+            points = np.vstack([points, points])
+        mob.start_new_path(points[0])
+        mob.add_points_as_corners(points[1:])
+    _apply_style(mob, style)
+    return mob
 
 
 def media_problem(spec: Spec, signature: str | None = None) -> str | None:
@@ -885,6 +970,8 @@ def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
     if mobject_type in CODE_TYPES:
         return []  # code layers animate inside their code (ADR 0019)
+    if mobject_type in TRACE_TYPES or mobject_type in plugins.SIMULATIONS:
+        return []  # simulated layers are drawn frame by frame (ADR 0033)
     kinds = [
         kind
         for kind, info in CLIP_KIND_INFO.items()

@@ -53,3 +53,10 @@ The editor and the export agree.
   worker past its timeout) left a truncated file that failed that formula for
   good. The adapter wraps `tex_to_svg_file`: an SVG that does not end with
   `</svg>` is deleted and compiled again (`tests/core/test_adapter.py`).
+- **Traced paths have no corner at the end of a play.** Manim's `TracedPath`
+  adds its point on every frame and once more after each `play()` ends (the end
+  state, which is never shown as a frame). The editor has no `play()` calls: a
+  trace is the polyline through its target's point on every frame (ADR 0033),
+  identical to Manim's within one play (B46). `dissipate` keeps the last
+  D x fps frames; Manim removes one curve per update, so its trail can be a few
+  corners shorter across plays.

@@ -19,6 +19,14 @@ rebuilds those layers. A file that cannot be drawn shows a dashed placeholder.
 A code layer (ADR 0019) is not evaluated at all: its frames were rendered by
 real Manim into ``code_cache``, and ``t`` picks one (a placeholder until then).
 
+A simulated layer (ADR 0033) - a traced path or a plugin simulation - has no
+clips: it advances once per canvas frame. Its state at a frame is replayed from
+the nearest kept state (a simulation keeps one every 30 steps, a trace keeps
+every point), keyed by everything it is computed from, so edits need no
+invalidation. Sampling a trace evaluates its target at earlier times, which
+reuses the target's drawing buffers; it always ends at the frame's own time, so
+a target drawn before its trace in the same frame is left in that frame's state.
+
 An object with part layers (ADR 0012) or child objects (ADR 0029) is evaluated
 as one tree: its build holds every member's glyphs, a checkpoint is the whole
 object after a set of finished clips of the tree, a clip animates only its
@@ -33,6 +41,7 @@ the affected layers' caches (a whole tree for a layer in one).
 
 from __future__ import annotations
 
+import copy
 import itertools
 import math
 from dataclasses import dataclass, field
@@ -40,12 +49,25 @@ from dataclasses import dataclass, field
 import manim as m
 import numpy as np
 
+from .. import plugins
 from ..logging_config import get_logger
 from . import adapter, motion_paths, parts
 from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
-from .schema import CODE_TYPES, MEDIA_TYPES, Clip, Keyframe, Layer, Project, Spec, Transform2D, infer_lifetime
+from .frame_cache import frame_index, on_grid
+from .schema import (
+    CODE_TYPES,
+    MEDIA_TYPES,
+    TRACE_TYPES,
+    Clip,
+    Keyframe,
+    Layer,
+    Project,
+    Spec,
+    Transform2D,
+    infer_lifetime,
+)
 
 log = get_logger(__name__)
 
@@ -59,6 +81,25 @@ class _Active:
     drawn: m.Mobject
     baked: tuple[Transform2D, Transform2D] | None = None  # morphs: world transforms at start/end
     leaves: list[m.Mobject] = field(default_factory=list)  # tree clips: the working copy's glyphs
+
+
+@dataclass
+class _Run:
+    """A simulation's replay (ADR 0033): kept states by step, and the latest one."""
+
+    key: tuple
+    kept: dict[int, object]
+    latest: tuple[int, object]
+    drawn: tuple[int, m.Mobject] | None = None
+
+
+@dataclass
+class _Trace:
+    """A traced path's points by grid frame from its first one (None: the target was not drawn)."""
+
+    key: tuple
+    points: list[np.ndarray | None]
+    drawn: tuple[object, m.Mobject] | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +130,9 @@ class Evaluator:
         self._trees: dict[str, _Tree] = {}
         self._tree_states: dict[tuple[str, tuple[ClipKey, ...]], m.Mobject] = {}
         self._media: dict[str, str] = {}  # media layer -> the file signature its build is from
+        self._runs: dict[str, _Run] = {}  # simulations (ADR 0033)
+        self._traces: dict[str, _Trace] = {}  # traced paths (ADR 0033)
+        self._sim_errors: dict[str, str] = {}  # simulations that failed while stepping
         self._index()
 
     def _index(self) -> None:
@@ -102,6 +146,14 @@ class Evaluator:
             for clip in layer.clips:
                 if clip.to_layer:
                     self._morph_into[clip.to_layer] = (layer, clip)
+        self._simulated = {  # drawn frame by frame (ADR 0033)
+            layer.id
+            for layer in self.project.layers
+            if layer.spec is not None
+            and layer.parent_id is None
+            and (layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS)
+        }
+        self._signatures: dict[str, str] = {}  # what a traced layer is evaluated from, per project
 
     # -- public ----------------------------------------------------------------
 
@@ -217,6 +269,7 @@ class Evaluator:
             if layer.spec is None or layer.parent_id is not None:
                 continue
             problem = adapter.build_problem(layer.spec, self._media_signature(layer))
+            problem = problem or self._sim_errors.get(layer.id)  # a step failed later (ADR 0033)
             if problem is not None:
                 out[layer.id] = problem
         return out
@@ -311,16 +364,204 @@ class Evaluator:
             return None
         if layer.spec.type in CODE_TYPES:
             return self._code_at(layer, t, start)
+        if layer.id in self._simulated:  # no clips: drawn frame by frame (ADR 0033)
+            local = (
+                self._trace_drawing(layer, t)
+                if layer.spec.type in TRACE_TYPES
+                else self._sim_drawing(layer, t)
+            )
+            return self._to_world(local, layer, t)
+        morph = self._member_morph(layer, t)
+        if morph is not None:
+            return morph
+        return self._to_world(self._clip_state_at(layer, t), layer, t)
+
+    def _clip_state_at(self, layer: Layer, t: float) -> m.Mobject:
+        """A plain object's local drawing at ``t`` (clips applied, not its transform), outside morphs."""
         for index, clip in enumerate(layer.clips):
             if clip.start <= t < clip.end:
-                alpha = (t - clip.start) / clip.duration
-                if clip.info.category == "morph":
-                    return self._morph_at(layer, index, clip, alpha)
                 active = self._activate(layer, index, clip)
-                active.anim.interpolate(alpha)
-                return self._to_world(active.drawn, layer, t)
-        index = sum(1 for clip in layer.clips if clip.end <= t)
-        return self._to_world(self._state_before(layer, index), layer, t)
+                active.anim.interpolate((t - clip.start) / clip.duration)
+                return active.drawn
+        return self._state_before(layer, sum(1 for clip in layer.clips if clip.end <= t))
+
+    def _alive(self, layer: Layer, t: float) -> bool:
+        start, end = self.lifetime(layer)
+        return start <= t < end
+
+    # -- simulated layers (ADR 0033) -------------------------------------------
+
+    def _first_frame(self, layer: Layer) -> int:
+        """The grid frame a simulated layer starts on: the first at or after its lifetime start."""
+        return math.ceil(self.lifetime(layer)[0] * self.project.canvas.fps - 1e-6)
+
+    def _sim_state(self, layer: Layer, steps: int) -> object:
+        """A simulation's state after ``steps`` steps, replayed from the nearest kept state."""
+        sim = plugins.SIMULATIONS[layer.spec.type]
+        fps = self.project.canvas.fps
+        params = adapter.plugin_params(layer.spec, sim.params)
+        key = (layer.spec.model_dump_json(), fps, self._first_frame(layer))
+        run = self._runs.get(layer.id)
+        if run is None or run.key != key:
+            state = sim.start(dict(params))
+            run = _Run(key, {0: state}, (0, state))
+            self._runs[layer.id] = run
+        base = max(i for i in run.kept if i <= steps)
+        if run.latest[0] <= steps and run.latest[0] > base:
+            base, state = run.latest
+        else:
+            state = run.kept[base]
+        for i in range(base + 1, steps + 1):
+            state = sim.step(copy.deepcopy(state), 1 / fps, dict(params))  # steps may mutate their input
+            if i % adapter.SIMULATION_CHECKPOINT == 0:
+                run.kept[i] = state
+        run.latest = (steps, state)
+        return state
+
+    def _sim_steps(self, layer: Layer, t: float) -> int:
+        return max(0, frame_index(t, self.project.canvas.fps) - self._first_frame(layer))
+
+    def _sim_drawing(self, layer: Layer, t: float) -> m.Mobject:
+        """A simulation's drawing at ``t``: its state on the last grid frame, or the placeholder."""
+        if adapter.simulation_problem(layer.spec) is not None or layer.id in self._sim_errors:
+            return self._base_placeholder(layer)
+        steps = self._sim_steps(layer, t)
+        try:
+            state = self._sim_state(layer, steps)
+            run = self._runs[layer.id]
+            if run.drawn is None or run.drawn[0] != steps:
+                sim = plugins.SIMULATIONS[layer.spec.type]
+                params = adapter.plugin_params(layer.spec, sim.params)
+                drawing = sim.draw(copy.deepcopy(state), dict(params))
+                run.drawn = (steps, adapter.simulation_drawing(layer.spec, drawing))
+        except Exception as exc:  # a broken plugin must never break a frame (ADR 0032)
+            log.warning("simulation %s failed: %s", layer.id, exc)
+            self._sim_errors[layer.id] = (
+                f"the {layer.spec.type} simulation failed: {type(exc).__name__}: {exc}"
+            )
+            return self._base_placeholder(layer)
+        return run.drawn[1]
+
+    def _base_placeholder(self, layer: Layer) -> m.Mobject:
+        key = f"placeholder:{layer.id}"
+        if key not in self._base:
+            self._base[key] = adapter.build_mobject(Spec(type="?"))  # the dashed placeholder (ADR 0027)
+        return self._base[key]
+
+    def _sim_point(self, layer: Layer, t: float) -> np.ndarray:
+        """What a trace follows on a simulation, in its units: ``point(state)``, else the drawing's centre."""
+        sim = plugins.SIMULATIONS[layer.spec.type]
+        if sim.point is None or adapter.simulation_problem(layer.spec) is not None:
+            return self._sim_drawing(layer, t).get_center()[:2]
+        try:
+            state = self._sim_state(layer, self._sim_steps(layer, t))
+            params = adapter.plugin_params(layer.spec, sim.params)
+            return np.array(sim.point(copy.deepcopy(state), dict(params)), dtype=float)[:2]
+        except Exception as exc:
+            self._sim_errors[layer.id] = (
+                f"the {layer.spec.type} simulation failed: {type(exc).__name__}: {exc}"
+            )
+            return self._base_placeholder(layer).get_center()[:2]
+
+    def _traced_point(self, target: Layer, t: float, offset: np.ndarray) -> np.ndarray | None:
+        """Where a trace of ``target`` is at ``t`` in world units, or None when it is not drawn."""
+        root = self.project.root_of(target.id)
+        if root.id in self._trees_of:  # a part or child object, or an object that has them
+            drawn = dict(self._tree_at(root, t)).get(target.id)
+            if drawn is None or not drawn.family_members_with_points():
+                return None
+            a = (
+                self._member_affine(self._tree(root), target, t)[0]
+                if target.id in self._tree(root).members
+                else np.eye(2)
+            )
+            return drawn.get_center()[:2] + a @ offset
+        if not self._alive(target, t):
+            return None
+        a, b = self._world_affine(target, t)
+        if target.id in self._simulated:
+            return a @ (self._sim_point(target, t) + offset) + b
+        morph = self._member_morph(target, t)
+        if morph is not None:  # handed off: the morph's centre
+            return morph.get_center()[:2] + a @ offset
+        local = self._clip_state_at(target, t)
+        if not local.family_members_with_points():
+            return None
+        return a @ (local.get_center()[:2] + offset) + b
+
+    def _signature(self, layer_id: str) -> str:
+        """Everything layer ``layer_id`` is evaluated from: its object, morph partners and path
+        layers, transitively (a trace of it is re-sampled when any of them changes)."""
+        if layer_id not in self._signatures:
+            seen: set[str] = set()
+            todo = [layer_id]
+            while todo:
+                current = todo.pop()
+                if current in seen or current not in self._layers:
+                    continue
+                seen.add(current)
+                root = self.project.root_of(current)
+                tree = [root, *self.project.descendants(root.id)]
+                todo.extend(x.id for x in tree)
+                for x in tree:
+                    for clip in x.clips:
+                        todo.extend(i for i in (clip.to_layer, clip.params.get("path")) if isinstance(i, str))
+                    if x.id in self._morph_into:
+                        todo.append(self._morph_into[x.id][0].id)
+            self._signatures[layer_id] = "|".join(
+                self._layers[i].model_dump_json() + f"@{self._media_signature(self._layers[i])}"
+                for i in sorted(seen)
+            )
+        return self._signatures[layer_id]
+
+    def _trace_points(self, layer: Layer, last: int) -> list[np.ndarray | None]:
+        """A trace's points on grid frames ``first..last`` (sampled once, then kept)."""
+        fps = self.project.canvas.fps
+        target_id = layer.spec.params["target"]
+        first = self._first_frame(layer)
+        key = (layer.spec.model_dump_json(), fps, first, self._signature(target_id))
+        trace = self._traces.get(layer.id)
+        if trace is None or trace.key != key:
+            trace = _Trace(key, [])
+            self._traces[layer.id] = trace
+        offset = np.array(
+            adapter.param_value(layer.spec, adapter.MOBJECT_PARAMS["TracedPath"][1])[:2], dtype=float
+        )
+        target = self._layers[target_id]
+        for index in range(first + len(trace.points), last + 1):
+            trace.points.append(self._traced_point(target, index / fps, offset))
+        return trace.points[: max(0, last - first + 1)]
+
+    def _trace_drawing(self, layer: Layer, t: float) -> m.Mobject:
+        """A traced path at ``t`` (world units): its points on the grid frames so far (the last
+        ``dissipate`` seconds of them), and the live point between frames."""
+        fps = self.project.canvas.fps
+        last = frame_index(t, fps)
+        points = self._trace_points(layer, last)
+        first = self._first_frame(layer)
+        dissipate = float(layer.spec.params.get("dissipate") or 0.0)
+        if dissipate > 0:
+            points = points[max(0, len(points) - 1 - round(dissipate * fps)) :]
+        live = None
+        if not on_grid(t, fps) or last < first:
+            target = self._layers[layer.spec.params["target"]]
+            offset = np.array(
+                adapter.param_value(layer.spec, adapter.MOBJECT_PARAMS["TracedPath"][1])[:2], dtype=float
+            )
+            live = self._traced_point(target, t, offset)
+        if last < first:
+            points = []
+        trace = self._traces[layer.id]
+        token = (trace.key, last, None if live is None else tuple(live))
+        if trace.drawn is None or trace.drawn[0] != token:
+            runs: list[list[np.ndarray]] = [[]]
+            for point in [*points, live] if live is not None else points:
+                if point is None:
+                    runs.append([])
+                else:
+                    runs[-1].append(np.array([point[0], point[1], 0.0]))
+            trace.drawn = (token, adapter.trace_mobject([r for r in runs if r], layer.spec.style))
+        return trace.drawn[1]
 
     def _activate(self, layer: Layer, index: int, clip: Clip) -> _Active:
         key = (layer.id, clip.id, self._path_sigs(layer, index + 1))
