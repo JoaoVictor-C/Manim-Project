@@ -61,3 +61,4 @@ need one.
 | [0030](0030-objects-on-axes.md) | Points, areas, rectangles and labels on axes | Accepted |
 | [0031](0031-python-export.md) | Python export: readable when it can be, exact otherwise | Accepted |
 | [0032](0032-plugin-api.md) | Plugins add object types | Accepted |
+| [0033](0033-simulated-layers.md) | Simulated layers: traced paths and plugin simulations | Accepted |

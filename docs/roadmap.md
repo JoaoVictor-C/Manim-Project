@@ -57,5 +57,5 @@ timeline and canvas, with the real build worker and renderer.
 
 - ✅ **P4a** — [plan](plans/p4a-python-export.md): one-way Python export, readable or exact (ADR 0010, 0031)
 - ✅ **P4b** — [plan](plans/p4b-plugins.md): plugins add object types (ADR 0032)
-- Simulated layers (updaters, TracedPath) with replay from checkpoints
+- **P4c** — [plan](plans/p4c-simulated-layers.md): simulated layers - traced paths and plugin simulations (ADR 0033)
 - Audio track

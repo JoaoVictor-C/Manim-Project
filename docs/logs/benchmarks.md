@@ -414,3 +414,16 @@ Manim is imported (5.5 s if the plugin is the first to import Manim - it never
 is in our processes). Building the sample (a rod and a bob): **2.7-3.7 ms**; the
 determinism check (a second build compared point by point) adds **1.6 ms**,
 once per type per process. The result is a VGroup (vector). → ADR 0032.
+
+### B46 — Simulated layers: Manim's TracedPath, replay costs · 2026-10-11
+`benchmarks/bench_simulation.py`. Manim's own play loop at 10 fps with a
+`TracedPath` following a dot: within one `play()` the trace on every rendered
+frame is exactly the polyline through the dot's centre on the frames so far
+(**30/30** frames, one 3 s MoveAlongPath). Across plays Manim adds one more
+corner per `play()` - the end state, never shown as a frame (2 plays + wait:
+10/25 frames equal, the rest differ only by those corners). `dissipating_time`
+keeps about D x fps segments. Costs: the target's point at one frame
+**0.11-0.16 ms**; a 300-corner trace built in **0.19 ms**, drawn in
+**1.8-2.1 ms** at 1280x720; a pendulum RK4 step **0.7 us**, its drawing
+**0.33 ms**; a checkpoint copy of 2000 particles **0.003 ms**. With a state every
+30 frames a seek replays at most 29 steps. -> ADR 0033.

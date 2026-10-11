@@ -469,3 +469,25 @@ left open, so ADRs can cite it.
   builds would break caches and render-ahead → checked at first use; the test
   suite would load the developer's own plugins → conftest points at an empty
   folder.
+
+## Session 25 — P4c simulated layers · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** the evaluator's caches and shared frame buffers, frame_cache's
+  closure, ADR 0002, 0019, 0028, 0031, 0032; probe B46 (plus a single-play
+  measurement run during the session: 30/30 frames equal).
+- **Decisions:** a built-in TracedPath layer and plugin simulations
+  (`Simulation(start, step, draw, point)`); the fps grid as clock (dt = 1/fps);
+  a trace is the polyline through the target's point on every frame so far,
+  broken where the target is not drawn; per-process caches keyed by what they
+  are computed from, simulation states every 30 frames; trace points sampled
+  before drawing; no clips on simulated layers; exact Python export
+  (-> ADR 0033). Plan: [../plans/p4c-simulated-layers.md](../plans/p4c-simulated-layers.md).
+- **Critiques that changed the plan:** traces must follow child objects (a Point
+  on Axes) and simulations, not only plain objects -> a traced-point rule per
+  kind and `Simulation.point`; a cache key without the trace's own offset would
+  reuse stale points; numpy simulations mutate their state in place -> deep
+  copies before stepping; frames where the target is absent -> no point, the
+  line breaks; the dependency signature must follow everything the target is
+  evaluated from (keyed axes move a Point).
