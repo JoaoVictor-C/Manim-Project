@@ -60,3 +60,4 @@ need one.
 | [0029](0029-child-objects-in-the-tree.md) | Child objects animate with their object | Accepted |
 | [0030](0030-objects-on-axes.md) | Points, areas, rectangles and labels on axes | Accepted |
 | [0031](0031-python-export.md) | Python export: readable when it can be, exact otherwise | Accepted |
+| [0032](0032-plugin-api.md) | Plugins add object types | Accepted |

@@ -451,3 +451,21 @@ left open, so ADRs can cite it.
   → z_index per layer; a morph target with its own lifetime could be in the
   scene before the morph → exact; missing media would raise in plain Manim →
   exact; the text must be deterministic → snapshot test too.
+
+## Session 24 — P4b plugin API · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 1 iteration, 1 pass, halted on
+  `halt_signal`, confidence **0.90**.
+- **Input:** the adapter's registries, the processes that build objects, ADR
+  0015, 0019, 0027, 0031; probe B45.
+- **Decisions:** a public `manim_studio.plugins` module (`ObjectType`,
+  `register`); loading at the end of `core.adapter` (entry points, then plugin
+  folders); no prompt (installed code); vector objects only; a lazy determinism
+  check; placeholders for failures and missing types; warm keys for slow types;
+  plugin objects make Python exports exact (→ ADR 0032). Plan:
+  [../plans/p4b-plugins.md](../plans/p4b-plugins.md).
+- **Critiques that changed the plan:** a circular import if plugins load
+  before the adapter is complete → load at its end, lazy imports; random
+  builds would break caches and render-ahead → checked at first use; the test
+  suite would load the developer's own plugins → conftest points at an empty
+  folder.

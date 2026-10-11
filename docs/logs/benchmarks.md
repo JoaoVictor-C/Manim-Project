@@ -407,3 +407,10 @@ eases) at 320×180, 10 fps. Readable form: generated in **2.5 ms** (98 lines),
 Exact form (a keyframed dot added): generated in 0.5 ms, rendered in 2.2 s,
 worst **1.39** (h264 on a moving dot). Follows B43. → ADR 0031.
 
+### B45 — Plugins: discovery, loading, building · 2026-10-11
+`benchmarks/bench_plugins.py`. Scanning the `manim_studio.plugins` entry points:
+**20-31 ms** per process (none installed). Loading a plugin file: **1.5 ms** once
+Manim is imported (5.5 s if the plugin is the first to import Manim - it never
+is in our processes). Building the sample (a rod and a bob): **2.7-3.7 ms**; the
+determinism check (a second build compared point by point) adds **1.6 ms**,
+once per type per process. The result is a VGroup (vector). → ADR 0032.
