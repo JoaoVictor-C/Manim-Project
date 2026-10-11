@@ -15,7 +15,7 @@ from PIL import Image
 
 from manim_studio.core import adapter
 from manim_studio.core.adapter import CHILD_ONLY_TYPES, LIBRARY, MOBJECT_PARAMS, MOBJECT_TYPES, Param
-from manim_studio.core.schema import CODE_TYPES, TEXT_TYPES, Spec
+from manim_studio.core.schema import CODE_TYPES, TEXT_TYPES, TRACE_TYPES, Spec
 
 LATEX_TYPES = {"MathTex", "Tex", "Axes", "AxisLabels", "GraphLabel"}  # Axes: its numbers are LaTeX
 
@@ -37,7 +37,8 @@ def _build(spec: Spec):
     return adapter.build_mobject(spec)
 
 
-BUILT = sorted(set(MOBJECT_PARAMS) - CODE_TYPES)  # code layers are rendered, not built (ADR 0019)
+# Code layers are rendered, not built (ADR 0019); traces are drawn frame by frame (ADR 0033).
+BUILT = sorted(set(MOBJECT_PARAMS) - CODE_TYPES - TRACE_TYPES)
 ALL_TYPES = [pytest.param(t, marks=_marks(t)) for t in BUILT]
 ALL_PARAMS = [
     pytest.param(t, p, marks=_marks(t), id=f"{t}.{p.name}") for t in BUILT for p in MOBJECT_PARAMS[t]

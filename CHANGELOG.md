@@ -127,6 +127,15 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Simulated layers (P4c, ADR 0033): **Add > Simulation > Traced path** draws
+  where the selected object has been - a plain object, a point on axes, a part
+  or a simulation - frame by frame, optionally from an offset point and fading
+  after some seconds; within one play it is exactly Manim's `TracedPath` (B46).
+  Plugins can add **simulations** (`Simulation(start, step, draw, point)`),
+  stepped once per frame like Manim updaters; example:
+  `examples/plugins/swinging_pendulum.py`. Any frame can be shown in any order:
+  states are kept every 30 frames and replayed. Simulated layers have no clips
+  (key their opacity) and make a Python export exact.
 - Plugins (P4b, ADR 0032): a `.py` file in the plugin folder
   (`~/.manim-studio/plugins`, or the folders in `MANIM_STUDIO_PLUGINS`) or an
   installed package with a `manim_studio.plugins` entry point adds object types

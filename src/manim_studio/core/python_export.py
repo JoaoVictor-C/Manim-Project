@@ -26,6 +26,7 @@ from .schema import (
     CODE_TYPES,
     DIRECTIONS,
     TEXT_TYPES,
+    TRACE_TYPES,
     Clip,
     Easing,
     Layer,
@@ -94,6 +95,8 @@ def readable_problems(project: Project) -> list[str]:
             out.append(f"{name(layer)}: a morph target with its own lifetime")
         if layer.spec.type in plugins.TYPES:
             out.append(f"{name(layer)}: a plugin object")
+        elif layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS:
+            out.append(f"{name(layer)}: a simulated layer")
         elif adapter.build_problem(layer.spec) is not None:
             out.append(f"{name(layer)}: {adapter.build_problem(layer.spec)}")
     clusters = _clusters(project)

@@ -42,6 +42,7 @@ from ..core.schema import (
     MEDIA_TYPES,
     PART_PARENT_TYPES,
     RASTER_TYPES,
+    TRACE_TYPES,
     Layer,
     Project,
     Spec,
@@ -350,6 +351,12 @@ class LayersPanel(QWidget):
             if not path:
                 return
             extra["path"] = path
+        if type_name in TRACE_TYPES:  # traces the selected object (ADR 0033)
+            selected = self.selected_id()
+            if selected is None or selected not in self.project.traceable_ids(""):
+                self.message.emit("Select the object to trace first")
+                return
+            extra["target"] = selected
         spec = adapter.default_spec(type_name, **extra)
         if type_name in CODE_TYPES:
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene

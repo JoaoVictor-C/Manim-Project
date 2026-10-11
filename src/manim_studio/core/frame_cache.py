@@ -45,7 +45,7 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     Anything but the layers (the canvas) changes every frame. Otherwise the
     changed layers - added, removed, edited, or moved in the stacking order - and
     what depends on them (morph partners, their whole object, layers moving along
-    them) can change their frames only while they are alive, before or after.
+    them, traces of them) can change their frames only while they are alive, before or after.
     """
     closure = changed_layers(old, new)
     if closure is None:
@@ -94,6 +94,7 @@ def _closure(project: Project, changed: set[str]) -> set[str]:
                 path = clip.params.get("path") if clip.info.category == "motion" else None
                 if path in out:  # it moves along a changed shape (ADR 0025)
                     grown.add(layer.id)
+        grown |= project.traces_of(grown)  # a trace draws where a changed layer was (ADR 0033)
         for layer_id in list(grown & ids):  # an object is evaluated whole (parts, child objects)
             root = project.root_of(layer_id)
             grown |= {root.id} | {d.id for d in project.descendants(root.id)}

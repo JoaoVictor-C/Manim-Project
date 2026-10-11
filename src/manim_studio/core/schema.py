@@ -31,6 +31,7 @@ TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached o
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
+TRACE_TYPES = frozenset({"TracedPath"})  # draws where another layer has been, frame by frame (ADR 0033)
 PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
 AXES_OBJECTS = frozenset({"Graph", "Point", "Area", "RiemannRectangles", "AxisLabels", "GraphLabel"})
 CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": AXES_OBJECTS}  # child objects (ADR 0024, 0030)
@@ -337,6 +338,8 @@ class Layer(BaseModel):
             )
         if self.spec is not None and self.spec.type in CODE_TYPES and self.clips:
             raise ValueError(f"layer {self.id!r}: code layers have no clips (animate inside the code)")
+        if self.spec is not None and self.spec.type in TRACE_TYPES and self.clips:
+            raise ValueError(f"layer {self.id!r}: a traced path has no clips (it draws where its target was)")
         if self.spec is not None:
             for clip in self.clips:
                 if clip.info.vector_only and self.spec.type in RASTER_TYPES:
@@ -397,6 +400,7 @@ class Project(BaseModel):
         self._tree_rules()
         self._path_rules()
         self._graph_refs()
+        self._trace_refs()
         targeted: dict[str, str] = {}
         for layer in self.layers:
             for clip in layer.clips:
@@ -407,8 +411,9 @@ class Project(BaseModel):
                         f"clip {clip.id!r} on layer {layer.id!r}: to_layer {clip.to_layer!r} is missing"
                     )
                 target = next(other for other in self.layers if other.id == clip.to_layer)
-                if target.spec is not None and target.spec.type in CODE_TYPES:
-                    raise ValueError(f"clip {clip.id!r}: a layer cannot morph into a code layer")
+                if target.spec is not None and target.spec.type in CODE_TYPES | TRACE_TYPES:
+                    what = "a code layer" if target.spec.type in CODE_TYPES else "a traced path"
+                    raise ValueError(f"clip {clip.id!r}: a layer cannot morph into {what}")
                 if clip.to_layer == layer.id:
                     raise ValueError(f"clip {clip.id!r}: a layer cannot morph into itself")
                 if clip.to_layer in targeted:
@@ -435,7 +440,7 @@ class Project(BaseModel):
                 if (
                     path.id in inside
                     or path.is_part
-                    or path.spec.type in CODE_TYPES | RASTER_TYPES | NOT_PATHS
+                    or path.spec.type in CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES
                 ):
                     raise ValueError(f"clip {clip.id!r}: {path.id!r} cannot be its path")
 
@@ -457,6 +462,33 @@ class Project(BaseModel):
                     raise ValueError(
                         f"layer {layer.id!r}: {name} must name a graph on the same axes, not {target!r}"
                     )
+
+    def _trace_refs(self) -> None:
+        """ADR 0033: a traced path follows another object - not a trace, not a code layer."""
+        by_id = {layer.id: layer for layer in self.layers}
+        for layer in self.layers:
+            if layer.spec is None or layer.spec.type not in TRACE_TYPES:
+                continue
+            target_id = layer.spec.params.get("target") or ""
+            if target_id not in self.traceable_ids(layer.id):
+                what = "is missing" if target_id not in by_id else "cannot be traced"
+                raise ValueError(f"layer {layer.id!r}: the traced layer {target_id!r} {what}")
+
+    def traceable_ids(self, trace_id: str) -> list[str]:
+        """The layers the traced path ``trace_id`` may follow (ADR 0033)."""
+        return [
+            x.id
+            for x in self.layers
+            if x.id != trace_id and not (x.spec is not None and x.spec.type in TRACE_TYPES | CODE_TYPES)
+        ]
+
+    def traces_of(self, layer_ids: set[str]) -> set[str]:
+        """Traced paths following any of ``layer_ids``."""
+        return {
+            x.id
+            for x in self.layers
+            if x.spec is not None and x.spec.type in TRACE_TYPES and x.spec.params.get("target") in layer_ids
+        }
 
     def referenced_graphs(self, layer: Layer) -> dict[str, Spec]:
         """The specs of the graphs ``layer`` is built from (ADR 0030), by id."""
@@ -536,14 +568,14 @@ class Project(BaseModel):
 
     def path_layers(self, mover_id: str) -> list[Layer]:
         """Layers ``mover_id`` may travel along (ADR 0025): not itself or its descendants,
-        not parts, code or images."""
+        not parts, code, images or traces."""
         inside = {mover_id} | {d.id for d in self.descendants(mover_id)}
         return [
             layer
             for layer in self.layers
             if layer.id not in inside
             and not layer.is_part
-            and layer.spec.type not in CODE_TYPES | RASTER_TYPES | NOT_PATHS
+            and layer.spec.type not in CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES
         ]
 
     def morph_sources(self) -> dict[str, Clip]:

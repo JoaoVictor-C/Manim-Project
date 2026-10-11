@@ -86,13 +86,20 @@ axes takes their graphs along.
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `SVGMobject`, `Code`, `Axes`; `Graph`,
-  `Point`, `Area`, `RiemannRectangles`, `AxisLabels`, `GraphLabel` (only as children of
-  `Axes`).
+  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `SVGMobject`, `Code`, `Axes`,
+  `TracedPath`; `Graph`, `Point`, `Area`, `RiemannRectangles`, `AxisLabels`,
+  `GraphLabel` (only as children of `Axes`); any type an installed plugin
+  provides (ADR 0032, 0033) - without the plugin it is drawn as a placeholder.
 - `Code` (ADR 0019) holds Python in `params.code`: one `Scene` subclass
   (`from manim import *` and `numpy as np` are implied). It is rendered once
   into a frame cache, plays from the layer's start and holds its last frame;
   it has no clips. It runs only when trusted on this computer.
+- `TracedPath` (ADR 0033) draws where another layer has been: `target` (a layer
+  id: not a trace or a code layer), `offset` (`[x, y]` from the target's centre,
+  in its units) and `dissipate` (seconds kept, 0 = all). It samples the target
+  on every frame from its own start, has no clips and is deleted with its target.
+  A plugin *simulation* is stepped once per frame from the layer's start and has
+  no clips either.
 - `params`: keyword arguments of the Manim constructor. `Text`/`MathTex`/`Tex`
   take their string in `text`; `ImageMobject` takes `path`; `SVGMobject` takes
   `path` and `height` (default 2). Paths are absolute. A file that is missing or
