@@ -15,6 +15,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_spatial_paths.py` | curved position segments: raw vs arc-length walking, table cost — B39 |
 | `bench_plugins.py` | plugin discovery, loading, building, the determinism check — B45 |
 | `bench_simulation.py` | Manim's TracedPath frame by frame, trace and simulation replay costs — B46 |
+| `bench_audio.py` | audio decoding, mixing, Qt playback clock, AAC muxing, Manim's add_sound — B47 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |
 | `bench_render_ahead.py` | preview frame cost at widget size, keeping frames (raw, zlib), showing them again — B41 |
