@@ -15,7 +15,9 @@ Manim's `Scene.add_subcaption` writes an `.srt` next to the video.
 - **Model.** A project has subtitle cues (`id`, `start`, `end`, `text`) in one lane
   (they never overlap) and one subtitle style (font size, vertical position,
   colour, a band behind the text with its colour and opacity, fade time, burn-in
-  on/off, maximum line width). Both are saved only when used.
+  on/off, maximum line width). Both are saved only when used. The height is the
+  centre of a one-line subtitle; more lines grow upwards (found while checking the
+  editor: two lines centred there touched the bottom of the frame).
 - **Drawing.** Subtitles are an overlay drawn after every layer: `Evaluator.frame`
   adds it and the canvas draws it; `frame_layers` stays layers only, so clicking
   on the canvas never selects a subtitle. A cue's text is wrapped at word

@@ -98,6 +98,17 @@ into a plugin folder and runs the editor with its real build worker and
 preview process: the pendulum is added, edited, drawn on, rendered ahead,
 exported to video and to an exact Python scene rendered by `manim render`, all
 matching the editor.
+`core/test_subtitles.py` covers the cue lane, the file format, subtitle edits
+(no frame dropped, other edits keep them), placing a new cue, `.srt` reading
+(byte-order mark, CRLF, missing indices, dot milliseconds, tags, overlaps) and
+writing, wrapping and shrinking, lines growing upwards, drawing over the layers
+without being a layer, fades, random access, render-ahead spans, the export's
+burned-in frames and `.srt`, and both Python forms (`manim render` writes the
+same `.srt`). `ui/test_subtitles_ui.py` covers Add Subtitle, Properties, `.srt`
+import and export, moving, trimming and deleting on the row, and the canvas.
+`ui/test_acceptance_p5a.py` imports an `.srt`, edits a cue and the style, checks
+frames rendered ahead, the export process's video and `.srt`, and the exact
+Python scene.
 `core/test_audio.py` covers the mix (trim, gain, fades, clipping, silence past
 a file's end, resampling), missing and unreadable files, the decode cache, the
 file format and sound edits (no frame dropped, layer edits keep the sound), the

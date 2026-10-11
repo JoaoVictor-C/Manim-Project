@@ -94,7 +94,7 @@ def test_a_missing_sound_is_reported_on_open(qt_app, tmp_path) -> None:
 
 
 def sound_point(timeline, t: float) -> QPointF:
-    row = len(timeline.rows())  # the first row under the layers
+    row = len(timeline.rows()) + 1  # under the layers and the Subtitles row
     return QPointF(timeline.mapFromScene(QPointF(timeline.scale.x(t), RULER_HEIGHT + row * ROW_HEIGHT + 14)))
 
 

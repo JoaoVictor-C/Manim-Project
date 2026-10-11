@@ -1,6 +1,6 @@
 # P5a — Subtitle track
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 28](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B48 in [../logs/benchmarks.md](../logs/benchmarks.md)

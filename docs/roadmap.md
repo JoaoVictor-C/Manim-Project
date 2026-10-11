@@ -64,7 +64,7 @@ timeline and canvas, with the real build worker and renderer.
 
 Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision session 27).
 
-- **P5a** — [plan](plans/p5a-subtitles.md): subtitle track: cues on their own row, styled, burned into the export, `.srt` in and out (ADR 0035)
+- ✅ **P5a** — [plan](plans/p5a-subtitles.md): subtitle track: cues on their own row, styled, burned into the export, `.srt` in and out (ADR 0035)
 - **P5b** — value readouts (a keyed Number layer) and connectors between objects
 - **P5c** — markers and snapping on every row; a sound effect at a clip's start
 - **P5d** — duplicate, copy and paste; autosave and crash recovery

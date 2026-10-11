@@ -137,6 +137,16 @@ def test_a_line_of_wide_letters_is_shrunk_to_fit() -> None:
     assert centre[1] == pytest.approx(STYLE.y) and centre[0] == pytest.approx(0)
 
 
+def test_more_lines_grow_upwards_from_where_one_line_sits() -> None:
+    one = adapter.subtitle_mobject("Hello there", STYLE)
+    two = adapter.subtitle_mobject("Hello there\nand again", STYLE)
+    three = adapter.subtitle_mobject("Hello there\nand again\nand again", STYLE)
+    assert one.get_center()[1] == pytest.approx(STYLE.y)
+    assert two.get_bottom()[1] == pytest.approx(one.get_bottom()[1], abs=0.05)  # descenders vary a little
+    assert three.get_top()[1] > two.get_top()[1] > one.get_top()[1]
+    assert three.get_bottom()[1] > -4.0  # inside the frame
+
+
 def test_the_subtitle_is_drawn_over_the_layers_but_is_not_a_layer() -> None:
     square = Layer(id="sq", spec=Spec(type="Square", params={"side_length": 8}, style={"fill": "#ef4444"}))
     p = project(HELLO, layers=[square])

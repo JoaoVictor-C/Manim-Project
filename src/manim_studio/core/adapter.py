@@ -462,7 +462,9 @@ def _subtitle_cached(text: str, style_json: str) -> m.VGroup | None:
         band.set_fill(style.band_colour, opacity=style.band_opacity)
         parts.insert(0, band.move_to(block))
     group = m.VGroup(*parts)
-    group.move_to([0.0, style.y, 0.0])
+    # ``y`` is the centre of a one-line subtitle; more lines grow upwards, as on television.
+    bottom = style.y - (lines[0].height + (0.3 * k if style.band else 0.0)) / 2
+    group.set_x(0.0).shift(m.UP * (bottom - group.get_bottom()[1]))
     return group
 
 
