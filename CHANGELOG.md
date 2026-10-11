@@ -127,6 +127,12 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Explainer example: `examples/build_explainer.py` builds "What is a derivative?",
+  a 95-second lesson with subtitles, section headers, formulas, a secant sliding
+  into the tangent, a tangent riding the curve with a traced tail, and
+  synthesized sound effects (pops, whooshes, ticks, pencil strokes, chimes, a
+  quiet pad) on the audio track. Render it with
+  `manim-studio render examples/explainer.json out/explainer.mp4`.
 - Audio track (P4d, ADR 0034): **File > Import Audio...** puts a sound at the
   playhead (WAV, MP3, OGG, FLAC, M4A/AAC). Each sound gets a timeline row under
   the layers with its waveform (gain and fades shown); drag it to move it, drag
