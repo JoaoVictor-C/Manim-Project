@@ -111,8 +111,8 @@ that is missing or unreadable is silent.
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `ImageMobject`, `SVGMobject`, `Code`, `Axes`,
-  `TracedPath`; `Graph`, `Point`, `Area`, `RiemannRectangles`, `AxisLabels`,
+  `Star`, `Text`, `MathTex`, `Tex`, `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`,
+  `Axes`, `TracedPath`, `Connector`; `Graph`, `Point`, `Area`, `RiemannRectangles`, `AxisLabels`,
   `GraphLabel` (only as children of `Axes`); any type an installed plugin
   provides (ADR 0032, 0033) - without the plugin it is drawn as a placeholder.
 - `Code` (ADR 0019) holds Python in `params.code`: one `Scene` subclass
@@ -125,6 +125,19 @@ that is missing or unreadable is silent.
   on every frame from its own start, has no clips and is deleted with its target.
   A plugin *simulation* is stepped once per frame from the layer's start and has
   no clips either.
+- `DecimalNumber` (ADR 0036) takes Manim's own keywords: `number` (0),
+  `num_decimal_places` (2), `unit` (LaTeX after the number; blank = none),
+  `include_sign` (`"yes"` / `"no"`), `font_size` (48). ChangeDecimalToValue clips
+  count it.
+- `Connector` (ADR 0036) is a line or arrow between two layers, drawn again on
+  every frame: `source` and `target` (layer ids: two different layers, not a
+  trace, connector or code layer), `ends` (`"edges"`: where the line between the
+  two points leaves each drawing's bounding box; `"centres"`: at the points),
+  `tips` (`"none"`, `"end"`, `"both"`), `gap` (shortens both ends, default 0.1),
+  `source_offset` / `target_offset` (`[x, y]` from each drawing's centre, turned
+  and scaled with that layer). Style `stroke` colours the line and its tips,
+  `stroke_width` sets its width. It draws nothing while either layer is hidden,
+  has no clips and is deleted with either layer.
 - `params`: keyword arguments of the Manim constructor. `Text`/`MathTex`/`Tex`
   take their string in `text`; `ImageMobject` takes `path`; `SVGMobject` takes
   `path` and `height` (default 2). Paths are absolute. A file that is missing or
@@ -188,7 +201,7 @@ length travelled. Segments without tangents are straight, as before.
 |---|---|---|
 | content (introducer) | Create, Write, DrawBorderThenFill, FadeIn, GrowFromCenter, GrowFromEdge, SpinInFromNothing, SpiralIn, AddTextLetterByLetter | starts it |
 | content (remover) | Uncreate, Unwrite, FadeOut, ShrinkToCenter, RemoveTextLetterByLetter | ends it |
-| emphasis | Indicate, Wiggle, ApplyWave, Circumscribe, Flash, FocusOn | none (returns to rest) |
+| emphasis | Indicate, Wiggle, ApplyWave, Circumscribe, Flash, FocusOn; ChangeDecimalToValue (`DecimalNumber` only: it keeps the new value) | none |
 | motion | MoveAlongPath (root objects only; `params.path` names the layer to follow) | none |
 | morph | Transform, ClockwiseTransform, CounterclockwiseTransform, FadeTransform, FadeTransformPieces, TransformMatchingShapes, TransformMatchingTex | ends this layer, starts `to_layer` |
 
@@ -207,6 +220,7 @@ Registered clip params (ADR 0022):
 | Indicate | `color`, `scale_factor` | `"#rrggbb"` (default `#FFFF00`); 1–3 (default 1.2) |
 | Circumscribe | `shape`, `color` | `"rectangle"` or `"circle"`; a colour |
 | Flash, FocusOn | `color` | a colour |
+| ChangeDecimalToValue | `target_number` | the value it counts to (default 1); linear unless eased |
 | MoveAlongPath | `path`, `rotate` | `path`: the id of another layer (not the object itself or its parts, not a part, code layer or image); a group such as an SVG is followed along its longest path. `rotate`: `"no"` (default) or `"along"` - turn with the path, by its change of direction since the clip's start |
 
 **MoveAlongPath** (ADR 0025) moves the object's centre along the path layer's

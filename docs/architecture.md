@@ -131,7 +131,7 @@ how they were measured: [logs/benchmarks.md](logs/benchmarks.md).
 
 - Parts exist only for MathTex/Tex terms (ADR 0012); other objects animate whole.
 - Media paths are absolute, and the elements of an SVG cannot be animated separately yet (ADR 0027).
-- No 3D. Updaters beyond traced paths and plugin simulations (connectors between
-  objects, value readouts) need code layers.
+- No 3D. Updaters beyond traced paths, connectors, counting numbers and plugin
+  simulations need code layers.
 - `qt_paths` does not draw `ImageMobject` (only needed for hit-testing).
 - Deliberate differences from vanilla Manim: [deviations.md](deviations.md).

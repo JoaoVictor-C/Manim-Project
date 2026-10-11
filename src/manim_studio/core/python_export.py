@@ -24,7 +24,9 @@ from .. import plugins
 from . import adapter, audio
 from .schema import (
     CODE_TYPES,
+    CONNECTOR_TYPES,
     DIRECTIONS,
+    NUMBER_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
     Clip,
@@ -107,6 +109,8 @@ def readable_problems(project: Project) -> list[str]:
             out.append(f"{name(layer)}: a plugin object")
         elif layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS:
             out.append(f"{name(layer)}: a simulated layer")
+        elif layer.spec.type in CONNECTOR_TYPES:
+            out += [f"{name(layer)}: {why}" for why in _connector_problems(project, layer)]
         elif adapter.build_problem(layer.spec) is not None:
             out.append(f"{name(layer)}: {adapter.build_problem(layer.spec)}")
     for clip in project.audio:  # Manim's add_sound places and gains a whole file (ADR 0034)
@@ -132,6 +136,31 @@ def readable_problems(project: Project) -> list[str]:
             earlier = [c for lay, c in members[:i] if lay.id == layer.id]
             if clip.kind == "Wiggle" and earlier and clip.start > start + EPS:
                 out.append(f"{name(layer)}: Wiggle after another clip of the same object in one group")
+    return list(dict.fromkeys(out))
+
+
+def _connector_problems(project: Project, layer: Layer) -> list[str]:
+    """Why a connector cannot be ``always_redraw(lambda: Line(a.get_center(), b.get_center()))``
+    (ADR 0036): Manim's line runs between the drawings' centres and is drawn all the time."""
+    out = []
+    params = layer.spec.params
+    if params.get("ends", "edges") != "centres":
+        out.append("a connector ending at the edges of its objects")
+    if any(tuple(params.get(n) or (0.0, 0.0))[:2] != (0.0, 0.0) for n in ("source_offset", "target_offset")):
+        out.append("a connector from points off the centres")
+    base = layer.base
+    if tuple(base.position) != (0.0, 0.0) or base.scale != 1 or base.rotation != 0 or base.opacity != 1:
+        out.append("a moved, turned, scaled or faded connector")
+    morphing = {c.to_layer for x in project.layers for c in x.clips if c.to_layer}
+    morphing |= {x.id for x in project.layers if any(c.to_layer for c in x.clips)}
+    start, end = infer_lifetime(layer)
+    for target_id in (params.get("source"), params.get("target")):
+        target = project.layer(target_id)
+        if target_id in morphing:
+            out.append("a connector to a morphing object")
+        target_start, target_end = infer_lifetime(target)
+        if target_start > start + EPS or target_end < end - EPS:
+            out.append("a connector to an object that is not drawn all the time")
     return list(dict.fromkeys(out))
 
 
@@ -219,14 +248,27 @@ class _Readable:
 
     def _objects(self) -> list[str]:
         out = []
+        connectors = []
         for index, layer in enumerate(self.project.layers):
             var = self.names[layer.id]
+            if layer.spec.type in CONNECTOR_TYPES:  # after the objects it reads (ADR 0036)
+                connectors.append(f"{var} = {self._connector(layer, index)}")
+                continue
             out.append(f"{var} = {_construct(layer.spec)}")
             out += [f"{var}.{call}" for call in _style_calls(layer.spec.style)]
             out.append(f"{var}.move_to(ORIGIN)")
             out += [f"{var}.{call}" for call in _transform_calls(layer)]
             out.append(f"{var}.set_z_index({index})  # the layer order")
-        return out
+        return out + connectors
+
+    def _connector(self, layer: Layer, index: int) -> str:
+        """A connector redrawn between its objects' centres every frame (ADR 0036)."""
+        spec = layer.spec
+        cls = adapter.CONNECTOR_CLASSES[spec.params.get("tips", "none")].__name__
+        a, b = (self.names[spec.params[n]] for n in ("source", "target"))
+        kwargs = ", ".join(f"{k}={v!r}" for k, v in adapter.connector_kwargs(spec).items())
+        line = f"{cls}({a}.get_center(), {b}.get_center(), {kwargs})"
+        return f"always_redraw(lambda: {line}.set_z_index({index}))"
 
     # timeline
 
@@ -387,7 +429,7 @@ def _construct(spec) -> str:
             f"x_length={_num(axes('x_length'))}, y_length={_num(axes('y_length'))}, "
             f'axis_config={{"include_numbers": {numbers}}})'
         )
-    params = dict(spec.params)
+    params = adapter.number_kwargs(spec) if spec.type in NUMBER_TYPES else dict(spec.params)
     args = []
     if spec.type in TEXT_TYPES:
         args.append(repr(params.pop("text", "")))

@@ -16,7 +16,7 @@ import json
 
 from .. import plugins
 from .parts import build_spec
-from .schema import TEXT_TYPES, Project, Spec
+from .schema import NUMBER_TYPES, TEXT_TYPES, Project, Spec
 
 LABELS = {"AxisLabels": ("x_label", "y_label"), "GraphLabel": ("label",)}  # TeX on axes (ADR 0030)
 
@@ -25,6 +25,8 @@ CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entr
 
 def warm_key(spec: Spec) -> str | None:
     """The disk-cache identity of a text-bearing spec, or None if it builds fast."""
+    if spec.type in NUMBER_TYPES:  # every glyph a count can show (ADR 0036)
+        return json.dumps({"type": spec.type, "params": number_glyphs(spec)}, sort_keys=True)
     numbered_axes = spec.type == "Axes" and spec.params.get("numbers") == "yes"  # LaTeX digits (B37)
     plugin = plugins.TYPES.get(spec.type)
     if plugin is not None and plugin.slow:  # unmeasured: every param is part of the key (ADR 0032)
@@ -33,6 +35,18 @@ def warm_key(spec: Spec) -> str | None:
         return None
     params = {k: v for k, v in spec.params.items() if k not in CACHE_NEUTRAL_PARAMS}
     return json.dumps({"type": spec.type, "params": params}, sort_keys=True)
+
+
+def number_glyphs(spec: Spec) -> dict:
+    """A Number whose text holds every digit, the separators, its sign and its unit: building it
+    compiles each glyph (one LaTeX file per character, B49) that the number can change to."""
+    sign = spec.params.get("include_sign") == "yes"
+    params = {"number": 1234567890.5 if sign else -1234567890.5, "num_decimal_places": 1}
+    if sign:
+        params["include_sign"] = "yes"
+    if spec.params.get("unit"):
+        params["unit"] = spec.params["unit"]
+    return params
 
 
 def warm_keys(spec: Spec) -> set[str]:

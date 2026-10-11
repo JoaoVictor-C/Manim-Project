@@ -30,8 +30,10 @@ from .schema import (
     AXES_OBJECTS,
     CLIP_KIND_INFO,
     CODE_TYPES,
+    CONNECTOR_TYPES,
     DIRECTIONS,
     MEDIA_TYPES,
+    NUMBER_TYPES,
     RASTER_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
@@ -107,8 +109,10 @@ _tex_mobject.tex_to_svg_file = _tex_to_svg_file
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}
 
 MOBJECT_TYPES: dict[str, type] = {
-    name: getattr(m, name) for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | {"Axes", "TracedPath"})
+    name: getattr(m, name)
+    for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | NUMBER_TYPES | {"Axes", "TracedPath"})
 }
+MOBJECT_TYPES["Connector"] = m.Line  # drawn frame by frame by the evaluator (ADR 0036)
 CHILD_ONLY_TYPES = AXES_OBJECTS  # built with their parent (build_child, ADR 0024, 0030)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
@@ -180,6 +184,14 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     ),
     "MathTex": (Param("text", "text", r"e^{i\pi} + 1 = 0", "LaTeX (math)", multiline=True), _FONT_SIZE),
     "Tex": (Param("text", "text", r"Hello \LaTeX", "LaTeX (text)", multiline=True), _FONT_SIZE),
+    # A number that clips count (ADR 0036); Manim's own keyword names and defaults.
+    "DecimalNumber": (
+        Param("number", "float", 0.0, "Value", minimum=-1e12, maximum=1e12, step=0.1),
+        Param("num_decimal_places", "int", 2, "Decimal places", minimum=0, maximum=8, step=1),
+        Param("unit", "text", "", "Unit (LaTeX, blank = none)"),
+        Param("include_sign", "choice", "no", "Show + sign", choices=("no", "yes")),
+        _FONT_SIZE,
+    ),
     "ImageMobject": (Param("path", "path", "", "Image file"),),
     "SVGMobject": (
         Param("path", "path", "", "SVG file", file_filter="SVG drawings (*.svg)"),
@@ -240,21 +252,36 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
         Param("offset", "point", (0.0, 0.0), "Point (from its centre)"),
         Param("dissipate", "float", 0.0, "Fade after (s, 0 = never)", minimum=0.0, maximum=600.0, step=0.1),
     ),
+    # A line or arrow between two layers, redrawn every frame (ADR 0036).
+    "Connector": (
+        Param("source", "layer", "", "From"),
+        Param("target", "layer", "", "To"),
+        Param("ends", "choice", "edges", "Ends at", choices=("edges", "centres")),
+        Param("tips", "choice", "none", "Arrow tips", choices=("none", "end", "both")),
+        Param("gap", "float", 0.1, "Gap at ends", minimum=0.0, maximum=5.0, step=0.05),
+        Param("source_offset", "point", (0.0, 0.0), "From point (from its centre)"),
+        Param("target_offset", "point", (0.0, 0.0), "To point (from its centre)"),
+    ),
 }
 
 # The object library (S2 plan): menu sections in order.
 # Plugins (ADR 0032) append their own sections: a list, changed in place.
 LIBRARY: list[tuple[str, tuple[str, ...]]] = [
-    ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
-    ("Text", ("Text", "MathTex", "Tex")),
+    ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow", "Connector")),
+    ("Text", ("Text", "MathTex", "Tex", "DecimalNumber")),
     ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
     ("Simulation", ("TracedPath",)),
     ("Python", ("Code",)),
 ]
 
-_REQUIRED = {"text", "path", "code", "expression", "graph", "target"}  # always written to the spec
-LIBRARY_LABELS = {"ImageMobject": "Image", "SVGMobject": "SVG", "TracedPath": "Traced path"}
+_REQUIRED = {"text", "path", "code", "expression", "graph", "target", "source"}  # always written to the spec
+LIBRARY_LABELS = {
+    "ImageMobject": "Image",
+    "SVGMobject": "SVG",
+    "TracedPath": "Traced path",
+    "DecimalNumber": "Number",
+}
 SIMULATION_CHECKPOINT = 30  # a simulation state is kept every this many steps (B46: replays are cheap)
 
 
@@ -286,6 +313,8 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
         return _placeholder(2.0).copy()  # build_problem says why
     if spec.type in TRACE_TYPES:
         return trace_mobject([], spec.style)  # drawn frame by frame by the evaluator (ADR 0033)
+    if spec.type in CONNECTOR_TYPES:
+        return m.VMobject()  # drawn frame by frame by the evaluator (ADR 0036)
     if spec.type in plugins.SIMULATIONS:  # its start state; the evaluator steps it (ADR 0033)
         if simulation_problem(spec) is not None:
             return _placeholder(2.0).copy()
@@ -468,6 +497,77 @@ def _subtitle_cached(text: str, style_json: str) -> m.VGroup | None:
     return group
 
 
+def number_kwargs(spec: Spec) -> dict[str, Any]:
+    """A Number's DecimalNumber keyword arguments (ADR 0036): the spec's, with ``include_sign``
+    as a bool and a blank unit left out."""
+    kwargs = dict(spec.params)
+    if "include_sign" in kwargs:
+        kwargs["include_sign"] = kwargs["include_sign"] == "yes"
+    if not kwargs.get("unit"):
+        kwargs.pop("unit", None)
+    return kwargs
+
+
+CONNECTOR_CLASSES = {"none": m.Line, "end": m.Arrow, "both": m.DoubleArrow}
+
+
+def connector_kwargs(spec: Spec) -> dict[str, Any]:
+    """A connector's Line/Arrow keyword arguments besides its ends (ADR 0036): the gap as Manim's
+    ``buff``, and the stroke colour (tips too) and width of its style."""
+    kwargs: dict[str, Any] = {"buff": float(spec.params.get("gap", 0.1))}
+    if spec.style.get("stroke") is not None:
+        kwargs["color"] = spec.style["stroke"]
+    if spec.style.get("stroke_width") is not None:
+        kwargs["stroke_width"] = spec.style["stroke_width"]
+    return kwargs
+
+
+def connector_mobject(start: np.ndarray, end: np.ndarray, spec: Spec) -> m.VMobject:
+    """A connector from ``start`` to ``end`` (world units), shortened by its gap at both ends."""
+    cls = CONNECTOR_CLASSES[spec.params.get("tips", "none")]
+    a, b = (np.array([p[0], p[1], 0.0], dtype=float) for p in (start, end))
+    return cls(a, b, **connector_kwargs(spec))
+
+
+def box_exit(point: np.ndarray, direction: np.ndarray, low: np.ndarray, high: np.ndarray) -> float:
+    """How far from ``point`` along the unit ``direction`` the box ``[low, high]`` ends; 0 when the
+    point is outside the box."""
+    if np.any(point < low - 1e-9) or np.any(point > high + 1e-9):
+        return 0.0
+    distance = math.inf
+    for axis in range(2):
+        if direction[axis] > 1e-12:
+            distance = min(distance, (high[axis] - point[axis]) / direction[axis])
+        elif direction[axis] < -1e-12:
+            distance = min(distance, (low[axis] - point[axis]) / direction[axis])
+    return distance
+
+
+def connector_ends(
+    source: np.ndarray,
+    target: np.ndarray,
+    source_box: tuple[np.ndarray, np.ndarray],
+    target_box: tuple[np.ndarray, np.ndarray],
+    ends: str,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Where a connector between the points ``source`` and ``target`` starts and ends (ADR 0036):
+    the points themselves (``centres``), or where the line between them leaves each one's box
+    (``edges``); None when nothing is left to draw (the points meet, the boxes overlap)."""
+    source, target = np.asarray(source, dtype=float)[:2], np.asarray(target, dtype=float)[:2]
+    delta = target - source
+    length = float(np.linalg.norm(delta))
+    if length < 1e-9:
+        return None
+    if ends != "edges":
+        return source, target
+    unit = delta / length
+    a = box_exit(source, unit, *source_box)
+    b = box_exit(target, -unit, *target_box)
+    if a + b >= length - 1e-9:
+        return None
+    return source + unit * a, target - unit * b
+
+
 def trace_mobject(runs: list[np.ndarray], style: dict[str, Any]) -> m.VMobject:
     """A traced path through runs of points (a new sub-path per run; one point is a zero-length
     line, as in Manim's TracedPath), white and 2 wide unless styled."""
@@ -557,6 +657,8 @@ def _build(spec: Spec) -> m.Mobject:
         mob = cls(params.pop("path"), use_svg_cache=False, **params)
     elif spec.type in MEDIA_TYPES:
         mob = cls(params.pop("path"), **params)
+    elif spec.type in NUMBER_TYPES:
+        mob = cls(**number_kwargs(spec))
     else:
         mob = cls(**params)
     _apply_style(mob, spec.style)
@@ -987,6 +1089,7 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "Circumscribe": m.Circumscribe,  # a Succession: made random-access below (ADR 0022)
     "Flash": m.Flash,
     "FocusOn": m.FocusOn,
+    "ChangeDecimalToValue": m.ChangeDecimalToValue,  # a Number counts (ADR 0036)
     "MoveAlongPath": TabledMoveAlongPath,  # the evaluator passes the path in local units (ADR 0025)
     "Transform": m.ReplacementTransform,  # ADR 0005: the source hands off to the target
     "ClockwiseTransform": m.ClockwiseTransform,
@@ -1002,8 +1105,8 @@ def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
     if mobject_type in CODE_TYPES:
         return []  # code layers animate inside their code (ADR 0019)
-    if mobject_type in TRACE_TYPES or mobject_type in plugins.SIMULATIONS:
-        return []  # simulated layers are drawn frame by frame (ADR 0033)
+    if mobject_type in TRACE_TYPES | CONNECTOR_TYPES or mobject_type in plugins.SIMULATIONS:
+        return []  # simulated layers and connectors are drawn frame by frame (ADR 0033, 0036)
     kinds = [
         kind
         for kind, info in CLIP_KIND_INFO.items()

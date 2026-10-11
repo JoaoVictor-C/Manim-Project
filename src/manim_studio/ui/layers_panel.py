@@ -39,6 +39,7 @@ from ..core.expressions import check as check_expression
 from ..core.schema import (
     CHILD_TYPES,
     CODE_TYPES,
+    CONNECTOR_TYPES,
     MEDIA_TYPES,
     PART_PARENT_TYPES,
     RASTER_TYPES,
@@ -357,6 +358,14 @@ class LayersPanel(QWidget):
                 self.message.emit("Select the object to trace first")
                 return
             extra["target"] = selected
+        if type_name in CONNECTOR_TYPES:  # from the object before the selected one, to it (ADR 0036)
+            selected = self.selected_id()
+            joinable = self.project.traceable_ids("")
+            if selected is None or selected not in joinable or len(joinable) < 2:
+                self.message.emit("Select the object to connect to first (it needs another object)")
+                return
+            index = joinable.index(selected)
+            extra = {"source": joinable[index - 1] if index > 0 else joinable[1], "target": selected}
         spec = adapter.default_spec(type_name, **extra)
         if type_name in CODE_TYPES:
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene

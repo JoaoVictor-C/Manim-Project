@@ -32,6 +32,10 @@ RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds a
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 TRACE_TYPES = frozenset({"TracedPath"})  # draws where another layer has been, frame by frame (ADR 0033)
+CONNECTOR_TYPES = frozenset(
+    {"Connector"}
+)  # a line or arrow between two layers, redrawn every frame (ADR 0036)
+NUMBER_TYPES = frozenset({"DecimalNumber"})  # a number that clips count (ADR 0036)
 PART_PARENT_TYPES = frozenset({"MathTex", "Tex"})  # roots that can hold part layers (ADR 0012)
 AXES_OBJECTS = frozenset({"Graph", "Point", "Area", "RiemannRectangles", "AxisLabels", "GraphLabel"})
 CHILD_TYPES: dict[str, frozenset[str]] = {"Axes": AXES_OBJECTS}  # child objects (ADR 0024, 0030)
@@ -43,6 +47,7 @@ GRAPH_PARAMS: dict[str, tuple[tuple[str, bool], ...]] = {
     "GraphLabel": (("graph", True),),
 }
 NOT_PATHS = frozenset({"AxisLabels", "GraphLabel"})  # text glyphs make no useful path (ADR 0030)
+_NOT_A_PATH = CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES | CONNECTOR_TYPES  # motion paths (ADR 0025)
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "motion", "morph"]
@@ -85,6 +90,7 @@ CLIP_KIND_INFO: dict[str, ClipKindInfo] = {
     "Flash": ClipKindInfo("emphasis", overlay=True),
     "FocusOn": ClipKindInfo("emphasis", overlay=True),
     "MoveAlongPath": ClipKindInfo("motion"),  # along another layer's shape, roots only (ADR 0025)
+    "ChangeDecimalToValue": ClipKindInfo("emphasis", only_types=NUMBER_TYPES),  # counts (ADR 0036)
     "Transform": ClipKindInfo("morph"),
     "ClockwiseTransform": ClipKindInfo("morph"),
     "CounterclockwiseTransform": ClipKindInfo("morph"),
@@ -154,6 +160,9 @@ CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
     ),
     "Flash": (ClipParam("color", "Colour", "color", default=_YELLOW),),
     "FocusOn": (ClipParam("color", "Colour", "color", default="#888888"),),
+    "ChangeDecimalToValue": (
+        ClipParam("target_number", "To value", "float", default=1.0, minimum=-1e12, maximum=1e12, step=0.1),
+    ),
     "MoveAlongPath": (
         ClipParam("path", "Path", "layer"),
         # ADR 0029: turn with the path, by its change of direction since the clip's start
@@ -340,6 +349,8 @@ class Layer(BaseModel):
             raise ValueError(f"layer {self.id!r}: code layers have no clips (animate inside the code)")
         if self.spec is not None and self.spec.type in TRACE_TYPES and self.clips:
             raise ValueError(f"layer {self.id!r}: a traced path has no clips (it draws where its target was)")
+        if self.spec is not None and self.spec.type in CONNECTOR_TYPES and self.clips:
+            raise ValueError(f"layer {self.id!r}: a connector has no clips (fade it with opacity keys)")
         if self.spec is not None:
             for clip in self.clips:
                 if clip.info.vector_only and self.spec.type in RASTER_TYPES:
@@ -474,6 +485,7 @@ class Project(BaseModel):
         self._path_rules()
         self._graph_refs()
         self._trace_refs()
+        self._connector_refs()
         targeted: dict[str, str] = {}
         for layer in self.layers:
             for clip in layer.clips:
@@ -484,8 +496,10 @@ class Project(BaseModel):
                         f"clip {clip.id!r} on layer {layer.id!r}: to_layer {clip.to_layer!r} is missing"
                     )
                 target = next(other for other in self.layers if other.id == clip.to_layer)
-                if target.spec is not None and target.spec.type in CODE_TYPES | TRACE_TYPES:
-                    what = "a code layer" if target.spec.type in CODE_TYPES else "a traced path"
+                if target.spec is not None and target.spec.type in CODE_TYPES | TRACE_TYPES | CONNECTOR_TYPES:
+                    what = {"Code": "a code layer", "Connector": "a connector"}.get(
+                        target.spec.type, "a traced path"
+                    )
                     raise ValueError(f"clip {clip.id!r}: a layer cannot morph into {what}")
                 if clip.to_layer == layer.id:
                     raise ValueError(f"clip {clip.id!r}: a layer cannot morph into itself")
@@ -510,11 +524,7 @@ class Project(BaseModel):
                 if path is None:
                     raise ValueError(f"clip {clip.id!r}: {clip.kind} needs a path layer")
                 inside = {layer.id} | {d.id for d in self.descendants(layer.id)}
-                if (
-                    path.id in inside
-                    or path.is_part
-                    or path.spec.type in CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES
-                ):
+                if path.id in inside or path.is_part or path.spec.type in _NOT_A_PATH:
                     raise ValueError(f"clip {clip.id!r}: {path.id!r} cannot be its path")
 
     def _graph_refs(self) -> None:
@@ -548,12 +558,38 @@ class Project(BaseModel):
                 raise ValueError(f"layer {layer.id!r}: the traced layer {target_id!r} {what}")
 
     def traceable_ids(self, trace_id: str) -> list[str]:
-        """The layers the traced path ``trace_id`` may follow (ADR 0033)."""
+        """The layers the traced path ``trace_id`` may follow (ADR 0033), or the connector
+        ``trace_id`` may join (ADR 0036): not itself, a trace, a connector or a code layer."""
         return [
             x.id
             for x in self.layers
-            if x.id != trace_id and not (x.spec is not None and x.spec.type in TRACE_TYPES | CODE_TYPES)
+            if x.id != trace_id
+            and not (x.spec is not None and x.spec.type in TRACE_TYPES | CODE_TYPES | CONNECTOR_TYPES)
         ]
+
+    def _connector_refs(self) -> None:
+        """ADR 0036: a connector joins two different layers it could trace."""
+        by_id = {layer.id: layer for layer in self.layers}
+        for layer in self.layers:
+            if layer.spec is None or layer.spec.type not in CONNECTOR_TYPES:
+                continue
+            ends = [layer.spec.params.get(name) or "" for name in ("source", "target")]
+            for end in ends:
+                if end not in self.traceable_ids(layer.id):
+                    what = "is missing" if end not in by_id else "cannot be joined"
+                    raise ValueError(f"layer {layer.id!r}: the connected layer {end!r} {what}")
+            if ends[0] == ends[1]:
+                raise ValueError(f"layer {layer.id!r}: a connector joins two different layers")
+
+    def connectors_of(self, layer_ids: set[str]) -> set[str]:
+        """Connectors joining any of ``layer_ids`` (ADR 0036)."""
+        return {
+            x.id
+            for x in self.layers
+            if x.spec is not None
+            and x.spec.type in CONNECTOR_TYPES
+            and {x.spec.params.get("source"), x.spec.params.get("target")} & layer_ids
+        }
 
     def traces_of(self, layer_ids: set[str]) -> set[str]:
         """Traced paths following any of ``layer_ids``."""
@@ -641,14 +677,12 @@ class Project(BaseModel):
 
     def path_layers(self, mover_id: str) -> list[Layer]:
         """Layers ``mover_id`` may travel along (ADR 0025): not itself or its descendants,
-        not parts, code, images or traces."""
+        not parts, code, images, traces or connectors."""
         inside = {mover_id} | {d.id for d in self.descendants(mover_id)}
         return [
             layer
             for layer in self.layers
-            if layer.id not in inside
-            and not layer.is_part
-            and layer.spec.type not in CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES
+            if layer.id not in inside and not layer.is_part and layer.spec.type not in _NOT_A_PATH
         ]
 
     def morph_sources(self) -> dict[str, Clip]:

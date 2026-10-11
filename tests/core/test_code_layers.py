@@ -139,11 +139,13 @@ def test_every_library_type_builds_through_the_evaluator(tmp_path) -> None:
     layers = []
     for _section, types in adapter.LIBRARY:
         for type_name in types:
-            if type_name in {"Text", "MathTex", "Tex"}:
+            if type_name in {"Text", "MathTex", "Tex", "DecimalNumber"}:
                 continue  # need LaTeX/Pango; covered by their own tests
             extra = {"path": str(image)} if type_name == "ImageMobject" else {}
             if type_name == "TracedPath":  # traces the first object (ADR 0033)
                 extra = {"target": layers[0].id}
+            if type_name == "Connector":  # joins the first two objects (ADR 0036)
+                extra = {"source": layers[0].id, "target": layers[1].id}
             layers.append(Layer(id=type_name.lower(), spec=adapter.default_spec(type_name, **extra)))
     evaluator = Evaluator(Project(canvas=CANVAS, layers=layers), CodeCache(tmp_path / "code"))
     drawn = [layer_id for layer_id, _ in evaluator.frame_layers(0.0)]

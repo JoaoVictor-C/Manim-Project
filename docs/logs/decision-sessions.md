@@ -546,3 +546,20 @@ left open, so ADRs can cite it.
   scale wide lines down; exact scenes must also write the `.srt`; overlapping
   imported cues -> trimmed into one lane; waiting for 100 cold cues would block
   edits for ~40 s -> warm in the background.
+
+## Session 29 — P5b value readouts and connectors · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the clip machinery (ADR 0002, 0007), traced points (ADR 0033), export
+  rules (ADR 0031), warm keys (ADR 0015); probe B49 plus a random-access check of
+  `ChangeDecimalToValue` run during the session.
+- **Decisions:** Number = `DecimalNumber` whose value changes with a
+  `ChangeDecimalToValue` clip (no new value track); Connector = a line or arrow
+  redrawn every frame between two traced points, ending at the targets' bounding
+  boxes by default; no clips on connectors; readable exports where Manim can say the
+  same (-> ADR 0036). Plan: [../plans/p5b-readouts.md](../plans/p5b-readouts.md).
+- **Critiques that changed the plan:** centre-to-centre lines cross the objects ->
+  ends at the bounding box by default (documented as the box, not the outline);
+  connectors cannot be drawn in and labels move separately -> recorded as
+  limitations.

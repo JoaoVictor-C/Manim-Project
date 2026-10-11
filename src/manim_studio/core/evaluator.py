@@ -58,6 +58,7 @@ from .edits import Edit, EditKind
 from .frame_cache import frame_index, on_grid
 from .schema import (
     CODE_TYPES,
+    CONNECTOR_TYPES,
     MEDIA_TYPES,
     TRACE_TYPES,
     Clip,
@@ -132,6 +133,7 @@ class Evaluator:
         self._media: dict[str, str] = {}  # media layer -> the file signature its build is from
         self._runs: dict[str, _Run] = {}  # simulations (ADR 0033)
         self._traces: dict[str, _Trace] = {}  # traced paths (ADR 0033)
+        self._connectors: dict[str, tuple[object, m.Mobject]] = {}  # the last drawing of each (ADR 0036)
         self._sim_errors: dict[str, str] = {}  # simulations that failed while stepping
         self._index()
 
@@ -382,6 +384,8 @@ class Evaluator:
                 else self._sim_drawing(layer, t)
             )
             return self._to_world(local, layer, t)
+        if layer.spec.type in CONNECTOR_TYPES:  # no clips: drawn between its layers (ADR 0036)
+            return self._to_world(self._connector_drawing(layer, t), layer, t)
         morph = self._member_morph(layer, t)
         if morph is not None:
             return morph
@@ -499,6 +503,52 @@ class Evaluator:
         if not local.family_members_with_points():
             return None
         return a @ (local.get_center()[:2] + offset) + b
+
+    # -- connectors (ADR 0036) --------------------------------------------------
+
+    def _connector_end(
+        self, target: Layer, t: float, offset: np.ndarray
+    ) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]] | None:
+        """Where a connector meets ``target`` at ``t`` and the box of its drawing (world units), or
+        None when it is not drawn. The point is the box's centre moved by ``offset`` (turned and
+        scaled with the layer); a simulation's is its traced point (ADR 0033)."""
+        root = self.project.root_of(target.id)
+        drawn = [mob for owner, mob in self._object_at(root, t) if target.id in (root.id, owner)]
+        points = [sub.points[:, :2] for mob in drawn for sub in mob.family_members_with_points()]
+        if not points:
+            return None
+        every = np.vstack(points)
+        box = (every.min(axis=0), every.max(axis=0))
+        if target.id in self._simulated:
+            point = self._traced_point(target, t, offset)
+            return (point, box) if point is not None else None
+        if root.id in self._trees_of and target.id != root.id:
+            a = self._member_affine(self._tree(root), target, t)[0]
+        else:
+            a = self._world_affine(target, t)[0]
+        return (box[0] + box[1]) / 2 + a @ offset, box
+
+    def _connector_drawing(self, layer: Layer, t: float) -> m.Mobject:
+        """A connector at ``t`` (world units): a line or arrow between its layers' points, ending at
+        their boxes (``edges``) or at the points, shortened by its gap; nothing while either layer
+        is not drawn. The last drawing is kept while its ends and spec stay the same."""
+        spec = layer.spec
+        ends = []
+        for name in ("source", "target"):
+            param = next(p for p in adapter.MOBJECT_PARAMS["Connector"] if p.name == f"{name}_offset")
+            offset = np.array(adapter.param_value(spec, param)[:2], dtype=float)
+            ends.append(self._connector_end(self._layers[spec.params[name]], t, offset))
+        line = None
+        if ends[0] is not None and ends[1] is not None:
+            (p, p_box), (q, q_box) = ends
+            line = adapter.connector_ends(p, q, p_box, q_box, spec.params.get("ends", "edges"))
+        token = (spec.model_dump_json(), None if line is None else tuple(np.concatenate(line)))
+        kept = self._connectors.get(layer.id)
+        if kept is None or kept[0] != token:
+            drawing = m.VMobject() if line is None else adapter.connector_mobject(*line, spec)
+            kept = (token, drawing)
+            self._connectors[layer.id] = kept
+        return kept[1]
 
     def _signature(self, layer_id: str) -> str:
         """Everything layer ``layer_id`` is evaluated from: its object, morph partners and path

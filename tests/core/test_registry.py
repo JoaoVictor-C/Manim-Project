@@ -15,9 +15,10 @@ from PIL import Image
 
 from manim_studio.core import adapter
 from manim_studio.core.adapter import CHILD_ONLY_TYPES, LIBRARY, MOBJECT_PARAMS, MOBJECT_TYPES, Param
-from manim_studio.core.schema import CODE_TYPES, TEXT_TYPES, TRACE_TYPES, Spec
+from manim_studio.core.schema import CODE_TYPES, CONNECTOR_TYPES, TEXT_TYPES, TRACE_TYPES, Spec
 
-LATEX_TYPES = {"MathTex", "Tex", "Axes", "AxisLabels", "GraphLabel"}  # Axes: its numbers are LaTeX
+# Axes: its numbers are LaTeX; a DecimalNumber is one LaTeX glyph per character (ADR 0036)
+LATEX_TYPES = {"MathTex", "Tex", "Axes", "AxisLabels", "GraphLabel", "DecimalNumber"}
 
 
 def _marks(type_name: str):
@@ -37,8 +38,9 @@ def _build(spec: Spec):
     return adapter.build_mobject(spec)
 
 
-# Code layers are rendered, not built (ADR 0019); traces are drawn frame by frame (ADR 0033).
-BUILT = sorted(set(MOBJECT_PARAMS) - CODE_TYPES - TRACE_TYPES)
+# Code layers are rendered, not built (ADR 0019); traces and connectors are drawn frame by frame
+# (ADR 0033, 0036).
+BUILT = sorted(set(MOBJECT_PARAMS) - CODE_TYPES - TRACE_TYPES - CONNECTOR_TYPES)
 ALL_TYPES = [pytest.param(t, marks=_marks(t)) for t in BUILT]
 ALL_PARAMS = [
     pytest.param(t, p, marks=_marks(t), id=f"{t}.{p.name}") for t in BUILT for p in MOBJECT_PARAMS[t]

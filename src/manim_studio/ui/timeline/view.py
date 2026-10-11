@@ -47,6 +47,7 @@ from ...core.evaluator import layer_transform
 from ...core.schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
+    CONNECTOR_TYPES,
     PART_PARENT_TYPES,
     TRACE_TYPES,
     AudioClip,
@@ -727,6 +728,8 @@ class TimelineView(QGraphicsView):
             add.setTitle(
                 "Add clip (animate it in its code)"
                 if type_name in CODE_TYPES
+                else "Add clip (none: it is drawn between its layers)"
+                if type_name in CONNECTOR_TYPES  # ADR 0036
                 else "Add clip (none: it is simulated)"
             )
             return menu
@@ -825,7 +828,7 @@ class TimelineView(QGraphicsView):
             if other.id != layer.id
             and other.id not in taken
             and not other.is_part
-            and other.spec.type not in CODE_TYPES | TRACE_TYPES
+            and other.spec.type not in CODE_TYPES | TRACE_TYPES | CONNECTOR_TYPES
             and (not tex_only or other.spec.type in PART_PARENT_TYPES)
         ]
 
