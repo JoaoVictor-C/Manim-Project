@@ -22,6 +22,7 @@ class Selection(QObject):
         self.layer_id: str | None = None
         self.clip_id: str | None = None
         self.key_time: float | None = None  # all keys of the layer at this time (P2b)
+        self.audio_id: str | None = None  # a sound instead of a layer (ADR 0034)
         document.changed.connect(lambda *_: self._drop_missing())
         document.reset.connect(lambda _project: self.clear())
 
@@ -30,9 +31,20 @@ class Selection(QObject):
             layer_id = clip_id = key_time = None
         if clip_id is not None:
             key_time = None  # a clip or a key time, not both
-        if (layer_id, clip_id, key_time) == (self.layer_id, self.clip_id, self.key_time):
+        if (layer_id, clip_id, key_time, None) == (self.layer_id, self.clip_id, self.key_time, self.audio_id):
             return
-        self.layer_id, self.clip_id, self.key_time = layer_id, clip_id, key_time
+        self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, clip_id, key_time, None
+        self.changed.emit()
+
+    def set_audio(self, audio_id: str | None) -> None:
+        """Select a sound (or nothing): no layer is selected then."""
+        if not audio_id:
+            self.clear()
+            return
+        if (self.layer_id, self.audio_id) == (None, audio_id):
+            return
+        self.layer_id = self.clip_id = self.key_time = None
+        self.audio_id = audio_id
         self.changed.emit()
 
     def set_key(self, layer_id: str, key_time: float) -> None:
@@ -48,6 +60,8 @@ class Selection(QObject):
         self.set(None)
 
     def _drop_missing(self) -> None:
+        if self.audio_id is not None and all(c.id != self.audio_id for c in self.document.project.audio):
+            self.clear()
         if self.layer_id is None:
             return
         layer = next((lay for lay in self.document.project.layers if lay.id == self.layer_id), None)

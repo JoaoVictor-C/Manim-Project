@@ -79,6 +79,18 @@ axes takes their graphs along.
   "params": { "expression": "sin(x)", "x_range": [-5, 5] }, "style": { "stroke": "#38bdf8" } } }
 ```
 
+**Audio** (ADR 0034): a project may have a list of sounds, saved only when it is
+not empty. Each plays `duration` seconds of its file from `offset` (the trimmed
+start), beginning at `start` on the timeline, with a `gain` in dB and linear
+`fade_in` / `fade_out` (together at most the duration). Ids are unique among
+layers and sounds. Sounds are mixed together and cut at the canvas end; a file
+that is missing or unreadable is silent.
+
+```json
+"audio": [{ "id": "audio-1", "name": "narration", "path": "C:/sounds/voice.mp3",
+            "start": 0.5, "offset": 0.0, "duration": 12.4, "gain": -3.0, "fade_in": 0.2, "fade_out": 1.0 }]
+```
+
 ## Spec
 
 ```json

@@ -36,6 +36,7 @@ src/manim_studio/
 │   ├── code_frame.py    a cached frame as a mobject; painted by Cairo, hit by alpha (ADR 0019)
 │   ├── trust.py         which code may run: hashes in a per-user store (ADR 0019)
 │   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
+│   ├── audio.py         the project's sound: decode, peaks, one mix for playback and export (ADR 0034)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)
@@ -57,6 +58,7 @@ src/manim_studio/
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
     ├── plugins_dialog.py Help > Plugins: loaded plugins, their types, failures (ADR 0032)
+    ├── audio_player.py  plays the mix; the sound card's clock drives playback (ADR 0034)
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
     ├── preview_client.py QProcess client for preview.py: latest state, restart, give up
     ├── render_ahead.py  the kept frames: invalidation on edits, requests, decoding (ADR 0028)

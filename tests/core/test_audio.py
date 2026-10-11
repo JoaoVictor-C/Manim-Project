@@ -192,16 +192,43 @@ def decoded_track(path) -> np.ndarray:
         return np.concatenate([f.to_ndarray() for f in container.decode(audio=0)], axis=1)
 
 
-def test_the_exported_video_carries_the_mix(tmp_path, ramp_wav) -> None:
-    sound = clip(ramp_wav, start=0.3, offset=0.5, duration=1.2, gain=-3.0, fade_out=0.3)
+MANIM_DELAY = 1024  # Manim's own mp4s start the sound 1024 samples late (AAC priming, B47)
+
+
+def sound_lag(track: np.ndarray, mix: np.ndarray, most: int = 2 * MANIM_DELAY) -> int:
+    """How many samples later ``track`` plays ``mix`` (cross-correlation of the left channels)."""
+    n = min(track.shape[1], mix.shape[1])
+    a, b = mix[0, :n].astype(np.float64), track[0, :n].astype(np.float64)
+    spectrum = np.fft.irfft(np.fft.rfft(b, 2 * n) * np.conj(np.fft.rfft(a, 2 * n)))
+    lags = np.r_[spectrum[: most + 1], spectrum[-most:]]
+    best = int(np.argmax(lags))
+    return best if best <= most else best - len(lags)
+
+
+def assert_plays(track: np.ndarray, mix: np.ndarray, lag: int = 0) -> None:
+    """``track`` is ``mix`` played ``lag`` samples late (within AAC's error)."""
+    assert sound_lag(track, mix) == lag
+    n = min(track.shape[1] - lag, mix.shape[1])
+    assert np.abs(track[:, lag : lag + n] - mix[:, :n]).mean() < 0.01
+
+
+def beeps(path, seconds: float = 3.0) -> None:
+    """A 440 Hz beep in each second (0.25-0.6 s): sharp edges show any misalignment."""
+    t = np.arange(round(seconds * RATE)) / RATE
+    gate = ((t % 1.0) >= 0.25) & ((t % 1.0) < 0.6)
+    audio.write_wav(np.stack([0.5 * gate * np.sin(2 * np.pi * 440 * t)] * 2).astype(np.float32), path)
+
+
+def test_the_exported_video_carries_the_mix(tmp_path) -> None:
+    beeps(tmp_path / "beeps.wav")
+    sound = clip(tmp_path / "beeps.wav", start=0.3, offset=0.5, duration=1.2, gain=-3.0, fade_out=0.3)
     proj = Project(canvas=CANVAS, layers=[Layer(id="dot", spec=Spec(type="Dot"))], audio=[sound])
     out = tmp_path / "with sound.mp4"
     export_video(proj, out)
     track = decoded_track(out)
     expected = audio.mix(proj)
-    n = min(track.shape[1], expected.shape[1])
-    assert track.shape[1] == pytest.approx(expected.shape[1], abs=1024)
-    assert np.abs(track[:, :n] - expected[:, :n]).mean() < 0.01  # AAC, aligned from 0 (B47)
+    assert track.shape == expected.shape
+    assert_plays(track, expected)  # aligned to the sample (B47)
     silent = tmp_path / "silent.mp4"
     export_video(proj.model_copy(update={"audio": []}), silent)
     with av.open(str(silent)) as container:
@@ -229,15 +256,17 @@ def test_plain_sounds_export_as_add_sound_and_others_make_the_scene_exact(tmp_pa
 
 
 @pytest.mark.slow
-def test_exported_scenes_render_with_the_editors_sound(tmp_path, ramp_wav) -> None:
-    """Both forms rendered by `manim render`: the readable add_sound and the exact scene's mix."""
+def test_exported_scenes_render_with_the_editors_sound(tmp_path) -> None:
+    """Both forms rendered by `manim render`: the readable add_sound and the exact scene's mix,
+    1024 samples late as all of Manim's sound (deviations.md)."""
     import subprocess
     import sys
 
     canvas = Canvas(width_px=160, height_px=90, fps=10, duration=4.0)
+    beeps(tmp_path / "beeps.wav")
     for name, sound in (
-        ("Plain", clip(ramp_wav, start=0.5, duration=3.0)),
-        ("Exact", clip(ramp_wav, start=0.5, offset=1.0, duration=2.0, fade_in=0.5)),
+        ("Plain", clip(tmp_path / "beeps.wav", start=0.5, duration=3.0)),
+        ("Exact", clip(tmp_path / "beeps.wav", start=0.5, offset=1.0, duration=2.0, fade_in=0.5)),
     ):
         proj = Project(canvas=canvas, layers=[Layer(id="dot", spec=Spec(type="Dot"))], audio=[sound])
         export = to_python(proj, name)
@@ -253,7 +282,4 @@ def test_exported_scenes_render_with_the_editors_sound(tmp_path, ramp_wav) -> No
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         assert done.returncode == 0, done.stderr[-2000:]
-        track = decoded_track(next(media.rglob(f"{name}.mp4")))
-        expected = audio.mix(proj)
-        n = min(track.shape[1], expected.shape[1])
-        assert np.abs(track[:, :n] - expected[:, :n]).mean() < 0.01, name
+        assert_plays(decoded_track(next(media.rglob(f"{name}.mp4"))), audio.mix(proj), MANIM_DELAY)

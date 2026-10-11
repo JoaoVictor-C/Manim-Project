@@ -98,6 +98,18 @@ into a plugin folder and runs the editor with its real build worker and
 preview process: the pendulum is added, edited, drawn on, rendered ahead,
 exported to video and to an exact Python scene rendered by `manim render`, all
 matching the editor.
+`core/test_audio.py` covers the mix (trim, gain, fades, clipping, silence past
+a file's end, resampling), missing and unreadable files, the decode cache, the
+file format and sound edits (no frame dropped, layer edits keep the sound), the
+export's AAC track (aligned to the sample, measured by cross-correlation on
+beeps) and the Python export's rules, rendering both forms with `manim render`
+(whose sound is 1024 samples late). `ui/test_audio_ui.py` covers importing,
+the timeline rows (move, trim, delete, waveforms), Properties, missing files
+and playback following the sound's clock with a fake player (the real player
+is checked with silence when a sound device exists); the suite plays no sound
+(`MANIM_STUDIO_AUDIO=0`). `ui/test_acceptance_p4d.py` imports, places, trims and
+fades a sound, then checks the export process's video and the exact Python
+scene's render against the editor's mix.
 `core/test_simulated_layers.py` covers simulations (stepping from their first
 frame, states kept every 30 steps, failures and impure steps) and traced paths
 (the polyline through the target on every frame for plain objects, a Point on

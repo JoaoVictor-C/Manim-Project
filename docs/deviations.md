@@ -60,3 +60,7 @@ The editor and the export agree.
   identical to Manim's within one play (B46). `dissipate` keeps the last
   D x fps frames; Manim removes one curve per update, so its trail can be a few
   corners shorter across plays.
+- **Manim's own renders play sound 21 ms late; the editor's export does not.**
+  Videos written by `manim render` (including exported Python scenes) start
+  their AAC track 1024 samples late: the encoder's priming is not trimmed. The
+  editor's export aligns the sound to the sample (B47, ADR 0034).

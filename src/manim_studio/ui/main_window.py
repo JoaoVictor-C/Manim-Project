@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, parts
+from ..core import adapter, audio, edits, parts
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
@@ -42,6 +42,7 @@ from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
+from .audio_player import make_audio_player
 from .build_service import BuildService
 from .canvas import CanvasWidget
 from .canvas_tools import MoveTool
@@ -82,6 +83,9 @@ class MainWindow(QMainWindow):
         self.render_ahead: RenderAhead | None = None  # started with the first project (ADR 0028)
         self.t = 0.0
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
+        # The project's sound plays through this; its played time is the clock (ADR 0034).
+        self.audio_player = make_audio_player(self)
+        self._audio_signature: str | None = None  # the mix playing, None: the wall clock drives
         # Every panel edit goes through the build service (ADR 0015).
         self.builds = BuildService(self.document, make_worker(adapter.cache_dir(), self), self)
         self.builds.failed.connect(self._on_build_failed)
@@ -148,6 +152,7 @@ class MainWindow(QMainWindow):
         self.layers.layerSelected.connect(self.selection.select_layer)
         self.timeline.clipSelected.connect(self.selection.set)
         self.timeline.keySelected.connect(self.selection.set_key)
+        self.timeline.audioSelected.connect(self.selection.set_audio)
         self.properties.keyMoved.connect(self.selection.set_key)
         self.selection.changed.connect(self._on_selection_changed)
         self.move_tool = MoveTool(self.canvas, self.document, self.selection, lambda: self.t, self.seek, self)
@@ -181,6 +186,7 @@ class MainWindow(QMainWindow):
             ("Save &As...", QKeySequence.StandardKey.SaveAs, self.save_as),
             ("&Export Video...", QKeySequence("Ctrl+E"), self.show_export_dialog),
             ("Export &Python...", QKeySequence(), self.export_python),
+            ("Import &Audio...", QKeySequence(), self.import_audio),
         ):
             action = QAction(text, self)
             action.setShortcut(shortcut)
@@ -333,6 +339,10 @@ class MainWindow(QMainWindow):
         if kind == "spec":
             self._warn_retargeted(before, project)
             self.report_media()  # a re-picked file may not be drawable
+        if project.audio != before.audio:
+            self.report_media()  # a sound's file may be missing (ADR 0034)
+            if self.play_timer.isActive() and self._audio_signature != audio.mix_signature(project):
+                self._start_sound()  # hear the edit from where the playhead is
         self.code.sync(project)
 
     # -- media files (ADR 0027) ------------------------------------------------
@@ -361,7 +371,8 @@ class MainWindow(QMainWindow):
         """Say which layers show a placeholder (media, plugins) when that changed (or ``force``)."""
         assert self.evaluator is not None and self.project is not None
         errors = self.evaluator.build_errors()
-        shown = bool(errors) and (force or errors != self._media_errors)
+        sounds = audio.problems(self.project)  # silent sounds (ADR 0034)
+        shown = bool(errors or sounds) and (force or {**errors, **sounds} != self._media_errors)
         if shown:
             names = []
             for layer_id, problem in errors.items():
@@ -372,11 +383,14 @@ class MainWindow(QMainWindow):
                     else ""
                 )
                 names.append(f"{layer.name or layer_id} ({file + ' - ' if file else ''}{problem})")
+            for clip in self.project.audio:
+                if clip.id in sounds:
+                    names.append(f"{clip.name or clip.id} ({Path(clip.path).name} - {sounds[clip.id]})")
             media = all(self.project.layer(i).spec.type in MEDIA_TYPES for i in errors)
             self.statusBar().showMessage(
                 f"{'Missing media' if media else 'Cannot draw'}: {', '.join(names)}", 15000
             )
-        self._media_errors = errors
+        self._media_errors = {**errors, **sounds}
         return shown
 
     def _warn_retargeted(self, before: Project, after: Project) -> None:
@@ -393,7 +407,10 @@ class MainWindow(QMainWindow):
             self.layers.select(layer_id)
         self.layers.update_buttons()
         self.timeline.set_selected(layer_id, clip_id, key_time)
-        if key_time is not None:
+        self.timeline.set_selected_audio(self.selection.audio_id)
+        if self.selection.audio_id is not None:
+            self.properties.show_audio(self.selection.audio_id)
+        elif key_time is not None:
             self.properties.show_key(layer_id, key_time)
         elif clip_id is not None:
             self.properties.show_clip(layer_id, clip_id)
@@ -462,6 +479,28 @@ class MainWindow(QMainWindow):
         name = self.ask_python_path(start)
         if name:
             self.write_python(Path(name))
+
+    def import_audio(self) -> None:
+        """File > Import Audio...: a sound at the playhead, playing the whole file (ADR 0034)."""
+        if self.project is None:
+            return
+        name = self.ask_audio_path()
+        if not name:
+            return
+        length = audio.probe(name)
+        if length is None or length <= 0:
+            self.statusBar().showMessage(f"Cannot read {Path(name).name} as a sound", 10000)
+            return
+        edit = edits.add_audio(self.project, name, start=self.t, duration=length, name=Path(name).stem)
+        self.document.apply(edit, "Import sound")
+        self.selection.set_audio(edit.project.audio[-1].id)
+        self.statusBar().showMessage(f"Imported {Path(name).name} ({length:.1f} s) at {self.t:.2f} s", 10000)
+
+    def ask_audio_path(self) -> str:
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Import Audio", "", "Sounds (*.wav *.mp3 *.ogg *.flac *.m4a *.aac);;All files (*)"
+        )
+        return name
 
     def ask_python_path(self, start: Path) -> str:
         name, _ = QFileDialog.getSaveFileName(self, "Export Python", str(start), "Python (*.py)")
@@ -633,12 +672,28 @@ class MainWindow(QMainWindow):
         if self.t >= self.project.canvas.duration - 1e-6:
             self.seek(0.0)
         self._play_origin = (time.perf_counter(), self.t)
+        self._start_sound()
         self.play_timer.start(int(1000 / self.project.canvas.fps))
         self.play_button.setText("Pause")
         self.canvas.playing = True
 
+    def _start_sound(self) -> None:
+        """Play the project's mix from the playhead and follow its clock, or the wall clock
+        when there is nothing to hear or no player (ADR 0034)."""
+        project = self.project
+        if self.audio_player is not None:
+            self.audio_player.stop()
+        self._audio_signature = None
+        if project is not None and project.audio and self.audio_player is not None:
+            self.audio_player.play(audio.mix(project), self.t)
+            self._audio_signature = audio.mix_signature(project)
+        self._play_origin = (time.perf_counter(), self.t)
+
     def pause(self) -> None:
         self.play_timer.stop()
+        if self._audio_signature is not None:
+            self.audio_player.stop()
+            self._audio_signature = None
         self.play_button.setText("Play")
         if self.canvas.playing:
             self.canvas.playing = False
@@ -647,7 +702,10 @@ class MainWindow(QMainWindow):
     def _on_play_tick(self) -> None:
         assert self.project is not None and self._play_origin is not None
         wall0, t0 = self._play_origin
-        t = t0 + (time.perf_counter() - wall0)  # wall clock: slow frames are dropped, never queued
+        if self._audio_signature is not None:  # the sound's clock (ADR 0034)
+            t = self.audio_player.position()
+        else:
+            t = t0 + (time.perf_counter() - wall0)  # wall clock: slow frames are dropped, never queued
         fps = self.project.canvas.fps
         t = frame_time(frame_index(t, fps), fps)  # the frames the export has (ADR 0028)
         if t >= self.project.canvas.duration:

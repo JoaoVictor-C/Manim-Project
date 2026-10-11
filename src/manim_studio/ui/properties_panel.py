@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Hashable
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
@@ -217,6 +218,7 @@ class PropertiesPanel(QWidget):
         self.layer_id: str | None = None
         self.clip_id: str | None = None
         self.key_time: float | None = None
+        self.audio_id: str | None = None  # a sound is shown (ADR 0034)
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
@@ -262,7 +264,7 @@ class PropertiesPanel(QWidget):
     # -- selection ----------------------------------------------------------------
 
     def show_nothing(self) -> None:
-        self.layer_id = self.clip_id = self.key_time = None
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = None
         self._rebuild()
         self.title.setText("Select a layer, a clip or a keyframe.")
 
@@ -270,7 +272,7 @@ class PropertiesPanel(QWidget):
         if not layer_id or not _has(self.project, layer_id):
             self.show_nothing()
             return
-        self.layer_id, self.clip_id, self.key_time = layer_id, None, None
+        self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, None, None, None
         self._rebuild()
         layer = self.project.layer(layer_id)
         self._section(
@@ -291,7 +293,7 @@ class PropertiesPanel(QWidget):
         if not _has(self.project, layer_id) or self._clip(layer_id, clip_id) is None:
             self.show_nothing()
             return
-        self.layer_id, self.clip_id, self.key_time = layer_id, clip_id, None
+        self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, clip_id, None, None
         self._rebuild()
         self._clip_section(self.project.layer(layer_id), self._clip(layer_id, clip_id))
         self.body_layout.addStretch(1)
@@ -305,16 +307,72 @@ class PropertiesPanel(QWidget):
         if not _keyed_props(self.project.layer(layer_id), t, self.project.canvas.fps):
             self.show_layer(layer_id)
             return
-        self.layer_id, self.clip_id, self.key_time = layer_id, None, t
+        self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, None, t, None
         self._rebuild()
         self._key_section(self.project.layer(layer_id), t)
         self.body_layout.addStretch(1)
         self.refresh()
 
+    def show_audio(self, audio_id: str) -> None:
+        """A sound (ADR 0034): its name, place, trim, gain and fades."""
+        clip = next((c for c in self.project.audio if c.id == audio_id), None)
+        if clip is None:
+            self.show_nothing()
+            return
+        self.layer_id = self.clip_id = self.key_time = None
+        self.audio_id = audio_id
+        self._rebuild()
+        generation = self._generation
+
+        def commit(name: str, text: str) -> Callable[[Any], None]:
+            def apply(value: Any) -> None:
+                if generation != self._generation:
+                    return
+                if name == "name":
+                    value = value.strip()
+                try:
+                    self.document.apply(edits.update_audio(self.project, audio_id, **{name: value}), text)
+                except (edits.EditError, ValidationError) as exc:
+                    self.message.emit(f"{text}: {_first_error(exc)}")
+                    self.refresh(force=True)
+
+            return apply
+
+        seconds = {"minimum": 0.0, "maximum": 36000.0, "step": 0.1, "suffix": " s"}
+        rows = [
+            ("Name", "audio.name", TextField(commit("name", "Rename sound"), clip.id)),
+            ("Start", "audio.start", FloatField(commit("start", "Move sound"), **seconds)),
+            ("Trim start", "audio.offset", FloatField(commit("offset", "Trim sound"), **seconds)),
+            (
+                "Duration",
+                "audio.duration",
+                FloatField(commit("duration", "Trim sound"), **{**seconds, "minimum": 0.001}),
+            ),
+            ("Gain", "audio.gain", FloatField(commit("gain", "Change gain"), -60.0, 24.0, 0.5, suffix=" dB")),
+            ("Fade in", "audio.fade_in", FloatField(commit("fade_in", "Change fade"), **seconds)),
+            ("Fade out", "audio.fade_out", FloatField(commit("fade_out", "Change fade"), **seconds)),
+        ]
+        self._section("Sound", rows)
+        self.body_layout.addStretch(1)
+        self.refresh()
+
+    def _refresh_audio(self, force: bool) -> None:
+        clip = next((c for c in self.project.audio if c.id == self.audio_id), None)
+        if clip is None:
+            self.show_nothing()
+            return
+        self.title.setText(f"<b>{clip.name or clip.id}</b> - sound ({Path(clip.path).name})")
+        for path, field in self.fields.items():
+            if not field.has_focus() or force:
+                field.set_value(getattr(clip, path.split(".", 1)[1]))
+
     # -- showing values -------------------------------------------------------------
 
     def refresh(self, force: bool = False) -> None:
         """Show the document's values (or a pending value) in every field not being edited."""
+        if self.audio_id is not None:
+            self._refresh_audio(force)
+            return
         if self.layer_id is None:
             return
         if not _has(self.project, self.layer_id):

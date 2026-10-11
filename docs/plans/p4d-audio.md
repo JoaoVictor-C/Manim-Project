@@ -1,6 +1,6 @@
 # P4d — Audio track
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 26](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.91)
 - **Evidence:** B47 in [../logs/benchmarks.md](../logs/benchmarks.md)

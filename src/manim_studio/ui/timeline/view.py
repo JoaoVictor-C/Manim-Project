@@ -16,12 +16,16 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 * keyframes (P2b): one diamond per key time on the bottom of the row; click
   selects, drag retimes every key at that time, Delete removes them; the row
   menu adds a key at the playhead. Diamonds win over clip bars within 5 px.
+* sounds (P4d, ADR 0034): one row per sound under the layers, with its waveform;
+  drag to move, drag an edge to trim (the left edge trims the file's start),
+  Delete or the row menu removes it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 from pydantic import ValidationError
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
@@ -35,13 +39,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, edits
+from ...core import adapter, audio, edits
 from ...core.evaluator import layer_transform
 from ...core.schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
     PART_PARENT_TYPES,
     TRACE_TYPES,
+    AudioClip,
     Clip,
     Layer,
     Project,
@@ -59,6 +64,7 @@ from .model import (
     key_times,
     obstacles,
     place_new_clip,
+    snap,
     snap_candidates,
 )
 from .model import rows as row_layers
@@ -77,6 +83,9 @@ KEY_OFFSET = ROW_HEIGHT - 6  # diamond centre below the row top
 TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
 
 CATEGORY_COLORS = {"content": "#3b82f6", "emphasis": "#f59e0b", "motion": "#10b981", "morph": "#a855f7"}
+AUDIO_COLOR = QColor("#0f766e")
+WAVE_COLOR = QColor(204, 251, 241, 190)
+PEAKS_PER_SECOND = 100
 LIFETIME_COLOR = QColor(255, 255, 255, 28)
 PLAYHEAD_COLOR = QColor("#ef4444")
 BACKGROUND = QColor("#1f2329")
@@ -104,6 +113,37 @@ class ClipItem(QGraphicsRectItem):
         if rect.width() > 24:
             painter.setPen(QColor("#ffffff"))
             painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.kind)
+
+
+class AudioItem(QGraphicsRectItem):
+    """A sound's bar (ADR 0034): its waveform over the part of the file it plays."""
+
+    def __init__(self, clip: AudioClip, rect: QRectF, peaks, selected: bool) -> None:
+        super().__init__(rect)
+        self.audio_id, self.name = clip.id, clip.name or clip.id
+        self.peaks, self.selected = peaks, selected
+        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 90), 2 if selected else 1))
+        self.setZValue(2)
+
+    def paint(
+        self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
+    ) -> None:
+        rect = self.rect()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(AUDIO_COLOR)
+        painter.setPen(self.pen())
+        painter.drawRoundedRect(rect, 4, 4)
+        if len(self.peaks):
+            painter.setPen(QPen(WAVE_COLOR, 1))
+            middle, half = rect.center().y(), rect.height() / 2 - 2
+            columns = max(1, int(rect.width()))
+            for i in range(columns):
+                peak = float(self.peaks[min(len(self.peaks) - 1, i * len(self.peaks) // columns)])
+                x = rect.left() + i + 0.5
+                painter.drawLine(QPointF(x, middle - peak * half), QPointF(x, middle + peak * half))
+        if rect.width() > 24:
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.name)
 
 
 class KeyItem(QGraphicsPolygonItem):
@@ -146,7 +186,8 @@ class LayerHeader(QWidget):
             return
         painter.setPen(TEXT_COLOR)
         scroll = self._view.verticalScrollBar().value()
-        for row, layer in enumerate(self._view.rows()):
+        rows = self._view.rows()
+        for row, layer in enumerate(rows):
             y = RULER_HEIGHT + row * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT < RULER_HEIGHT:
                 continue
@@ -156,7 +197,21 @@ class LayerHeader(QWidget):
                 text = "\u21b3 " + text
             rect = QRectF(8 + indent, y, HEADER_WIDTH - 12 - indent, ROW_HEIGHT)
             painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, text)
+        for i, clip in enumerate(project.audio):  # sounds under the layers (ADR 0034)
+            y = RULER_HEIGHT + (len(rows) + i) * ROW_HEIGHT - scroll
+            if y + ROW_HEIGHT >= RULER_HEIGHT:
+                rect = QRectF(8, y, HEADER_WIDTH - 12, ROW_HEIGHT)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, "\u266a " + (clip.name or clip.id))
         painter.fillRect(0, 0, HEADER_WIDTH, RULER_HEIGHT, RULER_BACKGROUND)
+
+
+@dataclass
+class _AudioDrag:
+    audio_id: str
+    mode: Edge | None  # None = move
+    press_x: float
+    base: Project
+    clip: AudioClip
 
 
 @dataclass
@@ -173,6 +228,7 @@ class TimelineView(QGraphicsView):
     seekRequested = Signal(float)
     clipSelected = Signal(str, str)  # layer id, clip id
     keySelected = Signal(str, float)  # layer id, key time
+    audioSelected = Signal(str)  # a sound's id (ADR 0034)
     message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -192,7 +248,9 @@ class TimelineView(QGraphicsView):
         self.playhead = 0.0
         self.selected: tuple[str, str] | None = None
         self.selected_key: tuple[str, float] | None = None
+        self.selected_audio: str | None = None
         self._drag: _Drag | None = None
+        self._audio_drag: _AudioDrag | None = None
         self._key_drag: _KeyDrag | None = None
         self._last_key_t = 0.0
         self._scrubbing = False
@@ -214,6 +272,8 @@ class TimelineView(QGraphicsView):
     def _on_reset(self) -> None:
         self.selected = None
         self.selected_key = None
+        self.selected_audio = None
+        self._audio_drag = None
         self._drag = None
         self._key_drag = None
         self.sync()
@@ -225,6 +285,18 @@ class TimelineView(QGraphicsView):
         if (selected, selected_key) != (self.selected, self.selected_key):
             self.selected, self.selected_key = selected, selected_key
             self.sync()
+
+    def set_selected_audio(self, audio_id: str | None) -> None:
+        if audio_id != self.selected_audio:
+            self.selected_audio = audio_id
+            self.sync()
+
+    def audio_at(self, viewport_y: float) -> AudioClip | None:
+        """The sound whose row is at this height (rows under the layers)."""
+        if self.project is None or viewport_y < RULER_HEIGHT:
+            return None
+        row = int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT) - len(self.rows())
+        return self.project.audio[row] if 0 <= row < len(self.project.audio) else None
 
     def rows(self) -> list[Layer]:
         """Layers in row order: the front-most object first, each followed by its parts."""
@@ -255,8 +327,9 @@ class TimelineView(QGraphicsView):
         if project is None:
             return
         width = self.scale.x(project.canvas.duration)
-        height = RULER_HEIGHT + len(project.layers) * ROW_HEIGHT
+        height = RULER_HEIGHT + (len(project.layers) + len(project.audio)) * ROW_HEIGHT
         scene.setSceneRect(0, 0, width + 40, height)
+        first_audio_row = len(self.rows())
         for row, layer in enumerate(self.rows()):
             top = RULER_HEIGHT + row * ROW_HEIGHT
             start, end = project.lifetime(layer.id)
@@ -283,11 +356,26 @@ class TimelineView(QGraphicsView):
                 selected = selected and abs(self.selected_key[1] - t) < 0.5 / project.canvas.fps
                 center = QPointF(self.scale.x(t), top + KEY_OFFSET)
                 scene.addItem(KeyItem(layer.id, t, props, center, selected))
+        for i, clip in enumerate(project.audio):
+            top = RULER_HEIGHT + (first_audio_row + i) * ROW_HEIGHT
+            rect = QRectF(
+                self.scale.x(clip.start),
+                top + CLIP_MARGIN,
+                max(2.0, self.scale.x(clip.end) - self.scale.x(clip.start)),
+                ROW_HEIGHT - 2 * CLIP_MARGIN,
+            )
+            peaks = audio.peaks(clip.path, PEAKS_PER_SECOND)
+            first = round(clip.offset * PEAKS_PER_SECOND)
+            shown = peaks[first : first + round(clip.duration * PEAKS_PER_SECOND)]
+            scene.addItem(AudioItem(clip, rect, _heard(shown, clip), clip.id == self.selected_audio))
         self.header.update()
         self.viewport().update()
 
     def key_items(self) -> list[KeyItem]:
         return [item for item in self.scene().items() if isinstance(item, KeyItem)]
+
+    def audio_items(self) -> list[AudioItem]:
+        return [item for item in self.scene().items() if isinstance(item, AudioItem)]
 
     def clip_items(self) -> list[ClipItem]:
         return [item for item in self.scene().items() if isinstance(item, ClipItem)]
@@ -353,8 +441,8 @@ class TimelineView(QGraphicsView):
 
     # -- mouse -------------------------------------------------------------------
 
-    def _hit(self, pos: QPointF) -> tuple[ClipItem | None, Edge | None]:
-        item = next((i for i in self.items(pos.toPoint()) if isinstance(i, ClipItem)), None)
+    def _hit(self, pos: QPointF, kind: type = ClipItem) -> tuple[ClipItem | AudioItem | None, Edge | None]:
+        item = next((i for i in self.items(pos.toPoint()) if isinstance(i, kind)), None)
         if item is None:
             return None, None
         left = self.mapFromScene(item.rect().topLeft()).x()
@@ -383,10 +471,23 @@ class TimelineView(QGraphicsView):
             self.document.begin_preview()
             self.sync()
             return
+        sound, edge = self._hit(pos, AudioItem)
+        if sound is not None:  # a sound (ADR 0034)
+            self.selected, self.selected_key, self.selected_audio = None, None, sound.audio_id
+            self.audioSelected.emit(sound.audio_id)
+            base = self.project
+            clip = next(c for c in base.audio if c.id == sound.audio_id)
+            self._audio_drag = _AudioDrag(
+                sound.audio_id, edge, self.mapToScene(pos.toPoint()).x(), base, clip
+            )
+            self.document.begin_preview()
+            self.sync()
+            return
         item, edge = self._hit(pos)
         if item is None:
             return
         self.selected_key = None
+        self.selected_audio = None
         self.selected = (item.layer_id, item.clip_id)
         self.clipSelected.emit(item.layer_id, item.clip_id)
         base = self.project
@@ -400,7 +501,7 @@ class TimelineView(QGraphicsView):
         if self._scrubbing:
             self._scrub(pos.x())
             return
-        if self._drag is None and self._key_drag is None:
+        if self._drag is None and self._key_drag is None and self._audio_drag is None:
             self._update_cursor(pos)
             return
         snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
@@ -423,6 +524,12 @@ class TimelineView(QGraphicsView):
                 self.sync()
                 self.keySelected.emit(drag.layer_id, self._last_key_t)
             return
+        if self._audio_drag is not None:
+            self.apply_pending()
+            verb = "Move" if self._audio_drag.mode is None else "Trim"
+            self._audio_drag = None
+            self.document.commit_preview(f"{verb} sound")
+            return
         if self._drag is None:
             super().mouseReleaseEvent(event)
             return
@@ -432,14 +539,19 @@ class TimelineView(QGraphicsView):
         self.document.commit_preview(f"{verb} clip")
 
     def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape and (self._drag is not None or self._key_drag is not None):
+        dragging = self._drag is not None or self._key_drag is not None or self._audio_drag is not None
+        if event.key() == Qt.Key.Key_Escape and dragging:
             self._drag = None
             self._key_drag = None
+            self._audio_drag = None
             self._pending = None
             self.document.cancel_preview()
             return
         deleting = event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
-        if deleting and self._drag is None and self._key_drag is None:
+        if deleting and not dragging:
+            if self.selected_audio:
+                self.delete_audio(self.selected_audio)
+                return
             if self.selected_key:
                 self.delete_keys(*self.selected_key)
                 return
@@ -460,6 +572,10 @@ class TimelineView(QGraphicsView):
         if self.project is None or self._drag is not None or self._key_drag is not None:
             return None
         menu = QMenu(self)
+        sound = self.audio_at(pos.y())
+        if sound is not None:  # a sound's row (ADR 0034)
+            menu.addAction("Delete sound", lambda: self.delete_audio(sound.id))
+            return menu
         key = self._key_hit(pos)
         if key is not None:
             layer_id, t = key.layer_id, key.t
@@ -625,6 +741,11 @@ class TimelineView(QGraphicsView):
             self.selected = None
         self._apply(lambda p: edits.remove_clip(p, layer_id, clip_id), "Delete clip")
 
+    def delete_audio(self, audio_id: str) -> None:
+        if self.selected_audio == audio_id:
+            self.selected_audio = None
+        self._apply(lambda p: edits.remove_audio(p, audio_id), "Delete sound")
+
     def _apply(self, op, text: str) -> None:
         try:
             self.document.apply(op(self.project), text)
@@ -633,6 +754,8 @@ class TimelineView(QGraphicsView):
 
     def _update_cursor(self, pos: QPointF) -> None:
         item, edge = self._hit(pos) if pos.y() >= RULER_HEIGHT else (None, None)
+        if item is None and pos.y() >= RULER_HEIGHT:
+            item, edge = self._hit(pos, AudioItem)
         if item is None:
             self.viewport().unsetCursor()
         elif edge is not None:
@@ -653,6 +776,9 @@ class TimelineView(QGraphicsView):
         self._apply_scheduled = False
         if self._key_drag is not None and self._pending is not None:
             self._apply_key_drag()
+            return
+        if self._audio_drag is not None and self._pending is not None:
+            self._apply_audio_drag()
             return
         if self._drag is None or self._pending is None:
             return
@@ -677,6 +803,33 @@ class TimelineView(QGraphicsView):
             edge_t = (drag.clip.start if drag.mode == "start" else drag.clip.end) + delta
             start, end = drag_trim(layer, drag.clip_id, drag.mode, edge_t, **common)
             edit = edits.trim_clip(base, drag.layer_id, drag.clip_id, start=start, end=end)
+        self.document.preview(edit)
+
+    def _apply_audio_drag(self) -> None:
+        """Move a sound, or trim one of its ends: on frames, snapping to clip edges and the playhead;
+        the left edge cannot go before the file's start nor the right edge past its end."""
+        scene_x, snapping = self._pending
+        self._pending = None
+        drag, base = self._audio_drag, self._audio_drag.base
+        clip, fps = drag.clip, base.canvas.fps
+        delta = self.scale.seconds(scene_x - drag.press_x)
+        candidates = snap_candidates(base, self.playhead)
+
+        def placed(t: float) -> float:
+            return snap(t, candidates, self.scale, fps, snapping)
+
+        frame = 1 / fps
+        if drag.mode is None:
+            start = max(0.0, placed(clip.start + delta))
+            edit = edits.update_audio(base, drag.audio_id, start=start)
+        elif drag.mode == "start":
+            start = min(max(placed(clip.start + delta), clip.start - clip.offset, 0.0), clip.end - frame)
+            edit = edits.trim_audio(base, drag.audio_id, start=start)
+        else:
+            length = audio.probe(clip.path)
+            longest = clip.start + (length - clip.offset) if length else float("inf")
+            end = min(max(placed(clip.end + delta), clip.start + frame), longest)
+            edit = edits.trim_audio(base, drag.audio_id, end=end)
         self.document.preview(edit)
 
     def _apply_key_drag(self) -> None:
@@ -704,6 +857,17 @@ class TimelineView(QGraphicsView):
             return
         self._last_key_t = round(t * canvas.fps) / canvas.fps
         self.document.preview(edits.retime_keys(base, drag.layer_id, drag.t, t))
+
+
+def _heard(peaks: np.ndarray, clip: AudioClip) -> np.ndarray:
+    """A sound's waveform as it is heard: its gain and fades applied (clipped like the mix)."""
+    t = (np.arange(len(peaks)) + 0.5) / PEAKS_PER_SECOND
+    envelope = np.full(len(peaks), 10 ** (clip.gain / 20))
+    if clip.fade_in > 0:
+        envelope *= np.minimum(1.0, t / clip.fade_in)
+    if clip.fade_out > 0:
+        envelope *= np.minimum(1.0, (clip.duration - t) / clip.fade_out)
+    return np.clip(peaks * np.maximum(envelope, 0.0), 0.0, 1.0)
 
 
 def _tick_step(px_per_second: float) -> float:
