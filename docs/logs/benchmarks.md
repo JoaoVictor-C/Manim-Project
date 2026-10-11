@@ -450,3 +450,12 @@ for a copy. An 88-character line is **15.9 units** wide (the frame is 14.2), abo
 Drawing a 1280x720 frame with a subtitle and its band: **3.1 ms** (1.0 ms empty).
 Also checked: `Scene.add_subcaption(text, duration, offset)` makes `manim render`
 write `<scene>.srt` beside the video. -> ADR 0035.
+
+### B49 — Value readouts and connectors · 2026-10-11
+`benchmarks/bench_readouts.py`. Manim's `DecimalNumber`: first build **1351 ms**
+(its digits compile in LaTeX once), another value **3.5 ms**, `set_value`
+**4.2 ms**; composing cached glyphs 2.4 ms. A connector rebuilt per frame: Line
+**0.07 ms**, Arrow **1.17 ms**. Checked during the design session: a centred
+`DecimalNumber` with `ChangeDecimalToValue` interpolated at 21 alphas in
+shuffled order equals fresh animations (21/21), keeps its left edge and ends on
+the target value. -> ADR 0036.
