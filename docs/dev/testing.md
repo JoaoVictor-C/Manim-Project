@@ -17,6 +17,13 @@ pay Manim's import (5-8 s here) each time; skip them while iterating.
 point it at their own folder, and leaving it there made every later LaTeX build
 compile from scratch (that alone cost a minute, B32).
 
+No module may move Manim's cache when it is imported: every test fails with
+"a module imported by the tests moved Manim's cache" if one does. A benchmark
+imported by a test once did, so parallel workers shared one folder and broke
+each other's LaTeX files and export snapshots (intermittent failures in
+`test_export_job` and `test_worker_process`). Benchmarks configure Manim in
+their `main()`.
+
 In tests marked `ui`, an exception raised inside a Qt slot (a menu action, a
 timer, a signal handler) fails the test: Qt only prints such exceptions, so a
 broken handler used to pass unnoticed.

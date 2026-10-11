@@ -95,6 +95,24 @@ def _no_exceptions_in_qt_slots(request, monkeypatch):
         pytest.fail("exception in a Qt slot:\n" + "\n".join(raised), pytrace=False)
 
 
+_MOVED: list[str] = []  # where an imported module moved Manim's cache, if one did
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Importing a module must not move Manim's cache: parallel workers would share one folder
+    and collide on LaTeX files and export snapshots (a benchmark imported by a test once did).
+    Raising here would only kill the xdist workers silently, so every test fails instead."""
+    if Path(adapter.cache_dir()) != CACHE:
+        _MOVED.append(str(adapter.cache_dir()))
+        adapter.configure(CACHE)
+
+
+@pytest.fixture(autouse=True)
+def _cache_not_moved():
+    if _MOVED:
+        pytest.fail(f"a module imported by the tests moved Manim's cache to {_MOVED[0]}", pytrace=False)
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if shutil.which("latex") is None:
         skip = pytest.mark.skip(reason="LaTeX not found (install MiKTeX or TeX Live)")

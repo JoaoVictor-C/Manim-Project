@@ -19,8 +19,7 @@ from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spe
 from manim_studio.render import qt_paths
 from manim_studio.render.cairo_export import make_camera, render_frame
 
-ROOT = Path(__file__).resolve().parent.parent
-adapter.configure(ROOT / ".cache" / "manim")
+ROOT = Path(__file__).resolve().parent.parent  # Manim is configured in main(): tests import this module
 
 FORMULAS = [
     r"e^{i\pi}+1=0",
@@ -75,6 +74,7 @@ def report(name: str, samples: list[float]) -> None:
 
 
 def main() -> None:
+    adapter.configure(ROOT / ".cache" / "manim")
     app = QGuiApplication(sys.argv)  # noqa: F841 - QPainter needs an application
     project = stress_project()
     evaluator = Evaluator(project)
