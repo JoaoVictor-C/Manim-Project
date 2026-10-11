@@ -98,6 +98,14 @@ into a plugin folder and runs the editor with its real build worker and
 preview process: the pendulum is added, edited, drawn on, rendered ahead,
 exported to video and to an exact Python scene rendered by `manim render`, all
 matching the editor.
+`core/test_simulated_layers.py` covers simulations (stepping from their first
+frame, states kept every 30 steps, failures and impure steps) and traced paths
+(the polyline through the target on every frame for plain objects, a Point on
+Axes and a simulation's bob, offsets, dissipation, the live point between
+frames, the target's buffers left intact, what re-samples a trace) and compares
+a trace with Manim's own `TracedPath` frame by frame. `ui/test_acceptance_p4c.py`
+traces a dot running along a graph and the example pendulum simulation, with
+the real worker, preview and export processes and an exact Python scene.
 `ui/test_acceptance_p3e.py` adds an SVG through Media > SVG, draws it on with
 DrawBorderThenFill, rewrites and deletes the file (redrawn on activation,
 placeholder and message) and exports; `core/test_svg.py` covers colours, the

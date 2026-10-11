@@ -481,6 +481,11 @@ class PropertiesPanel(QWidget):
                     choices.insert(0, ("(the x axis)", ""))
                 rows.append((param.title, path, ChoiceField(commit, choices)))
                 continue
+            if param.kind == "layer":  # the layer a trace follows (ADR 0033)
+                names = {x.id: x.name or x.id for x in self.project.layers}
+                choices = [(names[i], i) for i in self.project.traceable_ids(layer.id)]
+                rows.append((param.title, path, ChoiceField(commit, choices)))
+                continue
             rows.append((param.title, path, _param_field(param, commit)))
         self._section(layer.spec.type, rows)
         if layer.spec.type in CODE_TYPES:

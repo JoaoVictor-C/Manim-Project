@@ -568,14 +568,14 @@ class Project(BaseModel):
 
     def path_layers(self, mover_id: str) -> list[Layer]:
         """Layers ``mover_id`` may travel along (ADR 0025): not itself or its descendants,
-        not parts, code or images."""
+        not parts, code, images or traces."""
         inside = {mover_id} | {d.id for d in self.descendants(mover_id)}
         return [
             layer
             for layer in self.layers
             if layer.id not in inside
             and not layer.is_part
-            and layer.spec.type not in CODE_TYPES | RASTER_TYPES | NOT_PATHS
+            and layer.spec.type not in CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES
         ]
 
     def morph_sources(self) -> dict[str, Clip]:

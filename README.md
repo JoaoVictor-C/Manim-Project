@@ -119,6 +119,12 @@ library with its own controls in Properties and animates and exports like any
 object; see `examples/plugins/pendulum.py` and *Help > Plugins...*. Plugins are
 Python code you install, so they run without asking.
 
+**Traced paths** draw where something has been: select an object and choose
+**Add > Simulation > Traced path** (pick the point it follows and how long the
+trail lasts in Properties). Plugins can add **simulations** - objects stepped
+frame by frame, such as the swinging pendulum in
+`examples/plugins/swinging_pendulum.py` - and traces follow them too.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

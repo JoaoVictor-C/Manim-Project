@@ -37,7 +37,16 @@ from PySide6.QtWidgets import (
 
 from ...core import adapter, edits
 from ...core.evaluator import layer_transform
-from ...core.schema import CLIP_KIND_INFO, CODE_TYPES, PART_PARENT_TYPES, Clip, Layer, Project, keyable_props
+from ...core.schema import (
+    CLIP_KIND_INFO,
+    CODE_TYPES,
+    PART_PARENT_TYPES,
+    TRACE_TYPES,
+    Clip,
+    Layer,
+    Project,
+    keyable_props,
+)
 from ...logging_config import get_logger
 from ..document import Document
 from .model import (
@@ -479,7 +488,18 @@ class TimelineView(QGraphicsView):
             add.setTitle("Add clip (no room here)")
             return menu
         start, length = placement
-        kinds = adapter.allowed_clip_kinds((layer.spec or self.project.root_of(layer.id).spec).type)
+        type_name = (layer.spec or self.project.root_of(layer.id).spec).type
+        kinds = adapter.allowed_clip_kinds(type_name)
+        if (
+            not kinds
+        ):  # code layers animate in their code (ADR 0019); simulated layers have no clips (ADR 0033)
+            add.setEnabled(False)
+            add.setTitle(
+                "Add clip (animate it in its code)"
+                if type_name in CODE_TYPES
+                else "Add clip (none: it is simulated)"
+            )
+            return menu
         if layer.is_part:  # a part cannot morph; its object can (ADR 0020)
             kinds = [k for k in kinds if CLIP_KIND_INFO[k].category != "morph"]
         if layer.is_child:  # only whole objects travel along paths (ADR 0025)
@@ -575,7 +595,7 @@ class TimelineView(QGraphicsView):
             if other.id != layer.id
             and other.id not in taken
             and not other.is_part
-            and other.spec.type not in CODE_TYPES
+            and other.spec.type not in CODE_TYPES | TRACE_TYPES
             and (not tex_only or other.spec.type in PART_PARENT_TYPES)
         ]
 

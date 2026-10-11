@@ -1,6 +1,6 @@
 # P4c — Simulated layers: traced paths and plugin simulations
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 25](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B46 in [../logs/benchmarks.md](../logs/benchmarks.md)
