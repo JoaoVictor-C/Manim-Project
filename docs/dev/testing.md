@@ -109,6 +109,15 @@ import and export, moving, trimming and deleting on the row, and the canvas.
 `ui/test_acceptance_p5a.py` imports an `.srt`, edits a cue and the style, checks
 frames rendered ahead, the export process's video and `.srt`, and the exact
 Python scene.
+`core/test_markers.py` covers the marker list (order, saving, validation, ids),
+the one-per-frame rule, edits that keep markers and change no frame, and the
+exports. `ui/test_timeline_model.py` checks that every row and marker is a snap
+point and the dragged item never is, and the marker drag rule;
+`ui/test_markers_ui.py` covers M, [ and ], the flags (pick, drag with snapping,
+Alt, Escape, one undo step, menus, Delete), exclusive selection, the guide line
+and sounds at a clip or marker; `ui/test_acceptance_p5c.py` builds a scene with
+markers, drags clips and markers onto each other, adds sounds, checks frames
+rendered ahead survive marker edits and saves.
 `core/test_readouts.py` runs the clip harness on counting numbers (fresh,
 shuffled and scrubbed frames equal Manim's play loop, with eases), chaining,
 the fixed left edge and colour, the warm key's glyphs, and connectors: box-edge

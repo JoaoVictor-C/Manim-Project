@@ -563,3 +563,19 @@ left open, so ADRs can cite it.
   ends at the bounding box by default (documented as the box, not the outline);
   connectors cannot be drawn in and labels move separately -> recorded as
   limitations.
+
+## Session 30 — P5c markers and snapping · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.91**.
+- **Input:** the timeline model's snapping (ADR 0014), render-ahead's non-canvas parts
+  (ADR 0028), the audio and subtitle rows (ADR 0034, 0035); probe B50.
+- **Decisions:** markers in the project (sorted, one per frame, timing edits that keep
+  every cached frame); ruler flags with select, drag, rename, delete; M, [ and ]; one
+  snap list for every drag, nearest wins, a guide line; sounds added at a clip's start
+  or end or at a marker from a list of the project's sounds (-> ADR 0037). Plan:
+  [../plans/p5c-markers.md](../plans/p5c-markers.md).
+- **Critiques that changed the plan:** Shift+Left/Right was checked in the code and is
+  taken by the canvas nudge (it claims arrow keys) -> [ and ]; a marker dragged onto
+  another stops at its last free frame; markers as comments in readable exports were
+  dropped (no visible benefit; the exact scene keeps them).

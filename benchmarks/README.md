@@ -18,6 +18,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_audio.py` | audio decoding, mixing, Qt playback clock, AAC muxing, Manim's add_sound — B47 |
 | `bench_subtitles.py` | building and drawing a subtitle line, wrapping widths — B48 |
 | `bench_readouts.py` | DecimalNumber builds and set_value, connectors per frame — B49 |
+| `bench_markers.py` | sounds on clip edges in the explainer, snap point gathering — B50 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |
 | `bench_render_ahead.py` | preview frame cost at widget size, keeping frames (raw, zlib), showing them again — B41 |

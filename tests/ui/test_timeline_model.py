@@ -85,7 +85,7 @@ def test_snapping_disabled_keeps_only_the_frame_grid() -> None:
 
 def test_snap_candidates_exclude_the_dragged_clip() -> None:
     project = Project(canvas=Canvas(duration=DURATION), layers=[lane()])
-    points = snap_candidates(project, playhead=4.5, exclude=("a", "c2"))
+    points = snap_candidates(project, playhead=4.5, exclude=[("clip", "a", "c2")])
     assert points == [0.0, 1.0, 2.0, 4.5, 6.0, 7.0, 10.0]
 
 
@@ -305,3 +305,78 @@ def test_new_clips_on_a_part_avoid_ancestor_clips() -> None:
     assert place_new_clip(b, 1.2, duration=5.0, fps=10, obstacles=block) == (1.2, 0.8)
     eq = project.layer("eq")
     assert place_new_clip(eq, 2.2, duration=5.0, fps=10, obstacles=obstacles(project, "eq")) is None
+
+
+# -- snapping to every row and to markers (P5c, ADR 0037) -------------------------------
+
+
+def busy() -> Project:
+    from manim_studio.core.schema import AudioClip, Cue, Keyframe, Marker
+
+    keyed = lane().model_copy(
+        update={"tracks": {"opacity": [Keyframe(t=4.5, value=1.0), Keyframe(t=8.0, value=0.0)]}}
+    )
+    return Project(
+        canvas=Canvas(duration=DURATION, fps=FPS),
+        layers=[keyed],
+        audio=[AudioClip(id="s", path="x.wav", start=2.5, duration=0.6)],
+        subtitles=[Cue(id="q", start=5.0, end=5.5, text="Hi")],
+        markers=[Marker(id="m", t=9.0)],
+    )
+
+
+def test_every_row_and_every_marker_is_a_snap_point() -> None:
+    points = snap_candidates(busy(), playhead=0.5)
+    for t in (0.0, 0.5, 1.0, 2.0, 2.5, 3.1, 4.5, 5.0, 5.5, 8.0, 9.0, 10.0):
+        assert any(abs(p - t) < 1e-9 for p in points), t
+
+
+@pytest.mark.parametrize(
+    ("item", "gone"),
+    [
+        (("clip", "a", "c1"), (1.0, 2.0)),
+        (("key", "a", 4.5), (4.5,)),
+        (("audio", "s"), (2.5, 3.1)),
+        (("cue", "q"), (5.0, 5.5)),
+        (("marker", "m"), (9.0,)),
+    ],
+)
+def test_the_dragged_item_is_not_its_own_snap_point(item, gone) -> None:
+    every = snap_candidates(busy(), playhead=0.5)
+    points = snap_candidates(busy(), playhead=0.5, exclude=[item])
+    for t in gone:
+        assert not any(abs(p - t) < 1e-9 for p in points), t
+    assert len(every) - len(points) == len(gone)  # nothing else left out
+
+
+def test_a_key_drag_leaves_out_only_the_keys_on_its_frame() -> None:
+    points = snap_candidates(busy(), playhead=0.5, exclude=[("key", "a", 4.5 + 0.2 / FPS)])
+    assert 4.5 not in points and 8.0 in points
+    assert 4.5 in snap_candidates(busy(), playhead=0.5, exclude=[("key", "other", 4.5)])
+
+
+def test_snapped_tells_when_an_edge_rests_on_a_point() -> None:
+    from manim_studio.ui.timeline.model import snapped
+
+    assert snapped(9.0, [1.0, 9.0]) and not snapped(9.01, [1.0, 9.0])
+
+
+def test_a_marker_drag_snaps_and_never_lands_on_another_marker() -> None:
+    from manim_studio.core.schema import Marker
+    from manim_studio.ui.timeline.model import drag_marker
+
+    project = Project(
+        canvas=Canvas(duration=DURATION, fps=FPS),
+        layers=[lane()],
+        markers=[Marker(id="m", t=9.0), Marker(id="n", t=5.0)],
+    )
+    candidates = snap_candidates(project, playhead=0.0, exclude=[("marker", "n")])
+    snap_to_c2 = drag_marker(project, "n", 2.97, 5.0, scale=SCALE, candidates=candidates)
+    assert snap_to_c2 == 3.0  # c2's start
+    assert drag_marker(project, "n", 6.51, 5.0, scale=SCALE, candidates=candidates) == pytest.approx(6.5)
+    assert drag_marker(project, "n", 9.02, 6.5, scale=SCALE, candidates=candidates) == 6.5  # m's frame: stays
+    assert drag_marker(project, "n", 12.0, 6.5, scale=SCALE, candidates=candidates) == DURATION
+    assert drag_marker(project, "n", -1.0, 6.5, scale=SCALE, candidates=candidates) == 0.0
+    assert drag_marker(project, "n", 2.97, 5.0, scale=SCALE, snapping=False) == pytest.approx(
+        2.9666, abs=1e-3
+    )

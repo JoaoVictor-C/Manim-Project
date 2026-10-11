@@ -66,7 +66,7 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 
 - ✅ **P5a** — [plan](plans/p5a-subtitles.md): subtitle track: cues on their own row, styled, burned into the export, `.srt` in and out (ADR 0035)
 - ✅ **P5b** — [plan](plans/p5b-readouts.md): value readouts (a Number counting with clips) and connectors between objects (ADR 0036)
-- **P5c** — markers and snapping on every row; a sound effect at a clip's start
+- ✅ **P5c** — [plan](plans/p5c-markers.md): markers and snapping on every row; a sound effect at a clip's start
 - **P5d** — duplicate, copy and paste; autosave and crash recovery
 - **P5e** — presets and templates: animation presets, style themes, object templates
 
