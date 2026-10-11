@@ -169,7 +169,8 @@ class CanvasWidget(QWidget):
             self.outline = self._outline(self._selected_object(t), t)
         else:
             layers = self._evaluator.frame_layers(t)
-            pixels = render_frame(self._camera, [mob for _, mob in layers])
+            overlay = self._evaluator.overlay(t)  # subtitles, never hit-tested (ADR 0035)
+            pixels = render_frame(self._camera, [*(mob for _, mob in layers), *overlay])
             self.outline = self._outline(layers, t)  # built now: the mobjects are shared buffers
             height, width = pixels.shape[:2]
             self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()

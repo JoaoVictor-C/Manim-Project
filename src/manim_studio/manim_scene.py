@@ -87,6 +87,9 @@ class StudioScene(m.Scene):
 
         holder.add_updater(show)
         self.add(holder)
+        for cue in project.subtitles:  # Manim writes them as an .srt beside its video (ADR 0035)
+            if cue.text.strip():
+                self.add_subcaption(cue.text.strip(), duration=cue.end - cue.start, offset=cue.start)
         if project.audio:  # the editor's mix (ADR 0034); add_sound reads the file at once
             with tempfile.TemporaryDirectory() as folder:
                 sound = Path(folder) / "mix.wav"

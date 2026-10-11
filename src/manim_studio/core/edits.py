@@ -30,7 +30,19 @@ from typing import Any, Literal
 import numpy as np
 
 from . import motion_paths, parts
-from .schema import AudioClip, Clip, Easing, Keyframe, Layer, PartKey, Project, Spec, clip_params
+from .schema import (
+    AudioClip,
+    Clip,
+    Cue,
+    Easing,
+    Keyframe,
+    Layer,
+    PartKey,
+    Project,
+    Spec,
+    SubtitleStyle,
+    clip_params,
+)
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
 _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec": 3}
@@ -494,7 +506,8 @@ def _reaches_target(ease: Easing) -> bool:
 
 def new_layer_id(project: Project, type_name: str) -> str:
     """``<type>-<n>`` with the smallest free ``n`` (e.g. ``mathtex-1``)."""
-    return _free_id(type_name, {layer.id for layer in project.layers} | {clip.id for clip in project.audio})
+    taken = {layer.id for layer in project.layers} | {clip.id for clip in project.audio}
+    return _free_id(type_name, taken | {cue.id for cue in project.subtitles})
 
 
 def new_clip_id(layer: Layer, kind: str) -> str:
@@ -547,15 +560,64 @@ def _audio(project: Project, clip_id: str) -> AudioClip:
 
 
 def _replace_audio(project: Project, audio: list[AudioClip]) -> Edit:
-    new_project = Project.model_validate(
-        {
-            "schema_version": project.schema_version,
-            "canvas": project.canvas,
-            "layers": project.layers,
-            "audio": audio,
-        }
-    )
-    return Edit(new_project, "timing", frozenset())
+    return Edit(_rebuilt(project, audio=audio), "timing", frozenset())
+
+
+def _rebuilt(project: Project, **parts: Any) -> Project:
+    """The project with some of its parts replaced, validated (unchanged parts are reused as-is)."""
+    data = {
+        "schema_version": project.schema_version,
+        "canvas": project.canvas,
+        "layers": project.layers,
+        "audio": project.audio,
+        "subtitles": project.subtitles,
+        "subtitle_style": project.subtitle_style,
+    }
+    return Project.model_validate({**data, **parts})
+
+
+# -- subtitles (P5a, ADR 0035) ------------------------------------------------------------
+# They change no layer: the evaluator keeps every cache; render-ahead re-renders their spans.
+
+
+def add_cue(project: Project, start: float, end: float, text: str = "") -> Edit:
+    cue = Cue(id=new_layer_id(project, "cue"), start=start, end=end, text=text)
+    return _replace_subtitles(project, [*project.subtitles, cue])
+
+
+def update_cue(project: Project, cue_id: str, **fields: Any) -> Edit:
+    """Change a subtitle's ``start``, ``end`` or ``text`` (overlapping another one is refused)."""
+    _cue(project, cue_id)
+    cues = [
+        Cue.model_validate({**c.model_dump(), **fields}) if c.id == cue_id else c for c in project.subtitles
+    ]
+    return _replace_subtitles(project, cues)
+
+
+def remove_cue(project: Project, cue_id: str) -> Edit:
+    _cue(project, cue_id)
+    return _replace_subtitles(project, [c for c in project.subtitles if c.id != cue_id])
+
+
+def set_subtitles(project: Project, cues: list[Cue]) -> Edit:
+    """Replace every subtitle (an imported .srt)."""
+    return _replace_subtitles(project, cues)
+
+
+def set_subtitle_style(project: Project, **fields: Any) -> Edit:
+    style = SubtitleStyle.model_validate({**project.subtitle_style.model_dump(), **fields})
+    return Edit(_rebuilt(project, subtitle_style=style), "timing", frozenset())
+
+
+def _cue(project: Project, cue_id: str) -> Cue:
+    for cue in project.subtitles:
+        if cue.id == cue_id:
+            return cue
+    raise EditError(f"no subtitle {cue_id!r}")
+
+
+def _replace_subtitles(project: Project, cues: list[Cue]) -> Edit:
+    return Edit(_rebuilt(project, subtitles=cues), "timing", frozenset())
 
 
 # -- classification -------------------------------------------------------------
@@ -664,14 +726,7 @@ def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> E
 
 def _replace_layers(project: Project, layers: list[Layer]) -> Edit:
     # Unchanged layers are reused as-is; the project-level validator still runs.
-    new_project = Project.model_validate(
-        {
-            "schema_version": project.schema_version,
-            "canvas": project.canvas,
-            "layers": layers,
-            "audio": project.audio,
-        }
-    )
+    new_project = _rebuilt(project, layers=layers)
     kind, layer_ids = classify(project, new_project)
     return Edit(new_project, kind, layer_ids)
 

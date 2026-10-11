@@ -25,7 +25,7 @@ from manim.utils import rate_functions
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import parts
+from . import parts, subtitles
 from .schema import (
     AXES_OBJECTS,
     CLIP_KIND_INFO,
@@ -37,6 +37,7 @@ from .schema import (
     TRACE_TYPES,
     Easing,
     Spec,
+    SubtitleStyle,
     clip_params,
 )
 
@@ -434,6 +435,35 @@ def simulation_drawing(spec: Spec, drawing: m.VMobject) -> m.VMobject:
     """A simulation's drawing with the layer's style, in its own units (not re-centred)."""
     _apply_style(drawing, spec.style)
     return drawing
+
+
+def subtitle_mobject(text: str, style: SubtitleStyle) -> m.VGroup | None:
+    """A subtitle as drawn (ADR 0035): its lines centred under each other, shrunk if still wider
+    than ``style.max_width``, on a band, centred at ``style.y``; None for empty text. Shared and
+    cached: never mutate it."""
+    return _subtitle_cached(text, style.model_dump_json())
+
+
+@lru_cache(maxsize=256)
+def _subtitle_cached(text: str, style_json: str) -> m.VGroup | None:
+    style = SubtitleStyle.model_validate_json(style_json)
+    lines = [build_mobject(spec) for spec in subtitles.line_specs(text, style)]
+    if not lines:
+        return None
+    k = style.font_size / 26
+    for line in lines:
+        line.set_fill(style.colour, opacity=1.0).set_stroke(width=0)
+    block = m.VGroup(*lines).arrange(m.DOWN, buff=0.12 * k)
+    if block.width > style.max_width:
+        block.scale_to_fit_width(style.max_width)
+    parts = [block]
+    if style.band:
+        band = m.Rectangle(width=block.width + 0.5 * k, height=block.height + 0.3 * k, stroke_width=0)
+        band.set_fill(style.band_colour, opacity=style.band_opacity)
+        parts.insert(0, band.move_to(block))
+    group = m.VGroup(*parts)
+    group.move_to([0.0, style.y, 0.0])
+    return group
 
 
 def trace_mobject(runs: list[np.ndarray], style: dict[str, Any]) -> m.VMobject:

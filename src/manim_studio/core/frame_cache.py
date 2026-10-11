@@ -13,9 +13,12 @@ import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from . import subtitles
 from .schema import Layer, Project
 
 Span = tuple[float, float]  # [start, end) in seconds
+# Parts of a project whose changes are not "every frame": layers, sounds (ADR 0034), subtitles (ADR 0035).
+_NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style"}
 BUDGET = 512 * 2**20  # bytes of compressed frames (B41: 4500-9700 frames)
 
 
@@ -50,12 +53,13 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     closure = changed_layers(old, new)
     if closure is None:
         return None
-    return _merge(_lifetimes(old, closure) + _lifetimes(new, closure)) if closure else []
+    spans = _lifetimes(old, closure) + _lifetimes(new, closure) if closure else []
+    return _merge(spans + subtitles.changed_spans(old, new))  # subtitles are drawn too (ADR 0035)
 
 
 def changed_layers(old: Project, new: Project) -> set[str] | None:
     """The layers whose frames can differ (see ``changed_spans``); None when the canvas changed."""
-    if old.model_dump(exclude={"layers", "audio"}) != new.model_dump(exclude={"layers", "audio"}):  # ADR 0034
+    if old.model_dump(exclude=_NOT_CANVAS) != new.model_dump(exclude=_NOT_CANVAS):
         return None
     before = {layer.id: layer for layer in old.layers}
     after = {layer.id: layer for layer in new.layers}
