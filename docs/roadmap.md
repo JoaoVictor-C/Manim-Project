@@ -59,3 +59,22 @@ timeline and canvas, with the real build worker and renderer.
 - ✅ **P4b** — [plan](plans/p4b-plugins.md): plugins add object types (ADR 0032)
 - ✅ **P4c** — [plan](plans/p4c-simulated-layers.md): simulated layers - traced paths and plugin simulations (ADR 0033)
 - ✅ **P4d** — [plan](plans/p4d-audio.md): an audio track (ADR 0034)
+
+## Phase 5 — built-in features
+
+Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision session 27).
+
+- **P5a** — subtitle track: cues on their own row, styled, burned into the export, `.srt` in and out
+- **P5b** — value readouts (a keyed Number layer) and connectors between objects
+- **P5c** — markers and snapping on every row; a sound effect at a clip's start
+- **P5d** — duplicate, copy and paste; autosave and crash recovery
+- **P5e** — presets and templates: animation presets, style themes, object templates
+
+## Phase 6 — the studio
+
+- **P6a** — design system: tokens, dark studio stylesheet, icons, typography
+- **P6b** — workspace pages like DaVinci Resolve's: Compose, Animate, Code, Audio, Deliver
+- **P6c** — canvas interaction: more on-canvas handles, snapping guides, multi-select with align/distribute
+- **P6d** — presets browser, preferences, recent files, shortcuts help, onboarding, visual-bug sweep
+- **P6e** — release preparation
+

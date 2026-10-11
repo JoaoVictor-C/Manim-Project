@@ -511,3 +511,21 @@ left open, so ADRs can cite it.
   and a fallback to the wall clock; a step clock would stutter -> measured: it
   advances every 10 ms; a song longer than the scene cannot be a plain
   `add_sound` -> exact.
+
+## Session 27 — Phases 5 and 6 · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on `halt_signal`, confidence
+  **0.90**.
+- **Input:** the user's direction (built-ins first, then a studio-like UI with presets, handles and
+  Resolve-like pages); the pain points of the 95 s explainer; the main window's structure; a count
+  made during the session (39 of 51 UI test files drive the main window directly).
+- **Decisions:** Phase 5 = subtitles, readouts and connectors, markers and snapping, clipboard and
+  autosave, presets and templates; Phase 6 = design system (look only), workspace pages over one
+  app controller with a compatibility layer, canvas interaction (handles, guides, multi-select),
+  polish and the visual-bug sweep, release preparation. Plan:
+  [../plans/phases-5-6.md](../plans/phases-5-6.md).
+- **Critiques that changed the plan:** editing essentials were missing (duplicate, copy, paste,
+  autosave) -> P5d; multi-select is slice-sized and belongs with canvas interaction -> P6c; the
+  design system must not touch layout so pages are built once; the page refactor must keep the
+  window's attributes for the existing UI tests; "handlers" is an interpretation to confirm.
+
