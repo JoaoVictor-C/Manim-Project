@@ -459,3 +459,10 @@ write `<scene>.srt` beside the video. -> ADR 0035.
 `DecimalNumber` with `ChangeDecimalToValue` interpolated at 21 alphas in
 shuffled order equals fresh animations (21/21), keeps its left edge and ends on
 the target value. -> ADR 0036.
+
+### B50 — Markers and snapping · 2026-10-11
+`benchmarks/bench_markers.py` on `examples/explainer.json` (59 layers, 31 sounds
+placed by hand): **27 of 31** sounds start within half a frame of a clip edge, none
+on a key time. Gathering every snap point (clip edges, key times, sound and
+subtitle edges, 0 and the end: **183** points) and finding the nearest takes
+**0.047 ms**, so drags can rebuild the list on every mouse move. -> ADR 0037.

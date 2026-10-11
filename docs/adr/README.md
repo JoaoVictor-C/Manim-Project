@@ -65,3 +65,4 @@ need one.
 | [0034](0034-audio-track.md) | An audio track: project audio clips, one mix, the sound card as clock | Accepted |
 | [0035](0035-subtitle-track.md) | A subtitle track: cues in one lane, drawn over the frame | Accepted |
 | [0036](0036-readouts-and-connectors.md) | Value readouts and connectors | Accepted |
+| [0037](0037-markers-and-snapping.md) | Markers and snapping | Accepted |
