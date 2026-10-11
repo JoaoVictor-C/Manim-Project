@@ -5,6 +5,7 @@ so it can be tested headless:
 
 * ``TimeScale`` — time <-> x, zooming about a point;
 * ``quantize`` / ``snap`` — frame grid, then the nearest candidate within a pixel radius;
+* ``snap_candidates`` — the points every drag snaps to (ADR 0037), ``drag_marker`` for markers;
 * ``move_bounds`` / ``trim_bounds`` — where a clip may go on its lane (and around
   its obstacles: clips of the layer's ancestors and parts, ADR 0012);
 * ``drag_move`` / ``drag_trim`` — the full rule: propose, snap, clamp.
@@ -75,14 +76,51 @@ def snap(
     return best
 
 
-def snap_candidates(project: Project, playhead: float, exclude: tuple[str, str] | None = None) -> list[float]:
-    """0, the canvas end, the playhead, and every clip edge except the dragged clip's."""
+# What is being dragged, left out of the snap points (ADR 0037): ("clip", layer, clip),
+# ("key", layer, t), ("audio", id), ("cue", id) or ("marker", id).
+SnapItem = tuple
+
+
+def snap_candidates(project: Project, playhead: float, exclude: Iterable[SnapItem] = ()) -> list[float]:
+    """The points drags snap to (ADR 0037): 0, the end, the playhead, markers, clip edges, key times,
+    and sound and subtitle edges, except those of the dragged items in ``exclude``."""
+    skip = set(exclude)
+    fps = project.canvas.fps
+    keys = {(item[1], round(item[2] * fps)) for item in skip if item[0] == "key"}
     points = {0.0, project.canvas.duration, playhead}
     for layer in project.layers:
         for clip in layer.clips:
-            if exclude != (layer.id, clip.id):
+            if ("clip", layer.id, clip.id) not in skip:
                 points.update((clip.start, clip.end))
+        for track in layer.tracks.values():
+            points.update(key.t for key in track if (layer.id, round(key.t * fps)) not in keys)
+    points.update(t for c in project.audio if ("audio", c.id) not in skip for t in (c.start, c.end))
+    points.update(t for c in project.subtitles if ("cue", c.id) not in skip for t in (c.start, c.end))
+    points.update(m.t for m in project.markers if ("marker", m.id) not in skip)
     return sorted(points)
+
+
+def snapped(t: float, candidates: Iterable[float]) -> bool:
+    """Whether a dragged edge rests on one of the points (the timeline draws a guide there)."""
+    return any(abs(t - c) < 1e-9 for c in candidates)
+
+
+def drag_marker(
+    project: Project,
+    marker_id: str,
+    proposed: float,
+    current: float,
+    *,
+    scale: TimeScale,
+    candidates: Iterable[float] = (),
+    snapping: bool = True,
+) -> float:
+    """New time for a dragged marker (ADR 0037): snapped, within the scene, and ``current`` when
+    another marker holds that frame (it never lands on one)."""
+    canvas = project.canvas
+    t = _clamp(snap(proposed, candidates, scale, canvas.fps, snapping), 0.0, canvas.duration)
+    taken = {round(m.t * canvas.fps) for m in project.markers if m.id != marker_id}
+    return current if round(t * canvas.fps) in taken else t
 
 
 def obstacles(project: Project, layer_id: str) -> list[Clip]:

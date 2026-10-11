@@ -435,6 +435,15 @@ class Cue(BaseModel):
         return self
 
 
+class Marker(BaseModel):
+    """A named moment on the ruler (ADR 0037): it changes no frame, drags snap to it."""
+
+    id: str
+    t: float = Field(ge=0)
+    name: str = ""
+    colour: str = "#f59e0b"
+
+
 class SubtitleStyle(BaseModel):
     """How every subtitle looks (ADR 0035)."""
 
@@ -456,6 +465,7 @@ class Project(BaseModel):
     audio: list[AudioClip] = Field(default_factory=list)  # mixed together (ADR 0034)
     subtitles: list[Cue] = Field(default_factory=list)  # one lane, in time order (ADR 0035)
     subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
+    markers: list[Marker] = Field(default_factory=list)  # in time order, one per frame (ADR 0037)
 
     @model_serializer(mode="wrap")
     def _omit_unused(self, handler):
@@ -466,6 +476,8 @@ class Project(BaseModel):
             data.pop("subtitles", None)
         if self.subtitle_style == SubtitleStyle():
             data.pop("subtitle_style", None)
+        if not self.markers:
+            data.pop("markers", None)
         return data
 
     @model_validator(mode="after")
@@ -473,7 +485,7 @@ class Project(BaseModel):
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"unsupported schema_version {self.schema_version} (expected {SCHEMA_VERSION})")
         ids = [layer.id for layer in self.layers] + [clip.id for clip in self.audio]
-        ids += [cue.id for cue in self.subtitles]
+        ids += [cue.id for cue in self.subtitles] + [marker.id for marker in self.markers]
         duplicates = {i for i in ids if ids.count(i) > 1}
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
@@ -481,6 +493,10 @@ class Project(BaseModel):
         for a, b in itertools.pairwise(self.subtitles):
             if b.start < a.end - 1e-9:
                 raise ValueError(f"subtitles {a.id!r} and {b.id!r} overlap")
+        self.markers = sorted(self.markers, key=lambda marker: marker.t)
+        for a, b in itertools.pairwise(self.markers):  # one per frame is the editor's rule (ADR 0037)
+            if b.t - a.t < 1e-9:
+                raise ValueError(f"markers {a.id!r} and {b.id!r} are at the same time")
         self._tree_rules()
         self._path_rules()
         self._graph_refs()

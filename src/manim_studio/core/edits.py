@@ -37,6 +37,7 @@ from .schema import (
     Easing,
     Keyframe,
     Layer,
+    Marker,
     PartKey,
     Project,
     Spec,
@@ -507,7 +508,8 @@ def _reaches_target(ease: Easing) -> bool:
 def new_layer_id(project: Project, type_name: str) -> str:
     """``<type>-<n>`` with the smallest free ``n`` (e.g. ``mathtex-1``)."""
     taken = {layer.id for layer in project.layers} | {clip.id for clip in project.audio}
-    return _free_id(type_name, taken | {cue.id for cue in project.subtitles})
+    taken |= {cue.id for cue in project.subtitles} | {marker.id for marker in project.markers}
+    return _free_id(type_name, taken)
 
 
 def new_clip_id(layer: Layer, kind: str) -> str:
@@ -572,6 +574,7 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "audio": project.audio,
         "subtitles": project.subtitles,
         "subtitle_style": project.subtitle_style,
+        "markers": project.markers,
     }
     return Project.model_validate({**data, **parts})
 
@@ -618,6 +621,53 @@ def _cue(project: Project, cue_id: str) -> Cue:
 
 def _replace_subtitles(project: Project, cues: list[Cue]) -> Edit:
     return Edit(_rebuilt(project, subtitles=cues), "timing", frozenset())
+
+
+# -- markers (P5c, ADR 0037) --------------------------------------------------------------
+# They change no frame: every cache is kept and render-ahead re-renders nothing.
+
+
+def add_marker(project: Project, t: float, name: str = "") -> Edit:
+    """A marker at the frame nearest ``t`` (refused where one already is)."""
+    fps = project.canvas.fps
+    if marker_at(project, t) is not None:
+        raise EditError(f"a marker is already at {t:g} s")
+    marker = Marker(id=new_layer_id(project, "marker"), t=max(0.0, round(t * fps) / fps), name=name)
+    return _replace_markers(project, [*project.markers, marker])
+
+
+def update_marker(project: Project, marker_id: str, **fields: Any) -> Edit:
+    """Change a marker's ``t``, ``name`` or ``colour`` (onto another marker's frame is refused)."""
+    _marker(project, marker_id)
+    if "t" in fields and (other := marker_at(project, fields["t"])) is not None and other.id != marker_id:
+        raise EditError(f"marker {other.id!r} is already at {fields['t']:g} s")
+    markers = [
+        Marker.model_validate({**m.model_dump(), **fields}) if m.id == marker_id else m
+        for m in project.markers
+    ]
+    return _replace_markers(project, markers)
+
+
+def remove_marker(project: Project, marker_id: str) -> Edit:
+    _marker(project, marker_id)
+    return _replace_markers(project, [m for m in project.markers if m.id != marker_id])
+
+
+def marker_at(project: Project, t: float) -> Marker | None:
+    """The marker on the frame of ``t``, if any."""
+    fps = project.canvas.fps
+    return next((m for m in project.markers if round(m.t * fps) == round(t * fps)), None)
+
+
+def _marker(project: Project, marker_id: str) -> Marker:
+    for marker in project.markers:
+        if marker.id == marker_id:
+            return marker
+    raise EditError(f"no marker {marker_id!r}")
+
+
+def _replace_markers(project: Project, markers: list[Marker]) -> Edit:
+    return Edit(_rebuilt(project, markers=markers), "timing", frozenset())
 
 
 # -- classification -------------------------------------------------------------

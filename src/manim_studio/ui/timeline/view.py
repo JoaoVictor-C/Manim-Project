@@ -927,7 +927,9 @@ class TimelineView(QGraphicsView):
             "duration": canvas.duration,
             "fps": canvas.fps,
             "scale": self.scale,
-            "candidates": snap_candidates(base, self.playhead, exclude=(drag.layer_id, drag.clip_id)),
+            "candidates": snap_candidates(
+                base, self.playhead, exclude=[("clip", drag.layer_id, drag.clip_id)]
+            ),
             "snapping": snapping,
             "obstacles": obstacles(base, drag.layer_id),
         }
@@ -941,14 +943,14 @@ class TimelineView(QGraphicsView):
         self.document.preview(edit)
 
     def _apply_cue_drag(self) -> None:
-        """Move a subtitle, or trim one of its ends: on frames, snapping to clip edges and the
-        playhead, never into its neighbours (one lane, ADR 0035)."""
+        """Move a subtitle, or trim one of its ends: on frames, snapping (ADR 0037), never into
+        its neighbours (one lane, ADR 0035)."""
         scene_x, snapping = self._pending
         self._pending = None
         drag, base = self._cue_drag, self._cue_drag.base
         cue, fps = drag.cue, base.canvas.fps
         delta = self.scale.seconds(scene_x - drag.press_x)
-        candidates = snap_candidates(base, self.playhead)
+        candidates = snap_candidates(base, self.playhead, exclude=[("cue", cue.id)])
         others = [c for c in base.subtitles if c.id != cue.id]
         low = max([c.end for c in others if c.end <= cue.start + 1e-9], default=0.0)
         high = min([c.start for c in others if c.start >= cue.end - 1e-9], default=base.canvas.duration)
@@ -972,14 +974,14 @@ class TimelineView(QGraphicsView):
         self.document.preview(edit)
 
     def _apply_audio_drag(self) -> None:
-        """Move a sound, or trim one of its ends: on frames, snapping to clip edges and the playhead;
+        """Move a sound, or trim one of its ends: on frames, snapping (ADR 0037);
         the left edge cannot go before the file's start nor the right edge past its end."""
         scene_x, snapping = self._pending
         self._pending = None
         drag, base = self._audio_drag, self._audio_drag.base
         clip, fps = drag.clip, base.canvas.fps
         delta = self.scale.seconds(scene_x - drag.press_x)
-        candidates = snap_candidates(base, self.playhead)
+        candidates = snap_candidates(base, self.playhead, exclude=[("audio", drag.audio_id)])
 
         def placed(t: float) -> float:
             return snap(t, candidates, self.scale, fps, snapping)
@@ -1004,8 +1006,7 @@ class TimelineView(QGraphicsView):
         drag, base = self._key_drag, self._key_drag.base
         canvas = base.canvas
         layer = base.layer(drag.layer_id)
-        others = [t for t, _ in key_times(layer, canvas.fps) if abs(t - drag.t) >= 0.5 / canvas.fps]
-        candidates = [*snap_candidates(base, self.playhead), *others]
+        candidates = snap_candidates(base, self.playhead, exclude=[("key", drag.layer_id, drag.t)])
         proposed = drag.t + self.scale.seconds(scene_x - drag.press_x)
         t = drag_keys(
             layer,
