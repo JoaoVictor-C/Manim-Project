@@ -491,3 +491,23 @@ left open, so ADRs can cite it.
   copies before stepping; frames where the target is absent -> no point, the
   line breaks; the dependency signature must follow everything the target is
   evaluated from (keyed axes move a Point).
+
+## Session 26 — P4d audio track · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on
+  `halt_signal`, confidence **0.91**.
+- **Input:** the playback loop, the export encoder, frame_cache's project
+  diff, ADR 0027, 0028, 0031; probe B47 (plus two measurements run during the
+  session: AAC round-trip alignment, the sink clock's step size).
+- **Decisions:** audio clips as a project-level list; one pure mix module for
+  playback, export and exact scenes; the sound card's played time as the
+  playback clock when there is audio (the wall clock otherwise); AAC in the
+  export; one timeline row per clip with a waveform; readable `add_sound` only
+  for plain clips; audio edits drop no frame (-> ADR 0034). Plan:
+  [../plans/p4d-audio.md](../plans/p4d-audio.md).
+- **Critiques that changed the plan:** decoded audio is large (384 KB/s) -> a
+  bounded cache, peaks kept apart; decoding on Play would stall -> decode at
+  import and load; tests and headless machines have no sound -> an off switch
+  and a fallback to the wall clock; a step clock would stutter -> measured: it
+  advances every 10 ms; a song longer than the scene cannot be a plain
+  `add_sound` -> exact.

@@ -427,3 +427,17 @@ keeps about D x fps segments. Costs: the target's point at one frame
 **1.8-2.1 ms** at 1280x720; a pendulum RK4 step **0.7 us**, its drawing
 **0.33 ms**; a checkpoint copy of 2000 particles **0.003 ms**. With a state every
 30 frames a seek replays at most 29 steps. -> ADR 0033.
+
+### B47 — An audio track: decoding, mixing, Qt playback, muxing · 2026-10-11
+`benchmarks/bench_audio.py`. Decoding 60 s to 48 kHz float32 stereo with PyAV:
+WAV **74 ms**, MP3 **110 ms**, AAC **91 ms**. Mixing three 50 s clips with gain
+and fades into 90 s (numpy): **116 ms**. Waveform peaks (100/s) of 60 s:
+**8 ms**. Qt: the default output takes Int16 48 kHz stereo; a `QAudioSink`
+first consumes data **0.4-0.55 s** after the first start in a process, ~0.1 s
+afterwards; the offset between the wall clock and `processedUSecs` stays
+constant (no drift over 5 s), and `processedUSecs` advances every **10 ms**
+(13 ms at most) with a 250 or 60 ms buffer. Muxing 3 s of H.264 + AAC:
+**181 ms**, both streams 3.000 s, audio from pts 0; clicks mixed at known times
+decode back with a best alignment lag of **0 samples**. Manim's
+`add_sound(file, time_offset=0.5)` puts the sound at ~0.5 s (48 kHz); it has
+no trimming or fades. -> ADR 0034.

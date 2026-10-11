@@ -119,6 +119,11 @@ library with its own controls in Properties and animates and exports like any
 object; see `examples/plugins/pendulum.py` and *Help > Plugins...*. Plugins are
 Python code you install, so they run without asking.
 
+**Sound**: **File > Import Audio...** adds a sound at the playhead. It appears
+as a row with its waveform under the layers: drag it to move it, drag its edges
+to trim it, and set its gain and fades in Properties. Playing the timeline plays
+the sound in sync, and the exported video (and Python scene) carries it.
+
 **Traced paths** draw where something has been: select an object and choose
 **Add > Simulation > Traced path** (pick the point it follows and how long the
 trail lasts in Properties). Plugins can add **simulations** - objects stepped

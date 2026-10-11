@@ -384,16 +384,49 @@ def _check_only_types(layer_id: str, clip: Clip, mobject_type: str) -> None:
         )
 
 
+class AudioClip(BaseModel):
+    """A sound on the timeline (ADR 0034): ``duration`` seconds of the file from ``offset``,
+    starting at ``start``, with a gain in dB and linear fades in and out."""
+
+    id: str
+    name: str = ""
+    path: str
+    start: float = Field(default=0.0, ge=0)
+    offset: float = Field(default=0.0, ge=0)  # seconds of the file skipped (trimmed start)
+    duration: PositiveFloat
+    gain: float = 0.0  # dB
+    fade_in: float = Field(default=0.0, ge=0)
+    fade_out: float = Field(default=0.0, ge=0)
+
+    @property
+    def end(self) -> float:
+        return self.start + self.duration
+
+    @model_validator(mode="after")
+    def _fades_fit(self) -> AudioClip:
+        if self.fade_in + self.fade_out > self.duration + 1e-9:
+            raise ValueError(f"audio {self.id!r}: the fades are longer than the sound")
+        return self
+
+
 class Project(BaseModel):
     schema_version: int = SCHEMA_VERSION
     canvas: Canvas = Field(default_factory=Canvas)
     layers: list[Layer] = Field(default_factory=list)  # first = back, last = front
+    audio: list[AudioClip] = Field(default_factory=list)  # mixed together (ADR 0034)
+
+    @model_serializer(mode="wrap")
+    def _omit_no_audio(self, handler):
+        data = handler(self)
+        if not self.audio:
+            data.pop("audio", None)  # files without sound save as before
+        return data
 
     @model_validator(mode="after")
     def _references(self) -> Project:
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"unsupported schema_version {self.schema_version} (expected {SCHEMA_VERSION})")
-        ids = [layer.id for layer in self.layers]
+        ids = [layer.id for layer in self.layers] + [clip.id for clip in self.audio]
         duplicates = {i for i in ids if ids.count(i) > 1}
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")

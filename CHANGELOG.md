@@ -127,6 +127,15 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Audio track (P4d, ADR 0034): **File > Import Audio...** puts a sound at the
+  playhead (WAV, MP3, OGG, FLAC, M4A/AAC). Each sound gets a timeline row under
+  the layers with its waveform (gain and fades shown); drag it to move it, drag
+  an edge to trim it, Delete removes it; Properties edit its start, trim,
+  duration, gain (dB) and fades. Playback plays the project's mix and follows
+  the sound card's clock, so frames stay in sync; the exported video carries an
+  AAC track aligned to the sample; Python exports use `add_sound` for plain
+  sounds and the editor's mix otherwise. Missing sound files are silent and
+  reported like missing media. Sound edits never re-render frames (B47).
 - Simulated layers (P4c, ADR 0033): **Add > Simulation > Traced path** draws
   where the selected object has been - a plain object, a point on axes, a part
   or a simulation - frame by frame, optionally from an offset point and fading

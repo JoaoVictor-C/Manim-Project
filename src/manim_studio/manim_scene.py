@@ -21,10 +21,12 @@ themselves.
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import manim as m
 
+from .core import audio
 from .core.code_cache import CodeCache
 from .core.code_frame import CodeFrame
 from .core.evaluator import Evaluator
@@ -85,4 +87,9 @@ class StudioScene(m.Scene):
 
         holder.add_updater(show)
         self.add(holder)
+        if project.audio:  # the editor's mix (ADR 0034); add_sound reads the file at once
+            with tempfile.TemporaryDirectory() as folder:
+                sound = Path(folder) / "mix.wav"
+                audio.write_wav(audio.mix(project), sound)
+                self.add_sound(str(sound))
         self.wait(project.canvas.duration)
