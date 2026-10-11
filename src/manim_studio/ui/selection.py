@@ -24,6 +24,7 @@ class Selection(QObject):
         self.key_time: float | None = None  # all keys of the layer at this time (P2b)
         self.audio_id: str | None = None  # a sound instead of a layer (ADR 0034)
         self.subtitle_id: str | None = None  # a subtitle instead of a layer (ADR 0035)
+        self.marker_id: str | None = None  # a marker instead of a layer (ADR 0037)
         document.changed.connect(lambda *_: self._drop_missing())
         document.reset.connect(lambda _project: self.clear())
 
@@ -32,11 +33,11 @@ class Selection(QObject):
             layer_id = clip_id = key_time = None
         if clip_id is not None:
             key_time = None  # a clip or a key time, not both
-        now = (self.layer_id, self.clip_id, self.key_time, self.audio_id, self.subtitle_id)
-        if (layer_id, clip_id, key_time, None, None) == now:
+        now = (self.layer_id, self.clip_id, self.key_time, self.audio_id, self.subtitle_id, self.marker_id)
+        if (layer_id, clip_id, key_time, None, None, None) == now:
             return
         self.layer_id, self.clip_id, self.key_time = layer_id, clip_id, key_time
-        self.audio_id = self.subtitle_id = None
+        self.audio_id = self.subtitle_id = self.marker_id = None
         self.changed.emit()
 
     def set_audio(self, audio_id: str | None) -> None:
@@ -44,9 +45,9 @@ class Selection(QObject):
         if not audio_id:
             self.clear()
             return
-        if (self.layer_id, self.audio_id, self.subtitle_id) == (None, audio_id, None):
+        if (self.layer_id, self.audio_id, self.subtitle_id, self.marker_id) == (None, audio_id, None, None):
             return
-        self.layer_id = self.clip_id = self.key_time = self.subtitle_id = None
+        self.layer_id = self.clip_id = self.key_time = self.subtitle_id = self.marker_id = None
         self.audio_id = audio_id
         self.changed.emit()
 
@@ -55,10 +56,21 @@ class Selection(QObject):
         if not cue_id:
             self.clear()
             return
-        if (self.layer_id, self.audio_id, self.subtitle_id) == (None, None, cue_id):
+        if (self.layer_id, self.audio_id, self.subtitle_id, self.marker_id) == (None, None, cue_id, None):
             return
-        self.layer_id = self.clip_id = self.key_time = self.audio_id = None
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = self.marker_id = None
         self.subtitle_id = cue_id
+        self.changed.emit()
+
+    def set_marker(self, marker_id: str | None) -> None:
+        """Select a marker (or nothing): nothing else is selected then (ADR 0037)."""
+        if not marker_id:
+            self.clear()
+            return
+        if (self.layer_id, self.audio_id, self.subtitle_id, self.marker_id) == (None, None, None, marker_id):
+            return
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = self.subtitle_id = None
+        self.marker_id = marker_id
         self.changed.emit()
 
     def set_key(self, layer_id: str, key_time: float) -> None:
@@ -79,6 +91,8 @@ class Selection(QObject):
         if self.subtitle_id is not None and all(
             c.id != self.subtitle_id for c in self.document.project.subtitles
         ):
+            self.clear()
+        if self.marker_id is not None and all(m.id != self.marker_id for m in self.document.project.markers):
             self.clear()
         if self.layer_id is None:
             return

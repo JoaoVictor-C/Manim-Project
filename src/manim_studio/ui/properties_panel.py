@@ -220,6 +220,7 @@ class PropertiesPanel(QWidget):
         self.key_time: float | None = None
         self.audio_id: str | None = None  # a sound is shown (ADR 0034)
         self.subtitle_id: str | None = None  # a subtitle is shown (ADR 0035)
+        self.marker_id: str | None = None  # a marker is shown (ADR 0037)
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
@@ -266,6 +267,7 @@ class PropertiesPanel(QWidget):
 
     def show_nothing(self) -> None:
         self.layer_id = self.clip_id = self.key_time = self.audio_id = self.subtitle_id = None
+        self.marker_id = None
         self._rebuild()
         self.title.setText("Select a layer, a clip or a keyframe.")
 
@@ -274,7 +276,7 @@ class PropertiesPanel(QWidget):
             self.show_nothing()
             return
         self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, None, None, None
-        self.subtitle_id = None
+        self.subtitle_id = self.marker_id = None
         self._rebuild()
         layer = self.project.layer(layer_id)
         self._section(
@@ -296,7 +298,7 @@ class PropertiesPanel(QWidget):
             self.show_nothing()
             return
         self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, clip_id, None, None
-        self.subtitle_id = None
+        self.subtitle_id = self.marker_id = None
         self._rebuild()
         self._clip_section(self.project.layer(layer_id), self._clip(layer_id, clip_id))
         self.body_layout.addStretch(1)
@@ -311,7 +313,7 @@ class PropertiesPanel(QWidget):
             self.show_layer(layer_id)
             return
         self.layer_id, self.clip_id, self.key_time, self.audio_id = layer_id, None, t, None
-        self.subtitle_id = None
+        self.subtitle_id = self.marker_id = None
         self._rebuild()
         self._key_section(self.project.layer(layer_id), t)
         self.body_layout.addStretch(1)
@@ -323,7 +325,7 @@ class PropertiesPanel(QWidget):
         if clip is None:
             self.show_nothing()
             return
-        self.layer_id = self.clip_id = self.key_time = self.subtitle_id = None
+        self.layer_id = self.clip_id = self.key_time = self.subtitle_id = self.marker_id = None
         self.audio_id = audio_id
         self._rebuild()
         generation = self._generation
@@ -365,7 +367,7 @@ class PropertiesPanel(QWidget):
         if not any(c.id == cue_id for c in self.project.subtitles):
             self.show_nothing()
             return
-        self.layer_id = self.clip_id = self.key_time = self.audio_id = None
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = self.marker_id = None
         self.subtitle_id = cue_id
         self._rebuild()
         generation = self._generation
@@ -444,6 +446,50 @@ class PropertiesPanel(QWidget):
         self.body_layout.addStretch(1)
         self.refresh()
 
+    def show_marker(self, marker_id: str) -> None:
+        """A marker (ADR 0037): its name, time and colour."""
+        if not any(m.id == marker_id for m in self.project.markers):
+            self.show_nothing()
+            return
+        self.layer_id = self.clip_id = self.key_time = self.audio_id = self.subtitle_id = None
+        self.marker_id = marker_id
+        self._rebuild()
+        generation = self._generation
+
+        def commit(name: str, text: str) -> Callable[[Any], None]:
+            def apply(value: Any) -> None:
+                if generation != self._generation:
+                    return
+                if name == "name":
+                    value = value.strip()
+                try:
+                    self.document.apply(edits.update_marker(self.project, marker_id, **{name: value}), text)
+                except (edits.EditError, ValidationError) as exc:
+                    self.message.emit(f"{text}: {_first_error(exc)}")
+                    self.refresh(force=True)
+
+            return apply
+
+        seconds = {"minimum": 0.0, "maximum": 36000.0, "step": 1 / self.project.canvas.fps, "suffix": " s"}
+        rows = [
+            ("Name", "marker.name", TextField(commit("name", "Rename marker"), marker_id)),
+            ("Time", "marker.t", FloatField(commit("t", "Move marker"), **seconds, decimals=3)),
+            ("Colour", "marker.colour", ColorField(commit("colour", "Marker colour"))),
+        ]
+        self._section("Marker", rows)
+        self.body_layout.addStretch(1)
+        self.refresh()
+
+    def _refresh_marker(self, force: bool) -> None:
+        marker = next((m for m in self.project.markers if m.id == self.marker_id), None)
+        if marker is None:
+            self.show_nothing()
+            return
+        self.title.setText(f"<b>{marker.name or marker.id}</b> - marker at {marker.t:g} s")
+        for path, field in self.fields.items():
+            if not field.has_focus() or force:
+                field.set_value(getattr(marker, path.split(".", 1)[1]))
+
     def _refresh_subtitle(self, force: bool) -> None:
         cue = next((c for c in self.project.subtitles if c.id == self.subtitle_id), None)
         if cue is None:
@@ -475,6 +521,9 @@ class PropertiesPanel(QWidget):
             return
         if self.subtitle_id is not None:
             self._refresh_subtitle(force)
+            return
+        if self.marker_id is not None:
+            self._refresh_marker(force)
             return
         if self.layer_id is None:
             return

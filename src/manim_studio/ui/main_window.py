@@ -154,6 +154,7 @@ class MainWindow(QMainWindow):
         self.timeline.keySelected.connect(self.selection.set_key)
         self.timeline.audioSelected.connect(self.selection.set_audio)
         self.timeline.subtitleSelected.connect(self.selection.set_subtitle)
+        self.timeline.markerSelected.connect(self.selection.set_marker)
         self.properties.keyMoved.connect(self.selection.set_key)
         self.selection.changed.connect(self._on_selection_changed)
         self.move_tool = MoveTool(self.canvas, self.document, self.selection, lambda: self.t, self.seek, self)
@@ -207,6 +208,17 @@ class MainWindow(QMainWindow):
         add_subtitle.setToolTip("A subtitle at the playhead (ADR 0035)")
         add_subtitle.triggered.connect(self.add_subtitle)
         edit_menu.addAction(add_subtitle)
+        edit_menu.addSeparator()  # markers (ADR 0037)
+        for text, key, slot in (
+            ("Add &Marker", "M", self.add_marker),
+            ("Previous Marker", "[", lambda: self.jump_to_marker(-1)),
+            ("Next Marker", "]", lambda: self.jump_to_marker(+1)),
+        ):
+            action = QAction(text, self)
+            action.setShortcut(QKeySequence(key))
+            action.triggered.connect(slot)
+            edit_menu.addAction(action)
+        edit_menu.addSeparator()
         self.auto_key_action = QAction("&Auto-key", self, checkable=True)
         self.auto_key_action.setToolTip("Changing an object's transform sets keyframes at the playhead")
         edit_menu.addAction(self.auto_key_action)
@@ -420,10 +432,13 @@ class MainWindow(QMainWindow):
         self.timeline.set_selected(layer_id, clip_id, key_time)
         self.timeline.set_selected_audio(self.selection.audio_id)
         self.timeline.set_selected_subtitle(self.selection.subtitle_id)
+        self.timeline.set_selected_marker(self.selection.marker_id)
         if self.selection.audio_id is not None:
             self.properties.show_audio(self.selection.audio_id)
         elif self.selection.subtitle_id is not None:
             self.properties.show_subtitle(self.selection.subtitle_id)
+        elif self.selection.marker_id is not None:
+            self.properties.show_marker(self.selection.marker_id)
         elif key_time is not None:
             self.properties.show_key(layer_id, key_time)
         elif clip_id is not None:
@@ -515,6 +530,25 @@ class MainWindow(QMainWindow):
         self.document.apply(edit, "Add subtitle")
         cue = next(c for c in edit.project.subtitles if c.start == place[0])
         self.selection.set_subtitle(cue.id)
+
+    def add_marker(self) -> None:
+        """Edit > Add Marker (M): a marker at the playhead, or the one already there selected."""
+        if self.project is not None:
+            self.timeline.add_marker_at(self.t)
+
+    def jump_to_marker(self, direction: int) -> None:
+        """Edit > Previous / Next Marker ([ and ]): the playhead to the nearest marker that way."""
+        if self.project is None:
+            return
+        half = 0.5 / self.project.canvas.fps
+        times = [m.t for m in self.project.markers]
+        ahead = (
+            [t for t in times if t > self.t + half]
+            if direction > 0
+            else [t for t in times if t < self.t - half]
+        )
+        if ahead:
+            self.seek(min(ahead) if direction > 0 else max(ahead))
 
     def import_subtitles(self) -> None:
         """File > Import Subtitles...: an .srt replaces the subtitles (one undo step)."""

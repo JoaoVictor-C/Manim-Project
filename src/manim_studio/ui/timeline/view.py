@@ -27,16 +27,19 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from pydantic import ValidationError
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
+    QFileDialog,
     QGraphicsPolygonItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
+    QInputDialog,
     QMenu,
     QStyleOptionGraphicsItem,
     QWidget,
@@ -54,6 +57,7 @@ from ...core.schema import (
     Clip,
     Cue,
     Layer,
+    Marker,
     Project,
     keyable_props,
 )
@@ -64,6 +68,7 @@ from .model import (
     TimeScale,
     depth,
     drag_keys,
+    drag_marker,
     drag_move,
     drag_trim,
     key_times,
@@ -71,6 +76,7 @@ from .model import (
     place_new_clip,
     snap,
     snap_candidates,
+    snapped,
 )
 from .model import rows as row_layers
 
@@ -97,6 +103,8 @@ PLAYHEAD_COLOR = QColor("#ef4444")
 BACKGROUND = QColor("#1f2329")
 RULER_BACKGROUND = QColor("#2a2f36")
 TEXT_COLOR = QColor("#d6dae0")
+MARKER_GRAB_PX = 6.0  # how near a marker's line a ruler click picks it (ADR 0037)
+GUIDE_COLOR = QColor(250, 204, 21, 170)  # the line a snapped drag rests on
 
 
 class ClipItem(QGraphicsRectItem):
@@ -252,6 +260,15 @@ class _CueDrag:
 
 
 @dataclass
+class _MarkerDrag:
+    marker_id: str
+    press_x: float
+    base: Project
+    marker: Marker
+    last: float  # the last free frame it was dragged to (ADR 0037)
+
+
+@dataclass
 class _AudioDrag:
     audio_id: str
     mode: Edge | None  # None = move
@@ -276,6 +293,7 @@ class TimelineView(QGraphicsView):
     keySelected = Signal(str, float)  # layer id, key time
     audioSelected = Signal(str)  # a sound's id (ADR 0034)
     subtitleSelected = Signal(str)  # a cue's id (ADR 0035)
+    markerSelected = Signal(str)  # a marker's id (ADR 0037)
     message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -297,6 +315,9 @@ class TimelineView(QGraphicsView):
         self.selected_key: tuple[str, float] | None = None
         self.selected_audio: str | None = None
         self.selected_cue: str | None = None
+        self.selected_marker: str | None = None
+        self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
+        self._marker_drag: _MarkerDrag | None = None
         self._drag: _Drag | None = None
         self._audio_drag: _AudioDrag | None = None
         self._cue_drag: _CueDrag | None = None
@@ -323,8 +344,11 @@ class TimelineView(QGraphicsView):
         self.selected_key = None
         self.selected_audio = None
         self.selected_cue = None
+        self.selected_marker = None
+        self.guide = None
         self._audio_drag = None
         self._cue_drag = None
+        self._marker_drag = None
         self._drag = None
         self._key_drag = None
         self.sync()
@@ -341,6 +365,19 @@ class TimelineView(QGraphicsView):
         if cue_id != self.selected_cue:
             self.selected_cue = cue_id
             self.sync()
+
+    def set_selected_marker(self, marker_id: str | None) -> None:
+        if marker_id != self.selected_marker:
+            self.selected_marker = marker_id
+            self.viewport().update()
+
+    def marker_at(self, viewport_x: float) -> Marker | None:
+        """The marker whose line is nearest ``viewport_x`` within MARKER_GRAB_PX, if any."""
+        if self.project is None:
+            return None
+        near = [(abs(self._viewport_x(m.t) - viewport_x), m) for m in self.project.markers]
+        near = [(d, m) for d, m in near if d <= MARKER_GRAB_PX]
+        return min(near, key=lambda dm: dm[0])[1] if near else None
 
     def subtitle_row_at(self, viewport_y: float) -> bool:
         """Whether this height is the Subtitles row."""
@@ -472,6 +509,11 @@ class TimelineView(QGraphicsView):
         painter.fillRect(0, 0, width, RULER_HEIGHT, RULER_BACKGROUND)
         if project is not None:
             self._draw_ticks(painter, width, project.canvas.duration)
+            self._draw_markers(painter, width, project)
+            if self.guide is not None:
+                gx = self._viewport_x(self.guide)
+                painter.setPen(QPen(GUIDE_COLOR, 1, Qt.PenStyle.DashLine))
+                painter.drawLine(QPointF(gx, 0), QPointF(gx, self.viewport().height()))
             x = self._viewport_x(self.playhead)
             painter.setPen(QPen(PLAYHEAD_COLOR, 2))
             painter.drawLine(QPointF(x, 0), QPointF(x, self.viewport().height()))
@@ -490,6 +532,36 @@ class TimelineView(QGraphicsView):
             painter.drawLine(QPointF(x, RULER_HEIGHT - 6), QPointF(x, RULER_HEIGHT))
             painter.drawText(QPointF(x + 3, RULER_HEIGHT - 9), f"{t:g}s")
             t += step
+
+    def _draw_markers(self, painter: QPainter, width: int, project: Project) -> None:
+        """Flags on the ruler with their names, and a faint line through the rows (ADR 0037)."""
+        font = QFont(painter.font().family(), 8)
+        height = self.viewport().height()
+        for marker in project.markers:
+            x = self._viewport_x(marker.t)
+            if x < -40 or x > width:
+                continue
+            colour = QColor(marker.colour)
+            selected = marker.id == self.selected_marker
+            line = QColor(colour)
+            line.setAlpha(110)
+            painter.setPen(QPen(line, 1))
+            painter.drawLine(QPointF(x, RULER_HEIGHT), QPointF(x, height))
+            painter.setPen(
+                QPen(QColor("#ffffff") if selected else colour.darker(150), 1.5 if selected else 1)
+            )
+            painter.setBrush(colour)
+            painter.drawPolygon(QPolygonF([QPointF(x, 2), QPointF(x + 9, 6), QPointF(x, 10), QPointF(x, 2)]))
+            painter.drawLine(QPointF(x, 2), QPointF(x, RULER_HEIGHT))
+            if marker.name:
+                font.setBold(selected)
+                painter.setFont(font)
+                text = painter.fontMetrics().boundingRect(marker.name)
+                box = QRectF(x + 11, 1, text.width() + 6, 12)
+                painter.fillRect(box, RULER_BACKGROUND)
+                painter.setPen(colour.lighter(130) if not selected else QColor("#ffffff"))
+                painter.drawText(box.adjusted(3, 0, 0, 0), Qt.AlignmentFlag.AlignVCenter, marker.name)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def _viewport_x(self, t: float) -> float:
         return self.mapFromScene(QPointF(self.scale.x(t), 0)).x()
@@ -535,6 +607,16 @@ class TimelineView(QGraphicsView):
             return
         pos = event.position()
         if pos.y() < RULER_HEIGHT:
+            marker = self.marker_at(pos.x())
+            if marker is not None:  # pick and drag a marker (ADR 0037)
+                self.selected = self.selected_key = self.selected_audio = self.selected_cue = None
+                self.selected_marker = marker.id
+                self.markerSelected.emit(marker.id)
+                x = self.mapToScene(pos.toPoint()).x()
+                self._marker_drag = _MarkerDrag(marker.id, x, self.project, marker, marker.t)
+                self.document.begin_preview()
+                self.sync()
+                return
             self._scrubbing = True
             self._scrub(pos.x())
             return
@@ -594,6 +676,7 @@ class TimelineView(QGraphicsView):
             and self._key_drag is None
             and self._audio_drag is None
             and self._cue_drag is None
+            and self._marker_drag is None
         ):
             self._update_cursor(pos)
             return
@@ -606,6 +689,12 @@ class TimelineView(QGraphicsView):
     def mouseReleaseEvent(self, event) -> None:
         if self._scrubbing:
             self._scrubbing = False
+            return
+        self._set_guide(None)
+        if self._marker_drag is not None:
+            self.apply_pending()
+            self._marker_drag = None
+            self.document.commit_preview("Move marker")
             return
         if self._key_drag is not None:
             self.apply_pending()
@@ -638,18 +727,23 @@ class TimelineView(QGraphicsView):
         self.document.commit_preview(f"{verb} clip")
 
     def keyPressEvent(self, event) -> None:
-        drags = (self._drag, self._key_drag, self._audio_drag, self._cue_drag)
+        drags = (self._drag, self._key_drag, self._audio_drag, self._cue_drag, self._marker_drag)
         dragging = any(drag is not None for drag in drags)
         if event.key() == Qt.Key.Key_Escape and dragging:
             self._drag = None
             self._key_drag = None
             self._audio_drag = None
             self._cue_drag = None
+            self._marker_drag = None
             self._pending = None
+            self._set_guide(None)
             self.document.cancel_preview()
             return
         deleting = event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
         if deleting and not dragging:
+            if self.selected_marker:
+                self.delete_marker(self.selected_marker)
+                return
             if self.selected_cue:
                 self.delete_subtitle(self.selected_cue)
                 return
@@ -676,6 +770,17 @@ class TimelineView(QGraphicsView):
         if self.project is None or self._drag is not None or self._key_drag is not None:
             return None
         menu = QMenu(self)
+        if pos.y() < RULER_HEIGHT:  # the ruler: markers (ADR 0037)
+            t = min(max(self.scale.t(self.mapToScene(pos.toPoint()).x()), 0.0), self.project.canvas.duration)
+            marker = self.marker_at(pos.x())
+            if marker is None:
+                menu.addAction("Add marker here", lambda: self.add_marker_at(t))
+                return menu
+            marker_id, at = marker.id, marker.t
+            menu.addAction("Rename marker...", lambda: self.rename_marker(marker_id))
+            menu.addAction("Delete marker", lambda: self.delete_marker(marker_id))
+            self._sound_menu(menu, "Add sound here", at)
+            return menu
         if self.subtitle_row_at(pos.y()):  # the Subtitles row (ADR 0035)
             bar, _edge = self._hit(pos, CueItem)
             if bar is not None:
@@ -700,6 +805,9 @@ class TimelineView(QGraphicsView):
         if item is not None:
             layer_id, clip_id = item.layer_id, item.clip_id
             menu.addAction(f"Delete {item.kind} clip", lambda: self.delete_clip(layer_id, clip_id))
+            clip = next(c for c in self.project.layer(layer_id).clips if c.id == clip_id)
+            self._sound_menu(menu, "Add sound at start", clip.start)  # ADR 0037
+            self._sound_menu(menu, "Add sound at end", clip.end)
             return menu
         layer = self.layer_at(pos.y())
         if layer is None:
@@ -876,6 +984,90 @@ class TimelineView(QGraphicsView):
             self.selected_audio = None
         self._apply(lambda p: edits.remove_audio(p, audio_id), "Delete sound")
 
+    # -- markers and sounds at a moment (P5c, ADR 0037) ------------------------------
+
+    def add_marker_at(self, t: float) -> str | None:
+        """Add a marker on the frame of ``t`` and select it; the marker already there is selected
+        instead. Returns its id."""
+        if self.project is None:
+            return None
+        marker = edits.marker_at(self.project, t)
+        if marker is None:
+            before = {m.id for m in self.project.markers}
+            self._apply(lambda p: edits.add_marker(p, t), "Add marker")
+            marker = next((m for m in self.project.markers if m.id not in before), None)
+        if marker is not None:
+            self.selected = self.selected_key = self.selected_audio = self.selected_cue = None
+            self.selected_marker = marker.id
+            self.sync()
+            self.markerSelected.emit(marker.id)
+        return marker.id if marker is not None else None
+
+    def delete_marker(self, marker_id: str) -> None:
+        if self.selected_marker == marker_id:
+            self.selected_marker = None
+        self._apply(lambda p: edits.remove_marker(p, marker_id), "Delete marker")
+
+    def rename_marker(self, marker_id: str) -> None:
+        marker = next((m for m in self.project.markers if m.id == marker_id), None)
+        name = self.ask_marker_name(marker.name if marker is not None else "")
+        if name is not None:
+            self._apply(lambda p: edits.update_marker(p, marker_id, name=name.strip()), "Rename marker")
+
+    def ask_marker_name(self, current: str) -> str | None:
+        """The new name of a marker, or None (cancelled). Tests replace it."""
+        text, ok = QInputDialog.getText(self, "Rename Marker", "Name:", text=current)
+        return text if ok else None
+
+    def ask_sound_path(self) -> str:
+        """A sound file to add (blank: cancelled). Tests replace it."""
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Add Sound", "", "Sounds (*.wav *.mp3 *.ogg *.flac *.m4a *.aac);;All files (*)"
+        )
+        return name
+
+    def sound_files(self) -> list[str]:
+        """The project's sound files, the last added first, without those that cannot be read."""
+        paths = list(dict.fromkeys(clip.path for clip in reversed(self.project.audio)))
+        return [path for path in paths if audio.probe(path)]
+
+    def _sound_menu(self, menu: QMenu, title: str, t: float) -> None:
+        sub = menu.addMenu(title)
+        for path in self.sound_files():
+            sub.addAction(Path(path).name, lambda p=path: self.add_sound(p, t))
+        if sub.actions():
+            sub.addSeparator()
+        sub.addAction("Other file...", lambda: self.add_sound(self.ask_sound_path(), t))
+
+    def add_sound(self, path: str, t: float) -> None:
+        """Add the whole sound file ``path`` starting at ``t`` and select it (as File > Import Audio)."""
+        if not path:
+            return
+        length = audio.probe(path)
+        if length is None or length <= 0:
+            self.message.emit(f"Cannot read {Path(path).name} as a sound")
+            return
+        before = {c.id for c in self.project.audio}
+        self._apply(
+            lambda p: edits.add_audio(p, path, start=t, duration=length, name=Path(path).stem), "Add sound"
+        )
+        added = next((c for c in self.project.audio if c.id not in before), None)
+        if added is not None:
+            self.selected = self.selected_key = self.selected_cue = self.selected_marker = None
+            self.selected_audio = added.id
+            self.sync()
+            self.audioSelected.emit(added.id)
+
+    def _set_guide(self, t: float | None) -> None:
+        if t != self.guide:
+            self.guide = t
+            self.viewport().update()
+
+    def _guide_for(self, candidates: list[float], snapping: bool, *times: float) -> None:
+        """Show the guide where a dragged edge rests on a snap point (ADR 0037)."""
+        hit = next((t for t in times if snapping and snapped(t, candidates)), None)
+        self._set_guide(hit)
+
     def _apply(self, op, text: str) -> None:
         try:
             self.document.apply(op(self.project), text)
@@ -906,6 +1098,9 @@ class TimelineView(QGraphicsView):
     def apply_pending(self) -> None:
         """Preview the latest drag position (coalesced: earlier ones are dropped)."""
         self._apply_scheduled = False
+        if self._marker_drag is not None and self._pending is not None:
+            self._apply_marker_drag()
+            return
         if self._key_drag is not None and self._pending is not None:
             self._apply_key_drag()
             return
@@ -936,11 +1131,33 @@ class TimelineView(QGraphicsView):
         if drag.mode is None:
             start = drag_move(layer, drag.clip_id, drag.clip.start + delta, **common)
             edit = edits.move_clip(base, drag.layer_id, drag.clip_id, start)
+            self._guide_for(common["candidates"], snapping, start, start + drag.clip.duration)
         else:
             edge_t = (drag.clip.start if drag.mode == "start" else drag.clip.end) + delta
             start, end = drag_trim(layer, drag.clip_id, drag.mode, edge_t, **common)
             edit = edits.trim_clip(base, drag.layer_id, drag.clip_id, start=start, end=end)
+            self._guide_for(common["candidates"], snapping, start if drag.mode == "start" else end)
         self.document.preview(edit)
+
+    def _apply_marker_drag(self) -> None:
+        """Move a marker: on frames, snapping (ADR 0037), never onto another marker."""
+        scene_x, snapping = self._pending
+        self._pending = None
+        drag, base = self._marker_drag, self._marker_drag.base
+        candidates = snap_candidates(base, self.playhead, exclude=[("marker", drag.marker_id)])
+        proposed = drag.marker.t + self.scale.seconds(scene_x - drag.press_x)
+        t = drag_marker(
+            base,
+            drag.marker_id,
+            proposed,
+            drag.last,
+            scale=self.scale,
+            candidates=candidates,
+            snapping=snapping,
+        )
+        drag.last = t
+        self._guide_for(candidates, snapping, t)
+        self.document.preview(edits.update_marker(base, drag.marker_id, t=t))
 
     def _apply_cue_drag(self) -> None:
         """Move a subtitle, or trim one of its ends: on frames, snapping (ADR 0037), never into
@@ -961,16 +1178,19 @@ class TimelineView(QGraphicsView):
                 max(snap(cue.start + delta, candidates, self.scale, fps, snapping), low), high - length
             )
             edit = edits.update_cue(base, cue.id, start=start, end=start + length)
+            self._guide_for(candidates, snapping, start, start + length)
         elif drag.mode == "start":
             start = min(
                 max(snap(cue.start + delta, candidates, self.scale, fps, snapping), low), cue.end - frame
             )
             edit = edits.update_cue(base, cue.id, start=start)
+            self._guide_for(candidates, snapping, start)
         else:
             end = max(
                 min(snap(cue.end + delta, candidates, self.scale, fps, snapping), high), cue.start + frame
             )
             edit = edits.update_cue(base, cue.id, end=end)
+            self._guide_for(candidates, snapping, end)
         self.document.preview(edit)
 
     def _apply_audio_drag(self) -> None:
@@ -990,14 +1210,17 @@ class TimelineView(QGraphicsView):
         if drag.mode is None:
             start = max(0.0, placed(clip.start + delta))
             edit = edits.update_audio(base, drag.audio_id, start=start)
+            self._guide_for(candidates, snapping, start)
         elif drag.mode == "start":
             start = min(max(placed(clip.start + delta), clip.start - clip.offset, 0.0), clip.end - frame)
             edit = edits.trim_audio(base, drag.audio_id, start=start)
+            self._guide_for(candidates, snapping, start)
         else:
             length = audio.probe(clip.path)
             longest = clip.start + (length - clip.offset) if length else float("inf")
             end = min(max(placed(clip.end + delta), clip.start + frame), longest)
             edit = edits.trim_audio(base, drag.audio_id, end=end)
+            self._guide_for(candidates, snapping, end)
         self.document.preview(edit)
 
     def _apply_key_drag(self) -> None:
@@ -1018,6 +1241,7 @@ class TimelineView(QGraphicsView):
             candidates=candidates,
             snapping=snapping,
         )
+        self._guide_for(candidates, snapping, t)
         if abs(t - drag.t) < 0.5 / canvas.fps:
             self._last_key_t = drag.t
             self.document.preview(edits.Edit(base, "timing", frozenset()))
