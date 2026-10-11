@@ -99,6 +99,7 @@ def _closure(project: Project, changed: set[str]) -> set[str]:
                 if path in out:  # it moves along a changed shape (ADR 0025)
                     grown.add(layer.id)
         grown |= project.traces_of(grown)  # a trace draws where a changed layer was (ADR 0033)
+        grown |= project.connectors_of(grown)  # a connector ends at a changed layer (ADR 0036)
         for layer_id in list(grown & ids):  # an object is evaluated whole (parts, child objects)
             root = project.root_of(layer_id)
             grown |= {root.id} | {d.id for d in project.descendants(root.id)}

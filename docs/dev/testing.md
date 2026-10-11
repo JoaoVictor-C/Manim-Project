@@ -109,6 +109,17 @@ import and export, moving, trimming and deleting on the row, and the canvas.
 `ui/test_acceptance_p5a.py` imports an `.srt`, edits a cue and the style, checks
 frames rendered ahead, the export process's video and `.srt`, and the exact
 Python scene.
+`core/test_readouts.py` runs the clip harness on counting numbers (fresh,
+shuffled and scrubbed frames equal Manim's play loop, with eases), chaining,
+the fixed left edge and colour, the warm key's glyphs, and connectors: box-edge
+and centre ends, the gap, tips and colour, moving and hidden objects, offsets
+that turn, objects on axes and simulations, what may be joined, the delete
+cascade, render-ahead, and the readable/exact rules, with `manim render` of a
+readable count and arrow. `ui/test_readouts_ui.py` covers the library,
+Properties and the timeline; `ui/test_acceptance_p5b.py` builds a count and an
+arrow in the editor, renders the readable scene with Manim, then switches to
+edge ends, moves an object, checks frames rendered ahead, the export process's
+video and the exact scene.
 `core/test_audio.py` covers the mix (trim, gain, fades, clipping, silence past
 a file's end, resampling), missing and unreadable files, the decode cache, the
 file format and sound edits (no frame dropped, layer edits keep the sound), the

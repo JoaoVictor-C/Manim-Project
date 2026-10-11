@@ -135,6 +135,12 @@ trail lasts in Properties). Plugins can add **simulations** - objects stepped
 frame by frame, such as the swinging pendulum in
 `examples/plugins/swinging_pendulum.py` - and traces follow them too.
 
+**Numbers and connectors**: **Add > Text > Number** shows a value; give it a
+*ChangeDecimalToValue* clip (in *Emphasis*) to count to another value. Select an
+object and choose **Add > Shapes > Connector** to draw a line from the object
+before it to it; the line follows both as they move, and Properties sets where
+it ends, its arrow tips and its gap.
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

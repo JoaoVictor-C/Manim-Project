@@ -1,6 +1,6 @@
 # P5b — Value readouts and connectors
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 29](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B49 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -14,18 +14,20 @@ and export, and both are plain Manim in readable Python exports where possible.
 
 ## Number
 
-- Spec type `Number`: params `value` (0), `decimals` (2), `suffix` (LaTeX, ""),
-  `font_size` (48), `sign` (no/yes). Built with `DecimalNumber`, centred.
+- Spec type `DecimalNumber` (labelled *Number*), with Manim's keyword names:
+  `number` (0), `num_decimal_places` (2), `unit` (LaTeX, blank = none),
+  `include_sign` (no/yes), `font_size` (48). Centred like every object.
 - Clip kind `ChangeDecimalToValue` (category emphasis: it neither introduces nor
-  removes; only on Number; param `value`, a float).
+  removes; only on DecimalNumber; param `target_number`, a float).
 - Warm key for Number (worker compiles digits, suffix).
 - Readable export: `DecimalNumber(...)`, `ChangeDecimalToValue(n, value)`.
 
 ## Connector
 
-- Spec type `Connector` (`CONNECTOR_TYPES`): params `start` and `end` (layer ids),
-  `start_offset`, `end_offset` (points), `ends` (edges/centres), `tips`
-  (none/end/both), `gap` (0.1). Style: stroke colour and width.
+- Spec type `Connector` (`CONNECTOR_TYPES`): params `source` and `target` (layer
+  ids), `source_offset`, `target_offset` (points), `ends` (edges/centres), `tips`
+  (none/end/both), `gap` (0.1, Manim's `buff`). Style: stroke colour (tips too)
+  and width.
 - Evaluator: drawn per frame from ADR 0033 traced points; edges via each target
   drawing's bounding box; cached per (endpoints, spec).
 - Schema: targets exist and are traceable (not itself, a trace, a connector or code);
@@ -36,8 +38,9 @@ and export, and both are plain Manim in readable Python exports where possible.
 
 ## UI
 
-- Library: *Text > Number*, *Shapes > Connector* (joins the selected object and the
-  one before it in the list; refused without two objects).
+- Library: *Text > Number*, *Shapes > Connector* (from the object before the
+  selected one in the list - the next one for the first - to the selected one;
+  refused without a selection or a second object).
 - Properties: layer choosers for the targets; the clip's value field.
 
 ## Steps

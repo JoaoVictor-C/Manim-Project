@@ -137,6 +137,19 @@ All notable changes to this project are documented here. The format follows
   cues). The exported video has them burned in and an `.srt` beside it; Python
   exports add them as subcaptions, so `manim render` writes the same `.srt`.
   Editing a subtitle re-renders only its own frames (B48).
+- Value readouts and connectors (P5b, ADR 0036): **Add > Text > Number** is
+  Manim's `DecimalNumber` (value, decimal places, a LaTeX unit, a + sign); a
+  **ChangeDecimalToValue** clip (*Emphasis*) counts it to a new value, with
+  easing, random access and chaining from the last clip's value, keeping its
+  left edge. The build worker compiles every glyph a number can show ahead.
+  **Add > Shapes > Connector** draws a line or arrow from the object before the
+  selected one to it, redrawn every frame: its ends stop where the line between
+  the centres leaves each object's box (or run between the centres or offset
+  points), shortened by a gap; tips none, end or both; it has no clips, cannot
+  join a trace, connector or code layer, and is deleted with either object.
+  Render-ahead redraws it when an object changes. Python exports write numbers
+  and counts as plain Manim, and a centre-to-centre connector as
+  `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
 - Explainer example: `examples/build_explainer.py` builds "What is a derivative?",
   a 95-second lesson with subtitles, section headers, formulas, a secant sliding
   into the tangent, a tangent riding the curve with a traced tail, and
