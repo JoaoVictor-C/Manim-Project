@@ -63,3 +63,4 @@ need one.
 | [0032](0032-plugin-api.md) | Plugins add object types | Accepted |
 | [0033](0033-simulated-layers.md) | Simulated layers: traced paths and plugin simulations | Accepted |
 | [0034](0034-audio-track.md) | An audio track: project audio clips, one mix, the sound card as clock | Accepted |
+| [0035](0035-subtitle-track.md) | A subtitle track: cues in one lane, drawn over the frame | Accepted |

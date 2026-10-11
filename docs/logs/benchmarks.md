@@ -441,3 +441,12 @@ constant (no drift over 5 s), and `processedUSecs` advances every **10 ms**
 decode back with a best alignment lag of **0 samples**. Manim's
 `add_sound(file, time_offset=0.5)` puts the sound at ~0.5 s (48 kHz); it has
 no trimming or fades. -> ADR 0034.
+
+### B48 — Subtitles: building and drawing a line of text · 2026-10-11
+`benchmarks/bench_subtitles.py`. A new subtitle line (Manim's Text, Pango) at size
+26: **424 ms** cold, **33 ms** when Manim's disk cache has it (a new object), +14 ms
+for a copy. An 88-character line is **15.9 units** wide (the frame is 14.2), about
+0.18 units per character; as two lines it builds in 99 ms (cached afterwards).
+Drawing a 1280x720 frame with a subtitle and its band: **3.1 ms** (1.0 ms empty).
+Also checked: `Scene.add_subcaption(text, duration, offset)` makes `manim render`
+write `<scene>.srt` beside the video. -> ADR 0035.

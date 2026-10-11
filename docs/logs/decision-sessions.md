@@ -529,3 +529,20 @@ left open, so ADRs can cite it.
   design system must not touch layout so pages are built once; the page refactor must keep the
   window's attributes for the existing UI tests; "handlers" is an interpretation to confirm.
 
+## Session 28 — P5a subtitle track · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** how frames reach the canvas, the preview process and the export;
+  ADR 0015, 0028, 0031, 0034; probe B48 (plus a check during the session: Manim's
+  `add_subcaption` writes an `.srt` beside its video).
+- **Decisions:** cues in one lane plus one style; an overlay after the layers that
+  `frame()` and the canvas draw (hit-testing unchanged); word-boundary wrap plus
+  scale-to-fit; cue-span render-ahead invalidation; background warming that never
+  holds an edit; one Subtitles row, Properties, Add Subtitle, `.srt` import and
+  export; burned in plus an `.srt` beside the video; `add_subcaption` in Python
+  exports (-> ADR 0035). Plan: [../plans/p5a-subtitles.md](../plans/p5a-subtitles.md).
+- **Critiques that changed the plan:** a character budget cannot guarantee a fit ->
+  scale wide lines down; exact scenes must also write the `.srt`; overlapping
+  imported cues -> trimmed into one lane; waiting for 100 cold cues would block
+  edits for ~40 s -> warm in the background.
