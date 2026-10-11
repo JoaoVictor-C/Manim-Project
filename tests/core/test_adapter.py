@@ -31,9 +31,11 @@ def test_tex_types_build(type_name: str) -> None:
     assert len(mob.family_members_with_points()) > 0
 
 
-def test_unknown_mobject_type_raises() -> None:
-    with pytest.raises(ValueError, match="unsupported"):
-        adapter.build_mobject(Spec(type="Teapot"))
+def test_an_unknown_type_draws_a_placeholder_and_says_why() -> None:
+    """A type no installed plugin provides must not break a frame (ADR 0032)."""
+    spec = Spec(type="Teapot")
+    assert isinstance(adapter.build_mobject(spec), m.DashedVMobject)
+    assert adapter.build_problem(spec) == "no installed plugin provides Teapot"
 
 
 def test_build_returns_independent_copies() -> None:

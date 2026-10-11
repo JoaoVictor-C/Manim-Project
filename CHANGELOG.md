@@ -127,6 +127,19 @@ All notable changes to this project are documented here. The format follows
   Objects with parts can now morph and be morphed into (ADR 0012 amended);
   the morph cache follows the trees' finished clips and member transforms.
   Timeline: *Turn into > TransformMatchingTex* for MathTex/Tex objects.
+- Plugins (P4b, ADR 0032): a `.py` file in the plugin folder
+  (`~/.manim-studio/plugins`, or the folders in `MANIM_STUDIO_PLUGINS`) or an
+  installed package with a `manim_studio.plugins` entry point adds object types
+  through the public `manim_studio.plugins` module (`ObjectType`, `Param`,
+  `register`). They appear in the library under their own section, edit in
+  Properties, animate with every clip kind, render ahead and export, since every
+  process loads the same plugins. A builder must return a VMobject that depends
+  only on its params (the first build of each type is done twice and compared).
+  A plugin that fails to load is skipped and listed in *Help > Plugins...* (and
+  the status bar says so at startup); an object whose plugin fails or is not
+  installed draws a dashed box with the reason, like a missing image. Plugin
+  objects make a Python export exact. Example: `examples/plugins/pendulum.py`
+  (B45).
 - Python export (P4a, ADR 0031): *File > Export Python...* and
   `manim-studio python PROJECT OUT.py` write a Manim scene. Projects plain Manim
   can express become readable code (a variable per layer, `self.play` groups

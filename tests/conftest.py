@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 
+# Tests never load the developer's own plugins (ADR 0032); set before the adapter loads them.
+os.environ["MANIM_STUDIO_PLUGINS"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-plugins-")))
+
 from manim_studio.core import adapter
 
 ROOT = Path(__file__).resolve().parent.parent

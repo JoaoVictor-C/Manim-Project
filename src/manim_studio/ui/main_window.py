@@ -39,7 +39,7 @@ from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
 from ..core.python_export import PythonExport, class_name, to_python
-from ..core.schema import TEXT_TYPES, Project
+from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .build_service import BuildService
@@ -49,6 +49,7 @@ from .code_render import make_code_renderer
 from .document import Document
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
+from .plugins_dialog import PluginsDialog, startup_message
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
 from .render_ahead import RenderAhead
@@ -77,7 +78,7 @@ class MainWindow(QMainWindow):
         self.export_dialog: ExportDialog | None = None
         self.path: Path | None = None
         self.evaluator: Evaluator | None = None
-        self._media_errors: dict[str, str] = {}  # media layers drawn as placeholders (ADR 0027)
+        self._media_errors: dict[str, str] = {}  # layers drawn as placeholders (ADR 0027, 0032)
         self.render_ahead: RenderAhead | None = None  # started with the first project (ADR 0028)
         self.t = 0.0
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
@@ -158,7 +159,9 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None:  # coming back from another program: files may have changed (ADR 0027)
             app.applicationStateChanged.connect(self._on_application_state)
-        self.statusBar().showMessage("Create a project (File > New) or open one (File > Open).")
+        self.statusBar().showMessage(
+            startup_message() or "Create a project (File > New) or open one (File > Open)."
+        )
 
     def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
         dock = QDockWidget(title, self)
@@ -222,6 +225,10 @@ class MainWindow(QMainWindow):
         reload_media.setToolTip("Read images and SVG files again after they changed on disk")
         reload_media.triggered.connect(lambda: self.reload_media(report=True))
         view_menu.addAction(reload_media)
+        help_menu = self.menuBar().addMenu("&Help")
+        plugins_action = QAction("&Plugins...", self)
+        plugins_action.triggered.connect(self.show_plugins)
+        help_menu.addAction(plugins_action)
         play = QAction("Play / Pause", self)
         play.setShortcut(Qt.Key.Key_Space)
         play.triggered.connect(self.toggle_play)
@@ -231,6 +238,12 @@ class MainWindow(QMainWindow):
             step.setShortcut(key)
             step.triggered.connect(lambda _=False, f=frames: self.step(f))
             self.addAction(step)
+
+    def show_plugins(self) -> PluginsDialog:
+        """Help > Plugins...: what loaded and what failed (ADR 0032)."""
+        dialog = PluginsDialog(self)
+        dialog.show()
+        return dialog
 
     # -- project ---------------------------------------------------------------
 
@@ -345,17 +358,24 @@ class MainWindow(QMainWindow):
         return changed
 
     def report_media(self, force: bool = False) -> bool:
-        """Say which media layers show a placeholder when that changed (or ``force``)."""
+        """Say which layers show a placeholder (media, plugins) when that changed (or ``force``)."""
         assert self.evaluator is not None and self.project is not None
-        errors = self.evaluator.media_errors()
+        errors = self.evaluator.build_errors()
         shown = bool(errors) and (force or errors != self._media_errors)
         if shown:
             names = []
             for layer_id, problem in errors.items():
                 layer = self.project.layer(layer_id)
-                file = Path(str(layer.spec.params.get("path") or "")).name
+                file = (
+                    Path(str(layer.spec.params.get("path") or "")).name
+                    if layer.spec.type in MEDIA_TYPES
+                    else ""
+                )
                 names.append(f"{layer.name or layer_id} ({file + ' - ' if file else ''}{problem})")
-            self.statusBar().showMessage(f"Missing media: {', '.join(names)}", 15000)
+            media = all(self.project.layer(i).spec.type in MEDIA_TYPES for i in errors)
+            self.statusBar().showMessage(
+                f"{'Missing media' if media else 'Cannot draw'}: {', '.join(names)}", 15000
+            )
         self._media_errors = errors
         return shown
 

@@ -22,6 +22,7 @@ import numpy as np
 from manim.animation.transform_matching_parts import TransformMatchingAbstractBase
 from manim.utils import rate_functions
 
+from .. import plugins
 from ..logging_config import get_logger
 from . import parts
 from .schema import (
@@ -232,13 +233,14 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
 }
 
 # The object library (S2 plan): menu sections in order.
-LIBRARY: tuple[tuple[str, tuple[str, ...]], ...] = (
+# Plugins (ADR 0032) append their own sections: a list, changed in place.
+LIBRARY: list[tuple[str, tuple[str, ...]]] = [
     ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow")),
     ("Text", ("Text", "MathTex", "Tex")),
     ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
     ("Python", ("Code",)),
-)
+]
 
 _REQUIRED = {"text", "path", "code", "expression", "graph"}  # always written to the spec
 LIBRARY_LABELS = {"ImageMobject": "Image", "SVGMobject": "SVG"}  # menu names that differ from the type
@@ -263,13 +265,16 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
 
     A media object (image, SVG) is built from its file as it is at ``signature``
     (``media_signature`` when not given); a file that cannot be drawn gives a
-    dashed placeholder instead of an error (ADR 0027).
+    dashed placeholder instead of an error (ADR 0027). So does a plugin object
+    that cannot be built, or a type no installed plugin provides (ADR 0032).
     """
     if spec.type in CODE_TYPES:
         raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
-    cls = MOBJECT_TYPES.get(spec.type)
-    if cls is None:
-        raise ValueError(f"unsupported mobject type {spec.type!r}")
+    if spec.type not in MOBJECT_TYPES:
+        return _placeholder(2.0).copy()  # build_problem says why
+    if spec.type in plugins.TYPES:
+        built = _plugin_cached(spec.model_dump_json())
+        return (built if isinstance(built, m.Mobject) else _placeholder(2.0)).copy()
     if spec.type in MEDIA_TYPES:
         built = _media_cached(spec.model_dump_json(), signature or media_signature(spec))
         return (built if isinstance(built, m.Mobject) else media_placeholder(spec)).copy()
@@ -290,6 +295,74 @@ def media_signature(spec: Spec) -> str | None:
     except OSError:
         stat = None
     return f"{stat.st_mtime_ns}:{stat.st_size}" if stat is not None else MISSING
+
+
+def build_problem(spec: Spec, signature: str | None = None) -> str | None:
+    """Why an object is drawn as a placeholder (a media file, a plugin, a missing plugin), or None."""
+    if spec.type in CODE_TYPES:
+        return None
+    if spec.type not in MOBJECT_TYPES and spec.type not in CHILD_ONLY_TYPES:
+        return f"no installed plugin provides {spec.type}"
+    if spec.type in plugins.TYPES:
+        built = _plugin_cached(spec.model_dump_json())
+        return None if isinstance(built, m.Mobject) else built
+    return media_problem(spec, signature)
+
+
+_CHECKED: set[str] = set()  # plugin types whose determinism was checked in this process
+
+
+@lru_cache(maxsize=256)
+def _plugin_cached(spec_json: str) -> m.Mobject | str:
+    """A plugin object built from its spec (ADR 0032), or why it cannot be. The first build
+    of each type is done twice: a plugin must be a pure function of its params."""
+    spec = Spec.model_validate_json(spec_json)
+    object_type = plugins.TYPES[spec.type]
+    params = {p.name: param_value(spec, p) for p in object_type.params}
+    params.update({k: v for k, v in spec.params.items() if k not in params})
+    for p in object_type.params:
+        if p.kind == "point":
+            x, y = params[p.name][:2]
+            params[p.name] = [float(x), float(y), 0.0]
+    try:
+        mob = object_type.build(dict(params))
+        if not isinstance(mob, m.VMobject):
+            return f"the {spec.type} plugin must return a VMobject, not {type(mob).__name__}"
+        if spec.type not in _CHECKED:
+            again = object_type.build(dict(params))
+            _CHECKED.add(spec.type)
+            if not _same_drawing(mob, again):
+                return (
+                    f"the {spec.type} plugin draws differently each time (it must depend only on its params)"
+                )
+    except Exception as exc:  # a broken plugin must never break a frame (ADR 0032)
+        log.warning("plugin object %s failed: %s", spec.type, exc)
+        return f"the {spec.type} plugin failed: {type(exc).__name__}: {exc}"
+    _apply_style(mob, spec.style)
+    mob.move_to(m.ORIGIN)
+    return mob
+
+
+def _same_drawing(a: m.Mobject, b: m.Mobject) -> bool:
+    fa, fb = a.family_members_with_points(), b.family_members_with_points()
+    if len(fa) != len(fb):
+        return False
+    for x, y in zip(fa, fb, strict=True):
+        if x.points.shape != y.points.shape or not np.allclose(x.points, y.points):
+            return False
+        colours = isinstance(x, m.VMobject) and isinstance(y, m.VMobject)
+        if colours and not (
+            np.allclose(x.get_fill_rgbas(), y.get_fill_rgbas())
+            and np.allclose(x.get_stroke_rgbas(), y.get_stroke_rgbas())
+        ):
+            return False
+    return True
+
+
+def forget_plugin_builds() -> None:
+    """Drop cached plugin builds (a type was unregistered: tests)."""
+    _plugin_cached.cache_clear()
+    _CHECKED.clear()
 
 
 def media_problem(spec: Spec, signature: str | None = None) -> str | None:
@@ -932,3 +1005,7 @@ def make_animation(
         raw = anim.rate_func
         anim.rate_func = lambda x: min(1.0, max(0.0, raw(x)))
     return anim
+
+
+# Plugins load last: they register into the tables above (ADR 0032).
+plugins.load_plugins()

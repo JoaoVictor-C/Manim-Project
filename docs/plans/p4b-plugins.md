@@ -1,6 +1,6 @@
 # P4b — Plugin API for custom objects
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 24](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B45 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -33,7 +33,8 @@ register(ObjectType("Pendulum", build, params=(Param("length", "float", 2.0),), 
   import registers, or a callable that is called), then `*.py` in the
   `MANIM_STUDIO_PLUGINS` folders (os.pathsep list; default
   `~/.manim-studio/plugins`), sorted, as modules `manim_studio_plugin_<stem>`.
-  Called at the end of `core/adapter.py`.
+  Called at the end of `core/adapter.py`. A plugin that raises while loading
+  is listed in `problems` and the types it had already registered are removed.
 
 ## Building
 

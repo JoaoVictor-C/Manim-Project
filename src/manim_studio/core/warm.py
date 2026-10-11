@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 
+from .. import plugins
 from .parts import build_spec
 from .schema import TEXT_TYPES, Project, Spec
 
@@ -25,6 +26,9 @@ CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entr
 def warm_key(spec: Spec) -> str | None:
     """The disk-cache identity of a text-bearing spec, or None if it builds fast."""
     numbered_axes = spec.type == "Axes" and spec.params.get("numbers") == "yes"  # LaTeX digits (B37)
+    plugin = plugins.TYPES.get(spec.type)
+    if plugin is not None and plugin.slow:  # unmeasured: every param is part of the key (ADR 0032)
+        return json.dumps({"type": spec.type, "params": spec.params}, sort_keys=True)
     if spec.type not in TEXT_TYPES and not numbered_axes:
         return None
     params = {k: v for k, v in spec.params.items() if k not in CACHE_NEUTRAL_PARAMS}

@@ -1,0 +1,248 @@
+"""The plugin API (P4b.1, ADR 0032).
+
+A plugin registers object types; they appear in the library and Properties,
+build in every process and animate like built-in objects. A plugin that fails
+to load is skipped with a reason; an object that cannot be built - a failing,
+impure or missing plugin - draws the placeholder and says why.
+"""
+
+from __future__ import annotations
+
+import os
+import random
+from pathlib import Path
+
+import manim as m
+import numpy as np
+import pytest
+from tests.support import CANVAS, assert_frames_equal, render_in_order, sequential_reference
+
+from manim_studio import plugins
+from manim_studio.core import adapter, warm
+from manim_studio.core.evaluator import Evaluator
+from manim_studio.core.python_export import readable_problems, to_python
+from manim_studio.core.schema import Clip, Layer, Project, Spec
+from manim_studio.plugins import ObjectType, Param
+
+
+def pendulum(params: dict) -> m.VMobject:
+    tip = np.array(params["tip"])
+    return m.VGroup(m.Line(m.ORIGIN, tip), m.Dot(tip, radius=params["bob"]))
+
+
+PENDULUM = ObjectType(
+    "Pendulum",
+    pendulum,
+    params=(Param("tip", "point", (1.0, -2.0)), Param("bob", "float", 0.2, minimum=0.01, maximum=2.0)),
+    section="Physics",
+    label="Simple pendulum",
+)
+
+
+@pytest.fixture(autouse=True)
+def _restore_plugins():
+    """Each test starts and ends with the plugins it found (none, in tests: conftest)."""
+    types, loaded, problems = set(plugins.TYPES), dict(plugins.loaded), dict(plugins.problems)
+    library = list(adapter.LIBRARY)
+    yield
+    for name in set(plugins.TYPES) - types:
+        plugins.unregister(name)
+    plugins.loaded.clear()
+    plugins.loaded.update(loaded)
+    plugins.problems.clear()
+    plugins.problems.update(problems)
+    assert library == adapter.LIBRARY
+
+
+def test_a_registered_type_joins_the_library_and_properties() -> None:
+    plugins.register(PENDULUM)
+    assert ("Physics", ("Pendulum",)) in adapter.LIBRARY
+    assert adapter.LIBRARY_LABELS["Pendulum"] == "Simple pendulum"
+    assert [p.name for p in adapter.MOBJECT_PARAMS["Pendulum"]] == ["tip", "bob"]
+    assert adapter.allowed_clip_kinds("Pendulum") == adapter.allowed_clip_kinds("Square")  # vector object
+    plugins.register(ObjectType("Spring", pendulum, PENDULUM.params, section="Physics"))
+    assert ("Physics", ("Pendulum", "Spring")) in adapter.LIBRARY
+
+
+def test_unregister_removes_every_trace() -> None:
+    before = list(adapter.LIBRARY)
+    plugins.register(PENDULUM)
+    plugins.unregister("Pendulum")
+    assert before == adapter.LIBRARY
+    assert "Pendulum" not in adapter.MOBJECT_TYPES and "Pendulum" not in adapter.MOBJECT_PARAMS
+    assert "Pendulum" not in plugins.TYPES and "Pendulum" not in adapter.LIBRARY_LABELS
+
+
+@pytest.mark.parametrize(("name", "message"), [("Circle", "already taken"), ("two words", "not a valid")])
+def test_a_type_name_must_be_new_and_an_identifier(name: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        plugins.register(ObjectType(name, pendulum))
+
+
+def test_build_gets_every_default_and_is_centred_and_styled() -> None:
+    seen: list[dict] = []
+
+    def build(params: dict) -> m.VMobject:
+        seen.append(params)
+        return pendulum(params)
+
+    plugins.register(ObjectType("Pendulum", build, PENDULUM.params))
+    spec = Spec(type="Pendulum", params={"bob": 0.5, "extra": "kept"}, style={"stroke": "#ff0000"})
+    mob = adapter.build_mobject(spec)
+    assert seen[0] == {"tip": [1.0, -2.0, 0.0], "bob": 0.5, "extra": "kept"}
+    assert np.allclose(mob.get_center(), 0.0)
+    assert m.color_to_rgb(mob[0].get_stroke_color()) == pytest.approx([1.0, 0.0, 0.0])
+    assert adapter.build_problem(spec) is None
+
+
+def _placeholder_says(spec: Spec, message: str) -> None:
+    assert isinstance(adapter.build_mobject(spec), m.DashedVMobject)
+    problem = adapter.build_problem(spec)
+    assert problem is not None and message in problem, problem
+
+
+def test_a_failing_build_draws_the_placeholder_and_says_why() -> None:
+    def broken(params: dict) -> m.VMobject:
+        raise RuntimeError("no gravity today")
+
+    plugins.register(ObjectType("Broken", broken))
+    _placeholder_says(Spec(type="Broken"), "the Broken plugin failed: RuntimeError: no gravity today")
+
+
+def test_a_plugin_must_return_a_vector_object() -> None:
+    plugins.register(ObjectType("Raster", lambda params: m.ImageMobject(np.zeros((4, 4, 3), np.uint8))))
+    _placeholder_says(Spec(type="Raster"), "must return a VMobject, not ImageMobject")
+
+
+def test_a_plugin_that_draws_differently_each_time_is_refused() -> None:
+    plugins.register(ObjectType("Jitter", lambda params: m.Dot([random.random(), 0, 0])))
+    _placeholder_says(Spec(type="Jitter"), "draws differently each time")
+
+
+def test_a_pure_plugin_is_built_twice_only_once_per_type() -> None:
+    calls: list[dict] = []
+
+    def counted(params: dict) -> m.VMobject:
+        calls.append(params)
+        return pendulum(params)
+
+    plugins.register(ObjectType("Pendulum", counted, PENDULUM.params))
+    adapter.build_mobject(Spec(type="Pendulum"))
+    adapter.build_mobject(Spec(type="Pendulum", params={"bob": 0.3}))
+    adapter.build_mobject(Spec(type="Pendulum", params={"bob": 0.3}))  # cached
+    assert len(calls) == 3
+
+
+def test_a_missing_plugin_is_reported_per_layer() -> None:
+    project = Project(
+        canvas=CANVAS,
+        layers=[Layer(id="tea", spec=Spec(type="Teapot")), Layer(id="sq", spec=Spec(type="Square"))],
+    )
+    evaluator = Evaluator(project)
+    assert evaluator.build_errors() == {"tea": "no installed plugin provides Teapot"}
+    assert len(evaluator.frame(0.0)) == 2  # the frame still draws, with a placeholder
+
+
+@pytest.mark.parametrize("kind", ["FadeIn", "Create", "Wiggle"])
+def test_a_plugin_object_animates_like_a_built_in_one(kind: str) -> None:
+    plugins.register(PENDULUM)
+    spec = Spec(type="Pendulum", style={"stroke": "#22d3ee"})
+    clip = Clip(id="c", kind=kind, start=0.0, duration=1.0)
+    project = Project(canvas=CANVAS, layers=[Layer(id="a", spec=spec, clips=[clip])])
+    expected = sequential_reference(kind, spec)
+    n = len(expected)
+    order = random.Random(5).sample(range(n), n)
+    assert_frames_equal(expected, render_in_order(project, order, fresh_each_frame=True), kind)
+
+
+def test_a_python_export_of_a_plugin_object_is_exact() -> None:
+    plugins.register(PENDULUM)
+    project = Project(canvas=CANVAS, layers=[Layer(id="p", name="Swing", spec=Spec(type="Pendulum"))])
+    assert readable_problems(project) == ["Swing: a plugin object"]
+    assert not to_python(project, "Swing").readable
+
+
+def test_slow_types_wait_for_the_build_worker() -> None:
+    plugins.register(PENDULUM)
+    plugins.register(ObjectType("Formula", pendulum, PENDULUM.params, slow=True))
+    assert warm.warm_key(Spec(type="Pendulum")) is None
+    assert warm.warm_key(Spec(type="Formula", params={"bob": 1})) != warm.warm_key(Spec(type="Formula"))
+    assert warm.key_spec(warm.warm_key(Spec(type="Formula", params={"bob": 1}))) == Spec(
+        type="Formula", params={"bob": 1}
+    )
+
+
+GOOD = """
+import manim as m
+from manim_studio.plugins import ObjectType, Param, register
+register(ObjectType("Ring{n}", lambda p: m.Circle(radius=p["r"]), params=(Param("r", "float", 1.0),)))
+"""
+
+
+def _write(folder: Path, name: str, code: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / name
+    path.write_text(code, encoding="utf-8")
+    return path
+
+
+def test_plugin_folders_load_in_order_and_skip_a_broken_file(tmp_path, monkeypatch) -> None:
+    first, second = tmp_path / "a", tmp_path / "b"
+    _write(first, "b_ring.py", GOOD.format(n=2))
+    _write(first, "a_ring.py", GOOD.format(n=1))
+    half = GOOD.format(n="Half") + "raise ImportError('needs scipy')\n"  # registers, then fails
+    broken = _write(first, "c_broken.py", half)
+    clash = _write(second, "ring_again.py", GOOD.format(n=1))
+    empty = _write(second, "nothing.py", "x = 1\n")
+    _write(second, "notes.txt", "not a plugin")
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", f"{first}{os.pathsep}{second}")
+    assert plugins.folders() == [first, second]
+    plugins.load_plugins()
+    assert list(plugins.TYPES) == ["Ring1", "Ring2"]  # sorted by file name
+    assert plugins.loaded[str(first / "a_ring.py")] == ["Ring1"]
+    assert plugins.loaded[str(empty)] == []
+    assert plugins.problems[str(broken)] == "ImportError: needs scipy"
+    assert str(broken) not in plugins.loaded and "RingHalf" not in adapter.MOBJECT_TYPES  # nothing half-added
+    assert "already taken" in plugins.problems[str(clash)]
+    assert isinstance(adapter.build_mobject(Spec(type="Ring2", params={"r": 2.0})), m.Circle)
+
+
+def test_the_default_folder_is_in_the_home_directory(monkeypatch) -> None:
+    monkeypatch.delenv("MANIM_STUDIO_PLUGINS")
+    assert plugins.folders() == [Path.home() / ".manim-studio" / "plugins"]
+
+
+class _Entry:
+    def __init__(self, name: str, target) -> None:
+        self.name, self._target = name, target
+
+    def load(self):
+        return self._target
+
+
+def test_entry_points_load_first_sorted_by_name(monkeypatch, tmp_path) -> None:
+    order: list[str] = []
+
+    def adds(name: str):
+        def setup() -> None:
+            order.append(name)
+            plugins.register(ObjectType(name, pendulum, PENDULUM.params))
+
+        return setup
+
+    def fails() -> None:
+        raise RuntimeError("bad install")
+
+    entries = [_Entry("zeta", adds("Zeta")), _Entry("alpha", adds("Alpha")), _Entry("oops", fails)]
+    monkeypatch.setattr(plugins.importlib.metadata, "entry_points", lambda group: entries)
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(_write(tmp_path, "late.py", GOOD.format(n=9)).parent))
+    plugins.load_plugins()
+    assert order == ["Alpha", "Zeta"] and list(plugins.TYPES)[-1] == "Ring9"
+    assert plugins.loaded["entry point alpha"] == ["Alpha"]
+    assert plugins.problems["entry point oops"] == "RuntimeError: bad install"
+
+
+def test_the_public_api_reexports_the_editors_param() -> None:
+    assert plugins.Param is adapter.Param
+    with pytest.raises(AttributeError):
+        _ = plugins.Nope

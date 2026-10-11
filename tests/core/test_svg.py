@@ -120,7 +120,7 @@ def test_a_file_that_cannot_be_drawn_shows_a_placeholder(svg, make, problem) -> 
     evaluator = Evaluator(project(layer))
     for t in (0.0, 0.5, 0.99):
         evaluator.frame(t)  # never raises
-    assert evaluator.media_errors() == {"logo": problem}
+    assert evaluator.build_errors() == {"logo": problem}
     rest = Evaluator(project(layer.model_copy(update={"clips": []})))
     (mob,) = rest.frame(0.5)
     assert is_placeholder(mob)
@@ -132,13 +132,13 @@ def test_a_missing_image_shows_a_placeholder_too(tmp_path) -> None:
     evaluator = Evaluator(project(layer))
     (mob,) = evaluator.frame(0.5)
     assert is_placeholder(mob)
-    assert evaluator.media_errors() == {"pic": "file not found"}
+    assert evaluator.build_errors() == {"pic": "file not found"}
 
 
 def test_good_files_report_no_problem(svg) -> None:
     evaluator = Evaluator(project(Layer(id="logo", spec=spec(svg(SHAPES)))))
     evaluator.frame(0.0)
-    assert evaluator.media_errors() == {}
+    assert evaluator.build_errors() == {}
 
 
 def test_the_export_draws_the_placeholder_too(tmp_path) -> None:
@@ -184,7 +184,7 @@ def test_a_deleted_file_turns_into_a_placeholder_and_back(svg, tmp_path) -> None
     (tmp_path / "drawing.svg").rename(hidden)
     assert evaluator.check_media() == {"logo"}
     (mob,) = evaluator.frame(0.5)
-    assert is_placeholder(mob) and evaluator.media_errors() == {"logo": "file not found"}
+    assert is_placeholder(mob) and evaluator.build_errors() == {"logo": "file not found"}
     hidden.rename(path)
     assert evaluator.check_media() == {"logo"}
     assert np.array_equal(frame(evaluator, 0.5), good)
