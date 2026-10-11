@@ -30,7 +30,7 @@ from typing import Any, Literal
 import numpy as np
 
 from . import motion_paths, parts
-from .schema import Clip, Easing, Keyframe, Layer, PartKey, Project, Spec, clip_params
+from .schema import AudioClip, Clip, Easing, Keyframe, Layer, PartKey, Project, Spec, clip_params
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
 _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec": 3}
@@ -494,12 +494,68 @@ def _reaches_target(ease: Easing) -> bool:
 
 def new_layer_id(project: Project, type_name: str) -> str:
     """``<type>-<n>`` with the smallest free ``n`` (e.g. ``mathtex-1``)."""
-    return _free_id(type_name, {layer.id for layer in project.layers})
+    return _free_id(type_name, {layer.id for layer in project.layers} | {clip.id for clip in project.audio})
 
 
 def new_clip_id(layer: Layer, kind: str) -> str:
     """``<kind>-<n>`` with the smallest free ``n`` on this layer's lane."""
     return _free_id(kind, {clip.id for clip in layer.clips})
+
+
+# -- sound (P4d, ADR 0034) ------------------------------------------------------------
+
+
+def add_audio(project: Project, path: str, start: float, duration: float, name: str = "") -> Edit:
+    """Add a sound at ``start`` playing ``duration`` seconds of the file (its length, measured
+    by the caller): it changes no frame, so every cache is kept."""
+    clip = AudioClip(id=new_layer_id(project, "audio"), name=name, path=path, start=start, duration=duration)
+    return _replace_audio(project, [*project.audio, clip])
+
+
+def update_audio(project: Project, clip_id: str, **fields: Any) -> Edit:
+    """Change fields of a sound (``start``, ``offset``, ``duration``, ``gain``, fades, ``name``)."""
+    _audio(project, clip_id)
+    return _replace_audio(
+        project,
+        [
+            AudioClip.model_validate({**c.model_dump(), **fields}) if c.id == clip_id else c
+            for c in project.audio
+        ],
+    )
+
+
+def trim_audio(project: Project, clip_id: str, start: float | None = None, end: float | None = None) -> Edit:
+    """Move one or both edges of a sound on the timeline: the left edge trims the file's start
+    (the sound stays where it was in time), the right edge its end."""
+    clip = _audio(project, clip_id)
+    new_start = clip.start if start is None else max(start, clip.start - clip.offset)
+    new_end = clip.end if end is None else end
+    offset = clip.offset + (new_start - clip.start)
+    return update_audio(project, clip_id, start=new_start, offset=offset, duration=new_end - new_start)
+
+
+def remove_audio(project: Project, clip_id: str) -> Edit:
+    _audio(project, clip_id)
+    return _replace_audio(project, [c for c in project.audio if c.id != clip_id])
+
+
+def _audio(project: Project, clip_id: str) -> AudioClip:
+    for clip in project.audio:
+        if clip.id == clip_id:
+            return clip
+    raise EditError(f"no sound {clip_id!r}")
+
+
+def _replace_audio(project: Project, audio: list[AudioClip]) -> Edit:
+    new_project = Project.model_validate(
+        {
+            "schema_version": project.schema_version,
+            "canvas": project.canvas,
+            "layers": project.layers,
+            "audio": audio,
+        }
+    )
+    return Edit(new_project, "timing", frozenset())
 
 
 # -- classification -------------------------------------------------------------
@@ -609,7 +665,12 @@ def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> E
 def _replace_layers(project: Project, layers: list[Layer]) -> Edit:
     # Unchanged layers are reused as-is; the project-level validator still runs.
     new_project = Project.model_validate(
-        {"schema_version": project.schema_version, "canvas": project.canvas, "layers": layers}
+        {
+            "schema_version": project.schema_version,
+            "canvas": project.canvas,
+            "layers": layers,
+            "audio": project.audio,
+        }
     )
     kind, layer_ids = classify(project, new_project)
     return Edit(new_project, kind, layer_ids)

@@ -55,7 +55,7 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
 
 def changed_layers(old: Project, new: Project) -> set[str] | None:
     """The layers whose frames can differ (see ``changed_spans``); None when the canvas changed."""
-    if old.model_dump(exclude={"layers"}) != new.model_dump(exclude={"layers"}):
+    if old.model_dump(exclude={"layers", "audio"}) != new.model_dump(exclude={"layers", "audio"}):  # ADR 0034
         return None
     before = {layer.id: layer for layer in old.layers}
     after = {layer.id: layer for layer in new.layers}

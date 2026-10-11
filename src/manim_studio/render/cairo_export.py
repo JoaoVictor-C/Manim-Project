@@ -12,6 +12,7 @@ import av
 import manim as m
 import numpy as np
 
+from ..core import audio
 from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas, Project
@@ -117,6 +118,7 @@ def _encode(project: Project, out_path: Path, progress=None) -> None:
         stream.height = canvas.height_px
         stream.pix_fmt = "yuv420p"
         stream.options = {"crf": "18"}
+        sound = container.add_stream("aac", rate=audio.RATE, layout="stereo") if project.audio else None
         times = frame_times(canvas)
         log.info(
             "export %s: %d frames %dx%d@%d",
@@ -133,3 +135,15 @@ def _encode(project: Project, out_path: Path, progress=None) -> None:
             if progress:
                 progress(i + 1, len(times))
         container.mux(stream.encode())
+        if sound is not None:  # the project's mix, aligned from 0 (ADR 0034, B47)
+            _encode_audio(container, sound, audio.mix(project))
+
+
+def _encode_audio(container, stream, samples: np.ndarray) -> None:
+    resampler = av.AudioResampler(format=stream.codec_context.format.name, layout="stereo", rate=audio.RATE)
+    frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(samples), format="fltp", layout="stereo")
+    frame.sample_rate = audio.RATE
+    frame.pts = 0
+    for resampled in [*resampler.resample(frame), *resampler.resample(None)]:
+        container.mux(stream.encode(resampled))
+    container.mux(stream.encode())
