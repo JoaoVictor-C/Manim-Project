@@ -124,6 +124,12 @@ it in Properties, where one style sets how all subtitles look. They have their
 own row on the timeline, and **File > Import / Export Subtitles** reads and
 writes `.srt` files. The exported video shows them and gets an `.srt` beside it.
 
+**Markers**: press **M** to mark the playhead's moment (name it in
+Properties), jump between markers with **[** and **]**, and drag the flags on
+the ruler. Every drag on the timeline snaps to markers and to the edges of
+clips, keys, sounds and subtitles (hold Alt to stop it). Right-click a clip to
+add a sound at its start or end, or a marker to add one there.
+
 **Sound**: **File > Import Audio...** adds a sound at the playhead. It appears
 as a row with its waveform under the layers: drag it to move it, drag its edges
 to trim it, and set its gain and fades in Properties. Playing the timeline plays

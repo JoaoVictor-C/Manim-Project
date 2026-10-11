@@ -241,3 +241,15 @@ def test_marker_edits_keep_rendered_frames(window) -> None:
     before = window.project
     menu_action(window.timeline.context_menu(ruler_point(window.timeline, 5.0)), "Add marker here").trigger()
     assert changed_spans(before, window.project) == []
+
+
+def test_a_marker_dragged_onto_another_stays_where_it_last_was_free(window) -> None:
+    window.document.apply(edits.add_marker(window.project, 4.5), "Add marker")
+    timeline = window.timeline
+    press(timeline, ruler_point(timeline, 2.5))
+    move(timeline, ruler_point(timeline, 3.62))  # free: follows
+    timeline.apply_pending()
+    move(timeline, ruler_point(timeline, 4.51))  # the other marker's frame: stays at 3.6
+    timeline.apply_pending()
+    release(timeline, ruler_point(timeline, 4.51))
+    assert [m.t for m in window.project.markers] == [pytest.approx(3.6), 4.5]

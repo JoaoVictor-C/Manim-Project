@@ -137,6 +137,17 @@ All notable changes to this project are documented here. The format follows
   cues). The exported video has them burned in and an `.srt` beside it; Python
   exports add them as subcaptions, so `manim render` writes the same `.srt`.
   Editing a subtitle re-renders only its own frames (B48).
+- Markers and snapping (P5c, ADR 0037): **Edit > Add Marker** (M) puts a named
+  marker at the playhead; markers are flags on the ruler, picked and dragged
+  (never onto each other), renamed and deleted from their menu or with Delete,
+  edited in Properties (name, time, colour), and **Previous / Next Marker** ([ and
+  ]) move the playhead. Every drag - clips, keys, sounds, subtitles and markers -
+  now snaps to markers, clip edges, key times, sound and subtitle edges, the
+  playhead, 0 and the end, with a guide line where it rests (Alt: frames only).
+  A clip's menu adds a sound at its start or end and a marker's menu at the
+  marker, from the project's sounds or another file. Markers are saved with the
+  project, change no frame (render-ahead keeps everything) and do not appear in
+  readable Python exports.
 - Value readouts and connectors (P5b, ADR 0036): **Add > Text > Number** is
   Manim's `DecimalNumber` (value, decimal places, a LaTeX unit, a + sign); a
   **ChangeDecimalToValue** clip (*Emphasis*) counts it to a new value, with

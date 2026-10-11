@@ -92,6 +92,16 @@ cues.
 "subtitle_style": { "font_size": 30, "colour": "#facc15" }
 ```
 
+**Markers** (ADR 0037): `markers` lists named moments for editing: `id`, `t`
+(seconds, at least 0), `name` and `colour` (default `#f59e0b`), kept in time
+order, never two at the same time (the editor keeps one per frame). They draw
+nothing and are saved only when there are some. Ids are unique among layers,
+sounds, cues and markers.
+
+```json
+"markers": [{ "id": "marker-1", "t": 2.0, "name": "Formula", "colour": "#f59e0b" }]
+```
+
 **Audio** (ADR 0034): a project may have a list of sounds, saved only when it is
 not empty. Each plays `duration` seconds of its file from `offset` (the trimmed
 start), beginning at `start` on the timeline, with a `gain` in dB and linear

@@ -1,6 +1,6 @@
 # P5c — Markers and snapping
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 30](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.91)
 - **Evidence:** B50 in [../logs/benchmarks.md](../logs/benchmarks.md)
