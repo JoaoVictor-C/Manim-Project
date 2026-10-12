@@ -179,6 +179,12 @@ All notable changes to this project are documented here. The format follows
   timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is
   the former layout; the docks are gone and View > Layers / Properties hide a
   panel on every page. Animate, Code, Audio and Deliver pages follow.
+- Code page (P6b.3, ADR 0041, decision session 36): code layers in an editor of their own
+  beside the viewer - Python highlighting from theme tokens, line numbers, auto-indent, Tab as
+  four spaces, Run (Ctrl+Enter: trusts the text, one undo step) and Revert, unapplied text kept
+  per layer through layer and page switches (marked as unapplied; dropped, with a message, when
+  another project opens), and the render status under the editor, where an error's line number
+  moves the cursor to that line. A typed character in a 2000-line scene costs about 11 ms (B57).
 - Audio page (P6b.4, ADR 0041): a table of the sounds (name, file with a missing-file warning,
   start, trim, duration, gain, fades) and a table of the subtitles (start, end, text), both
   edited in place - each edit one undo step through `core/edits.py`, a refused one (an overlap,

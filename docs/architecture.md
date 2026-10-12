@@ -53,6 +53,10 @@ src/manim_studio/
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
+    ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py, code.py (ADR 0041)
+    ├── code_syntax.py   Python lexer for the code editor's highlighting: spans and a line state (pure)
+    ├── code_drafts.py   unapplied editor text per code layer, error line helpers (pure)
+    ├── code_editor.py   CodeEditor (gutter, highlighter, auto-indent, Tab = 4 spaces) for the Code page
     ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
     │                    audio.py: sounds and subtitles tables, level meter (ADR 0041, P6b.4)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
