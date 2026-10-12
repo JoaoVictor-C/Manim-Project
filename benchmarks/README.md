@@ -24,6 +24,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_validation.py` | validation, `add_layer`, `update_layer`, `classify`, `changed_spans` at 20-2000 layers — B53 |
 | `bench_design.py` | icon fonts and an application stylesheet: load and apply times — B54 |
 | `bench_pages.py` | moving the shared views between pages, docks, a second canvas — B55 |
+| `bench_code_editor.py` | the Code page's editor on 2000 lines: lexer, highlighting, a typed character, the dirty check, page switch — B57 |
 | `bench_audio_page.py` | the level meter (whole mix vs a 100 ms window), table refresh, a cell edit end to end — B58 |
 | `bench_handles.py` | parameter handle drags, snap points, moving many objects — B60 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
