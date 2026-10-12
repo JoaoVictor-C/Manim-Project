@@ -756,3 +756,19 @@ left open, so ADRs can cite it.
   selection, after the page agents merge: 28 readers to review); resizing is about the
   object's centre, not its pivot; font-size drags use whole points to bound rebuilds;
   the "handlers" reading is recorded as unconfirmed.
+
+## Session 40 — P6d polish · 2026-10-12
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the phase plan's P6d line, the library (ADR 0039), the pages (ADR 0041), the
+  test conventions (env-redirected user folders); probe B61 measured before the synthesis.
+- **Decisions:** four slices - preferences with recent files and the welcome; shortcuts
+  help with layout checks as tests; a presets browser dialog with live thumbnails; a
+  screenshot sweep by the lead (-> ADR 0044). Plan: [../plans/p6d-polish.md](../plans/p6d-polish.md).
+- **Critiques that changed the plan:** restored state would leak between tests, so every
+  test gets a fresh settings file; the thumbnail cost was unmeasured (B61 then showed
+  62 ms for all presets, so they render eagerly); the automated layout checks move into
+  P6d.2 so later slices are born guarded; the last page is restored when a project opens,
+  not at an empty start; the presets browser does not depend on the Deliver page and
+  starts at once; the clipping check needs an allowlist.
