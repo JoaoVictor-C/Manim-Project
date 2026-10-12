@@ -661,6 +661,30 @@ left open, so ADRs can cite it.
 - **Critiques that changed the plan:** never leave a shared view parentless (it would
   float as a window); keep each page's splitter sizes; pages register before the menus.
 
+## Session 37 — P6b.4 the Audio page · 2026-10-12
+
+- **Tool / profile:** Terza, `fast`; 1 iteration, 1 pass, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** ADR 0034 and 0035 (the mix, the cues), `core/edits.py`'s audio and cue
+  edits, the Properties panel's refusal handling, the shared `Selection`; probe B58.
+- **Decisions:** the table logic and the meter's numbers are pure core modules
+  (`core/tables.py`: cell text <-> value and the `Edit` a cell edit makes, refusals as
+  one line; `core/levels.py`: peak and RMS of a 100 ms window centred on the playhead,
+  mixed straight from the decoded clips so it equals `audio.mix` there); Qt table models
+  keyed by id, rebuilt on every document change; one new window signal
+  (`playheadChanged`) drives the meter; a re-entrancy flag separates a user's row click
+  (selects, and for a subtitle seeks) from a selection made elsewhere (selects the row
+  only); the subtitle style stays in Properties (-> ADR 0041). Plan:
+  [../plans/p6b4-audio.md](../plans/p6b4-audio.md).
+- **Measured after the session:** B58 (the windowed read against the whole mix, the
+  table refresh, a cell edit end to end).
+- **Critiques that changed the plan:** a window of zero length (the playhead past the end,
+  or before the start) must read silence, not NaN; a cell edit that fails validation must
+  change no other field (a duration below the fades is refused, the fades are not
+  shortened); a sound's file check on every `data()` call would decode files again (the
+  decode cache keeps four), so the table uses the cheap check (existence, cached probe);
+  the timeline's own selection must not move the playhead.
+
 ## Session 39 — P6c canvas interaction · 2026-10-12
 
 (Sessions 35-38 belong to the page slices P6b.2-P6b.5.)
