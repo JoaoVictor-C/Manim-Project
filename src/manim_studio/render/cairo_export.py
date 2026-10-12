@@ -17,6 +17,14 @@ from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Canvas, Project
 from ..logging_config import get_logger
+from .options import (
+    DEFAULT_CRF,
+    RenderOptions,
+    apply_options,
+    audio_window,
+    frame_window,
+    window_cues,
+)
 
 log = get_logger(__name__)
 
@@ -53,9 +61,10 @@ def render_frame(camera: m.Camera, mobjects: Iterable[m.Mobject]) -> np.ndarray:
     return np.array(camera.pixel_array, copy=True)
 
 
-def frame_times(canvas: Canvas) -> list[float]:
-    n = round(canvas.duration * canvas.fps)
-    return [i / canvas.fps for i in range(n)]
+def frame_times(canvas: Canvas, first: int = 0, last: int | None = None) -> list[float]:
+    """The times of frames ``[first, last)`` (all of them by default)."""
+    n = round(canvas.duration * canvas.fps) if last is None else last
+    return [i / canvas.fps for i in range(first, n)]
 
 
 @dataclass(frozen=True)
@@ -69,26 +78,42 @@ def partial_path(out_path: Path) -> Path:
     return out_path.with_name(f"{out_path.stem}.partial{out_path.suffix}")
 
 
-def export_video(project: Project, out_path: Path, progress=None, replace_timeout: float = 2.0) -> Exported:
+def export_video(
+    project: Project,
+    out_path: Path,
+    progress=None,
+    replace_timeout: float = 2.0,
+    options: RenderOptions | None = None,
+) -> Exported:
     """Render ``project`` to ``out_path``; an existing file is replaced only by a complete video.
 
     Frames go to ``partial_path(out_path)``; on any error that file is deleted.
     If ``out_path`` stays locked (open in a player on Windows) for
     ``replace_timeout`` seconds, the video is saved as ``<stem> (n)<suffix>``.
+    ``options`` (ADR 0042) change the size, fps, frame range, quality and subtitles; an
+    ``.srt`` is written beside the video unless they say ``subtitles="none"``.
     """
+    options = options or RenderOptions()
     out_path = Path(out_path)
     if out_path.is_dir():
         raise IsADirectoryError(f"{out_path} is a folder, not a video file")
+    project = apply_options(project, options)
+    first, last = frame_window(project.canvas, options)  # before anything is written
     out_path.parent.mkdir(parents=True, exist_ok=True)
     partial = partial_path(out_path)
     try:
-        _encode(project, partial, progress)
+        _encode(project, partial, progress, first, last, options.crf)
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
     exported = _finish(partial, out_path, replace_timeout)
-    if project.subtitles:  # an .srt beside the video, burned in or not (ADR 0035)
-        exported.path.with_suffix(".srt").write_text(subtitles.write_srt(project.subtitles), encoding="utf-8")
+    cues = project.subtitles  # an .srt beside the video, burned in or not (ADR 0035)
+    if cues and options.subtitles != "none":
+        fps = project.canvas.fps
+        if first > 0 or last < round(project.canvas.duration * fps):
+            cues = window_cues(cues, first / fps, last / fps)
+        if cues:
+            exported.path.with_suffix(".srt").write_text(subtitles.write_srt(cues), encoding="utf-8")
     return exported
 
 
@@ -111,7 +136,15 @@ def _finish(partial: Path, out_path: Path, timeout: float) -> Exported:
     return Exported(alternative, warning)
 
 
-def _encode(project: Project, out_path: Path, progress=None) -> None:
+def _encode(
+    project: Project,
+    out_path: Path,
+    progress=None,
+    first: int = 0,
+    last: int | None = None,
+    crf: int = DEFAULT_CRF,
+) -> None:
+    """Encode frames ``[first, last)`` of ``project`` (options applied) and the sound under them."""
     canvas = project.canvas
     camera = make_camera(canvas)
     evaluator = Evaluator(project)
@@ -120,9 +153,9 @@ def _encode(project: Project, out_path: Path, progress=None) -> None:
         stream.width = canvas.width_px
         stream.height = canvas.height_px
         stream.pix_fmt = "yuv420p"
-        stream.options = {"crf": "18"}
+        stream.options = {"crf": str(crf)}
         sound = container.add_stream("aac", rate=audio.RATE, layout="stereo") if project.audio else None
-        times = frame_times(canvas)
+        times = frame_times(canvas, first, last)
         log.info(
             "export %s: %d frames %dx%d@%d",
             out_path,
@@ -138,8 +171,11 @@ def _encode(project: Project, out_path: Path, progress=None) -> None:
             if progress:
                 progress(i + 1, len(times))
         container.mux(stream.encode())
-        if sound is not None:  # the project's mix, aligned from 0 (ADR 0034, B47)
-            _encode_audio(container, sound, audio.mix(project))
+        if sound is not None:  # the project's mix, from the first frame's time (ADR 0034, B47)
+            mix = audio.mix(project)  # it depends on the sounds and the duration, not on size or fps
+            if first > 0 or first + len(times) < round(canvas.duration * canvas.fps):
+                mix = audio_window(mix, first, first + len(times), canvas.fps)
+            _encode_audio(container, sound, mix)
 
 
 def _encode_audio(container, stream, samples: np.ndarray) -> None:

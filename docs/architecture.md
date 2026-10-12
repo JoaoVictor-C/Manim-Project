@@ -50,6 +50,7 @@ src/manim_studio/
 │   ├── cairo_export.py  Manim Cairo camera → frames → PyAV/libx264
 │   ├── preview.py       the preview camera shared by canvas and preview process (ADR 0028)
 │   ├── qt_paths.py      Manim geometry → QPainterPath (outlines)
+│   ├── options.py       render options: size, fps, frame window, crf, subtitles; cuts of sound and .srt (ADR 0042)
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
@@ -58,6 +59,7 @@ src/manim_studio/
     ├── code_drafts.py   unapplied editor text per code layer, error line helpers (pure)
     ├── code_editor.py   CodeEditor (gutter, highlighter, auto-indent, Tab = 4 spaces) for the Code page
     ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
+    │   └── deliver.py   the Deliver page: render settings, export queue, Python preview (ADR 0042)
     │   └── animate.py   the Animate page: viewer + Properties, the graph editor, the timeline
     ├── graph_model.py   graph editor rules: curves, ranges, sampling, hits, key drags (pure, P6b.2)
     ├── graph_editor.py  the graph editor widget: keys as curves over time, drags, eases (P6b.2)
@@ -81,6 +83,7 @@ src/manim_studio/
     ├── curve_editor.py  easing curve editor: bezier handles, presets, fitted named eases
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
+    ├── render_queue.py  the Deliver queue: jobs, states, which is next (pure; ADR 0042)
     ├── plugins_dialog.py Help > Plugins: loaded plugins, their types, failures (ADR 0032)
     ├── audio_player.py  plays the mix; the sound card's clock drives playback (ADR 0034)
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart

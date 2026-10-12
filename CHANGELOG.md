@@ -208,7 +208,14 @@ All notable changes to this project are documented here. The format follows
   page bar at the bottom, View > Pages or Shift+1..5, sharing one canvas,
   timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is
   the former layout; the docks are gone and View > Layers / Properties hide a
-  panel on every page. Animate, Code, Audio and Deliver pages follow.
+  panel on every page. Animate, Code, Audio and Deliver pages followed (P6b.2-P6b.5).
+- Deliver page (P6b.5, ADR 0042): render settings (file, size presets 480p-2160p at the project's
+  aspect ratio or custom, frame rate, a range - whole, from-to or between two markers - quality
+  and subtitles burned in / `.srt` only / none), a queue of exports run one after another from
+  the project as it was when each was added (Start, Cancel, Remove, Clear finished, Open folder), and
+  the Python scene with a readable/exact preview and Save as.... `manim-studio render` gains
+  `--size`, `--fps`, `--start`, `--end`, `--crf` and `--subtitles`; a range cuts the sound and the
+  `.srt` to the same frames. File > Export Video... stays the quick dialog.
 - Code page (P6b.3, ADR 0041, decision session 36): code layers in an editor of their own
   beside the viewer - Python highlighting from theme tokens, line numbers, auto-indent, Tab as
   four spaces, Run (Ctrl+Enter: trusts the text, one undo step) and Revert, unapplied text kept
