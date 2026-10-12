@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -27,14 +27,15 @@ from PySide6.QtWidgets import (
 
 from ..core import adapter
 from ..core.schema import Easing
+from . import theme
 
 Y_RANGE = (-0.5, 1.5)
 MARGIN = 14.0
 HANDLE_PX = 6.0
 GRAB_PX = 10.0
 SAMPLES = 96
-CURVE_COLOR = QColor("#38bdf8")
-HANDLE_COLOR = QColor("#fde047")
+CURVE_COLOR = theme.qcolor(theme.THEME.curve)
+HANDLE_COLOR = theme.qcolor(theme.THEME.curve_handle)
 
 
 def to_widget(rect: QRectF, x: float, y: float) -> QPointF:
@@ -96,9 +97,9 @@ class CurveEditor(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#1f2329"))
+        painter.fillRect(self.rect(), theme.qcolor(theme.THEME.track))
         rect = self.plot_rect()
-        grid = QPen(QColor(255, 255, 255, 40), 1)
+        grid = QPen(theme.qcolor(theme.THEME.grid), 1)
         painter.setPen(grid)
         for y in (0.0, 1.0):
             a, b = to_widget(rect, 0, y), to_widget(rect, 1, y)

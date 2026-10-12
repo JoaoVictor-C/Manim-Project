@@ -109,6 +109,12 @@ import and export, moving, trimming and deleting on the row, and the canvas.
 `ui/test_acceptance_p5a.py` imports an `.srt`, edits a cue and the style, checks
 frames rendered ahead, the export process's video and `.srt`, and the exact
 Python scene.
+`ui/test_theme.py` measures the contrast of every text role and clip label,
+checks the WCAG formula, the tokens, that the stylesheet raises no Qt warnings,
+Fusion, the palette and the font, every icon (drawn, tinted, dimmed when
+disabled), the icon buttons, that no colour literal remains in `ui/` outside
+`theme.py`, and that document colours are drawn as saved. The tests' application
+fixture applies the theme, so every UI test runs under the real look.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

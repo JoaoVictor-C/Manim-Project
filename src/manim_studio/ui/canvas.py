@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 import manim as m
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
 from ..core.code_frame import CodeFrame
@@ -25,14 +25,16 @@ from ..core.schema import Canvas
 from ..render.cairo_export import render_frame
 from ..render.preview import PreviewView, preview_camera
 from ..render.qt_paths import vmobject_path
-from . import motion_overlay, viewport
+from . import motion_overlay, theme, viewport
 from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
 
-OUTLINE_COLOR = QColor("#38bdf8")
-MOTION_COLOR = QColor("#f59e0b")  # the motion path (ADR 0026)
+OUTLINE_COLOR = theme.qcolor(theme.THEME.outline)
+MOTION_COLOR = theme.qcolor(theme.THEME.motion_path)  # the motion path (ADR 0026)
 KEY_PX = 7.0  # a key's square on the motion path
-PASTEBOARD_DIM = QColor(24, 24, 27, 170)  # over what lies outside the video frame
-FRAME_BORDER = QColor("#52525b")
+PASTEBOARD_DIM = theme.qcolor(theme.THEME.pasteboard_dim)  # over what lies outside the video frame
+FRAME_BORDER = theme.qcolor(theme.THEME.frame_border)
+BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
+BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 WHEEL_PAN_PX = 48.0  # one wheel notch
 
 
@@ -242,7 +244,7 @@ class CanvasWidget(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#1e1e1e"))
+        painter.fillRect(self.rect(), theme.qcolor(theme.THEME.window))
         if self._image is not None and self._canvas is not None:
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             painter.drawImage(QRectF(self.rect()), self._image)
@@ -293,7 +295,7 @@ class CanvasWidget(QWidget):
                     painter.drawLine(centre, end)
                     painter.setBrush(MOTION_COLOR)
                     painter.drawEllipse(end, 3.0, 3.0)
-            painter.setBrush(QColor("#0f172a"))
+            painter.setBrush(BADGE)
             painter.drawRect(QRectF(centre.x() - half, centre.y() - half, KEY_PX, KEY_PX))
         painter.restore()
 
@@ -318,7 +320,7 @@ class CanvasWidget(QWidget):
         painter.drawLine(QPointF(cx, cy - 6), QPointF(cx, cy + 6))
         painter.drawEllipse(QPointF(cx, cy), 3.0, 3.0)  # the pivot: drag it to move the anchor (P2f)
         # handles: corner squares scale, the knob rotates (P2a)
-        painter.setBrush(QColor("#0f172a"))
+        painter.setBrush(BADGE)
         half = HANDLE_PX / 2
         for corner in corners:
             painter.drawRect(QRectF(corner.x() - half, corner.y() - half, HANDLE_PX, HANDLE_PX))
@@ -328,7 +330,7 @@ class CanvasWidget(QWidget):
         painter.drawEllipse(knob, half, half)
         if self.readout is not None:
             pos, text = self.readout
-            painter.setPen(QColor("#e2e8f0"))
+            painter.setPen(BADGE_TEXT)
             painter.drawText(pos + QPointF(14, -10), text)
 
     # -- input: forwarded to the tool ---------------------------------------------

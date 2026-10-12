@@ -186,6 +186,13 @@ Or render from the command line:
 uv run manim-studio render examples/euler.json out/euler.mp4
 ```
 
+## The look
+
+The editor uses one dark studio theme: neutral greys, a blue accent and Phosphor
+icons, with every text measured for contrast. Your project's colours (objects,
+background, markers, subtitles) are always shown and exported exactly as you set
+them.
+
 ## How it works
 
 Manim's `play()` is a loop of `begin()` → `interpolate(alpha)` → `finish()`. Manim

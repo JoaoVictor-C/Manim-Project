@@ -62,6 +62,7 @@ from ...core.schema import (
     keyable_props,
 )
 from ...logging_config import get_logger
+from .. import theme
 from ..document import Document
 from .model import (
     Edge,
@@ -93,18 +94,29 @@ KEY_GRAB_PX = 5.0
 KEY_OFFSET = ROW_HEIGHT - 6  # diamond centre below the row top
 TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
 
-CATEGORY_COLORS = {"content": "#3b82f6", "emphasis": "#f59e0b", "motion": "#10b981", "morph": "#a855f7"}
-AUDIO_COLOR = QColor("#0f766e")
-CUE_COLOR = QColor("#854d0e")
-WAVE_COLOR = QColor(204, 251, 241, 190)
+CATEGORY_COLORS = {  # clip categories (ADR 0022), from the theme (ADR 0040)
+    "content": theme.THEME.content,
+    "emphasis": theme.THEME.emphasis,
+    "motion": theme.THEME.motion,
+    "morph": theme.THEME.morph,
+}
+AUDIO_COLOR = theme.qcolor(theme.THEME.sound)
+CUE_COLOR = theme.qcolor(theme.THEME.cue)
+WAVE_COLOR = theme.qcolor(theme.THEME.wave)
 PEAKS_PER_SECOND = 100
-LIFETIME_COLOR = QColor(255, 255, 255, 28)
-PLAYHEAD_COLOR = QColor("#ef4444")
-BACKGROUND = QColor("#1f2329")
-RULER_BACKGROUND = QColor("#2a2f36")
-TEXT_COLOR = QColor("#d6dae0")
+LIFETIME_COLOR = theme.qcolor(theme.THEME.lifetime)
+PLAYHEAD_COLOR = theme.qcolor(theme.THEME.playhead)
+BACKGROUND = theme.qcolor(theme.THEME.track)
+RULER_BACKGROUND = theme.qcolor(theme.THEME.ruler)
+TEXT_COLOR = theme.qcolor(theme.THEME.text)
+BAR_TEXT = theme.qcolor(theme.THEME.bar_text)
+SELECTED_EDGE = theme.qcolor(theme.THEME.bar_selected)
+BAR_EDGE = theme.qcolor(theme.THEME.bar_edge)
+KEY_COLOR = theme.qcolor(theme.THEME.key)
+KEY_SELECTED = theme.qcolor(theme.THEME.key_selected)
+KEY_EDGE = theme.qcolor(theme.THEME.key_edge)
 MARKER_GRAB_PX = 6.0  # how near a marker's line a ruler click picks it (ADR 0037)
-GUIDE_COLOR = QColor(250, 204, 21, 170)  # the line a snapped drag rests on
+GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # the line a snapped drag rests on
 
 
 class ClipItem(QGraphicsRectItem):
@@ -112,8 +124,8 @@ class ClipItem(QGraphicsRectItem):
         super().__init__(rect)
         self.layer_id, self.clip_id, self.kind = layer_id, clip.id, clip.kind
         self.selected = selected
-        self.setBrush(QBrush(QColor(CATEGORY_COLORS[clip.info.category])))
-        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 90), 2 if selected else 1))
+        self.setBrush(QBrush(theme.qcolor(CATEGORY_COLORS[clip.info.category])))
+        self.setPen(QPen(SELECTED_EDGE if selected else BAR_EDGE, 2 if selected else 1))
         self.setZValue(2)
 
     def paint(
@@ -125,7 +137,7 @@ class ClipItem(QGraphicsRectItem):
         painter.setPen(self.pen())
         painter.drawRoundedRect(rect, 4, 4)
         if rect.width() > 24:
-            painter.setPen(QColor("#ffffff"))
+            painter.setPen(BAR_TEXT)
             painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.kind)
 
 
@@ -136,7 +148,7 @@ class AudioItem(QGraphicsRectItem):
         super().__init__(rect)
         self.audio_id, self.name = clip.id, clip.name or clip.id
         self.peaks, self.selected = peaks, selected
-        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 90), 2 if selected else 1))
+        self.setPen(QPen(SELECTED_EDGE if selected else BAR_EDGE, 2 if selected else 1))
         self.setZValue(2)
 
     def paint(
@@ -156,7 +168,7 @@ class AudioItem(QGraphicsRectItem):
                 x = rect.left() + i + 0.5
                 painter.drawLine(QPointF(x, middle - peak * half), QPointF(x, middle + peak * half))
         if rect.width() > 24:
-            painter.setPen(QColor("#ffffff"))
+            painter.setPen(BAR_TEXT)
             painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.name)
 
 
@@ -166,7 +178,7 @@ class CueItem(QGraphicsRectItem):
     def __init__(self, cue: Cue, rect: QRectF, selected: bool) -> None:
         super().__init__(rect)
         self.cue_id, self.text = cue.id, " ".join(cue.text.split())
-        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 90), 2 if selected else 1))
+        self.setPen(QPen(SELECTED_EDGE if selected else BAR_EDGE, 2 if selected else 1))
         self.setToolTip(cue.text)
         self.setZValue(2)
 
@@ -179,7 +191,7 @@ class CueItem(QGraphicsRectItem):
         painter.setPen(self.pen())
         painter.drawRoundedRect(rect, 4, 4)
         if rect.width() > 24:
-            painter.setPen(QColor("#ffffff"))
+            painter.setPen(BAR_TEXT)
             label = painter.fontMetrics().elidedText(
                 self.text, Qt.TextElideMode.ElideRight, int(rect.width() - 10)
             )
@@ -197,8 +209,8 @@ class KeyItem(QGraphicsPolygonItem):
         super().__init__(diamond)
         self.setPos(center)
         self.layer_id, self.t, self.props, self.selected = layer_id, t, props, selected
-        self.setBrush(QBrush(QColor("#fde047") if selected else QColor("#e5e7eb")))
-        self.setPen(QPen(QColor("#ffffff") if selected else QColor(0, 0, 0, 160), 1.5 if selected else 1))
+        self.setBrush(QBrush(KEY_SELECTED if selected else KEY_COLOR))
+        self.setPen(QPen(SELECTED_EDGE if selected else KEY_EDGE, 1.5 if selected else 1))
         self.setToolTip(f"{t:g} s: {', '.join(props)}")
         self.setZValue(3)
 
@@ -549,9 +561,7 @@ class TimelineView(QGraphicsView):
             line.setAlpha(110)
             painter.setPen(QPen(line, 1))
             painter.drawLine(QPointF(x, RULER_HEIGHT), QPointF(x, height))
-            painter.setPen(
-                QPen(QColor("#ffffff") if selected else colour.darker(150), 1.5 if selected else 1)
-            )
+            painter.setPen(QPen(SELECTED_EDGE if selected else colour.darker(150), 1.5 if selected else 1))
             painter.setBrush(colour)
             painter.drawPolygon(QPolygonF([QPointF(x, 2), QPointF(x + 9, 6), QPointF(x, 10), QPointF(x, 2)]))
             painter.drawLine(QPointF(x, 2), QPointF(x, RULER_HEIGHT))
@@ -561,7 +571,7 @@ class TimelineView(QGraphicsView):
                 text = painter.fontMetrics().boundingRect(marker.name)
                 box = QRectF(x + 11, 1, text.width() + 6, 12)
                 painter.fillRect(box, RULER_BACKGROUND)
-                painter.setPen(colour.lighter(130) if not selected else QColor("#ffffff"))
+                painter.setPen(colour.lighter(130) if not selected else SELECTED_EDGE)
                 painter.drawText(box.adjusted(3, 0, 0, 0), Qt.AlignmentFlag.AlignVCenter, marker.name)
         painter.setBrush(Qt.BrushStyle.NoBrush)
 

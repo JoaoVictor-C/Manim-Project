@@ -486,3 +486,11 @@ Copying axes with 40 graphs makes 10 KB of clipboard text; reading and pasting i
 17 x FadeOut 0.3 s, 9 x FadeOut 0.8 s, 9 x Transform 1.2 s); **30 layers** are
 exactly FadeIn -> FadeOut; no keyframe tracks; layer groups rebuilt by hand: 4
 section headers. (B51 is P5d's autosave measurement.) -> ADR 0039.
+
+### B54 — The design system · 2026-10-11
+`benchmarks/bench_design.py`. QtAwesome 1.4 (icon fonts): warm, importing it takes
+**174 ms**, the first icon **57 ms** (its fonts load), 23 more **0.5 ms**, drawing 23 at
+20 px **2.2 ms**; the very first run after installing took 3.2 s + 8.4 s (cold disk and
+virus scan, once). All 23 Phosphor icons the editor needs exist. Applying a 300-rule
+application stylesheet with the main window open takes **11 ms**, opening a window
+under it **20 ms**. (B53 is the validation performance slice.) -> ADR 0040.

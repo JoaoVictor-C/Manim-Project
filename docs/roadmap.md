@@ -72,7 +72,7 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 
 ## Phase 6 — the studio
 
-- **P6a** — design system: tokens, dark studio stylesheet, icons, typography
+- ✅ **P6a** — [plan](plans/p6a-design-system.md): design system: tokens, dark studio stylesheet, icons, typography
 - **P6b** — workspace pages like DaVinci Resolve's: Compose, Animate, Code, Audio, Deliver
 - **P6c** — canvas interaction: more on-canvas handles, snapping guides, multi-select with align/distribute
 - **P6d** — presets browser, preferences, recent files, shortcuts help, onboarding, visual-bug sweep
