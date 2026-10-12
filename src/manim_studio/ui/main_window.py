@@ -54,6 +54,7 @@ from .document import Document
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
 from .pages import PageHost, Shared
+from .pages.animate import AnimatePage
 from .pages.audio import AudioPage
 from .pages.code import CodePage
 from .pages.compose import ComposePage
@@ -71,7 +72,7 @@ log = get_logger(__name__)
 
 class MainWindow(QMainWindow):
     SLIDER_STEPS_PER_SECOND = 1000
-    playheadChanged = Signal(float)  # the playhead moved (seek, every playback tick): the level meter
+    playheadMoved = Signal(float)  # every seek and playback tick: pages' own views follow it
 
     def __init__(self) -> None:
         super().__init__()
@@ -147,7 +148,7 @@ class MainWindow(QMainWindow):
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.
         self.pages = PageHost(Shared(self.viewer, self.timeline, self.layers, self.properties), self)
-        for page in (ComposePage, CodePage, AudioPage):  # final order: Compose, Animate, Code, Audio, Deliver
+        for page in (ComposePage, AnimatePage, CodePage, AudioPage):  # then Deliver (Shift+1..5)
             self.pages.add(page(self))
         self.setCentralWidget(self.pages)
         # One selection for every view (ADR 0016): views report, then follow it.
@@ -1057,7 +1058,7 @@ class MainWindow(QMainWindow):
         self.refresh()
         if not self.play_timer.isActive():
             self.properties.refresh()  # keyed fields show their value at the playhead
-        self.playheadChanged.emit(self.t)
+        self.playheadMoved.emit(self.t)
 
     def refresh(self) -> None:
         if self.project is None:

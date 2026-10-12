@@ -529,6 +529,42 @@ frame cache and the selection wiring). With the pages built (P6b.1), a real
 `show_page` round trip - parking, re-parenting, splitter sizes, repaint - takes
 **22.8 ms** per switch. -> ADR 0041.
 
+### B56 — The graph editor · 2026-10-12
+`benchmarks/bench_graph_editor.py`: one layer with position, scale, rotation and opacity keyed
+(five curves), `keys` keys per track with mixed eases, the Animate page at 1600x1000. Times
+are in ms, best of 7. The machine was shared with other test runs, so expect ±30 %.
+
+| keys | sample 5 curves: segment walk | `_sample` per point | repaint after an edit | repaint after a seek | drag step |
+|-----:|------:|------:|------:|------:|------:|
+| 10   | 6.3   | 6.8   | 15.9  | 5.5   | 19.6  |
+| 50   | 7.2   | 22.5  | 27.8  | 7.4   | 38.9  |
+| 200  | 11.4  | 61.9  | 60.6  | 28.3  | 86.0  |
+| 1000 | 51.2  | 674   | 176   | 87.8  | 268   |
+
+- **Stroking:** the first version stroked each curve as one 2 px antialiased
+  `QPainterPath`. At 200 keys `drawPath` took 62 ms per curve, and a repaint after a seek
+  took 323 ms. A probe on 760 points gave these stroke times:
+
+  | stroke | time |
+  |---|---:|
+  | antialiased path, 2 px | 33 ms |
+  | cosmetic pen | 33 ms |
+  | `drawPolyline` | 32 ms |
+  | 1 px pen | 1.0 ms |
+  | not antialiased | 9.9 ms |
+  | `drawLines` of separate 2 px segments | **1.8 ms** |
+
+  The curves are now cached as segments (`QLineF`) and drawn with `drawLines`.
+- **Drag step:** a per-curve cache keyed by the track and the base value leaves the curves
+  that are not dragged as they are, which took a drag step at 200 keys from 405 ms to
+  86 ms.
+- **Sampling:** the segment walk is 5x faster than calling `_sample` at every point at
+  200 keys, and 13x faster at 1000 keys.
+- **What a drag step costs:** the rest of a drag step goes to `drag_key` (about 13 ms: two
+  validated edits) and the window's existing reactions: the timeline's sync, the canvas
+  render and Properties. Typical layers (under 50 keys per track) repaint after a seek in
+  under 8 ms. -> decision session 35.
+
 ### B57 — The Code page's editor · 2026-10-12
 `benchmarks/bench_code_editor.py` on a generated 2000-line scene (162 KB), offscreen, the
 quiet-machine run (a second batch ran 2-3x slower while other jobs shared the machine; the

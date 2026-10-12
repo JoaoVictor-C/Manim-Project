@@ -24,7 +24,7 @@ reason in the status bar and the cell keeps its old value.
 | the meter's numbers | `core/levels.py` (pure) | `window_samples(project, t0, t1)` mixes only that span, straight from the decoded clips (gain and fades computed for the slice, same float32 arithmetic as `audio.clip_samples`, so it equals `audio.mix` there); `level_at(project, t)` = peak and RMS per channel of the 100 ms centred on `t` (clamped to the video; an empty window is silence) |
 | table models | `ui/pages/audio.py` | one generic `QAbstractTableModel` over the document snapshot, rows keyed by id, rebuilt on every document change (`dataChanged` when the ids are unchanged, so the editor and selection survive); `setData` applies the `Edit` once or refuses with the reason |
 | the page | `ui/pages/audio.py` | Sounds | Subtitles tables, viewer over the meter, Properties (subtitle style), the timeline below |
-| playhead signal | `MainWindow.playheadChanged(float)` | emitted by `seek`, drives the meter while scrubbing and playing |
+| playhead signal | `MainWindow.playheadMoved(float)` (shared with Animate) | emitted by `seek`, drives the meter while scrubbing and playing |
 
 Selection: a click on a row selects the sound or subtitle in the shared `Selection` (a cue row also
 seeks the playhead); a selection made elsewhere (the timeline, Properties) selects the row without
@@ -35,6 +35,6 @@ seeking. A re-entrancy flag separates the two.
 | step | content | acceptance |
 |---|---|---|
 | a | `core/tables.py`, `core/levels.py` with unit tests (cell round trips, every refusal, the window equals the full mix, known tone levels) | `tests/core/test_tables.py`, `tests/core/test_levels.py` |
-| b | the page, models, buttons, meter, selection sync, registration, `playheadChanged` | `tests/ui/test_audio_page.py` |
+| b | the page, models, buttons, meter, selection sync, registration, `playheadMoved` | `tests/ui/test_audio_page.py` |
 | c | acceptance: import two sounds and an .srt, edit rows in both tables, timeline and evaluator follow, undo, the meter on a known tone | `tests/ui/test_acceptance_p6b4.py` (slow, ui) |
 | d | B58 (`benchmarks/bench_audio_page.py`), mutation check, docs | `.cache/p6b4/mutate.py`: every non-equivalent mutant killed |
