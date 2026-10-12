@@ -243,6 +243,17 @@ Editor windows in tests build synchronously: `conftest.py` sets
 one shared real worker) and its effect on edits in `ui/test_build_service.py`
 with a deterministic fake.
 
+`render/test_options.py` covers the render options: even sizes and presets at several aspect
+ratios, the frame window (rounding, clamping, empty ranges), the sound and `.srt` cut to it,
+real exports (frames equal the evaluator's at `(a + k) / fps`, size, fps, crf, subtitle modes,
+a sound at a known time landing 0.3 s earlier in a range from 0.3 s) and the command line with
+its bad options; `ui/test_render_queue.py` the queue's state machine without Qt;
+`ui/test_deliver_page.py` the Deliver page through the main window with a fake `ExportJob`
+(settings, markers, snapshot-at-add, the queue's buttons, closing while it renders, the Python
+preview and Save as); `ui/test_acceptance_p6b5.py` queues two exports with different sizes and
+ranges, edits the project while they render, runs them through the real export process, checks
+frames, size, `.srt` and burned-in subtitles of both, and saves the Python scene.
+
 ## Markers
 
 | marker | meaning | skip with |

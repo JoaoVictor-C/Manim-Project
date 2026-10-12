@@ -660,3 +660,24 @@ left open, so ADRs can cite it.
   over per-page views.
 - **Critiques that changed the plan:** never leave a shared view parentless (it would
   float as a window); keep each page's splitter sizes; pages register before the menus.
+
+## Session 38 — P6b.5 the Deliver page · 2026-10-12
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.91**.
+- **Input:** the Deliver brief (settings, a queue, the Python export), `ExportJob`, the
+  render CLI, `Evaluator` (what depends on fps), `audio.mix`, `Document` (how projects change).
+- **Decisions:** each queued job renders from the project as it was when added (documents replace
+  their project on every edit, so this is a reference); options are `render` flags (`--size`,
+  `--fps`, `--start`, `--end`, `--crf`, `--subtitles`) applied by one pure function; a range is the
+  frame window `[a, b)` with the sound sliced and the `.srt` shifted and clipped to it; a Qt-free
+  queue state machine runs one `ExportJob` at a time; File > Export Video keeps the quick dialog
+  (-> ADR 0042). Plan: [../plans/p6b5-deliver.md](../plans/p6b5-deliver.md).
+- **Measured during the session:** fps appears in simulated layers and traces (`sim.step` at
+  `1/fps`), so an fps override changes them slightly - documented, not hidden; the mix depends on
+  the scene's duration only, so it is sliced from the original project.
+- **Critiques that changed the plan:** an empty range after rounding at a given fps (0.04-0.05 s at
+  24 fps) is an error at Add, in the CLI and in the page; sizes are made even for H.264; a cue
+  straddling the cut is clipped, not dropped, and the sound is padded when short; quitting while the
+  queue renders asks and stops it; code-layer trust is fixed when a job is added, like the snapshot.
+- **Terza note:** this session was cut by a usage limit and finished after the limit reset.

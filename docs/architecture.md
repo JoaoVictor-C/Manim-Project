@@ -48,10 +48,12 @@ src/manim_studio/
 │   ├── cairo_export.py  Manim Cairo camera → frames → PyAV/libx264
 │   ├── preview.py       the preview camera shared by canvas and preview process (ADR 0028)
 │   ├── qt_paths.py      Manim geometry → QPainterPath (outlines)
+│   ├── options.py       render options: size, fps, frame window, crf, subtitles; cuts of sound and .srt (ADR 0042)
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
     ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
+    │   └── deliver.py   the Deliver page: render settings, export queue, Python preview (ADR 0042)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
@@ -66,6 +68,7 @@ src/manim_studio/
     ├── curve_editor.py  easing curve editor: bezier handles, presets, fitted named eases
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
+    ├── render_queue.py  the Deliver queue: jobs, states, which is next (pure; ADR 0042)
     ├── plugins_dialog.py Help > Plugins: loaded plugins, their types, failures (ADR 0032)
     ├── audio_player.py  plays the mix; the sound card's clock drives playback (ADR 0034)
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart

@@ -70,3 +70,4 @@ need one.
 | [0039](0039-presets-templates-themes.md) | Presets, templates and themes | Accepted |
 | [0040](0040-design-system.md) | The design system | Accepted |
 | [0041](0041-workspace-pages.md) | Workspace pages | Accepted |
+| [0042](0042-deliver-options.md) | Deliver options: size, fps, range, quality, subtitles and a render queue | Accepted |

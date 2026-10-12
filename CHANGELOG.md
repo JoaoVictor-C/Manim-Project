@@ -166,6 +166,13 @@ All notable changes to this project are documented here. The format follows
   timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is
   the former layout; the docks are gone and View > Layers / Properties hide a
   panel on every page. Animate, Code, Audio and Deliver pages follow.
+- Deliver page (P6b.5, ADR 0042): render settings (file, size presets 480p-2160p at the project's
+  aspect ratio or custom, frame rate, a range - whole, from-to or between two markers - quality
+  and subtitles burned in / `.srt` only / none), a queue of exports run one after another from
+  the project as it was when each was added (Start, Cancel, Remove, Clear finished, Open folder), and
+  the Python scene with a readable/exact preview and Save as.... `manim-studio render` gains
+  `--size`, `--fps`, `--start`, `--end`, `--crf` and `--subtitles`; a range cuts the sound and the
+  `.srt` to the same frames. File > Export Video... stays the quick dialog.
 - Design system (P6a, ADR 0040): the editor has a dark studio look - the Fusion
   style, a palette and one stylesheet generated from colour tokens in
   `ui/theme.py`, a 9 pt UI font, and Phosphor icons (QtAwesome, a new dependency)
