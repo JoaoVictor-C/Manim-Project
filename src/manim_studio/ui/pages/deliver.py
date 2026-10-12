@@ -495,9 +495,7 @@ class DeliverPage(Page):
         job = self.queue.add(project, options, Path(text), trust)
         self._add_row(job)
         self.queue_status.setText(f"Added {job.output.name}.")
-        self._update_buttons()
-        if self.queue.active:  # the queue is running: this one follows the others
-            self._launch_next()
+        self._update_buttons()  # a running queue picks it up when the others are done
         return job
 
     def start_queue(self) -> None:
@@ -551,10 +549,14 @@ class DeliverPage(Page):
         self._status_message(text)
 
     def _on_finished(self, job: QueueJob, path: str, warning: str) -> None:
+        if job.status is not Status.RENDERING:  # a late signal from a cancelled job
+            return
         self.queue.finish(job, Path(path), warning)
         self._after_job(job, f"Exported to {path}" + (f"\n{warning}" if warning else ""))
 
     def _on_failed(self, job: QueueJob, message: str) -> None:
+        if job.status is not Status.RENDERING:
+            return
         self.queue.fail(job, message)
         self._after_job(job, f"Export failed: {message}")
 
@@ -576,7 +578,7 @@ class DeliverPage(Page):
     def cancel_selected(self) -> None:
         """Cancel the selected job, or the one rendering when none is selected."""
         job = self.selected() or self.queue.current
-        if job is None or job.finished:
+        if job is None:
             return
         if self.queue.cancel(job) and self._export is not None:
             self._export.cancel()

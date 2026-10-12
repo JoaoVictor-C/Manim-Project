@@ -97,18 +97,17 @@ def export_video(
     out_path = Path(out_path)
     if out_path.is_dir():
         raise IsADirectoryError(f"{out_path} is a folder, not a video file")
-    original = project
     project = apply_options(project, options)
     first, last = frame_window(project.canvas, options)  # before anything is written
     out_path.parent.mkdir(parents=True, exist_ok=True)
     partial = partial_path(out_path)
     try:
-        _encode(project, partial, progress, first, last, options.crf, original)
+        _encode(project, partial, progress, first, last, options.crf)
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
     exported = _finish(partial, out_path, replace_timeout)
-    cues = original.subtitles  # an .srt beside the video, burned in or not (ADR 0035)
+    cues = project.subtitles  # an .srt beside the video, burned in or not (ADR 0035)
     if cues and options.subtitles != "none":
         fps = project.canvas.fps
         if first > 0 or last < round(project.canvas.duration * fps):
@@ -144,9 +143,8 @@ def _encode(
     first: int = 0,
     last: int | None = None,
     crf: int = DEFAULT_CRF,
-    original: Project | None = None,
 ) -> None:
-    """Encode frames ``[first, last)`` of ``project`` (options applied); ``original`` has the mix's canvas."""
+    """Encode frames ``[first, last)`` of ``project`` (options applied) and the sound under them."""
     canvas = project.canvas
     camera = make_camera(canvas)
     evaluator = Evaluator(project)
@@ -174,7 +172,7 @@ def _encode(
                 progress(i + 1, len(times))
         container.mux(stream.encode())
         if sound is not None:  # the project's mix, from the first frame's time (ADR 0034, B47)
-            mix = audio.mix(original or project)  # the mix depends on duration, not on size or fps
+            mix = audio.mix(project)  # it depends on the sounds and the duration, not on size or fps
             if first > 0 or first + len(times) < round(canvas.duration * canvas.fps):
                 mix = audio_window(mix, first, first + len(times), canvas.fps)
             _encode_audio(container, sound, mix)

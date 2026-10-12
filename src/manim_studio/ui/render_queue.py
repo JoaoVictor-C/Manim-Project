@@ -12,6 +12,7 @@ returns the next job to run, or None when one is rendering or nothing is left.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -64,11 +65,11 @@ class QueueJob:
 
 def unique_output(output: Path, taken: set[Path]) -> Path:
     """``output``, or ``<stem> (2)<suffix>`` (3, ...) when a pending job already writes there."""
-    taken = {Path(str(p).lower()) for p in taken}  # Windows paths compare without case
-    if Path(str(output).lower()) not in taken:
+    keys = {os.path.normcase(str(p)) for p in taken}  # Windows paths compare without case
+    if os.path.normcase(str(output)) not in keys:
         return output
     n = 2
-    while Path(str(output.with_name(f"{output.stem} ({n}){output.suffix}")).lower()) in taken:
+    while os.path.normcase(str(output.with_name(f"{output.stem} ({n}){output.suffix}"))) in keys:
         n += 1
     return output.with_name(f"{output.stem} ({n}){output.suffix}")
 
@@ -109,7 +110,7 @@ class RenderQueue:
 
     def start(self) -> QueueJob | None:
         """Run the queued jobs in order; returns the job to launch now (None if one is rendering)."""
-        self.active = bool(self.queued) or self.busy
+        self.active = True  # advance() switches it off again when nothing is queued
         return self.advance()
 
     def advance(self) -> QueueJob | None:

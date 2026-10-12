@@ -122,12 +122,13 @@ def pick(combo, data) -> None:
 
 def test_deliver_is_a_page_after_compose_with_the_viewer(window) -> None:
     win = window()
-    assert list(win.pages.pages)[:2] == ["compose", "deliver"] and win.page == "deliver"
+    names = list(win.pages.pages)
+    assert names[0] == "compose" and "deliver" in names and win.page == "deliver"
     assert page(win).widget.isAncestorOf(win.viewer) and win.viewer.isVisible()
     index = [win.pages.bar.tabData(i) for i in range(win.pages.bar.count())].index("deliver")
     assert win.pages.bar.tabText(index) == "Deliver" and not win.pages.bar.tabIcon(index).isNull()
     action = menu_action(win.menuBar(), "View", "Pages", "Deliver")
-    assert action.shortcut() == QKeySequence("Shift+2")  # Shift+5 once the other pages are registered
+    assert action.shortcut() == QKeySequence(f"Shift+{names.index('deliver') + 1}")  # Shift+5 in the end
 
 
 def test_the_settings_start_from_the_project(window, tmp_path) -> None:
@@ -233,6 +234,18 @@ def test_the_marker_range_is_first_to_last_until_the_user_picks(window) -> None:
     assert (p.marker_from.currentData(), p.marker_to.currentData()) == (1.0, 2.0)
     win.document.apply(edits.remove_marker(win.project, win.project.markers[1].id), "Delete marker")
     assert p.marker_to.currentData() == 3.5  # its marker went: back to the last one
+
+
+def test_an_edit_that_leaves_the_markers_alone_keeps_the_form(window) -> None:
+    project = make_project()
+    for t in (1.0, 2.0, 3.0):
+        project = edits.add_marker(project, t).project
+    win = window(project)
+    p = page(win)
+    p.marker_to.setCurrentIndex(1)
+    win.document.apply(edits.update_layer(win.project, "sq", name="Renamed square"), "Rename")
+    assert p.marker_to.currentData() == 2.0  # the combos were not rebuilt
+
 
 def test_a_marker_range_needs_two_different_markers(window) -> None:
     win = window(edits.add_marker(make_project(), 1.0).project)
@@ -422,9 +435,20 @@ def test_cancel_stops_the_running_job_and_the_next_one_starts(window) -> None:
     p.cancel_button.click()  # nothing selected: the running job
     assert running.cancelled and a.status is Status.CANCELLED and row_status(p, a) == "Cancelled"
     assert b.status is Status.RENDERING and len(FakeExport.instances) == 2
-    running.failed.emit("late")  # a signal from the killed process changes nothing
+    text = p.queue_status.text()
+    running.progress.emit(30, 40)  # signals from the killed process change nothing
+    running.failed.emit("late")
     running.finished.emit("x.mp4", "")
-    assert a.status is Status.CANCELLED
+    assert a.status is Status.CANCELLED and a.frame == 0 and p.queue_status.text() == text
+
+
+def test_cancel_and_start_with_nothing_queued_do_nothing(window) -> None:
+    p = page(window())
+    assert not p.cancel_button.isEnabled() and not p.start_button.isEnabled()
+    p.cancel_selected()
+    p.start_queue()
+    p.remove_selected()
+    assert p.queue.jobs == [] and not FakeExport.instances
 
 
 def test_a_queued_job_can_be_cancelled_selected(window) -> None:
