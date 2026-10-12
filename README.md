@@ -52,6 +52,13 @@ pendulum about its top end. With **Keys** on for a property
 **Edit > Auto-key** on, the first change already animates — move the playhead,
 pose the object, and it moves there over time.
 
+The round handles on an object's edges change its own size - a rectangle's width
+or height, a circle's radius, a text's size (Shift: steps of 4 points) - and the
+ones on a line's ends move that end only. Moved objects and dragged handles snap
+to the edges and centres of the other objects and of the frame, and a yellow guide
+shows where; hold Alt while dragging to place freely, or turn it off with
+**View > Snap to Objects** (Ctrl+;).
+
 When the selected object has position keys, its **motion path** shows on the
 canvas with a square per key: drag a square to move that key, double-click it
 to make the key smooth (handles appear) or straight again, and drag a handle to

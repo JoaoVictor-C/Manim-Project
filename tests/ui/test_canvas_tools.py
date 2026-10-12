@@ -374,6 +374,7 @@ def test_shift_snaps_the_pivot_to_a_corner_of_the_box(window, qt_app) -> None:
 
 
 def test_without_ctrl_a_press_on_the_cross_moves_the_object(window, qt_app) -> None:
+    window.move_tool.snapping = False  # exact moves; snapping is tested in test_snap_guides_ui
     for layer_id, (x, y) in (("tiny", (-5.0, -3.0)), ("big", (0.0, 0.0))):
         window.selection.set(layer_id)
         drag(window, px(window, x, y), px(window, x + 1.0, y), qt_app)

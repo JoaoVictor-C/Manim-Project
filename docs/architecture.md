@@ -63,6 +63,8 @@ src/manim_studio/
     ├── motion_overlay.py the selected layer's motion path: keys, handles, hits (pure)
     ├── viewport.py      the canvas view: Fit or scale + centre, zoom about a point, pan (pure)
     ├── gizmo.py         handle geometry: oriented box, scale/angle from drags, pivot snaps (pure)
+    ├── param_handles.py parameter handles: sizes, line ends, connector ends; value from a drag (pure, ADR 0043)
+    ├── snap_guides.py   snapping moved boxes to other objects' edges/centres and the frame (pure, ADR 0043)
     ├── curve_editor.py  easing curve editor: bezier handles, presets, fitted named eases
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder

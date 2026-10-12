@@ -269,6 +269,13 @@ class MainWindow(QMainWindow):
             action.setShortcuts([QKeySequence(k) for k in keys])
             action.triggered.connect(slot)
             view_menu.addAction(action)
+        self.snap_action = QAction("&Snap to Objects", self, checkable=True, checked=True)
+        self.snap_action.setShortcut(QKeySequence("Ctrl+;"))
+        self.snap_action.setToolTip(
+            "Moved objects and dragged handles line up with other objects and the frame (hold Alt: off)"
+        )
+        self.snap_action.toggled.connect(lambda on: setattr(self.move_tool, "snapping", on))
+        view_menu.addAction(self.snap_action)
         view_menu.addSeparator()
         self.themes_menu = view_menu.addMenu("&Themes")
         self.themes_menu.setToolTipsVisible(True)

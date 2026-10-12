@@ -19,13 +19,14 @@ from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
+from ..core import adapter
 from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
-from ..core.schema import Canvas
+from ..core.schema import CONNECTOR_TYPES, Canvas
 from ..render.cairo_export import render_frame
 from ..render.preview import PreviewView, preview_camera
 from ..render.qt_paths import vmobject_path
-from . import motion_overlay, theme, viewport
+from . import motion_overlay, param_handles, theme, viewport
 from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
 
 OUTLINE_COLOR = theme.qcolor(theme.THEME.outline)
@@ -35,6 +36,9 @@ PASTEBOARD_DIM = theme.qcolor(theme.THEME.pasteboard_dim)  # over what lies outs
 FRAME_BORDER = theme.qcolor(theme.THEME.frame_border)
 BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
+GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
+PARAM_HANDLE_PX = 9.0  # parameter handles: round, drawn size (ADR 0043)
+CLEAR_OF_MIDDLE_PX = 14.0  # parameter handles nearer an object's middle or pivot than this are hidden
 WHEEL_PAN_PX = 48.0  # one wheel notch
 
 
@@ -76,6 +80,9 @@ class CanvasWidget(QWidget):
         self.render_ahead = None  # frames rendered ahead (ui.render_ahead.RenderAhead, ADR 0028)
         self.from_cache = False  # the frame shown came from it
         self._pan_from: QPointF | None = None  # middle-drag in progress
+        self.param_handles: list[param_handles.ParamHandle] = []  # the selected object's sizes (ADR 0043)
+        self.guides: list[tuple[tuple[float, float], tuple[float, float]]] = []  # snapped edges, units
+        self._rest: dict[str, np.ndarray] = {}  # built drawings' points by spec, for the handles
 
     @property
     def evaluator(self) -> Evaluator | None:
@@ -177,6 +184,7 @@ class CanvasWidget(QWidget):
             height, width = pixels.shape[:2]
             self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.motion = self._motion(t)
+        self.param_handles = self._param_handles(t)
         self.last_render_ms = (time.perf_counter() - start) * 1000
         self.update()
 
@@ -207,6 +215,37 @@ class CanvasWidget(QWidget):
             return None
         layer = project.layer(self.selected_layer)
         return motion_overlay.build(layer, *self._evaluator.position_frame(layer, t))
+
+    def _param_handles(self, t: float) -> list[param_handles.ParamHandle]:
+        """The selected object's parameter handles at ``t`` (roots only; none while playing)."""
+        if self.playing or self.outline is None or not self.selected_layer or self._evaluator is None:
+            return []
+        project = self._evaluator.project
+        layer = next((x for x in project.layers if x.id == self.selected_layer), None)
+        if layer is None or layer.parent_id is not None or layer.spec is None:
+            return []
+        if layer.spec.type in CONNECTOR_TYPES:
+            return param_handles.connector_handles(layer.spec, self._evaluator.connector_frames(layer, t))
+        if layer.spec.type not in param_handles.SIZES and layer.spec.type not in param_handles.LINES:
+            return []
+        a, b = self._evaluator.world_affine(layer, t)
+        found = param_handles.object_handles(layer.spec, self.rest_points(layer.spec), a, b)
+        # On a small object the handles would cover its middle, where a press moves it: zoom in.
+        clear = CLEAR_OF_MIDDLE_PX / self.px_per_unit()
+        middles = (np.asarray(self.outline.anchor), self.outline.box.centre)
+        return [h for h in found if min(np.linalg.norm(h.world - c) for c in middles) >= clear]
+
+    def rest_points(self, spec) -> np.ndarray:
+        """The points of ``spec``'s drawing as built (centred on the origin), kept per spec."""
+        key = spec.model_dump_json()
+        if key not in self._rest:
+            if len(self._rest) > 32:
+                self._rest.clear()
+            family = adapter.build_mobject(spec).family_members_with_points()
+            self._rest[key] = (
+                np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((0, 2))
+            )
+        return self._rest[key]
 
     def _outline(self, layers: list[tuple[str, m.Mobject]], t: float) -> Outline | None:
         if not self.selected_layer:
@@ -253,7 +292,20 @@ class CanvasWidget(QWidget):
                 self._paint_motion(painter)
             if self.outline is not None:
                 self._paint_outline(painter)
+            if self.guides:
+                self._paint_guides(painter)
         painter.end()
+
+    def _paint_guides(self, painter: QPainter) -> None:
+        """Where a dragged edge or centre snapped (ADR 0043)."""
+        to_px = self.units_transform()
+        painter.save()
+        pen = QPen(GUIDE_COLOR, 1)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        for start, end in self.guides:
+            painter.drawLine(to_px.map(QPointF(*start)), to_px.map(QPointF(*end)))
+        painter.restore()
 
     def _paint_pasteboard(self, painter: QPainter) -> None:
         """Dim what lies outside the video frame (four bands) and draw the frame's border."""
@@ -328,6 +380,12 @@ class CanvasWidget(QWidget):
         top_middle = (corners[2] + corners[3]) / 2
         painter.drawLine(top_middle, knob)
         painter.drawEllipse(knob, half, half)
+        # parameter handles: round, filled with the outline colour (ADR 0043)
+        painter.setBrush(OUTLINE_COLOR)
+        painter.setPen(QPen(BADGE, 1.5))
+        radius = PARAM_HANDLE_PX / 2
+        for handle in self.param_handles:
+            painter.drawEllipse(to_px.map(QPointF(*handle.world)), radius, radius)
         if self.readout is not None:
             pos, text = self.readout
             painter.setPen(BADGE_TEXT)

@@ -43,7 +43,7 @@ from ..core import edits
 from ..core.evaluator import layer_transform
 from ..core.schema import Layer, Project
 from ..render.hit_test import hit_layers
-from . import motion_overlay
+from . import motion_overlay, param_handles, snap_guides
 from .canvas import CanvasWidget
 from .document import Document
 from .gizmo import (
@@ -83,6 +83,10 @@ class _Drag:
     to_anchor: np.ndarray | None = None  # anchor: world move of the pivot -> change of the anchor
     snaps: np.ndarray | None = None  # anchor: where Ctrl snaps the pivot (world)
     key: motion_overlay.MotionKey | None = None  # motion path: the key (or its handle) dragged
+    param: param_handles.ParamHandle | None = None  # a parameter handle (ADR 0043)
+    origin: np.ndarray | None = None  # a line end: where its parameter space sat at press
+    box: tuple[np.ndarray, np.ndarray] | None = None  # moves: the moved drawing's box at press (world)
+    targets: snap_guides.Targets | None = None  # what moves and handles snap to (ADR 0043)
 
 
 VERBS = {
@@ -93,6 +97,7 @@ VERBS = {
     "scale": "Scale layer",
     "rotation": "Rotate layer",
     "anchor": "Move anchor",
+    "param": "Resize layer",
 }
 DEGREES = "\N{DEGREE SIGN}"
 
@@ -113,6 +118,7 @@ class MoveTool(QObject):
         self.canvas, self.document, self.selection = canvas, document, selection
         self.playhead, self.seek = playhead, seek
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
+        self.snapping = True  # View > Snap to Objects (ADR 0043); Alt turns it off while dragging
         self._drag: _Drag | None = None
         self._pending: tuple[np.ndarray, Qt.KeyboardModifier, QPointF] | None = None
         self._scheduled = False
@@ -133,8 +139,12 @@ class MoveTool(QObject):
         if modifiers & Qt.KeyboardModifier.ControlModifier and self._cross_under(point):
             self._start_drag(current, "anchor", point)  # 1. Ctrl on the pivot cross
             return
+        param = None if alt else self._param_under(point)
+        if param is not None:  # 2. a parameter handle: a size, a line's end (ADR 0043)
+            self._start_param_drag(current, param, point)
+            return
         handle = None if alt else self._handle_under(point)
-        if handle is not None:  # 2. a handle of the selected layer
+        if handle is not None:  # 3. a corner or the knob of the selected layer
             self._start_drag(current, "scale" if handle == "scale" else "rotation", point)
             return
         motion = self._motion_under(point)
@@ -215,7 +225,9 @@ class MoveTool(QObject):
         self.apply_pending()
         drag, self._drag = self._drag, None
         self.canvas.readout = None
-        self.document.commit_preview(VERBS[drag.prop])
+        self.canvas.guides = []
+        verb = f"Change {drag.param.title}" if drag.param is not None else VERBS[drag.prop]
+        self.document.commit_preview(verb)
         if drag.prop == "position" and drag.key_time is None:
             layer = self.project.layer(drag.layer_id)
             runs = [c for c in layer.clips if c.info.category == "motion" and c.start <= self.playhead()]
@@ -233,6 +245,7 @@ class MoveTool(QObject):
             self._drag = None
             self._pending = None
             self.canvas.readout = None
+            self.canvas.guides = []
             self.document.cancel_preview()
 
     def apply_pending(self) -> None:
@@ -244,7 +257,11 @@ class MoveTool(QObject):
         point, modifiers, pos = self._pending
         self._pending = None
         shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        snapping = self.snapping and not modifiers & Qt.KeyboardModifier.AltModifier
         readout = None
+        if drag.prop == "param":
+            self._param_preview(drag, point, pos, shift, snapping)
+            return
         if drag.prop in ("key", "in", "out"):
             alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
             self.document.preview(self._motion_edit(drag, point, alt))
@@ -260,8 +277,17 @@ class MoveTool(QObject):
             return
         if drag.prop == "position":
             delta = point - drag.press
+            free = (True, True)
             if shift:
                 delta[np.argmin(np.abs(delta))] = 0.0
+                free = (bool(delta[0]), bool(delta[1]))
+            self.canvas.guides = []
+            if snapping and drag.box is not None and drag.targets is not None:
+                found = snap_guides.snap(
+                    drag.box[0] + delta, drag.box[1] + delta, drag.targets, self._snap_radius(), free
+                )
+                delta = delta + found.offset
+                self.canvas.guides = found.guides
             delta = drag.to_local @ delta
             value = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
         elif drag.prop == "scale":
@@ -323,7 +349,85 @@ class MoveTool(QObject):
         if prop == "anchor":
             self._drag.to_anchor = self._to_anchor(layer, at, to_local)
             self._drag.snaps = self._selected_outline().snaps
+        if prop == "position":
+            self._drag.box, self._drag.targets = self._snapping_for(layer_id)
         self.document.begin_preview()
+
+    # -- parameter handles and snapping (ADR 0043) ---------------------------------
+
+    def _param_under(self, point: np.ndarray) -> param_handles.ParamHandle | None:
+        if self._selected_outline() is None:
+            return None
+        grab = GRAB_PX / self.canvas.px_per_unit()
+        return param_handles.handle_under(self.canvas.param_handles, point, grab)
+
+    def _start_param_drag(self, layer_id: str, handle: param_handles.ParamHandle, point: np.ndarray) -> None:
+        if self._morph_playing(layer_id):
+            self.message.emit("This object is morphing here: move the playhead outside the morph to edit it.")
+            return
+        layer = self.project.layer(layer_id)
+        self._drag = _Drag(
+            layer_id, "param", point, handle.start, handle.world, None, self.project, np.eye(2), param=handle
+        )
+        if layer.spec.type in param_handles.LINES:
+            self._drag.origin = param_handles.line_origin(layer.spec, self.canvas.rest_points(layer.spec))
+        self._drag.targets = self._snapping_for(layer_id)[1]
+        self.document.begin_preview()
+
+    def _param_preview(
+        self, drag: _Drag, point: np.ndarray, pos: QPointF, shift: bool, snapping: bool
+    ) -> None:
+        """Preview a parameter handle at ``point``: its edge snaps (not with Shift, which steps)."""
+        handle = drag.param
+        world = handle.world + (point - drag.press)
+        self.canvas.guides = []
+        if snapping and drag.targets is not None and not shift:
+            found = snap_guides.snap(world, world, drag.targets, self._snap_radius())
+            world = world + found.offset
+            self.canvas.guides = found.guides
+        value = param_handles.value_at(handle, handle.to_local(world), step=shift)
+        spec = drag.base.layer(drag.layer_id).spec
+        shift_by = np.zeros(2)
+        if drag.origin is not None:  # a line is re-centred when built: move it so the other end stays
+            moved = spec.model_copy(update={"params": {**spec.params, handle.param: value}})
+            origin = param_handles.line_origin(moved, self.canvas.rest_points(moved))
+            shift_by = handle.a @ (origin - drag.origin)
+        shown = f"{value[0]:.2f}, {value[1]:.2f}" if isinstance(value, tuple) else f"{value:g}"
+        self.canvas.readout = (pos, f"{handle.title} {shown}")
+        edit = edits.set_params(drag.base, drag.layer_id, {handle.param: value}, tuple(shift_by))
+        self.document.preview(edit)
+
+    def _snap_radius(self) -> float:
+        return snap_guides.SNAP_PX / self.canvas.px_per_unit()
+
+    def _snapping_for(self, layer_id: str):
+        """The box of what a drag moves (world, at the playhead) and what it snaps to: the other
+        objects' boxes (the other parts, inside its own object) and the video frame."""
+        project = self.project
+        moved = {layer_id} | {d.id for d in project.descendants(layer_id)}
+        follows = project.connectors_of(moved) | project.traces_of(moved)
+        own_root = project.root_of(layer_id).id
+        mine, others = [], {}
+        for owner, mob in self.canvas.evaluator.frame_layers(self.playhead()):
+            family = mob.family_members_with_points()
+            if not family or owner in follows:
+                continue
+            box = snap_guides.box_of(np.vstack([sub.points[:, :2] for sub in family]))
+            if owner in moved:
+                mine.append(box)
+                continue
+            root = project.root_of(owner).id
+            group = owner if root == own_root else root
+            low, high = others.get(group, box)
+            others[group] = (np.minimum(low, box[0]), np.maximum(high, box[1]))
+        canvas = project.canvas
+        half = np.array([canvas.frame_width / 2, canvas.frame_height / 2])
+        targets = snap_guides.targets(list(others.values()), (-half, half))
+        if not mine:
+            return None, targets
+        low = np.min([b[0] for b in mine], axis=0)
+        high = np.max([b[1] for b in mine], axis=0)
+        return (low, high), targets
 
     @staticmethod
     def _to_anchor(layer: Layer, t: float, to_local: np.ndarray) -> np.ndarray:

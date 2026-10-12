@@ -380,6 +380,30 @@ def set_anchor(project: Project, layer_id: str, anchor: Any, t: float) -> Edit:
     return _replace_layer(project, layer_id, {"base": base, "tracks": tracks})
 
 
+def set_params(project: Project, layer_id: str, params: dict[str, Any], shift: Any = (0.0, 0.0)) -> Edit:
+    """Change some of a layer's object parameters (a canvas handle, ADR 0043), moving it by
+    ``shift``: on the base and on every position key (a rigid shift of the path), so a line's
+    other end stays where it was. Never creates keys."""
+    layer = _layer(project, layer_id)
+    if layer.spec is None:
+        raise EditError(f"layer {layer_id!r} has no object")
+    spec = layer.spec.model_copy(update={"params": {**layer.spec.params, **params}})
+    fields: dict[str, Any] = {"spec": spec}
+    dx, dy = float(shift[0]), float(shift[1])
+    if dx or dy:
+
+        def shifted(value) -> tuple[float, float]:
+            return (value[0] + dx, value[1] + dy)
+
+        base = layer.base.model_dump()
+        base["position"] = shifted(layer.base.position)
+        fields["base"] = base
+        if layer.tracks.get("position"):
+            moved = [k.model_copy(update={"value": shifted(k.value)}) for k in layer.tracks["position"]]
+            fields["tracks"] = {**layer.tracks, "position": moved}
+    return _replace_layer(project, layer_id, fields)
+
+
 def anchor_shifts_elsewhere(layer: Layer) -> bool:
     """Whether moving the anchor keeps the drawing only at the edit time (keyed rotation/scale)."""
     return bool(layer.tracks.get("rotation") or layer.tracks.get("scale"))

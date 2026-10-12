@@ -115,6 +115,16 @@ Fusion, the palette and the font, every icon (drawn, tinted, dimmed when
 disabled), the icon buttons, that no colour literal remains in `ui/` outside
 `theme.py`, and that document colours are drawn as saved. The tests' application
 fixture applies the theme, so every UI test runs under the real look.
+`ui/test_param_handles.py` and `ui/test_snap_guides.py` cover the pure geometry
+of parameter handles (placement on the built drawing, delta/ratio/point drags,
+limits, Shift steps and 45-degree line turns, an arrow's gap, connector ends) and
+of snapping (targets, nearest line, masked axes, guide spans);
+`core/test_set_params.py` the edit and its rigid shift. `ui/test_param_handles_ui.py`
+drags handles with real events (turned scaled objects, a line's other end staying,
+Escape, undo, small objects, connectors) and snaps moves and handles (Alt, the View
+toggle, nothing snaps to itself or what follows it); `ui/test_acceptance_p6c.py`
+drags every handle type on a turned, scaled object and checks it lands under the
+cursor. Exact-move tests set `move_tool.snapping = False`.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

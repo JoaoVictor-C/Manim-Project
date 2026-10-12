@@ -161,6 +161,19 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Parameter handles and snapping guides (P6c.1, ADR 0043): the selected object
+  shows round handles for its sizes - a rectangle's width and height, a circle's or
+  dot's radius, a square's side, a star's radius, a text's or number's font size
+  (whole points; Shift: steps of 4), the axes' width and height, an SVG's height, a
+  line's or arrow's ends and a connector's end points - placed through its turned,
+  scaled and keyed transform. A drag edits exactly what the Properties field edits
+  (same limits), is one undo step ("Change width") and Escape cancels it; a line end
+  keeps the other end in place. Moving an object or dragging a handle snaps its
+  edges and centre to the other objects' and the frame's within 6 px, with a guide
+  line; hold Alt to drag freely, or turn it off with View > Snap to Objects (Ctrl+;).
+  New `edits.set_params`, `Evaluator.world_affine` / `connector_frames`, pure
+  `ui/param_handles.py` and `ui/snap_guides.py`. Handles that would cover a small
+  object's middle are hidden (zoom in to resize it).
 - Workspace pages (P6b.1, ADR 0041): the window is a set of pages switched from a
   page bar at the bottom, View > Pages or Shift+1..5, sharing one canvas,
   timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is

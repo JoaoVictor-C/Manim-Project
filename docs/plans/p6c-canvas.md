@@ -33,5 +33,5 @@ moved, deleted, copied and given a preset together, and Arrange lines them up.
 
 | step | content | acceptance |
 |---|---|---|
-| P6c.1 | parameter handles, snapping guides | every handle type dragged on a turned, scaled object; guides; undo; Escape |
+| ✅ P6c.1 | parameter handles, snapping guides | every handle type dragged on a turned, scaled object; guides; undo; Escape |
 | P6c.2 | multi-select, group actions, Arrange | marquee, group move/delete/copy/preset, align and distribute |

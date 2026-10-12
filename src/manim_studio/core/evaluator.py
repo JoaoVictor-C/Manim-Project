@@ -528,6 +528,33 @@ class Evaluator:
             a = self._world_affine(target, t)[0]
         return (box[0] + box[1]) / 2 + a @ offset, box
 
+    def connector_frames(self, layer: Layer, t: float) -> list[tuple[np.ndarray, np.ndarray] | None]:
+        """Per end (source, target) of the connector ``layer``: ``(a, b)`` with ``world = a @ offset
+        + b`` at ``t`` (its canvas handles, ADR 0043), or None when that end is not drawn or follows
+        a simulation's traced point. The same buffer rules as ``frame()`` apply."""
+        own_a, own_b = self._world_affine(layer, t)
+        out = []
+        for name in ("source", "target"):
+            target = self._layers.get(layer.spec.params.get(name, ""))
+            end = None
+            if target is not None and target.id not in self._simulated:
+                end = self._connector_end(target, t, np.zeros(2))
+            if end is None:
+                out.append(None)
+                continue
+            root = self.project.root_of(target.id)
+            if root.id in self._trees_of and target.id != root.id:
+                a = self._member_affine(self._tree(root), target, t)[0]
+            else:
+                a = self._world_affine(target, t)[0]
+            out.append((own_a @ a, own_a @ end[0] + own_b))
+        return out
+
+    def world_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """``(a, b)`` with ``world = a @ local + b`` for a root or child object at ``t`` (its
+        layer transform, a child's carried by its parent's): where canvas handles sit (ADR 0043)."""
+        return self._world_affine(layer, t)
+
     def _connector_drawing(self, layer: Layer, t: float) -> m.Mobject:
         """A connector at ``t`` (world units): a line or arrow between its layers' points, ending at
         their boxes (``edges``) or at the points, shortened by its gap; nothing while either layer
