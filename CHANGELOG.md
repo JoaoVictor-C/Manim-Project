@@ -172,6 +172,17 @@ All notable changes to this project are documented here. The format follows
     its ease or the curve editor; F frames all keys and the wheel zooms;
   - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
     curve's key (B56: curves stroked as separate segments, 20x faster).
+- Several selected objects (P6c.2, ADR 0043): Shift+click on the canvas adds or takes
+  out an object, a drag from empty canvas draws a selection rectangle (Shift: adding),
+  and Ctrl/Shift+click in Layers selects several. Dragging any of them moves them all
+  (keyed ones by a key at the playhead, the others' base: the stopwatch rule per
+  layer) as one undo step, and the arrow keys nudge them all; a plain click on one
+  selects only it. Delete, Cut/Copy/Duplicate/Paste, presets and themes act on all of
+  them; Properties shows the last one picked and says how many more are selected. A
+  new **Arrange** menu aligns the objects' left/centre/right/top/middle/bottom to their
+  common box (one object: to the video frame; Ctrl+Alt+arrows, H, V) and distributes
+  three or more with equal gaps. New `Selection.layer_ids` / `set_layers` /
+  `toggle_layer`, `edits.remove_layers`, `MoveTool.move_by`, pure `ui/arrange.py`.
 - Parameter handles and snapping guides (P6c.1, ADR 0043): the selected object
   shows round handles for its sizes - a rectangle's width and height, a circle's or
   dot's radius, a square's side, a star's radius, a text's or number's font size

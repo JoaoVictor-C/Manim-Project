@@ -152,6 +152,13 @@ Escape, undo, small objects, connectors) and snaps moves and handles (Alt, the V
 toggle, nothing snaps to itself or what follows it); `ui/test_acceptance_p6c.py`
 drags every handle type on a turned, scaled object and checks it lands under the
 cursor. Exact-move tests set `move_tool.snapping = False`.
+`ui/test_arrange.py` covers align (each line, one object to the frame) and distribute
+(equal gaps, the outermost kept, three or more); `ui/test_selection.py` the several-layer
+selection (primary last, toggling, dropping deleted ones); `ui/test_multiselect_ui.py`
+Shift+click, the marquee, Ctrl+click in Layers, group drags and nudges (keyed layers keyed,
+a part with its object moved once, corners not grabbed), Delete, the clipboard, presets,
+themes and Arrange; `ui/test_acceptance_p6c.py` does all of it on three objects, one undo
+step each.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

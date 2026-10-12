@@ -42,6 +42,14 @@ on-canvas handles; confirmation pending.)
   per layer; one undo step). Properties shows the primary object. **Arrange** aligns
   the objects to their common box (or one object to the frame) and distributes three
   or more with equal gaps.
+  As built: a Shift+press on an unselected object adds it and a drag then moves all
+  (Shift still locks the axis); a Shift+click without moving on a selected one takes
+  it out; a plain click without moving on one of several selects only it, a plain
+  drag moves them all. The marquee selects every object whose box it touches.
+  Several selected hide every handle (parameter, corner, knob, pivot, motion path);
+  each other object shows its outline and box. A part selected with its object (or
+  a locked graph with its axes) moves once. Arrange measures the drawn boxes at the
+  playhead and moves through the same rule as a drag (`MoveTool.move_by`).
 
 ## Consequences
 

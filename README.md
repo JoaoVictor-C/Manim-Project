@@ -59,6 +59,13 @@ to the edges and centres of the other objects and of the frame, and a yellow gui
 shows where; hold Alt while dragging to place freely, or turn it off with
 **View > Snap to Objects** (Ctrl+;).
 
+Shift+click adds objects to the selection (or takes one out), and a drag from an
+empty part of the canvas selects everything the rectangle touches; in Layers,
+Ctrl+click and Shift+click do the same. Selected objects move, nudge, copy, delete
+and take presets and themes together, and **Arrange** lines them up (Align Left,
+Centre, Right, Top, Middle, Bottom; a single object aligns to the frame) or spaces
+three or more evenly (Distribute).
+
 When the selected object has position keys, its **motion path** shows on the
 canvas with a square per key: drag a square to move that key, double-click it
 to make the key smooth (handles appear) or straight again, and drag a handle to

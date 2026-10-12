@@ -181,3 +181,47 @@ def test_escape_cancels_and_a_move_snaps_with_a_guide(qt_app, tmp_path) -> None:
         assert win.canvas.guides == []
     finally:
         win.close()
+
+
+def test_several_objects_marquee_move_arrange_preset_copy_delete(qt_app, tmp_path) -> None:
+    """P6c.2: pick three objects with a marquee, move them together, line them up and space
+    them, give them one preset, duplicate them, and delete the copies - each one undo step."""
+    layers = [
+        Layer(id=name, spec=Spec(type="Circle", params={"radius": 0.4}), base=Transform2D(position=p))
+        for name, p in (("one", (-4.0, 1.0)), ("two", (-1.0, -0.5)), ("three", (3.0, 0.8)))
+    ]
+    win = open_window(qt_app, tmp_path, layers)
+    win.move_tool.snapping = False
+    try:
+        press_and_move(win, (-5.5, 2.5), (4.5, -2.0), qt_app)  # from empty canvas
+        mouse(win, QEvent.Type.MouseButtonRelease, px(win, (4.5, -2.0)))
+        assert set(win.selection.layer_ids) == {"one", "two", "three"}
+        press_and_move(win, (-1.0, -0.5), (-1.0, 0.5), qt_app)  # drag one of them: all move
+        mouse(win, QEvent.Type.MouseButtonRelease, px(win, (-1.0, 0.5)))
+        ys = [win.project.layer(n).base.position[1] for n in ("one", "two", "three")]
+        assert ys == pytest.approx([2.0, 0.5, 1.8], abs=0.02)
+        win.align("middle")
+        ys = [win.project.layer(n).base.position[1] for n in ("one", "two", "three")]
+        assert ys == pytest.approx([1.25, 1.25, 1.25], abs=1e-6)
+        win.distribute(0)
+        assert win.project.layer("two").base.position[0] == pytest.approx(-0.5, abs=1e-6)
+        preset = next(p for p in win.library.presets if p.category == "entrance")
+        assert win.apply_preset(preset)
+        assert all(win.project.layer(n).clips for n in ("one", "two", "three"))
+        win.clipboard.duplicate()
+        qt_app.processEvents()
+        assert len(win.project.layers) == 6 and len(win.selection.layer_ids) == 3
+        win.layers.delete_selected()
+        qt_app.processEvents()
+        assert [x.id for x in win.project.layers] == ["one", "two", "three"]
+        texts = [win.document.undo_stack.text(i) for i in range(win.document.undo_stack.count())]
+        assert texts == [
+            "Move layers",
+            "Align middle",
+            "Distribute",
+            f"Apply {preset.name}",
+            "Duplicate layer",
+            "Delete layers",
+        ]
+    finally:
+        win.close()

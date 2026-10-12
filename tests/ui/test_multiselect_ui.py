@@ -16,7 +16,7 @@ from PySide6.QtCore import QEvent, QItemSelectionModel, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
-from manim_studio.core.schema import Canvas, Keyframe, Layer, Project, Spec, Transform2D
+from manim_studio.core.schema import Canvas, Keyframe, Layer, PartKey, Project, Spec, Transform2D
 from manim_studio.ui.layers_panel import ID_ROLE
 from manim_studio.ui.main_window import MainWindow
 
@@ -42,10 +42,10 @@ def scene() -> Project:
         layers=[
             square("a", -4.0, 0.0),
             square("b", 0.0, 1.0, side=2.0),
-            square(
+            square(  # keyed: its base (unused while keyed) differs from its keys
                 "c",
-                3.0,
-                -2.0,
+                0.0,
+                0.0,
                 tracks={"position": [Keyframe(t=0, value=(3.0, -2.0)), Keyframe(t=2, value=(5.0, -2.0))]},
             ),
         ],
@@ -279,3 +279,37 @@ def test_one_object_aligns_to_the_frame_and_too_few_do_not_distribute(window, qt
     window.align("left")
     assert window.statusBar().currentMessage() == "Already lined up"
     assert np.isfinite(position(window, "b")[0])
+
+
+def test_with_several_selected_a_corner_press_moves_them_rather_than_scaling(window, qt_app) -> None:
+    window.selection.set_layers(["a", "b"])
+    qt_app.processEvents()
+    drag(window, (0.98, 1.98), (1.48, 2.48), qt_app)  # b's top-right corner
+    assert window.project.layer("b").base.scale == 1.0
+    assert position(window, "b") == pytest.approx((0.5, 1.5), abs=0.02)
+    assert position(window, "a") == pytest.approx((-3.5, 0.5), abs=0.02)
+
+
+def test_a_part_selected_with_its_object_moves_once(qt_app, tmp_path) -> None:
+    project = Project(
+        canvas=scene().canvas,
+        layers=[
+            Layer(id="ax", spec=Spec(type="MathTex", params={"text": "a^2 + b^2", "font_size": 96})),
+            Layer(id="pt", parent_id="ax", part=PartKey(tex="b^2")),
+        ],
+    )
+    path = tmp_path / "parts.json"
+    path.write_text(project.model_dump_json(by_alias=True), encoding="utf-8")
+    win = MainWindow()
+    win.resize(1100, 800)
+    win.show()
+    win.load(path)
+    qt_app.processEvents()
+    try:
+        win.selection.set_layers(["ax", "pt"])
+        qt_app.processEvents()
+        key(win, Qt.Key.Key_Right)
+        assert win.project.layer("ax").base.position[0] > 0
+        assert win.project.layer("pt").base.position == (0.0, 0.0)  # carried by its object, not moved twice
+    finally:
+        win.close()
