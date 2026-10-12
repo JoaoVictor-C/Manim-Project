@@ -114,6 +114,7 @@ def test_double_click_drills_in_then_clicks_pick_parts_and_escape_backs_out(wind
 def test_dragging_a_part_moves_only_it_in_its_parents_frame(qt_app, tmp_path) -> None:
     win = open_window(qt_app, tmp_path, project(Transform2D(scale=2.0, rotation=90.0)))
     try:
+        win.move_tool.snapping = False  # exact moves (the part would snap to its sibling)
         start, grab = centre(win, "b"), glyph(win, "b")
         double_click(win, px(win, *grab))
         assert win.selection.layer_id == "b"
