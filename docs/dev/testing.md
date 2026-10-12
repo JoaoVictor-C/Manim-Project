@@ -115,6 +115,17 @@ Fusion, the palette and the font, every icon (drawn, tinted, dimmed when
 disabled), the icon buttons, that no colour literal remains in `ui/` outside
 `theme.py`, and that document colours are drawn as saved. The tests' application
 fixture applies the theme, so every UI test runs under the real look.
+`ui/test_code_syntax.py` checks the Code page's lexer (keywords, Manim names, definitions, numbers,
+prefixed and triple quoted strings over lines, comments; spans never overlap or raise on any text)
+and its drafts (kept only while they differ from the project, the project moving underneath,
+error line helpers), neither needing Qt. `ui/test_code_page.py` drives the page through the real
+`MainWindow`: the layer list and selection, the editor's keys, Run (one undo step, trust, none for
+unchanged text), drafts across layer, page and project switches, Revert, the project changing under a
+dirty editor, and injected render statuses with a clickable error line (code layers are not rendered
+there). `ui/test_acceptance_p6b3.py` repeats it with the real code runner: a typo is run, the
+NameError shows at line 4, a click puts the cursor there, the fix runs and the green square appears
+on the canvas. Type a new line with `QTest.keyClick(Key_Return)`: `keyClicks` of a newline character
+crashes the offscreen platform.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

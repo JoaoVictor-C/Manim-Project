@@ -528,3 +528,17 @@ repaint included, takes **13.6 ms** per switch; hiding and showing both docks
 frame cache and the selection wiring). With the pages built (P6b.1), a real
 `show_page` round trip - parking, re-parenting, splitter sizes, repaint - takes
 **22.8 ms** per switch. -> ADR 0041.
+
+### B57 — The Code page's editor · 2026-10-12
+`benchmarks/bench_code_editor.py` on a generated 2000-line scene (162 KB), offscreen, the
+quiet-machine run (a second batch ran 2-3x slower while other jobs shared the machine; the
+shape was the same). The pure lexer (`code_syntax.scan`) over the whole text takes **20 ms**;
+putting the text in the editor (highlight, layout, line numbers, repaint) **43 ms**. One typed
+character in the middle takes **4.4 ms** (6.6 ms typing and deleting a quote after an open
+triple quoted string, which flips the state of every line below - Qt re-highlights only while the
+block state changes, so it is the same order); the page's per-keystroke dirty check
+(`toPlainText` and the comparison with the project's code) **0.25 ms**, and typing through the
+whole page 11-15 ms, the same with the check disconnected (so it is Qt layout and painting of a
+large window, not the page). A Compose <-> Code round trip with the 2000 lines open takes
+**68-72 ms** (B55: 23 ms for Compose and a small page; the editor lays its text out again on show).
+A typical code layer (under 100 lines) is far below all of this. -> ADR 0041, decision session 36.

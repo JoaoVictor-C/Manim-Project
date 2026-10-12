@@ -660,3 +660,27 @@ left open, so ADRs can cite it.
   over per-page views.
 - **Critiques that changed the plan:** never leave a shared view parentless (it would
   float as a window); keep each page's splitter sizes; pages register before the menus.
+
+## Session 36 — P6b.3 the Code page · 2026-10-12
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on `halt_signal`,
+  confidence **0.91**.
+- **Input:** ADR 0019 (code layers: trust by hash, single-use render processes), the render
+  service's `CodeStatus` (one message and a line number), the Properties code field's
+  Ctrl+Enter and trusting, the page framework (ADR 0041); probe B57.
+- **Decisions:** apply only on Run (Ctrl+Enter or the button) as one undo step through
+  `set_param`, trusting the exact text; per-layer drafts (text, cursor, the project text they
+  started from) kept while the editor text differs from the project's by exact equality, through
+  layer and page switches and layer deletion, dropped with a count when another project opens;
+  a document change under a clean editor reloads it, under a dirty one keeps the text and shows a
+  notice, Revert shows the project's code; errors as a state line plus a monospace message whose
+  line number is a link, labelled "from the last run" while dirty (-> plan
+  [../plans/p6b3-code.md](../plans/p6b3-code.md), ADR 0041).
+- **Measured during the session:** none before; after, B57 (highlighting and the dirty check
+  cost nothing noticeable on 2000 lines).
+- **Critiques that changed the plan:** a draft must remember the project text it started from, or
+  an undo under unapplied typing is invisible (-> the notice); drafts kept across a layer's
+  deletion so undoing the delete restores them, dropped only on a project reset (ids repeat between
+  projects), announced in the status bar; Run with unchanged text must not start a render unless the
+  last one failed; the error's line number refers to the last run, so it is not tinted while the
+  text is dirty; the protocol carries one line, so no traceback pane.

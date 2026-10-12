@@ -193,6 +193,12 @@ icons, with every text measured for contrast. Your project's colours (objects,
 background, markers, subtitles) are always shown and exported exactly as you set
 them.
 
+**Code page** (Shift+3 in the page bar): code layers get an editor of their own beside the canvas, with
+Python highlighting, line numbers and auto-indent. Ctrl+Enter (or Run) trusts and applies the text as
+one undo step; typing alone never runs anything, and unapplied text is kept (and marked) while you
+switch layers or pages. A render error shows under the editor, and clicking its line number moves
+the cursor to that line.
+
 ## How it works
 
 Manim's `play()` is a loop of `begin()` → `interpolate(alpha)` → `finish()`. Manim

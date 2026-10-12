@@ -51,7 +51,10 @@ src/manim_studio/
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
-    ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
+    ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py, code.py (ADR 0041)
+    ├── code_syntax.py   Python lexer for the code editor's highlighting: spans and a line state (pure)
+    ├── code_drafts.py   unapplied editor text per code layer, error line helpers (pure)
+    ├── code_editor.py   CodeEditor (gutter, highlighter, auto-indent, Tab = 4 spaces) for the Code page
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)

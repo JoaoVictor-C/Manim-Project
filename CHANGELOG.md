@@ -166,6 +166,12 @@ All notable changes to this project are documented here. The format follows
   timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is
   the former layout; the docks are gone and View > Layers / Properties hide a
   panel on every page. Animate, Code, Audio and Deliver pages follow.
+- Code page (P6b.3, ADR 0041, decision session 36): code layers in an editor of their own
+  beside the viewer - Python highlighting from theme tokens, line numbers, auto-indent, Tab as
+  four spaces, Run (Ctrl+Enter: trusts the text, one undo step) and Revert, unapplied text kept
+  per layer through layer and page switches (marked as unapplied; dropped, with a message, when
+  another project opens), and the render status under the editor, where an error's line number
+  moves the cursor to that line. A typed character in a 2000-line scene costs about 11 ms (B57).
 - Design system (P6a, ADR 0040): the editor has a dark studio look - the Fusion
   style, a palette and one stylesheet generated from colour tokens in
   `ui/theme.py`, a 9 pt UI font, and Phosphor icons (QtAwesome, a new dependency)
