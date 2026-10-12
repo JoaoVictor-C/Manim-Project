@@ -528,3 +528,11 @@ repaint included, takes **13.6 ms** per switch; hiding and showing both docks
 frame cache and the selection wiring). With the pages built (P6b.1), a real
 `show_page` round trip - parking, re-parenting, splitter sizes, repaint - takes
 **22.8 ms** per switch. -> ADR 0041.
+
+### B60 — Canvas interaction · 2026-10-12
+`benchmarks/bench_handles.py` at 960x540 (B56-B59 belong to the page slices). A
+parameter handle drag edits the spec on every mouse move - the edit, the evaluator's
+rebuild and the frame - in **3.4 ms** for a rectangle's width, a line's end or a
+circle's radius, **6.5 ms** for a text's font size with cached glyphs. Gathering 24
+objects' world boxes and finding the nearest edge for snapping: **0.63 ms**. Moving 20
+objects as 20 chained edits: **2.3 ms**. -> ADR 0043.

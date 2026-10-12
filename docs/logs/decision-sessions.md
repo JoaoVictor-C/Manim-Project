@@ -660,3 +660,20 @@ left open, so ADRs can cite it.
   over per-page views.
 - **Critiques that changed the plan:** never leave a shared view parentless (it would
   float as a window); keep each page's splitter sizes; pages register before the menus.
+
+## Session 39 — P6c canvas interaction · 2026-10-12
+
+(Sessions 35-38 belong to the page slices P6b.2-P6b.5.)
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.92**.
+- **Input:** the canvas tools (ADR 0016, 0018, 0021, 0026), the registry of parameters,
+  the selection model; probe B60; the count of selection readers (28).
+- **Decisions:** parameter handles in the object's own frame editing what Properties
+  edits (about the centre), snapping guides for moves and resizes, then multi-select
+  with a primary object and Arrange (-> ADR 0043). Plan:
+  [../plans/p6c-canvas.md](../plans/p6c-canvas.md).
+- **Critiques that changed the plan:** split into P6c.1 (canvas only) and P6c.2 (the
+  selection, after the page agents merge: 28 readers to review); resizing is about the
+  object's centre, not its pivot; font-size drags use whole points to bound rebuilds;
+  the "handlers" reading is recorded as unconfirmed.
