@@ -30,8 +30,8 @@ before P6b rebuilds the window into pages.
 - **Icons** (`ui/icons.py`): semantic names mapped to Phosphor glyphs through
   QtAwesome (MIT), imported on the first icon and tinted from the tokens. Icon
   buttons keep their text as tool tip and accessible name.
-- **Fields waiting for an edit** use a `pending` property the stylesheet styles,
-  not a stylesheet of their own.
+- **Fields waiting for an edit** keep their own small rule (italic, the muted token),
+  which Qt merges with the application stylesheet.
 - **Content is not themed**: layer styles, the canvas background, marker and
   subtitle colours, and the dashed placeholder Manim draws in the frame are part of
   the document and the export. No colour literal remains in `ui/` outside

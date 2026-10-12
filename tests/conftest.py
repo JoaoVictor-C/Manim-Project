@@ -70,7 +70,11 @@ def qt_app():
     """
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     widgets = pytest.importorskip("PySide6.QtWidgets")
-    return widgets.QApplication.instance() or widgets.QApplication([])
+    app = widgets.QApplication.instance() or widgets.QApplication([])
+    from manim_studio.ui import theme
+
+    theme.apply(app)  # the tests drive the widgets the user sees (ADR 0040)
+    return app
 
 
 @pytest.fixture(autouse=True)

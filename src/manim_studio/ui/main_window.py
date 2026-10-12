@@ -43,6 +43,7 @@ from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
+from . import icons, theme
 from .audio_player import make_audio_player
 from .autosave import Autosave
 from .build_service import BuildService
@@ -102,7 +103,7 @@ class MainWindow(QMainWindow):
         self.canvas.view_changed.connect(self.refresh)
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.valueChanged.connect(self._on_slider)
-        self.play_button = QPushButton("Play")
+        self.play_button = QPushButton(icons.icon("play"), "Play")
         self.play_button.clicked.connect(self.toggle_play)
         self.time_label = QLabel("0.00 s")
         self.time_label.setMinimumWidth(170)
@@ -765,21 +766,19 @@ class MainWindow(QMainWindow):
 
     def _fill_themes_menu(self) -> None:
         self.themes_menu.clear()
-        for theme in self.library.themes:
-            action = self.themes_menu.addAction(theme.name, lambda th=theme: self.apply_theme(th))
-            action.setToolTip(
-                f"{theme.description} The selected object, or everything with nothing selected."
-            )
+        for item in self.library.themes:
+            action = self.themes_menu.addAction(item.name, lambda th=item: self.apply_theme(th))
+            action.setToolTip(f"{item.description} The selected object, or everything with nothing selected.")
 
-    def apply_theme(self, theme: library.Theme) -> None:
+    def apply_theme(self, chosen: library.Theme) -> None:
         """View > Themes: recolour the selected object, or every layer and the background."""
         if self.project is None:
             return
         selected = self.selection.layer_id
-        edit = library.apply_theme(self.project, theme, {selected} if selected else None)
-        self.document.apply(edit, f"Apply the {theme.name} theme")
+        edit = library.apply_theme(self.project, chosen, {selected} if selected else None)
+        self.document.apply(edit, f"Apply the {chosen.name} theme")
         where = "the selection" if selected else "the scene"
-        self.statusBar().showMessage(f"{theme.name} theme applied to {where}", 4000)
+        self.statusBar().showMessage(f"{chosen.name} theme applied to {where}", 4000)
 
     def import_subtitles(self) -> None:
         """File > Import Subtitles...: an .srt replaces the subtitles (one undo step)."""
@@ -1021,6 +1020,7 @@ class MainWindow(QMainWindow):
         self._start_sound()
         self.play_timer.start(int(1000 / self.project.canvas.fps))
         self.play_button.setText("Pause")
+        self.play_button.setIcon(icons.icon("pause"))
         self.canvas.playing = True
 
     def _start_sound(self) -> None:
@@ -1041,6 +1041,7 @@ class MainWindow(QMainWindow):
             self.audio_player.stop()
             self._audio_signature = None
         self.play_button.setText("Play")
+        self.play_button.setIcon(icons.icon("play"))
         if self.canvas.playing:
             self.canvas.playing = False
             self.refresh()  # the motion path comes back
@@ -1084,6 +1085,7 @@ def run(argv: list[str] | None = None) -> int:
         setup_logging()
     app = QApplication(argv)
     app.setApplicationName("Manim Studio")
+    theme.apply(app)  # the studio look (ADR 0040)
     adapter.configure(Path.cwd() / ".cache" / "manim")
     window = MainWindow()
     window.show()

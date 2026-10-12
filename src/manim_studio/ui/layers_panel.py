@@ -48,6 +48,7 @@ from ..core.schema import (
     Project,
     Spec,
 )
+from . import icons
 from .build_service import BuildService
 
 ID_ROLE = Qt.ItemDataRole.UserRole
@@ -185,9 +186,15 @@ class LayersPanel(QWidget):
 
         self.add_button = QToolButton(text="Add", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
         self.add_button.setMenu(self._library_menu())
-        self.delete_button = self._button("Delete", self.delete_selected, QKeySequence.StandardKey.Delete)
-        self.up_button = self._button("Up", lambda: self.shift_selected(+1), "Ctrl+]")
-        self.down_button = self._button("Down", lambda: self.shift_selected(-1), "Ctrl+[")
+        self.add_button.setIcon(icons.icon("add"))  # (ADR 0040)
+        self.add_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.add_button.setToolTip("Add an object, a simulation or a template")
+        self.delete_button = self._button(
+            "Delete", self.delete_selected, QKeySequence.StandardKey.Delete, "delete"
+        )
+        self.up_button = self._button("Up", lambda: self.shift_selected(+1), "Ctrl+]", "move-up")
+        self.down_button = self._button("Down", lambda: self.shift_selected(-1), "Ctrl+[", "move-down")
+        self.delete_button.setToolTip("Delete the selected layer (Delete)")
         self.up_button.setToolTip("Bring forward (Ctrl+])")
         self.down_button.setToolTip("Send backward (Ctrl+[)")
         self.part_button = QToolButton(text="Parts", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -202,6 +209,8 @@ class LayersPanel(QWidget):
             for type_name, label in AXES_MENU
         }
         self.part_button.setMenu(part_menu)
+        self.part_button.setIcon(icons.icon("parts"))
+        self.part_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.part_button.setToolTip("Animate pieces of an equation as their own layers, or plot on axes")
 
         buttons = QHBoxLayout()
@@ -225,14 +234,16 @@ class LayersPanel(QWidget):
 
     # -- building the widget ------------------------------------------------------
 
-    def _button(self, text: str, slot: Callable[[], None], shortcut) -> QToolButton:
-        action = QAction(text, self)
+    def _button(self, text: str, slot: Callable[[], None], shortcut, icon_name: str) -> QToolButton:
+        """An icon button for an action that keeps ``text`` (menus, accessibility, tests)."""
+        action = QAction(icons.icon(icon_name), text, self)
         action.setShortcut(shortcut)
         action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         action.triggered.connect(slot)
         self.addAction(action)
         button = QToolButton()
         button.setDefaultAction(action)
+        button.setAccessibleName(text)
         return button
 
     def _library_menu(self) -> QMenu:

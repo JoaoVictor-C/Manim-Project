@@ -30,8 +30,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from . import theme
+
 Commit = Callable[[Any], None]
-PENDING_STYLE = "font-style: italic; color: palette(mid);"
+PENDING_STYLE = f"font-style: italic; color: {theme.css(theme.THEME.muted)};"  # waiting for the build worker
 
 
 class Field:
@@ -282,11 +284,12 @@ class ColorField(Field):
         self.widget = widget
 
     def _pick(self) -> None:
-        start = QColor(self._shown) if self._shown else QColor("#ffffff")
+        white = QColor(255, 255, 255)  # content: Manim's default fill, not a theme colour
+        start = QColor(self._shown) if self._shown else white
         color = QColorDialog.getColor(start, self.widget, "Choose colour")
         if color.isValid():
             self.commit(color.name())
 
     def _show(self, value: Any) -> None:
         self.button.setText(value or "Default")
-        self.button.setStyleSheet(f"background: {value};" if value else "")
+        self.button.setStyleSheet(f"background: {value}; color: {theme.readable_on(value)};" if value else "")

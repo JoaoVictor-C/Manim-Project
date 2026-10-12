@@ -161,6 +161,15 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Design system (P6a, ADR 0040): the editor has a dark studio look - the Fusion
+  style, a palette and one stylesheet generated from colour tokens in
+  `ui/theme.py`, a 9 pt UI font, and Phosphor icons (QtAwesome, a new dependency)
+  on the Layers panel and the transport. Every chrome colour - panels, fields,
+  menus, the timeline, canvas overlays, the curve editor - comes from the tokens;
+  document colours (styles, the canvas background, markers, subtitles) are never
+  themed. Text contrast is measured (WCAG): clip-category colours are darker
+  shades so their white labels read at 5:1 or better. Colour swatches label
+  themselves in black or white, whichever reads better.
 - Presets, themes and templates (P5e, ADR 0039): **Animate > Apply Preset**
   (and the timeline row's *Apply preset*) gives the selected layer one of 32
   built-in presets at the playhead - entrances (fade, pop, slides, typewriter,
