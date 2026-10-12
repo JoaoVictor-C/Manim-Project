@@ -1,6 +1,6 @@
 # P6b.5 — The Deliver page
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-12
 - **Decided in:** [decision session 38](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.91)
 - **Evidence:** B59 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -54,6 +54,14 @@ scene stacked in a splitter.
 | 3 | `ui/pages/deliver.py`, registered after Compose | `tests/ui/test_deliver_page.py` through `MainWindow` |
 | 4 | acceptance (slow): two exports with different sizes/ranges, Python scene saved | `tests/ui/test_acceptance_p6b5.py` |
 | 5 | mutation check, docs | `.cache/p6b5/mutate.py` |
+
+## Result
+
+Quick lane 1413 passed, full suite 1475 passed. A mutation run over the options, exporter, CLI, queue and
+page guards (74 mutants) first left 7 alive: one was a real defect (a late `finished`/`failed` from a
+cancelled job overwrote the next job's status and dropped its process handle - now ignored), three were
+redundant guards (removed), one was equivalent (`audio.mix` of the options-applied project, simplified),
+and two needed tests (progress after cancel; an unrelated edit keeps the form). All 74 are killed now.
 
 ## Risks
 
