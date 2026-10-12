@@ -38,6 +38,12 @@ NAMES: dict[str, str] = {
     "hidden": "eye-slash",
     "folder": "folder",
     "close": "x",
+    # workspace pages (ADR 0041)
+    "compose": "layout",
+    "animate": "chart-line",
+    "code-page": "code",
+    "audio": "speaker-high",
+    "deliver": "rocket-launch",
 }
 
 

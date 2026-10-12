@@ -644,3 +644,19 @@ left open, so ADRs can cite it.
 - **Critiques that changed the plan:** per-widget stylesheets (pending fields, colour
   swatches) override the app sheet -> a `pending` property selector; the in-frame
   placeholder is content, not chrome.
+
+## Session 34 — P6b workspace pages · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.92**.
+- **Input:** the user's request for DaVinci-like tabs, the plan's page list, the UI
+  tests' reliance on the main window; probe B55.
+- **Decisions:** a stack of pages over a bottom page bar; one controller; shared views
+  parked and re-parented by each page; docks removed; Compose = the former layout;
+  Animate, Code, Audio and Deliver as parallel slices (-> ADR 0041). Plan:
+  [../plans/p6b-pages.md](../plans/p6b-pages.md).
+- **Measured during the session:** the framework and Compose built first - the quick UI
+  lane passed unchanged (423/423) and 6 framework tests passed - which settled parking
+  over per-page views.
+- **Critiques that changed the plan:** never leave a shared view parentless (it would
+  float as a window); keep each page's splitter sizes; pages register before the menus.

@@ -21,7 +21,6 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
-    QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -30,7 +29,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -54,6 +52,8 @@ from .code_render import make_code_renderer
 from .document import Document
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
+from .pages import PageHost, Shared
+from .pages.compose import ComposePage
 from .plugins_dialog import PluginsDialog, startup_message
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
@@ -112,20 +112,14 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.play_button)
         controls.addWidget(self.slider, 1)
         controls.addWidget(self.time_label)
-        preview = QWidget()
-        layout = QVBoxLayout(preview)
+        self.viewer = QWidget()  # the canvas with its transport, shown by the pages (ADR 0041)
+        layout = QVBoxLayout(self.viewer)
         layout.addWidget(self.canvas, 1)
         layout.addLayout(controls)
 
         self.timeline = TimelineView()
         self.timeline.set_document(self.document)
         self.timeline.seekRequested.connect(self._on_timeline_seek)
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.addWidget(preview)
-        splitter.addWidget(self.timeline)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 0)  # the timeline keeps its height (about six rows)
-        self.setCentralWidget(splitter)
 
         self.play_timer = QTimer(self)
         self.play_timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -138,7 +132,6 @@ class MainWindow(QMainWindow):
         self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.layers.trust_code = lambda code: self.trust.trust([code])
         self.layers.setEnabled(False)
-        self.layers_dock = self._dock("Layers", self.layers, Qt.DockWidgetArea.LeftDockWidgetArea)
         self.properties = PropertiesPanel(self.builds)
         self.properties.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.properties.playhead = lambda: self.t
@@ -148,9 +141,11 @@ class MainWindow(QMainWindow):
         self.properties.retry_code = self.code.retry
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
-        self.properties_dock = self._dock(
-            "Properties", self.properties, Qt.DockWidgetArea.RightDockWidgetArea
-        )
+        # The workspace pages share the views above (ADR 0041); Compose is the first.
+        self.pages = PageHost(Shared(self.viewer, self.timeline, self.layers, self.properties), self)
+        for page in (ComposePage,):
+            self.pages.add(page(self))
+        self.setCentralWidget(self.pages)
         # One selection for every view (ADR 0016): views report, then follow it.
         self.selection = Selection(self.document, self)
         self.layers.layerSelected.connect(self.selection.select_layer)
@@ -183,13 +178,6 @@ class MainWindow(QMainWindow):
             or self._library_message()
             or "Create a project (File > New) or open one (File > Open)."
         )
-
-    def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
-        dock = QDockWidget(title, self)
-        dock.setObjectName(f"{title.lower()}-dock")
-        dock.setWidget(widget)
-        self.addDockWidget(area, dock)
-        return dock
 
     # -- menu ------------------------------------------------------------------
 
@@ -252,8 +240,17 @@ class MainWindow(QMainWindow):
         animate_menu.addAction(save_template)
         self._fill_templates_menu()
         view_menu = self.menuBar().addMenu("&View")
-        view_menu.addAction(self.layers_dock.toggleViewAction())
-        view_menu.addAction(self.properties_dock.toggleViewAction())
+        pages_menu = view_menu.addMenu("&Pages")  # the workspace pages (ADR 0041)
+        for number, (name, page) in enumerate(self.pages.pages.items(), start=1):
+            action = QAction(page.title, self)
+            action.setShortcut(QKeySequence(f"Shift+{number}"))
+            action.setToolTip(page.tooltip)
+            action.triggered.connect(lambda _=False, n=name: self.show_page(n))
+            pages_menu.addAction(action)
+        for title, panel in (("&Layers", self.layers), ("P&roperties", self.properties)):
+            toggle = QAction(title, self, checkable=True, checked=True)
+            toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
+            view_menu.addAction(toggle)
         half = QAction("Half-resolution playback", self, checkable=True)
         half.toggled.connect(self._set_half_resolution)
         view_menu.addAction(half)
@@ -304,6 +301,15 @@ class MainWindow(QMainWindow):
         if not count:
             return None
         return f"{count} preset or theme file{'s' if count > 1 else ''} skipped: {self.library.problems[0]}"
+
+    @property
+    def page(self) -> str:
+        """The workspace page shown (ADR 0041)."""
+        return self.pages.current
+
+    def show_page(self, name: str) -> None:
+        """Show the workspace page ``name`` (compose, animate, code, audio, deliver)."""
+        self.pages.show_page(name)
 
     def show_plugins(self) -> PluginsDialog:
         """Help > Plugins...: what loaded and what failed (ADR 0032)."""
