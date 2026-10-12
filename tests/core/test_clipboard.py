@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from manim_studio.core import clipboard, edits
 from manim_studio.core.clipboard import ClipboardError
@@ -274,6 +275,21 @@ def test_pasted_layers_go_above_the_selected_object_or_on_top() -> None:
     assert roots[-1] == "square-1"
     roots = [x.id for x in clipboard.paste_layers(project, data, above="missing").edit.project.roots()]
     assert roots[-1] == "square-1"
+    ids = [x.id for x in clipboard.paste_layers(project, data, above="g1").edit.project.layers]
+    assert ids[ids.index("area") + 1] == "square-1"  # after the whole figure, not inside it
+
+
+def test_a_morph_into_a_layer_that_is_left_out_is_left_out_too() -> None:
+    figure = [x for x in scene().layers if x.id in ("ax", "g2", "area")]
+    figure[1:2] = [Layer(id="g1", parent_id="ax", spec=SIN)]  # (without its own morph)
+    morph = Clip(id="m", kind="Transform", start=0.2, duration=0.3, to_layer="area")
+    project = Project(canvas=CANVAS, layers=[*figure, Layer(id="dot", spec=Spec(type="Dot"), clips=[morph])])
+    data = clipboard.copy_layers(project, ["dot", "area"]).payload
+    no_graph = Project(canvas=CANVAS, layers=[Layer(id="ax", spec=AXES)])
+    pasted = clipboard.paste_layers(no_graph, data)
+    dot = pasted.edit.project.layer("dot-1")
+    assert dot.clips == [] and dot.lifetime.out == pytest.approx(0.5) and len(pasted.notes) == 2
+    assert [x.id for x in pasted.edit.project.layers] == ["ax", "dot-1"]
 
 
 def test_a_copy_draws_like_the_original() -> None:
@@ -322,6 +338,7 @@ def test_the_clipboard_text_round_trips() -> None:
         "hello",
         "[1, 2]",
         '{"format": "something-else", "version": 1, "kind": "cue", "payload": {}}',
+        '{"format": "something-else", "version": 2}',  # not ours, whatever its version
         '{"format": "manim-studio-clipboard", "version": 1, "kind": "cue", "payload": {"cue": {}}}',
         '{"format": "manim-studio-clipboard", "version": 1, "kind": "dance", "payload": {}}',
     ],
@@ -336,6 +353,14 @@ def test_a_newer_clipboard_is_refused() -> None:
     data["version"] = 2
     with pytest.raises(ClipboardError, match="newer"):
         clipboard.from_json(json.dumps(data))
+
+
+def test_the_kind_decides_how_the_payload_is_read() -> None:
+    data = json.loads(clipboard.to_json(clipboard.copy_cue(scene(), "cue-1")))
+    data["payload"]["clip"] = clipboard.copy_clip(scene(), "c", "in").payload.clip.model_dump()
+    assert clipboard.from_json(json.dumps(data)).payload == clipboard.CuePayload(cue=scene().subtitles[0])
+    with pytest.raises(ValidationError):
+        clipboard.ClipboardData(kind="audio", payload=clipboard.CuePayload(cue=scene().subtitles[0]))
 
 
 def test_a_payload_must_match_its_kind() -> None:
@@ -402,7 +427,7 @@ def test_a_morph_or_motion_clip_needs_a_valid_target_there() -> None:
         clipboard.paste_clip(project, ride, "sq", 0.0)  # along itself
     with pytest.raises(ClipboardError):
         clipboard.paste_clip(project, ride, "term", 0.0)  # a part cannot travel
-    with pytest.raises(ClipboardError, match="path"):
+    with pytest.raises(ClipboardError, match="path is not in this project"):
         clipboard.paste_clip(Project(canvas=CANVAS, layers=[project.layer("eq")]), ride, "eq", 0.0)
     morph = clipboard.copy_clip(morph_project(), "a", "m").payload
     with pytest.raises(ClipboardError, match="turns into"):

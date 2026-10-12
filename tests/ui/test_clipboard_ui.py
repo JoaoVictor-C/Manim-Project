@@ -13,7 +13,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QMimeData, Qt
 from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtTest import QTest
 
@@ -123,6 +123,15 @@ def test_paste_reads_plain_text_from_another_instance(window) -> None:
     assert window.project.layers[-1].id == "circle-1" and window.selection.layer_id == "circle-1"
 
 
+def test_paste_reads_the_private_format_without_text(window) -> None:
+    mime = QMimeData()
+    mime.setData(clipboard.MIME_TYPE, clipboard.to_json(clipboard.copy_cue(scene(), "cue-1")).encode())
+    QGuiApplication.clipboard().setMimeData(mime)
+    window.seek(2.0)
+    trigger(window, "Paste")
+    assert [c.start for c in window.project.subtitles] == [0.0, 2.0]
+
+
 def test_cut_removes_the_layer_and_paste_brings_it_back(window) -> None:
     window.selection.set("c")
     before = steps(window)
@@ -157,6 +166,29 @@ def test_a_clip_pastes_on_the_selected_layer_at_the_playhead(window) -> None:
     window.selection.set_audio("audio-1")
     trigger(window, "Paste")
     assert status(window) == "Select the layer to paste the clip on"
+
+
+def test_a_clip_needs_its_whole_length_free_at_the_playhead(window) -> None:
+    window.selection.set("c", "in")
+    trigger(window, "Copy")
+    window.selection.set("sq")
+    window.seek(1.0)
+    trigger(window, "Paste")  # sq: FadeIn 1.0-1.5
+    window.seek(0.7)
+    trigger(window, "Paste")  # only 0.3 s free before it
+    assert status(window) == "No room for the FadeIn clip (0.5 s) at the playhead"
+    assert len(window.project.layer("sq").clips) == 1
+
+
+def test_nothing_happens_in_the_middle_of_a_drag(window) -> None:
+    window.selection.set("c")
+    window.document.begin_preview()
+    try:
+        for name in ("Cut", "Copy", "Paste", "Duplicate"):
+            trigger(window, name)
+        assert [x.id for x in window.project.layers] == ["sq", "c", "link"]
+    finally:
+        window.document.cancel_preview()
 
 
 def test_duplicate_a_clip_sound_and_subtitle(window) -> None:

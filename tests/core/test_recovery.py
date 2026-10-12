@@ -122,6 +122,8 @@ def test_stale_copies_are_kept_then_pruned(tmp_path) -> None:
     recovery.write(folder, "stale-recent", PROJECT, saved, 2, now - 1 * DAY)
     recovery.write(folder, "offered-old", PROJECT, None, 3, now - 30 * DAY)  # never pruned while offered
     recovery.write(folder, "running-old", PROJECT, saved, 4, now - 30 * DAY)
+    os.utime(folder / "running-old.json", (now - 30 * DAY, now - 30 * DAY))  # it has a sidecar: not an orphan
+    recovery.write(folder, "mine-old", PROJECT, saved, 99, now - 30 * DAY)  # this instance's own
     orphan = folder / "orphan.json"
     orphan.write_text("{}", encoding="utf-8")
     os.utime(orphan, (now - 20 * DAY, now - 20 * DAY))
@@ -131,6 +133,8 @@ def test_stale_copies_are_kept_then_pruned(tmp_path) -> None:
     assert sorted(gone) == ["orphan", "stale-old"]
     left = sorted(p.name for p in folder.glob("*.json"))  # (a virus scanner may leave a .tmp briefly)
     assert left == [
+        "mine-old.json",
+        "mine-old.meta.json",
         "offered-old.json",
         "offered-old.meta.json",
         "running-old.json",
@@ -147,6 +151,7 @@ def test_telling_whether_a_process_runs(sleeper) -> None:
     assert recovery.pid_alive(sleeper)
     assert not recovery.pid_alive(dead_pid())
     assert not recovery.pid_alive(0) and not recovery.pid_alive(-5)
+    assert not recovery.pid_alive(0x7FFFFFF0)  # no such process (on Windows: OpenProcess fails)
 
 
 def test_without_psutil_the_system_is_asked(sleeper, monkeypatch) -> None:

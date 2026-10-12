@@ -93,6 +93,21 @@ def test_the_timer_writes_unsaved_work_only(window, folder, monkeypatch) -> None
     assert len(writes) == 2 and recovery.read_project(window.autosave.written) == window.project
 
 
+def test_a_new_file_name_moves_the_copy(qt_app, tmp_path) -> None:
+    """Should the file name change while there is unsaved work, the copy follows it."""
+    from manim_studio.ui.document import Document
+
+    document = Document(PROJECT)
+    names = [tmp_path / "a.json"]
+    saver = autosave.Autosave(document, lambda: names[-1], lambda: True, folder=tmp_path / "r")
+    document.apply(edits.add_layer(PROJECT, Spec(type="Dot")), "Add dot")
+    first = saver.write_now()
+    names.append(tmp_path / "b.json")
+    saver.tick()  # the same snapshot, another name
+    assert saver.written.stem != first.stem and saver.written.path == names[-1]
+    assert copies(tmp_path / "r") == sorted([f"{saver.written.stem}.json", f"{saver.written.stem}.meta.json"])
+
+
 def test_the_timer_fires_by_itself(window, folder, qt_app) -> None:
     window.autosave.timer.setInterval(20)
     edit(window)
@@ -113,6 +128,12 @@ def test_nothing_is_written_during_a_drag_or_without_a_project(qt_app, folder) -
         win.autosave.tick()
         assert len(copies(folder)) == 2
         assert win.autosave.written.stem.startswith(f"untitled-{os.getpid()}-")
+        committed = win.project
+        win.document.begin_preview()  # unsaved work, then a drag: its previews are not written
+        win.document.preview(edits.add_layer(win.project, Spec(type="Square")))
+        win.autosave.tick()
+        win.document.cancel_preview()
+        assert recovery.read_project(win.autosave.written) == committed
     finally:
         win.close()
 
@@ -228,6 +249,16 @@ def test_at_start_up_an_untitled_crash_is_restored_as_unsaved(qt_app, folder, mo
         assert first.project_file.name in names and newest.project_file.name not in names  # one per start
     finally:
         win.close()
+
+
+def test_start_up_prunes_old_stale_copies(qt_app, folder, saved) -> None:
+    old = leave_copy(folder, PROJECT, saved, dead_pid(), saved_at=time.time() - 15 * 86400)
+    win = MainWindow()
+    try:
+        assert not win.check_recovery()
+    finally:
+        win.close()
+    assert not old.project_file.exists()
 
 
 def test_a_damaged_copy_is_reported_and_kept(qt_app, folder, saved, monkeypatch) -> None:

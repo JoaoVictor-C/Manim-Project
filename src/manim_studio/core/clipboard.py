@@ -143,13 +143,11 @@ class Pasted:
 def copy_layers(project: Project, layer_ids: Iterable[str]) -> ClipboardData:
     """The layers with their subtrees. Parts cannot be copied: they are a span of their
     equation's TeX (ADR 0012)."""
-    picked: list[str] = []
-    for layer_id in layer_ids:
+    picked = list(layer_ids)
+    for layer_id in picked:
         layer = _layer(project, layer_id)
         if layer.is_part:
             raise ClipboardError(f"{_label(layer)} is a part of its equation: copy the equation instead")
-        if layer_id not in picked:
-            picked.append(layer_id)
     if not picked:
         raise ClipboardError("Select a layer to copy")
     family = set(picked)
@@ -211,12 +209,8 @@ def paste_layers(project: Project, payload: LayersPayload, above: str | None = N
 
     notes: list[str] = []
     skipped: set[str] = set()
-    for layer in payload.layers:  # parents come before their children
-        if layer.parent_id in skipped:
-            skipped.add(layer.id)
-            continue
+    for layer in payload.layers:  # what is left out has no children: traces, connectors, areas...
         missing = [ref for ref in _drawn_from(layer) if ref not in copied and not kept_outside(ref)]
-        missing += [ref for ref in _drawn_from(layer) if ref in skipped]
         if missing:
             skipped.add(layer.id)
             notes.append(f"{_label(layer)} was not pasted: {_what_it_needs(layer)} is not in this project")
@@ -237,10 +231,10 @@ def paste_layers(project: Project, payload: LayersPayload, above: str | None = N
             mapping[layer.id] = edits._free_id(_type_of(layer), taken)
             taken.add(mapping[layer.id])
 
-    def resolve(ref: str) -> str | None:
+    def resolve(ref: str) -> str | None:  # the copy's id, the same outside layer, or None
         if ref in mapping:
             return mapping[ref]
-        return ref if ref not in copied and kept_outside(ref) else None
+        return ref if kept_outside(ref) else None  # (a left-out copied layer is never "outside")
 
     targeted = set(project.morph_sources())
     names = {layer.name for layer in project.layers}
@@ -260,14 +254,13 @@ def paste_layers(project: Project, payload: LayersPayload, above: str | None = N
         for clip in data["clips"]:
             if clip["to_layer"]:
                 target = resolve(clip["to_layer"])
-                if target is None or (clip["to_layer"] not in copied and target in targeted):
+                if target is None or target in targeted:  # a layer is the target of one morph only
                     notes.append(
                         f"{_label(layer)}: its {clip['kind']} clip was left out (nothing to turn into)"
                     )
                     if data["lifetime"]["out"] is None:
                         data["lifetime"]["out"] = clip["start"] + clip["duration"]  # it still disappears
                     continue
-                targeted.add(target)
                 clip["to_layer"] = target
             if clip["params"].get("path"):
                 path = resolve(clip["params"]["path"])
