@@ -38,6 +38,8 @@ src/manim_studio/
 │   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
 │   ├── audio.py         the project's sound: decode, peaks, one mix for playback and export (ADR 0034)
 │   ├── subtitles.py     subtitles: wrapping, .srt read/write, placing cues, changed spans (ADR 0035)
+│   ├── clipboard.py     copy/paste/duplicate: subtrees with fresh ids, remapped references (ADR 0038)
+│   ├── recovery.py      recovery copies of unsaved work: atomic files, owners, what to offer (ADR 0038)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)
 │   └── evaluator.py     frame(t), checkpoints, keyframes, invalidate (ADR 0002, 0008)
@@ -51,6 +53,8 @@ src/manim_studio/
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
     ├── code_render.py   keeps code layers rendered with warm single-use spares (ADR 0019)
     ├── selection.py     the one selection shared by every view (ADR 0016)
+    ├── clipboard_actions.py Edit > Cut/Copy/Paste/Duplicate over the system clipboard (ADR 0038)
+    ├── autosave.py      a recovery copy of unsaved work every 30 s, deleted when clean (ADR 0038)
     ├── canvas_tools.py  click to select; move, scale, rotate, nudge; stopwatch rule (ADR 0016, 0018)
     ├── motion_overlay.py the selected layer's motion path: keys, handles, hits (pure)
     ├── viewport.py      the canvas view: Fit or scale + centre, zoom about a point, pan (pure)

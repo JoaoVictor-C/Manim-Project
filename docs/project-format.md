@@ -244,6 +244,37 @@ dialog in the editor):
 - Canvas sizes, fps, `frame_height` and `duration` are positive; `opacity` in `base` is in [0, 1].
 - Cubic-bezier `x1`, `x2` are in [0, 1] (y may overshoot).
 
+## Clipboard (ADR 0038)
+
+Cut, Copy and Duplicate put a small JSON document on the system clipboard, under
+the mime type `application/x-manim-studio+json` and as plain text:
+
+```json
+{ "format": "manim-studio-clipboard", "version": 1, "kind": "layers",
+  "payload": { "layers": [ ...Layer... ], "outside": { "sq": "Square" } } }
+```
+
+| kind | payload |
+|---|---|
+| `layers` | `layers`: each copied object followed by its parts and child objects, in project order; `outside`: the layers they refer to that were not copied, id -> type (`"part"` for a part) |
+| `clip` | `clip`: a Clip |
+| `audio` | `sound`: an AudioClip |
+| `cue` | `cue`: a Cue |
+
+Paste validates it with the schema and refuses another `format` or a newer
+`version`. Pasted layers get fresh ids; a reference to an `outside` layer is kept
+only when the destination has a layer with that id and type.
+
+## Recovery files (ADR 0038)
+
+While a project has unsaved changes the editor writes a copy every 30 s to
+`<AppData>/recovery/` (`%APPDATA%\Manim Studio\recovery` on Windows;
+`MANIM_STUDIO_RECOVERY` overrides it): `<stem>.json` is an ordinary project file
+and `<stem>.meta.json` is `{"path": original file or null, "pid": owner process,
+"saved_at": seconds since the epoch}`. `<stem>` is the first 16 hex digits of the
+SHA-1 of the normalised path plus `-<pid>`, or `untitled-<pid>-<n>`. Both files
+are written to a temporary name and moved into place, the sidecar last.
+
 ## Compatibility
 
 Readers must reject unknown `schema_version` values. Adding optional fields

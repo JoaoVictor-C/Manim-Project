@@ -459,3 +459,16 @@ write `<scene>.srt` beside the video. -> ADR 0035.
 `DecimalNumber` with `ChangeDecimalToValue` interpolated at 21 alphas in
 shuffled order equals fresh animations (21/21), keeps its left edge and ends on
 the target value. -> ADR 0036.
+
+### B51 — Autosave and the clipboard · 2026-10-11
+(B50 is P5c's.) `benchmarks/bench_autosave.py`. A recovery copy (`core.recovery.write`: the
+project's JSON, a temporary file and `os.replace`, then the sidecar the same way) of a project
+whose layers each have two clips and two keyed properties: 20 layers **2.4 ms** (15 KB), 200
+layers **5.8 ms** (150 KB), 1000 layers **20.9 ms** (750 KB), 2000 layers **41.3 ms** (1.5 MB);
+the JSON alone is 0.3 / 3.3 / 18.1 / 38.3 ms, so the files cost about 2-3 ms. Once per 30 s
+on the GUI thread, only while there are unsaved changes: kept there. Duplicating one object
+costs what any structural edit costs (`edits.add_layer` for comparison): 0.4 / 7.6 / 172 /
+923 ms against 0.2 / 6.8 / 173 / 921 ms - the time is the project's validation and edit
+classification, which grow faster than linearly with the layer count (not the clipboard's).
+Copying axes with 40 graphs makes 10 KB of clipboard text; reading and pasting it **2.9 ms**.
+-> ADR 0038.
