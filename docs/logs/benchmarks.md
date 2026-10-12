@@ -466,3 +466,10 @@ placed by hand): **27 of 31** sounds start within half a frame of a clip edge, n
 on a key time. Gathering every snap point (clip edges, key times, sound and
 subtitle edges, 0 and the end: **183** points) and finding the nearest takes
 **0.047 ms**, so drags can rebuild the list on every mouse move. -> ADR 0037.
+
+### B52 — Presets and templates · 2026-10-11
+`benchmarks/bench_presets.py` on `examples/explainer.json` (59 layers, 105 clips):
+**93 of 105** clips share kind, duration and ease with another (17 x FadeIn 0.3 s,
+17 x FadeOut 0.3 s, 9 x FadeOut 0.8 s, 9 x Transform 1.2 s); **30 layers** are
+exactly FadeIn -> FadeOut; no keyframe tracks; layer groups rebuilt by hand: 4
+section headers. (B51 is P5d's autosave measurement.) -> ADR 0039.
