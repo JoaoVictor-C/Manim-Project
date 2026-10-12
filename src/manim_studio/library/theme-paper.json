@@ -1,0 +1,11 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "theme",
+ "name": "Paper",
+ "description": "Light paper, ink colours.",
+ "background": "#faf7f0",
+ "text": "#1f2937",
+ "shape": "#2563eb",
+ "accent": "#dc2626"
+}

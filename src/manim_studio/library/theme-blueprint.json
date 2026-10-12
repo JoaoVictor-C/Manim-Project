@@ -1,0 +1,11 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "theme",
+ "name": "Blueprint",
+ "description": "Deep blue, pale lines.",
+ "background": "#0b3d91",
+ "text": "#e0f2fe",
+ "shape": "#93c5fd",
+ "accent": "#fde047"
+}

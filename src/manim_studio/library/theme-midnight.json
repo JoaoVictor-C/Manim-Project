@@ -1,0 +1,11 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "theme",
+ "name": "Midnight",
+ "description": "Slate night, cyan and pink.",
+ "background": "#0f172a",
+ "text": "#e2e8f0",
+ "shape": "#38bdf8",
+ "accent": "#f472b6"
+}

@@ -1,0 +1,21 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Sink out",
+ "category": "exit",
+ "description": "Fades out moving down.",
+ "clips": [
+  {
+   "kinds": [
+    "FadeOut"
+   ],
+   "offset": 0.0,
+   "duration": 0.6,
+   "params": {
+    "shift": "DOWN"
+   }
+  }
+ ],
+ "keys": {}
+}

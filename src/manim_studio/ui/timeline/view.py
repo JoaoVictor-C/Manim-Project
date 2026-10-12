@@ -317,6 +317,8 @@ class TimelineView(QGraphicsView):
         self.selected_cue: str | None = None
         self.selected_marker: str | None = None
         self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
+        # Fills an "Apply preset" menu for a row and a time (ADR 0039); set by the window.
+        self.preset_menu = None
         self._marker_drag: _MarkerDrag | None = None
         self._drag: _Drag | None = None
         self._audio_drag: _AudioDrag | None = None
@@ -814,6 +816,9 @@ class TimelineView(QGraphicsView):
             return None
         t = self.scale.t(self.mapToScene(pos.toPoint()).x())
         self._add_key_menu(menu, layer)
+        if self.preset_menu is not None:  # at the clicked time, like Add clip (ADR 0039)
+            fps = self.project.canvas.fps
+            self.preset_menu(menu.addMenu("Apply preset"), layer.id, max(0.0, round(t * fps) / fps))
         add = menu.addMenu("Add clip")
         placement = place_new_clip(
             layer,

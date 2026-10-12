@@ -1,0 +1,20 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Wave",
+ "category": "emphasis",
+ "description": "A wave runs through it.",
+ "clips": [
+  {
+   "kinds": [
+    "ApplyWave",
+    "Indicate"
+   ],
+   "offset": 0.0,
+   "duration": 1.0,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

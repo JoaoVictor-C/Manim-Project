@@ -1,0 +1,63 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Bounce",
+ "category": "motion",
+ "description": "Hops up twice.",
+ "clips": [],
+ "keys": {
+  "position": [
+   {
+    "dt": 0.0,
+    "value": [
+     0.0,
+     0.0
+    ],
+    "ease": {
+     "name": "rush_from"
+    }
+   },
+   {
+    "dt": 0.25,
+    "value": [
+     0.0,
+     0.6
+    ],
+    "ease": {
+     "name": "rush_into"
+    }
+   },
+   {
+    "dt": 0.5,
+    "value": [
+     0.0,
+     0.0
+    ],
+    "ease": {
+     "name": "rush_from"
+    }
+   },
+   {
+    "dt": 0.65,
+    "value": [
+     0.0,
+     0.25
+    ],
+    "ease": {
+     "name": "rush_into"
+    }
+   },
+   {
+    "dt": 0.8,
+    "value": [
+     0.0,
+     0.0
+    ],
+    "ease": {
+     "name": "smooth"
+    }
+   }
+  ]
+ }
+}

@@ -28,6 +28,8 @@ os.environ["MANIM_STUDIO_CODE"] = "0"
 os.environ["MANIM_STUDIO_WORKER"] = "0"
 # ... and render no frames ahead unless a test opts in (ADR 0028).
 os.environ["MANIM_STUDIO_PREVIEW"] = "0"
+# ... and never read or write the user's own presets, themes and templates (ADR 0039).
+os.environ["MANIM_STUDIO_LIBRARY"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-library-")))
 # ... and play no sound: playback keeps the wall clock unless a test gives it a player (ADR 0034).
 os.environ["MANIM_STUDIO_AUDIO"] = "0"
 

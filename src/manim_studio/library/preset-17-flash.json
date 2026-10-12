@@ -1,0 +1,19 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Flash",
+ "category": "emphasis",
+ "description": "Lines flash out of it.",
+ "clips": [
+  {
+   "kinds": [
+    "Flash"
+   ],
+   "offset": 0.0,
+   "duration": 0.6,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

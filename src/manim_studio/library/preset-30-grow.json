@@ -1,0 +1,27 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Grow",
+ "category": "motion",
+ "description": "Grows to one and a half times its size.",
+ "clips": [],
+ "keys": {
+  "scale": [
+   {
+    "dt": 0.0,
+    "value": 1.0,
+    "ease": {
+     "name": "smooth"
+    }
+   },
+   {
+    "dt": 0.8,
+    "value": 1.5,
+    "ease": {
+     "name": "smooth"
+    }
+   }
+  ]
+ }
+}

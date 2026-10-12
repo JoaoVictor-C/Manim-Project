@@ -1,0 +1,19 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Fade in",
+ "category": "entrance",
+ "description": "Fades in.",
+ "clips": [
+  {
+   "kinds": [
+    "FadeIn"
+   ],
+   "offset": 0.0,
+   "duration": 0.5,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

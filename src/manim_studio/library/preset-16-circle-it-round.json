@@ -1,0 +1,21 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Circle it (round)",
+ "category": "emphasis",
+ "description": "A circle is drawn around it.",
+ "clips": [
+  {
+   "kinds": [
+    "Circumscribe"
+   ],
+   "offset": 0.0,
+   "duration": 1.0,
+   "params": {
+    "shape": "circle"
+   }
+  }
+ ],
+ "keys": {}
+}

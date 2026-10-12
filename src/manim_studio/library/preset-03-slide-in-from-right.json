@@ -1,0 +1,21 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Slide in from right",
+ "category": "entrance",
+ "description": "Fades in moving left.",
+ "clips": [
+  {
+   "kinds": [
+    "FadeIn"
+   ],
+   "offset": 0.0,
+   "duration": 0.6,
+   "params": {
+    "shift": "LEFT"
+   }
+  }
+ ],
+ "keys": {}
+}
