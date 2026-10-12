@@ -161,6 +161,17 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Animate page (P6b.2, Shift+2, decision session 35):
+  - the viewer and Properties sit over a graph editor of the selected layer's keys, with
+    the timeline below;
+  - each value has its own curve and colour, normalised to its own range, and a legend:
+    x, y, scale, rotation and opacity (opacity only for a graph on axes);
+  - click a key to select it; drag it in time (snapped to frames) and in value, as one
+    undo step (Shift: one axis, Escape cancels);
+  - double-click a curve to add a key, Delete to remove one, right-click a segment for
+    its ease or the curve editor; F frames all keys and the wheel zooms;
+  - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
+    curve's key (B56: curves stroked as separate segments, 20x faster).
 - Workspace pages (P6b.1, ADR 0041): the window is a set of pages switched from a
   page bar at the bottom, View > Pages or Shift+1..5, sharing one canvas,
   timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is

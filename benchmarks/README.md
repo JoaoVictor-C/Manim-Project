@@ -23,6 +23,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_presets.py` | repeated clip patterns and layer groups in the explainer — B52 |
 | `bench_validation.py` | validation, `add_layer`, `update_layer`, `classify`, `changed_spans` at 20-2000 layers — B53 |
 | `bench_design.py` | icon fonts and an application stylesheet: load and apply times — B54 |
+| `bench_graph_editor.py` | the Animate page's graph: sampling, repaints, drag steps with up to 1000 keys — B56 |
 | `bench_pages.py` | moving the shared views between pages, docks, a second canvas — B55 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |

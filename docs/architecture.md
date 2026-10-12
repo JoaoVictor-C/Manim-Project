@@ -52,6 +52,9 @@ src/manim_studio/
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
     ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
+    │   └── animate.py   the Animate page: viewer + Properties, the graph editor, the timeline
+    ├── graph_model.py   graph editor rules: curves, ranges, sampling, hits, key drags (pure, P6b.2)
+    ├── graph_editor.py  the graph editor widget: keys as curves over time, drags, eases (P6b.2)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
