@@ -161,6 +161,17 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Animate page (P6b.2, Shift+2, decision session 35):
+  - the viewer and Properties sit over a graph editor of the selected layer's keys, with
+    the timeline below;
+  - each value has its own curve and colour, normalised to its own range, and a legend:
+    x, y, scale, rotation and opacity (opacity only for a graph on axes);
+  - click a key to select it; drag it in time (snapped to frames) and in value, as one
+    undo step (Shift: one axis, Escape cancels);
+  - double-click a curve to add a key, Delete to remove one, right-click a segment for
+    its ease or the curve editor; F frames all keys and the wheel zooms;
+  - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
+    curve's key (B56: curves stroked as separate segments, 20x faster).
 - Parameter handles and snapping guides (P6c.1, ADR 0043): the selected object
   shows round handles for its sizes - a rectangle's width and height, a circle's or
   dot's radius, a square's side, a star's radius, a text's or number's font size

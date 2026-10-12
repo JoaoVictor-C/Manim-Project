@@ -409,15 +409,19 @@ def anchor_shifts_elsewhere(layer: Layer) -> bool:
     return bool(layer.tracks.get("rotation") or layer.tracks.get("scale"))
 
 
-def retime_keys(project: Project, layer_id: str, t_from: float, t_to: float) -> Edit:
-    """Move every key at ``t_from`` (any property, within half a frame) to ``t_to`` (P2b)."""
+def retime_keys(
+    project: Project, layer_id: str, t_from: float, t_to: float, props: Iterable[str] | None = None
+) -> Edit:
+    """Move every key at ``t_from`` (within half a frame) to ``t_to`` (P2b): of every property,
+    or of ``props`` only (the graph editor moves one curve's key, P6b.2)."""
     layer = _layer(project, layer_id)
     fps = project.canvas.fps
     t_to = round(t_to * fps) / fps
+    wanted = set(props) if props is not None else None
     tracks, moved = {}, False
     for prop, track in layer.tracks.items():
         index = _key_index(track, t_from, fps)
-        if index is None:
+        if index is None or (wanted is not None and prop not in wanted):
             tracks[prop] = track
             continue
         others = [key for i, key in enumerate(track) if i != index]
@@ -431,14 +435,16 @@ def retime_keys(project: Project, layer_id: str, t_from: float, t_to: float) -> 
     return _replace_layer(project, layer_id, {"tracks": tracks})
 
 
-def remove_keys(project: Project, layer_id: str, t: float) -> Edit:
-    """Remove every key at ``t``; a property losing its last key keeps that value as its base."""
+def remove_keys(project: Project, layer_id: str, t: float, props: Iterable[str] | None = None) -> Edit:
+    """Remove every key at ``t`` (of ``props`` only, if given); a property losing its last key
+    keeps that value as its base."""
     layer = _layer(project, layer_id)
     fps = project.canvas.fps
+    wanted = set(props) if props is not None else None
     tracks, base, removed = {}, layer.base.model_dump(), False
     for prop, track in layer.tracks.items():
         index = _key_index(track, t, fps)
-        if index is None:
+        if index is None or (wanted is not None and prop not in wanted):
             tracks[prop] = track
             continue
         removed = True

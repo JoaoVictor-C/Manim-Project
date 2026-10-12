@@ -84,6 +84,12 @@ class Colours:
     code_line: str  # the line the cursor is on
     code_error_line: str  # the line a render error points at
     error_text: str  # error words on panels and the gutter (danger itself is 4.3:1 on a panel)
+    # the graph editor's curves (P6b.2): one per keyed value, x red and y green as elsewhere
+    curve_x: str
+    curve_y: str
+    curve_scale: str
+    curve_rotation: str
+    curve_opacity: str
 
 
 STUDIO = Colours(
@@ -138,6 +144,11 @@ STUDIO = Colours(
     code_line="#ffffff0f",
     code_error_line="#ef444438",
     error_text="#f87171",
+    curve_x="#f87171",
+    curve_y="#4ade80",
+    curve_scale="#60a5fa",
+    curve_rotation="#c084fc",
+    curve_opacity="#2dd4bf",
 )
 
 THEME = STUDIO  # the token set in use

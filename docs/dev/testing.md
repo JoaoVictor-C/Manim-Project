@@ -115,6 +115,22 @@ Fusion, the palette and the font, every icon (drawn, tinted, dimmed when
 disabled), the icon buttons, that no colour literal remains in `ui/` outside
 `theme.py`, and that document colours are drawn as saved. The tests' application
 fixture applies the theme, so every UI test runs under the real look.
+The Animate page (P6b.2) has three test files:
+- `ui/test_graph_model.py` tests the graph editor's Qt-free rules: curves, including
+  opacity only for a graph on axes; ranges; the value window; frame-all; hits; the drag
+  rule (one track, its neighbours, snapping, never back to its own time, clamped and
+  rounded values); added keys that keep the motion; the props filter. It also checks the
+  segment-walk sampler against `evaluator._sample` on random tracks with every ease and
+  curved path segments.
+- `ui/test_animate_page.py` drives the page through the real window. It covers the
+  layout and Shift+2, the legend, the selection shared with Properties and the timeline,
+  drags in time and value as one undo step, frozen ranges, Escape, Shift and Alt, a key
+  grabbed off-centre, double-click, Delete, the ease menu and the curve editor, zoom, pan,
+  scrubbing and reset.
+- `ui/test_acceptance_p6b2.py` auto-keys a move, edits it in the graph, checks the
+  canvas pixels at the playhead and undoes it all.
+
+`.cache/p6b2/mutate.py` mutates the guards; all 38 mutants are killed.
 `ui/test_code_syntax.py` checks the Code page's lexer (keywords, Manim names, definitions, numbers,
 prefixed and triple quoted strings over lines, comments; spans never overlap or raise on any text)
 and its drafts (kept only while they differ from the project, the project moving underneath,

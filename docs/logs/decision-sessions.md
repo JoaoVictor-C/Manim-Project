@@ -661,6 +661,37 @@ left open, so ADRs can cite it.
 - **Critiques that changed the plan:** never leave a shared view parentless (it would
   float as a window); keep each page's splitter sizes; pages register before the menus.
 
+## Session 35 — P6b.2 the Animate page · 2026-10-12
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.88**.
+- **Input:** the plan's P6b.2 row, the keyframe model (`set_key`, `retime_keys`,
+  `remove_keys`, `set_key_ease`, `evaluator._sample`), the timeline's drag rules, the
+  shared selection; probe B56.
+- **Decisions:**
+  - The page stacks the viewer and Properties, then the graph, then the timeline.
+  - Each curve is normalised over its own range, and the focused curve has the value
+    axis; ranges are frozen during a drag.
+  - A point is one track's key: x and y share the position key. The edits that move or
+    delete one key take `props=None` on `retime_keys` and `remove_keys`.
+  - Delete removes the highlighted keys.
+  - Shift keeps a drag on one axis; Alt turns snapping off; Escape cancels.
+  - The graph has its own segment-wise sampler, checked against the evaluator. Plan:
+    [../plans/p6b2-animate.md](../plans/p6b2-animate.md).
+- **Measured during the session:** B56 - stroking the curves as one wide antialiased
+  polyline cost 60 ms per curve at 200 keys, so they are stroked as separate segments.
+  The per-curve cache leaves the curves that are not dragged as they are; a drag step at
+  200 keys went from 405 to 86 ms.
+- **Critiques that changed the plan:**
+  - The shared selection holds a column (layer, time), not a key of one curve. The graph
+    therefore keeps the clicked property, and Delete removes what is highlighted.
+  - Curved position segments and eases are not linear, so the curves are sampled with the
+    evaluator's rule, and double-click adds the value the evaluator plays.
+  - An untracked value had no curve to double-click, so it is drawn as a dashed base line.
+  - Calling `_sample` once per sample is O(samples x keys), so the sampler walks each
+    track once, and a parity test checks it.
+  - A free drag is two edits (retime, then set), built from the drag's start snapshot.
+
 ## Session 36 — P6b.3 the Code page · 2026-10-12
 
 - **Tool / profile:** Terza, `fast`; 2 iterations, 1 pass, halted on `halt_signal`,
@@ -696,7 +727,7 @@ left open, so ADRs can cite it.
   one line; `core/levels.py`: peak and RMS of a 100 ms window centred on the playhead,
   mixed straight from the decoded clips so it equals `audio.mix` there); Qt table models
   keyed by id, rebuilt on every document change; one new window signal
-  (`playheadChanged`) drives the meter; a re-entrancy flag separates a user's row click
+  (`playheadMoved`) drives the meter; a re-entrancy flag separates a user's row click
   (selects, and for a subtitle seeks) from a selection made elsewhere (selects the row
   only); the subtitle style stays in Properties (-> ADR 0041). Plan:
   [../plans/p6b4-audio.md](../plans/p6b4-audio.md).

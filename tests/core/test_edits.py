@@ -504,6 +504,26 @@ def test_remove_keys_keeps_a_last_value_as_the_base() -> None:
     assert layer.base.rotation == 45.0  # its only key became the base: nothing jumps
 
 
+def test_retime_and_remove_keys_of_chosen_properties_only() -> None:
+    """The graph editor (P6b.2) moves and deletes one curve's key; the others stay."""
+    edit = edits.retime_keys(posed_project(), "a", 0.4, 0.6, props=["rotation"])
+    layer = edit.project.layer("a")
+    assert [k.t for k in layer.tracks["rotation"]] == [pytest.approx(0.6)]
+    assert [k.t for k in layer.tracks["position"]] == [0.0, 0.4, 0.8]  # untouched
+    with pytest.raises(edits.EditError, match="no keys"):
+        edits.retime_keys(posed_project(), "a", 0.0, 0.2, props=["rotation"])  # rotation has none there
+    with pytest.raises(edits.EditError, match="already has a key"):
+        edits.retime_keys(posed_project(), "a", 0.4, 0.8, props=["position"])
+    assert edits.retime_keys(posed_project(), "a", 0.4, 0.8, props=["rotation"]).project.layer("a").tracks[
+        "rotation"
+    ][0].t == pytest.approx(0.8)  # position's key at 0.8 is not in the way
+    removed = edits.remove_keys(posed_project(), "a", 0.4, props=["position"]).project.layer("a")
+    assert [k.t for k in removed.tracks["position"]] == [0.0, 0.8]
+    assert [k.t for k in removed.tracks["rotation"]] == [0.4]  # kept
+    with pytest.raises(edits.EditError, match="no keys"):
+        edits.remove_keys(posed_project(), "a", 0.0, props=["rotation"])
+
+
 def test_set_key_ease_on_chosen_properties() -> None:
     ease = Easing(name=None, bezier=(0.1, 0.0, 0.2, 1.0))
     edit = edits.set_key_ease(posed_project(), "a", 0.4, ease, props=["rotation"])

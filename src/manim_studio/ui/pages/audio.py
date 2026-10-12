@@ -378,7 +378,7 @@ class AudioPage(Page):
         window.document.changed.connect(self._on_changed)
         window.document.reset.connect(lambda _project: self.refresh())
         window.selection.changed.connect(self._sync_selection)
-        window.playheadChanged.connect(self._on_playhead)
+        window.playheadMoved.connect(self._on_playhead)
 
     def on_show(self) -> None:
         if not self._wired:

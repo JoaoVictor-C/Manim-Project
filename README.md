@@ -154,6 +154,16 @@ object and choose **Add > Shapes > Connector** to draw a line from the object
 before it to it; the line follows both as they move, and Properties sets where
 it ends, its arrow tips and its gap.
 
+**The Animate page** (Shift+2, or *Animate* on the bar at the bottom) shows the
+selected object's keyframes as curves of value over time: x, y, scale, rotation and
+opacity, each in its own colour, which the legend switches on and off.
+- Drag a key sideways to retime it or up and down to change its value (Shift keeps it
+  on one axis, Escape cancels).
+- Double-click a curve to add a key; Delete removes the selected one.
+- Right-click between two keys to pick the ease of that stretch, or shape it in the
+  curve editor.
+- F fits all keys; the wheel zooms time and Ctrl+wheel the values.
+
 **Presets, themes and templates**: select an object and pick a preset from
 **Animate > Apply Preset** (or right-click its timeline row): it plays from the
 playhead. **View > Themes** recolours the selection, or the whole scene when

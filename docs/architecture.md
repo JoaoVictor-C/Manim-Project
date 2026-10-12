@@ -58,6 +58,9 @@ src/manim_studio/
     ├── code_drafts.py   unapplied editor text per code layer, error line helpers (pure)
     ├── code_editor.py   CodeEditor (gutter, highlighter, auto-indent, Tab = 4 spaces) for the Code page
     ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
+    │   └── animate.py   the Animate page: viewer + Properties, the graph editor, the timeline
+    ├── graph_model.py   graph editor rules: curves, ranges, sampling, hits, key drags (pure, P6b.2)
+    ├── graph_editor.py  the graph editor widget: keys as curves over time, drags, eases (P6b.2)
     │                    audio.py: sounds and subtitles tables, level meter (ADR 0041, P6b.4)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)

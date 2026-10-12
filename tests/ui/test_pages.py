@@ -86,7 +86,7 @@ def test_switching_pages_moves_the_views_and_parks_the_rest(window, qt_app) -> N
 
 def test_the_page_bar_switches_pages(window, qt_app) -> None:
     window.pages.add(ViewerOnly(window))
-    window.pages.bar.setCurrentIndex(window.pages.bar.count() - 1)
+    window.pages.bar.setCurrentIndex(window.pages.bar.count() - 1)  # the page added last
     assert window.page == "viewer"
     window.pages.bar.setCurrentIndex(0)
     assert window.page == "compose"
