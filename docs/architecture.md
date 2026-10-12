@@ -76,6 +76,8 @@ src/manim_studio/
     ├── param_handles.py parameter handles: sizes, line ends, connector ends; value from a drag (pure, ADR 0043)
     ├── snap_guides.py   snapping moved boxes to other objects' edges/centres and the frame (pure, ADR 0043)
     ├── arrange.py       align to a common box or the frame, distribute with equal gaps (pure, ADR 0043)
+    ├── shortcuts_help.py Help > Keyboard Shortcuts: rows read from the menus and actions, gestures (ADR 0044)
+    ├── elided_label.py  a one-line label shortened with "..." instead of cut off (the transport readout)
     ├── curve_editor.py  easing curve editor: bezier handles, presets, fitted named eases
     ├── export_job.py    one export in a `manim-studio render` process (ADR 0017)
     ├── export_dialog.py File > Export Video: progress, cancel, open folder

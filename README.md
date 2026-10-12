@@ -217,6 +217,9 @@ Or render from the command line:
 uv run manim-studio render examples/euler.json out/euler.mp4
 ```
 
+Press **F1** (Help > Keyboard Shortcuts) for every shortcut and mouse gesture, with
+a search field.
+
 ## The look
 
 The editor uses one dark studio theme: neutral greys, a blue accent and Phosphor
