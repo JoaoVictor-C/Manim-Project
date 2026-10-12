@@ -74,6 +74,12 @@ class Colours:
     curve: str
     curve_handle: str
     grid: str
+    # the graph editor's curves (P6b.2): one per keyed value, x red and y green as elsewhere
+    curve_x: str
+    curve_y: str
+    curve_scale: str
+    curve_rotation: str
+    curve_opacity: str
 
 
 STUDIO = Colours(
@@ -119,6 +125,11 @@ STUDIO = Colours(
     curve="#38bdf8",
     curve_handle="#fde047",
     grid="#ffffff28",
+    curve_x="#f87171",
+    curve_y="#4ade80",
+    curve_scale="#60a5fa",
+    curve_rotation="#c084fc",
+    curve_opacity="#2dd4bf",
 )
 
 THEME = STUDIO  # the token set in use

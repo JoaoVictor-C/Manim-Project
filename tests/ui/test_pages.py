@@ -59,7 +59,7 @@ def window(qt_app, tmp_path):
 
 
 def test_compose_is_the_default_page_with_every_shared_view(window) -> None:
-    assert window.page == "compose" and list(window.pages.pages) == ["compose"]
+    assert window.page == "compose" and next(iter(window.pages.pages)) == "compose"
     compose = window.pages.pages["compose"].widget
     for view in (window.viewer, window.timeline, window.layers, window.properties):
         assert compose.isAncestorOf(view) and view.isVisible()
@@ -86,7 +86,7 @@ def test_switching_pages_moves_the_views_and_parks_the_rest(window, qt_app) -> N
 
 def test_the_page_bar_switches_pages(window, qt_app) -> None:
     window.pages.add(ViewerOnly(window))
-    window.pages.bar.setCurrentIndex(1)
+    window.pages.bar.setCurrentIndex(window.pages.bar.count() - 1)  # the page added last
     assert window.page == "viewer"
     window.pages.bar.setCurrentIndex(0)
     assert window.page == "compose"
