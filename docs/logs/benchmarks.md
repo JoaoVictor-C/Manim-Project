@@ -486,3 +486,28 @@ Copying axes with 40 graphs makes 10 KB of clipboard text; reading and pasting i
 17 x FadeOut 0.3 s, 9 x FadeOut 0.8 s, 9 x Transform 1.2 s); **30 layers** are
 exactly FadeIn -> FadeOut; no keyframe tracks; layer groups rebuilt by hand: 4
 section headers. (B51 is P5d's autosave measurement.) -> ADR 0039.
+
+### B53 — Validation and edit cost by project size · 2026-10-11
+(B51 found that duplicating an object costs what any structural edit costs and grows faster than
+linearly; B52 is P5e's.) `benchmarks/bench_validation.py`, best of 9, projects of 20 to 2000 layers
+(clipped shapes, axes with graphs, a MathTex with parts, morph pairs, motion along a path, traces and
+connectors per 100 layers, so every validator has work). cProfile of `add_layer` at 2000 layers
+(1.2 s): **`edits.classify` 1.13 s** - `Project.referenced_graphs` built an `{id: layer}` table for
+every layer (0.56 s), `parts.build_spec` rescanned the layer list for every root (0.50 s: `layer()` and
+`children()`), `old.layer(parent)` per child; the project validators were minor (`ids.count` in the
+duplicate check 0.04 s, a list scan per morph target, `descendants()` per motion clip, `traceable_ids()`
+per trace and connector). Fix: `classify` indexes both snapshots once and resolves a root's parts only
+when their `(id, parent, key)` differ between the snapshots; the validators use one `by_id` table, a
+`Counter`, an ancestor walk instead of `descendants()`, and a predicate instead of `traceable_ids()`;
+`frame_cache._closure` finds an object's members from one children map. Before -> after (ms):
+
+| layers | validate | add_layer | update_layer | classify | changed_spans |
+|-------:|---------:|----------:|-------------:|---------:|--------------:|
+| 20     | 0.3 -> 0.4 | 0.2 -> 0.1 | 0.3 -> 0.2 | 0.1 -> 0.0 | 0.1 -> 0.1 |
+| 200    | 4.9 -> 4.3 | 7.0 -> 0.9 | 6.9 -> 0.9 | 5.9 -> 0.3 | 0.6 -> 0.5 |
+| 1000   | 39 -> 27 | 171 -> 4.8 | 172 -> 4.9 | 156 -> 1.6 | 3.3 -> 3.0 |
+| 2000   | 110 -> 60 | 838 -> 11 | 835 -> 11 | 783 -> 3.5 | 8.8 -> 7.7 |
+
+2000 layers cost 12x what 200 layers do for `add_layer` (was 120x); what is left is pydantic
+re-validating the new layer list (linear). No rule or message changed (the full suite passes
+unchanged); one crash became a message: a morph aimed at a sound's id raised `StopIteration`.
