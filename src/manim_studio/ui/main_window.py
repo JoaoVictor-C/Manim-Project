@@ -54,6 +54,7 @@ from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
 from .pages import PageHost, Shared
 from .pages.compose import ComposePage
+from .pages.deliver import DeliverPage
 from .plugins_dialog import PluginsDialog, startup_message
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
@@ -143,7 +144,7 @@ class MainWindow(QMainWindow):
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.
         self.pages = PageHost(Shared(self.viewer, self.timeline, self.layers, self.properties), self)
-        for page in (ComposePage,):
+        for page in (ComposePage, DeliverPage):
             self.pages.add(page(self))
         self.setCentralWidget(self.pages)
         # One selection for every view (ADR 0016): views report, then follow it.
@@ -564,7 +565,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        exporting = self.export_dialog is not None and self.export_dialog.running
+        exporting = (self.export_dialog is not None and self.export_dialog.running) or self.deliver_busy()
         if exporting and self.ask_stop_export() != "stop":
             event.ignore()
             return
@@ -574,7 +575,9 @@ class MainWindow(QMainWindow):
         self.autosave.timer.stop()
         self.autosave.discard()  # saved, or thrown away on purpose (ADR 0038)
         if exporting:
-            self.export_dialog.cancel()
+            if self.export_dialog is not None:
+                self.export_dialog.cancel()
+            self.pages.pages["deliver"].cancel_all()
         if self.export_dialog is not None:
             self.export_dialog.close()
         self.builds.client.stop()
@@ -897,6 +900,11 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Export: {text}")
         elif self.statusBar().currentMessage().startswith("Export: "):
             self.statusBar().clearMessage()
+
+    def deliver_busy(self) -> bool:
+        """The Deliver page's queue is rendering (P6b.5)."""
+        deliver = self.pages.pages.get("deliver")
+        return deliver is not None and deliver.busy
 
     def ask_stop_export(self) -> str:
         """An export is running: "stop" it and quit, or "cancel" quitting."""
