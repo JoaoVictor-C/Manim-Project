@@ -68,3 +68,4 @@ need one.
 | [0037](0037-markers-and-snapping.md) | Markers and snapping | Accepted |
 | [0038](0038-clipboard-and-recovery.md) | Clipboard, duplicate and crash recovery | Accepted |
 | [0039](0039-presets-templates-themes.md) | Presets, templates and themes | Accepted |
+| [0040](0040-design-system.md) | The design system | Accepted |

@@ -626,3 +626,21 @@ left open, so ADRs can cite it.
   ending at the playhead dropped for one rule (start at the playhead); themes scoped to
   the selection; a preset with keys an object cannot have (a graph on axes) is refused,
   not partly applied; the callout template carries its own anchor dot.
+
+## Session 33 — P6a the design system · 2026-10-11
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.91**.
+- **Input:** the plan's Phase 6 rows, the 27 colour literals in `ui/`, the UI test
+  suite's reliance on the main window; probe B54.
+- **Decisions:** tokens in `ui/theme.py` for one dark Studio set; Fusion + a token
+  palette + one generated stylesheet, applied by the app and the test fixture;
+  Phosphor icons through QtAwesome; content colours never themed (-> ADR 0040). Plan:
+  [../plans/p6a-design-system.md](../plans/p6a-design-system.md).
+- **Measured during the session:** the quick UI lane passes unchanged under the theme
+  (375/375), which settled applying it in the fixture; contrast of every text role -
+  two failures fixed (white on the first accent 3.26:1 -> #2f6fe4 4.65:1; white labels
+  on the amber and green clip bars 2.2 and 2.5:1 -> darker shades, all bars >= 5:1).
+- **Critiques that changed the plan:** per-widget stylesheets (pending fields, colour
+  swatches) override the app sheet -> a `pending` property selector; the in-frame
+  placeholder is content, not chrome.
