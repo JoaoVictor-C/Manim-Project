@@ -109,6 +109,17 @@ import and export, moving, trimming and deleting on the row, and the canvas.
 `ui/test_acceptance_p5a.py` imports an `.srt`, edits a cue and the style, checks
 frames rendered ahead, the export process's video and `.srt`, and the exact
 Python scene.
+`core/test_library.py` applies every built-in preset to a shape (frames before
+the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
+for the chosen kind, relative keys, the hold key, replaced same-frame keys,
+refusals (no kind, a locked graph, overlaps, the end), parts, preset and theme
+files (validation, skipped files, user items winning), saving and replaying a
+layer's animation, themes by kind and by selection, and every built-in template
+(inserted, drawn, references remapped, saved from an object, refused when tied to
+outside layers). `ui/test_presets_ui.py` covers the menus, refusals, saving and
+templates in the editor; `ui/test_acceptance_p5e.py` animates a scene with
+presets, a theme and templates, checks frames rendered ahead, the export
+process's video and the exact scene rendered by Manim.
 `core/test_markers.py` covers the marker list (order, saving, validation, ids),
 the one-per-frame rule, edits that keep markers and change no frame, and the
 exports. `ui/test_timeline_model.py` checks that every row and marker is a snap

@@ -368,3 +368,9 @@ def test_a_template_file_must_stand_on_its_own() -> None:
     data = {"format": library.FORMAT, "version": 1, "kind": "template", "name": "Bad", "layers": [link]}
     with pytest.raises(ValueError, match="is missing"):
         library.item_from_json(data)
+
+
+def test_rotation_keys_turn_from_where_the_object_is() -> None:
+    turned = Layer(id="s", spec=Spec(type="Square"), base=Transform2D(rotation=30.0))
+    track = apply_preset(scene(turned), "s", preset("Spin"), 0.0).project.layer("s").tracks["rotation"]
+    assert [k.value for k in track] == [30.0, 390.0]

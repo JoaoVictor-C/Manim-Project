@@ -1,6 +1,6 @@
 # P5e — Presets, templates and themes
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-11
 - **Decided in:** [decision session 32](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B52 in [../logs/benchmarks.md](../logs/benchmarks.md)

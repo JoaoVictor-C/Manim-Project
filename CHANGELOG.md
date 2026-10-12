@@ -161,6 +161,19 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Presets, themes and templates (P5e, ADR 0039): **Animate > Apply Preset**
+  (and the timeline row's *Apply preset*) gives the selected layer one of 32
+  built-in presets at the playhead - entrances (fade, pop, slides, typewriter,
+  draw, grow, spin), emphasis (indicate, pulse, wiggle, circle it, flash, focus,
+  wave), exits and motions (drift, bounce, spin, grow) - choosing the clip kinds the
+  object accepts, keying relative to where the object is, never changing what was
+  drawn before the playhead, and refusing with the reason when it cannot apply.
+  **View > Themes** (Manim, Chalkboard, Paper, Blueprint, Midnight) recolours the
+  selection, or everything and the background. **Add > Templates** inserts a title
+  card, section header, lower third, callout, equation reveal or counter at the
+  playhead. *Save Animation as Preset* and *Save Object as Template* keep your own
+  in a user folder; library files are versioned and bad ones are skipped with a
+  message.
 - Clipboard and crash recovery (P5d, ADR 0038): **Edit > Cut / Copy / Paste /
   Duplicate** (Ctrl+X / C / V / D) for the selected layer, clip, sound or
   subtitle, each one undo step. A layer is copied with its parts or objects on

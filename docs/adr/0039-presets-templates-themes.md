@@ -24,7 +24,8 @@ header) were rebuilt each time, and colours were set one object at a time.
   application time, a duration, an ease and params - and key tracks of `(dt,
   value, ease)` relative to the layer's transform when applied: position as an
   offset, scale as a factor, rotation as a delta, opacity as it is.
-  - It is applied to the selected layer **starting at the playhead**, whole or not
+  - It is applied to the selected layer **starting at the playhead** (from a
+    timeline row's menu: at the clicked time, like *Add clip*), whole or not
     at all: it is refused, with the reason, when no kind fits the object, when the
     object cannot have one of its keys (a graph on axes only fades), when a clip
     would overlap a clip of the layer or of its object, or when it runs past the end.
