@@ -172,6 +172,14 @@ All notable changes to this project are documented here. The format follows
     its ease or the curve editor; F frames all keys and the wheel zooms;
   - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
     curve's key (B56: curves stroked as separate segments, 20x faster).
+- Keyboard shortcuts help and layout checks (P6d.2, ADR 0044): **Help > Keyboard
+  Shortcuts** (F1) lists every shortcut - read from the window's own menus and panel
+  actions, so it never goes stale - and the canvas and timeline gestures, with a search
+  field. Every menu item now explains itself in a tooltip. New tests check every page and
+  dialog at a 1024x640 window: no menu item without a tooltip, nothing squeezed below its
+  minimum size, no label cut off. They found the transport readout cut off on narrow
+  windows: it now shortens with "..." (`ui/elided_label.py`) and shows the whole line as
+  a tooltip.
 - Several selected objects (P6c.2, ADR 0043): Shift+click on the canvas adds or takes
   out an object, a drag from empty canvas draws a selection rectangle (Shift: adding),
   and Ctrl/Shift+click in Layers selects several. Dragging any of them moves them all

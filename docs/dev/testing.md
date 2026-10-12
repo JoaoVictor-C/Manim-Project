@@ -159,6 +159,13 @@ Shift+click, the marquee, Ctrl+click in Layers, group drags and nudges (keyed la
 a part with its object moved once, corners not grabbed), Delete, the clipboard, presets,
 themes and Arrange; `ui/test_acceptance_p6c.py` does all of it on three objects, one undo
 step each.
+`ui/test_shortcuts_help.py` covers the shortcut rows (menu paths, panel actions once,
+the search) and F1; `ui/test_layout_checks.py` runs the layout checks over every page
+and the dialogs at 1024x640 - menu items with tooltips (`SELF_EXPLANATORY` and
+`DATA_MENUS` are the allowlists), nothing below its minimum size hint (`SQUEEZABLE`), no
+clipped non-wrapping label (eliding labels are skipped) - and checks that the checks
+catch a cramped label, a squeezed button and a bare menu item. A new page or dialog
+should be added to it. `ui/test_elided_label.py` covers the eliding label.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,
