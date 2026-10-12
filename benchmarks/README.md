@@ -21,6 +21,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_markers.py` | sounds on clip edges in the explainer, snap point gathering — B50 |
 | `bench_autosave.py` | recovery copies by project size, duplicate vs any edit, clipboard paste — B51 |
 | `bench_presets.py` | repeated clip patterns and layer groups in the explainer — B52 |
+| `bench_validation.py` | validation, `add_layer`, `update_layer`, `classify`, `changed_spans` at 20-2000 layers — B53 |
 | `bench_design.py` | icon fonts and an application stylesheet: load and apply times — B54 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |

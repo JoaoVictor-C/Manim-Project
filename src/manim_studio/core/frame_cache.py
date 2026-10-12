@@ -88,7 +88,27 @@ def _moved(old: Project, new: Project) -> set[str]:
 
 def _closure(project: Project, changed: set[str]) -> set[str]:
     """``changed`` plus what draws differently because of them, in ``project``."""
-    ids = {layer.id for layer in project.layers}
+    by_id = {layer.id: layer for layer in project.layers}  # lookups once, not per layer (B53)
+    children: dict[str, list[str]] = {}
+    for layer in project.layers:
+        if layer.parent_id is not None:
+            children.setdefault(layer.parent_id, []).append(layer.id)
+    ids = set(by_id)
+    objects: dict[str, set[str]] = {}  # root id -> the root and everything under it
+
+    def whole_object(layer_id: str) -> set[str]:
+        root = by_id[layer_id]
+        while root.parent_id is not None:
+            root = by_id[root.parent_id]
+        if root.id not in objects:
+            members, pending = {root.id}, [root.id]
+            while pending:
+                for child in children.get(pending.pop(), ()):
+                    members.add(child)
+                    pending.append(child)
+            objects[root.id] = members
+        return objects[root.id]
+
     out = changed & ids
     while True:
         grown = set(out)
@@ -102,8 +122,7 @@ def _closure(project: Project, changed: set[str]) -> set[str]:
         grown |= project.traces_of(grown)  # a trace draws where a changed layer was (ADR 0033)
         grown |= project.connectors_of(grown)  # a connector ends at a changed layer (ADR 0036)
         for layer_id in list(grown & ids):  # an object is evaluated whole (parts, child objects)
-            root = project.root_of(layer_id)
-            grown |= {root.id} | {d.id for d in project.descendants(root.id)}
+            grown |= whole_object(layer_id)
         grown &= ids
         if grown == out:
             return out

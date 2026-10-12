@@ -410,6 +410,11 @@ All notable changes to this project are documented here. The format follows
   hit-testing, not preview content — ADR 0006).
 - `DESIGN.md` replaced by `docs/architecture.md`, `docs/roadmap.md` and the ADRs.
 - `zip()` calls on equal-length sequences are now `strict=True`.
+- Edits that validate the whole project (add, duplicate or change a layer) no longer grow faster than linearly with the layer
+  count (B53): project validation and `edits.classify` build their lookups once instead of scanning
+  the layer list per layer. At 2000 layers `add_layer` takes 11 ms instead of 840 ms (200 layers:
+  0.9 ms instead of 7 ms). Rules and messages are unchanged; a morph aimed at the id of a sound
+  now reads "to_layer ... is missing" instead of crashing.
 
 ### Fixed
 - A MoveAlongPath clip on an equation with parts crashed ("needs a target"); objects

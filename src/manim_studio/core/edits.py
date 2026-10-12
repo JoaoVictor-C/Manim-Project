@@ -681,6 +681,9 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
     """
     old_layers = {layer.id: layer for layer in old.layers}
     new_layers = {layer.id: layer for layer in new.layers}
+    # Lookups once per snapshot, not per layer (B53): a root is resolved again only when its parts
+    # (their ids, parents and keys) differ; with the same spec and the same parts it builds the same.
+    old_parts, new_parts = _part_signature(old), _part_signature(new)
     kind: EditKind = "timing"
     touched: set[str] = set()
     for layer_id in old_layers.keys() | new_layers.keys():
@@ -691,6 +694,7 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
             and a is not None
             and b is not None
             and b.parent_id is None
+            and old_parts.get(layer_id) != new_parts.get(layer_id)
             and parts.build_spec(old, layer_id) != parts.build_spec(new, layer_id)
         ):
             layer_kind = "spec"  # its parts changed: the object is rebuilt with other markers
@@ -700,14 +704,14 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
             and b is not None
             and b.is_child
             and not b.is_part
-            and old.layer(a.parent_id).spec != new.layer(b.parent_id).spec
+            and old_layers[a.parent_id].spec != new_layers[b.parent_id].spec
         ):
             layer_kind = "spec"  # its parent changed: a graph is plotted again on new axes (ADR 0024)
         if (
             layer_kind != "spec"
             and a is not None
             and b is not None
-            and old.referenced_graphs(a) != new.referenced_graphs(b)
+            and old.referenced_graphs(a, old_layers) != new.referenced_graphs(b, new_layers)
         ):
             layer_kind = "spec"  # its graph changed: an area is built again (ADR 0030)
         if layer_kind is None:
@@ -736,6 +740,20 @@ def _layer_kind(a: Layer, b: Layer) -> EditKind | None:
     if a.base != b.base or a.tracks != b.tracks:
         return "transform"
     return "timing" if timing or a.lifetime != b.lifetime or a.name != b.name else None
+
+
+def _part_signature(project: Project) -> dict[str, list[tuple[str, str | None, PartKey | None]]]:
+    """What ``parts.resolve`` reads of each root's parts: ``(id, parent_id, part key)`` in layer order,
+    by root id. Two projects with the same entry (and the same root spec) build the root alike."""
+    by_id = {layer.id: layer for layer in project.layers}
+    signature: dict[str, list[tuple[str, str | None, PartKey | None]]] = {}
+    for layer in project.layers:
+        if layer.is_part:
+            root = layer
+            while root.parent_id is not None:
+                root = by_id[root.parent_id]
+            signature.setdefault(root.id, []).append((layer.id, layer.parent_id, layer.part))
+    return signature
 
 
 def _morph_partners(project: Project, layer_ids: set[str]) -> set[str]:

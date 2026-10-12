@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -486,7 +487,7 @@ class Project(BaseModel):
             raise ValueError(f"unsupported schema_version {self.schema_version} (expected {SCHEMA_VERSION})")
         ids = [layer.id for layer in self.layers] + [clip.id for clip in self.audio]
         ids += [cue.id for cue in self.subtitles] + [marker.id for marker in self.markers]
-        duplicates = {i for i in ids if ids.count(i) > 1}
+        duplicates = {i for i, count in Counter(ids).items() if count > 1}  # linear (B53)
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
         self.subtitles = sorted(self.subtitles, key=lambda cue: cue.start)
@@ -503,15 +504,16 @@ class Project(BaseModel):
         self._trace_refs()
         self._connector_refs()
         targeted: dict[str, str] = {}
+        by_id = {layer.id: layer for layer in self.layers}  # once: a lookup per morph clip stays linear (B53)
         for layer in self.layers:
             for clip in layer.clips:
                 if not clip.to_layer:
                     continue
-                if clip.to_layer not in ids:
+                target = by_id.get(clip.to_layer)
+                if target is None:
                     raise ValueError(
                         f"clip {clip.id!r} on layer {layer.id!r}: to_layer {clip.to_layer!r} is missing"
                     )
-                target = next(other for other in self.layers if other.id == clip.to_layer)
                 if target.spec is not None and target.spec.type in CODE_TYPES | TRACE_TYPES | CONNECTOR_TYPES:
                     what = {"Code": "a code layer", "Connector": "a connector"}.get(
                         target.spec.type, "a traced path"
@@ -539,8 +541,7 @@ class Project(BaseModel):
                 path = by_id.get(clip.params.get("path"))
                 if path is None:
                     raise ValueError(f"clip {clip.id!r}: {clip.kind} needs a path layer")
-                inside = {layer.id} | {d.id for d in self.descendants(layer.id)}
-                if path.id in inside or path.is_part or path.spec.type in _NOT_A_PATH:
+                if _within(by_id, path, layer.id) or path.is_part or path.spec.type in _NOT_A_PATH:
                     raise ValueError(f"clip {clip.id!r}: {path.id!r} cannot be its path")
 
     def _graph_refs(self) -> None:
@@ -569,19 +570,14 @@ class Project(BaseModel):
             if layer.spec is None or layer.spec.type not in TRACE_TYPES:
                 continue
             target_id = layer.spec.params.get("target") or ""
-            if target_id not in self.traceable_ids(layer.id):
+            if not _traceable(layer.id, by_id.get(target_id)):
                 what = "is missing" if target_id not in by_id else "cannot be traced"
                 raise ValueError(f"layer {layer.id!r}: the traced layer {target_id!r} {what}")
 
     def traceable_ids(self, trace_id: str) -> list[str]:
         """The layers the traced path ``trace_id`` may follow (ADR 0033), or the connector
         ``trace_id`` may join (ADR 0036): not itself, a trace, a connector or a code layer."""
-        return [
-            x.id
-            for x in self.layers
-            if x.id != trace_id
-            and not (x.spec is not None and x.spec.type in TRACE_TYPES | CODE_TYPES | CONNECTOR_TYPES)
-        ]
+        return [x.id for x in self.layers if _traceable(trace_id, x)]
 
     def _connector_refs(self) -> None:
         """ADR 0036: a connector joins two different layers it could trace."""
@@ -591,7 +587,7 @@ class Project(BaseModel):
                 continue
             ends = [layer.spec.params.get(name) or "" for name in ("source", "target")]
             for end in ends:
-                if end not in self.traceable_ids(layer.id):
+                if not _traceable(layer.id, by_id.get(end)):
                     what = "is missing" if end not in by_id else "cannot be joined"
                     raise ValueError(f"layer {layer.id!r}: the connected layer {end!r} {what}")
             if ends[0] == ends[1]:
@@ -615,13 +611,17 @@ class Project(BaseModel):
             if x.spec is not None and x.spec.type in TRACE_TYPES and x.spec.params.get("target") in layer_ids
         }
 
-    def referenced_graphs(self, layer: Layer) -> dict[str, Spec]:
-        """The specs of the graphs ``layer`` is built from (ADR 0030), by id."""
+    def referenced_graphs(self, layer: Layer, by_id: dict[str, Layer] | None = None) -> dict[str, Spec]:
+        """The specs of the graphs ``layer`` is built from (ADR 0030), by id. Callers asking about
+        many layers pass the project's ``{id: layer}`` map instead of having one built per call (B53)."""
         if layer.spec is None:
             return {}
         names = [n for n, _ in GRAPH_PARAMS.get(layer.spec.type, ())]
+        if not names:
+            return {}  # nearly every layer: no lookup table needed
         ids = [layer.spec.params.get(n) for n in names]
-        by_id = {other.id: other for other in self.layers}
+        if by_id is None:
+            by_id = {other.id: other for other in self.layers}
         return {i: by_id[i].spec for i in ids if i and i in by_id}
 
     def _tree_rules(self) -> None:
@@ -748,6 +748,25 @@ class Project(BaseModel):
             if layer.id == layer_id:
                 return layer
         raise KeyError(layer_id)
+
+
+def _traceable(own_id: str, other: Layer | None) -> bool:
+    """Whether the trace or connector ``own_id`` may follow ``other`` (ADR 0033, 0036): a layer
+    that is not itself, a trace, a connector or a code layer."""
+    return (
+        other is not None
+        and other.id != own_id
+        and not (other.spec is not None and other.spec.type in TRACE_TYPES | CODE_TYPES | CONNECTOR_TYPES)
+    )
+
+
+def _within(by_id: dict[str, Layer], node: Layer, root_id: str) -> bool:
+    """Whether ``node`` is ``root_id`` or hangs somewhere under it (parents are known to exist)."""
+    while node.id != root_id:
+        if node.parent_id is None:
+            return False
+        node = by_id[node.parent_id]
+    return True
 
 
 def infer_lifetime(layer: Layer, morph_in: Clip | None = None) -> tuple[float, float]:
