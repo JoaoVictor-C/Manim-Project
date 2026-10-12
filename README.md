@@ -147,6 +147,16 @@ object and choose **Add > Shapes > Connector** to draw a line from the object
 before it to it; the line follows both as they move, and Properties sets where
 it ends, its arrow tips and its gap.
 
+**Copy, paste and recovery**: **Edit > Duplicate** (Ctrl+D) copies the selected
+layer, clip, sound or subtitle right next to it; **Cut / Copy / Paste** (Ctrl+X /
+C / V) move them through the clipboard, also into another project or another
+Manim Studio window. A layer is copied with its parts or graphs, its keys and
+clips, and pastes above the selected layer; a clip pastes onto the selected layer
+at the playhead, a sound or subtitle at the playhead. While you have unsaved
+changes a recovery copy is written every 30 seconds; if Manim Studio closes
+without saving, it offers to restore your work the next time it starts (or when
+you open that file).
+
 **Code layers** are the escape hatch for what the timeline cannot express
 (updaters, `ValueTracker`, `TracedPath`, simulations): **Add > Python > Code**
 creates a layer holding a Manim `Scene`; edit it in Properties and press

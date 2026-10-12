@@ -129,6 +129,25 @@ Properties and the timeline; `ui/test_acceptance_p5b.py` builds a count and an
 arrow in the editor, renders the readable scene with Manim, then switches to
 edge ends, moves an object, checks frames rendered ahead, the export process's
 video and the exact scene.
+`core/test_clipboard.py` covers copying and pasting layers (subtrees with parts
+and axes objects, fresh ids unique across layers, sounds and subtitles, morphs
+between copies or to outside layers - kept, left out when missing or taken, the
+visible span kept - motion paths, traces and connectors inside and outside the
+copy, type-checked outside references, names, placement), copies drawing like
+their originals, the clipboard JSON (round trip, foreign text, newer versions)
+and clips, sounds and subtitles (placement, overlaps, allow-list, targets,
+duplicates). `core/test_recovery.py` covers recovery file names, atomic writes,
+what is offered (dead owners, newer than the saved file), pruning and the
+process check (psutil, OpenProcess, a fake psutil). `ui/test_clipboard_ui.py`
+drives the Edit menu and its shortcuts, the real `QClipboard` (private format,
+plain text), selection, one undo step, the messages and untrusted pasted code;
+`ui/test_autosave.py` the timer, cleanup on save, undo, New, Open and close, and
+the recovery prompt (dead or running owner, restore, later, discard, stale and
+damaged copies). Conftest points `MANIM_STUDIO_RECOVERY` at a temporary folder
+and answers the recovery question with "later". `ui/test_acceptance_p5d.py`
+builds a scene in the editor, duplicates and pastes through the menus, checks
+the copies draw like the originals, then restores a simulated crash in a fresh
+window. `.cache/p5d/mutate_p5d.py` is the slice's mutation check.
 `core/test_audio.py` covers the mix (trim, gain, fades, clipping, silence past
 a file's end, resampling), missing and unreadable files, the decode cache, the
 file format and sound edits (no frame dropped, layer edits keep the sound), the

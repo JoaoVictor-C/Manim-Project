@@ -66,3 +66,4 @@ need one.
 | [0035](0035-subtitle-track.md) | A subtitle track: cues in one lane, drawn over the frame | Accepted |
 | [0036](0036-readouts-and-connectors.md) | Value readouts and connectors | Accepted |
 | [0037](0037-markers-and-snapping.md) | Markers and snapping | Accepted |
+| [0038](0038-clipboard-and-recovery.md) | Clipboard, duplicate and crash recovery | Accepted |
