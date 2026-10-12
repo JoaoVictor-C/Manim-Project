@@ -179,6 +179,13 @@ shows its frames, placed, scaled and faded like any layer. Code runs only if
 you trust it: opening a project that contains someone else's code asks first,
 and exporting from the command line needs `--trust-code`.
 
+**The Audio page** (the page bar at the bottom, or **View > Pages**) lists the sounds
+and the subtitles as tables: double-click a cell to change a sound's start, trim,
+duration, gain or fades, or a subtitle's times and text; each change is one undo
+step and an invalid one (two subtitles overlapping, fades longer than the sound) is
+refused with the reason in the status bar. Pick a subtitle's row to jump to it, and
+watch the level meter for the peak and RMS of the sound at the playhead.
+
 The Properties panel edits the selected layer or clip (a timeline click selects
 a clip); each finished field is one undo step, and new LaTeX appears in italics
 until it has been built.

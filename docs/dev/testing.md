@@ -272,6 +272,17 @@ that easy to state:
 - `assert_frames_equal` / `assert_evaluators_agree` — pixel comparison with a
   tolerance of 1 level (anti-aliasing rounding).
 
+`core/test_tables.py` and `core/test_levels.py` cover the Audio page's Qt-free logic (P6b.4):
+how a cell shows a sound or a subtitle, parsing what is typed (`1,5`, `-6 dB`, `1:02.5`), the edit
+each cell makes and every refusal with its reason, and the meter's 100 ms window - bit-identical to
+the same span of `audio.mix` with trims, gains, fades and clipping, silent at the ends of the video
+and for a missing file - with known tones reading their peak and RMS. `ui/test_audio_page.py` drives
+the page through the real window (`show_page("audio")`): rows for every field, a missing file
+flagged, each cell edit one undo step that the timeline, evaluator and meter follow, refused edits in
+the status bar, selection both ways (a subtitle row seeks, the timeline's selection does not), the
+buttons, and the meter on known tones; `ui/test_acceptance_p6b4.py` imports two sounds and an `.srt`,
+edits both tables, and undoes everything.
+
 ## Property tests
 
 `core/test_properties.py` generates valid projects from fixed seeds and checks
