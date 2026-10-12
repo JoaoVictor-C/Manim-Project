@@ -17,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
@@ -41,7 +42,7 @@ from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
-from . import icons, theme
+from . import arrange, icons, snap_guides, theme
 from .audio_player import make_audio_player
 from .autosave import Autosave
 from .build_service import BuildService
@@ -279,6 +280,25 @@ class MainWindow(QMainWindow):
         )
         self.snap_action.toggled.connect(lambda on: setattr(self.move_tool, "snapping", on))
         view_menu.addAction(self.snap_action)
+        self.arrange_menu = self.menuBar().addMenu("A&rrange")  # align and distribute (ADR 0043)
+        self.arrange_menu.setToolTipsVisible(True)
+        for text, how, key in (
+            ("Align &Left", "left", "Ctrl+Alt+Left"),
+            ("Align &Centre", "centre", "Ctrl+Alt+H"),
+            ("Align &Right", "right", "Ctrl+Alt+Right"),
+            ("Align &Top", "top", "Ctrl+Alt+Up"),
+            ("Align &Middle", "middle", "Ctrl+Alt+V"),
+            ("Align &Bottom", "bottom", "Ctrl+Alt+Down"),
+        ):
+            action = self.arrange_menu.addAction(text, lambda h=how: self.align(h))
+            action.setShortcut(QKeySequence(key))
+            action.setToolTip("Line the selected objects up (one object: on the video frame)")
+            if how == "right":
+                self.arrange_menu.addSeparator()
+        self.arrange_menu.addSeparator()
+        for text, axis in (("Distribute &Horizontally", 0), ("Distribute &Vertically", 1)):
+            action = self.arrange_menu.addAction(text, lambda a=axis: self.distribute(a))
+            action.setToolTip("Equal gaps between three or more selected objects")
         view_menu.addSeparator()
         self.themes_menu = view_menu.addMenu("&Themes")
         self.themes_menu.setToolTipsVisible(True)
@@ -558,6 +578,7 @@ class MainWindow(QMainWindow):
         elif clip_id is not None:
             self.properties.show_clip(layer_id, clip_id)
         elif layer_id is not None:
+            self.properties.others_selected = len(self.selection.layer_ids) - 1
             self.properties.show_layer(layer_id)
         else:
             self.properties.show_nothing()
@@ -688,15 +709,20 @@ class MainWindow(QMainWindow):
     ) -> bool:
         """Apply ``preset`` to the layer (default: the selected one) at ``t`` (default: the playhead);
         a refusal is shown in the status bar. True when it was applied."""
-        layer_id = layer_id or self.selection.layer_id
-        if self.project is None or layer_id is None:
+        targets = [layer_id] if layer_id else list(self.selection.layer_ids)
+        if self.project is None or not targets:
             self.statusBar().showMessage("Select a layer to animate first", 6000)
             return False
-        try:
-            edit = library.apply_preset(self.project, layer_id, preset, self.t if t is None else t)
+        at = self.t if t is None else t
+        project = self.project
+        try:  # every selected layer, or none of them (one undo step, ADR 0043)
+            for target in targets:
+                project = library.apply_preset(project, target, preset, at).project
         except edits.EditError as exc:
-            self.statusBar().showMessage(str(exc), 10000)
+            name = self.project.layer(target).name or target
+            self.statusBar().showMessage(f"{name}: {exc}" if len(targets) > 1 else str(exc), 10000)
             return False
+        edit = edits.Edit(project, *edits.classify(self.project, project))
         self.document.apply(edit, f"Apply {preset.name}")
         self.statusBar().showMessage(f"{preset.name} at {self.t if t is None else t:.2f} s", 4000)
         return True
@@ -792,10 +818,53 @@ class MainWindow(QMainWindow):
         if self.project is None:
             return
         selected = self.selection.layer_id
-        edit = library.apply_theme(self.project, chosen, {selected} if selected else None)
+        chosen_ids = set(self.selection.layer_ids)
+        edit = library.apply_theme(self.project, chosen, chosen_ids if selected else None)
         self.document.apply(edit, f"Apply the {chosen.name} theme")
         where = "the selection" if selected else "the scene"
         self.statusBar().showMessage(f"{chosen.name} theme applied to {where}", 4000)
+
+    # -- arrange (P6c.2, ADR 0043) -------------------------------------------------
+
+    def _boxes(self) -> dict[str, tuple]:
+        """The world box at the playhead of each object a move of the selection moves."""
+        movers = self.move_tool._movers(self.selection.layer_ids)
+        members = {i: {i} | {d.id for d in self.project.descendants(i)} for i in movers}
+        boxes: dict[str, tuple] = {}
+        for owner, mob in self.evaluator.frame_layers(self.t):
+            family = mob.family_members_with_points()
+            if not family:
+                continue
+            box = snap_guides.box_of(np.vstack([sub.points[:, :2] for sub in family]))
+            for mover, ids in members.items():
+                if owner in ids:
+                    old = boxes.get(mover, box)
+                    boxes[mover] = (np.minimum(old[0], box[0]), np.maximum(old[1], box[1]))
+        return boxes
+
+    def align(self, how: str) -> None:
+        """Arrange > Align: the selected objects on their common box (one: on the frame)."""
+        if self.project is None or not self.selection.layer_ids:
+            self.statusBar().showMessage("Select the objects to align", 6000)
+            return
+        canvas = self.project.canvas
+        half = np.array([canvas.frame_width / 2, canvas.frame_height / 2])
+        self._arrange(arrange.align(self._boxes(), how, (-half, half)), f"Align {how}")
+
+    def distribute(self, axis: int) -> None:
+        """Arrange > Distribute: equal gaps between three or more selected objects."""
+        boxes = self._boxes() if self.project is not None else {}
+        if len(boxes) < 3:
+            self.statusBar().showMessage("Select three or more objects to distribute", 6000)
+            return
+        self._arrange(arrange.distribute(boxes, axis), "Distribute")
+
+    def _arrange(self, moves: dict, verb: str) -> None:
+        edit = self.move_tool.move_by(moves) if moves else None
+        if edit is None:
+            self.statusBar().showMessage("Already lined up", 4000)
+            return
+        self.document.apply(edit, verb)
 
     def import_subtitles(self) -> None:
         """File > Import Subtitles...: an .srt replaces the subtitles (one undo step)."""

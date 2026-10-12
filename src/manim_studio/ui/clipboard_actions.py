@@ -116,6 +116,8 @@ class ClipboardActions(QObject):
             edit = edits.remove_cue(self.project, sel.subtitle_id)
         elif sel.clip_id is not None:
             edit = edits.remove_clip(self.project, sel.layer_id, sel.clip_id)
+        elif sel.many:
+            edit = edits.remove_layers(self.project, self._chosen())
         else:
             edit = edits.remove_layer(self.project, sel.layer_id)
         self.put(data)
@@ -150,7 +152,8 @@ class ClipboardActions(QObject):
                 pasted = clipboard.duplicate_clip(project, sel.layer_id, sel.clip_id, allowed)
                 kind = "clip"
             elif sel.layer_id is not None:
-                self._submit_layers(lambda p: clipboard.duplicate_layers(p, [sel.layer_id]), "Duplicate")
+                chosen = self._chosen()
+                self._submit_layers(lambda p: clipboard.duplicate_layers(p, chosen), "Duplicate")
                 return
             else:
                 raise ClipboardError("Select a layer, clip, sound or subtitle to duplicate")
@@ -178,10 +181,18 @@ class ClipboardActions(QObject):
         if sel.clip_id is not None:
             data = clipboard.copy_clip(project, sel.layer_id, sel.clip_id)
             return data, f"{data.payload.clip.kind} clip"
+        if sel.many:
+            chosen = self._chosen()
+            return clipboard.copy_layers(project, chosen), f"{len(chosen)} layers"
         if sel.layer_id is not None:
             layer = project.layer(sel.layer_id)
             return clipboard.copy_layers(project, [sel.layer_id]), layer.name or layer.id
         raise ClipboardError("Select a layer, clip, sound or subtitle first")
+
+    def _chosen(self) -> list[str]:
+        """The selected layers in the project's order (several, ADR 0043)."""
+        chosen = set(self.selection.layer_ids)
+        return [layer.id for layer in self.project.layers if layer.id in chosen]
 
     def _allowed(self, layer_id: str) -> list[str]:
         layer = self.project.layer(layer_id)
@@ -217,13 +228,18 @@ class ClipboardActions(QObject):
 
     def _submit_layers(self, paste: Callable[[Project], Pasted], verb: str) -> None:
         """Layers go through the build service: a pasted equation may need its text warmed."""
+        before = {layer.id for layer in self.project.layers}
         pasted = paste(self.project)  # raises ClipboardError before anything changes
         try:
             self.builds.submit(lambda p: paste(p).edit, f"{verb} layer")
         except (edits.EditError, ValidationError, ClipboardError) as error:  # pragma: no cover - re-run
             self.message.emit(f"{verb}: {error}")
             return
-        if any(layer.id == pasted.selected for layer in self.project.layers):
+        present = {layer.id for layer in self.project.layers}
+        new_roots = [x.id for x in self.project.roots() if x.id not in before]
+        if len(new_roots) > 1:  # several pasted objects stay selected together (ADR 0043)
+            self.selection.set_layers(new_roots, pasted.selected if pasted.selected in new_roots else None)
+        elif pasted.selected in present:
             self.selection.set(pasted.selected)
         layer = next((x for x in pasted.edit.project.layers if x.id == pasted.selected), None)
         self._report(verb, layer.name or layer.id if layer is not None else "layers", pasted.notes)
