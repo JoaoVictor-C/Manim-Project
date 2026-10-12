@@ -528,3 +528,19 @@ repaint included, takes **13.6 ms** per switch; hiding and showing both docks
 frame cache and the selection wiring). With the pages built (P6b.1), a real
 `show_page` round trip - parking, re-parenting, splitter sizes, repaint - takes
 **22.8 ms** per switch. -> ADR 0041.
+
+### B58 — The Audio page · 2026-10-12
+`benchmarks/bench_audio_page.py`: a 5-minute project with four 60 s sounds (gain -3 dB, 2 s fades) and
+200 subtitles, medians. Reading the mix's level at the playhead: the whole mix rebuilt after an edit
+(its cache key changes) and sliced costs **115-129 ms** (the slice itself 0.01 ms); `levels.level_at`
+(the 100 ms window mixed straight from the decoded files, fades computed for the slice) **0.24-0.41 ms**,
+**0.13 ms** at the start of the video where the window is half; decoding the four files, paid once
+(the timeline's waveforms already pay it), 250-600 ms. The window is bit-identical to the same span of
+`audio.mix` (tested, including clipping and fades) - which settled the windowed read, since the whole
+mix would cost its 115 ms after every gain edit while a table cell is being edited. In the real window
+(1600x1000, Audio page): the meter alone (`level_at`, readout, bars repainted) **1.0 ms**, so playback
+ticks barely notice it (a seek to an uncached frame 49 ms without the meter, 57 ms with it, 42 ms on
+Compose; the canvas dominates and the runs are noisy); refreshing both tables (4 sounds, 200 cues) after
+an edit **0.7-1.3 ms**; a cell edit end to end (`setData` -> undo step -> evaluator -> tables -> meter)
+**36-56 ms**, almost all of it the evaluator and canvas of the 300 s project. -> ADR 0041, plan
+[p6b4-audio](../plans/p6b4-audio.md).

@@ -38,6 +38,8 @@ src/manim_studio/
 │   ├── warm.py          which edits build cold text objects: warm keys, gate (ADR 0015)
 │   ├── audio.py         the project's sound: decode, peaks, one mix for playback and export (ADR 0034)
 │   ├── subtitles.py     subtitles: wrapping, .srt read/write, placing cues, changed spans (ADR 0035)
+│   ├── tables.py        the Audio page's cells: text <-> value, the Edit a cell makes, refusals (ADR 0041)
+│   ├── levels.py        the level meter: peak and RMS of a 100 ms window of the mix (ADR 0041)
 │   ├── clipboard.py     copy/paste/duplicate: subtrees with fresh ids, remapped references (ADR 0038)
 │   ├── library.py       presets, themes, templates: library files, applying them (ADR 0039)
 │   ├── recovery.py      recovery copies of unsaved work: atomic files, owners, what to offer (ADR 0038)
@@ -52,6 +54,7 @@ src/manim_studio/
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
     ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
+    │                    audio.py: sounds and subtitles tables, level meter (ADR 0041, P6b.4)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)
