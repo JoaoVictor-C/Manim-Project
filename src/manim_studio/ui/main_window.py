@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, library, parts, subtitles
+from ..core import adapter, audio, edits, library, parts, recovery, subtitles
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
@@ -44,9 +44,11 @@ from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
 from .audio_player import make_audio_player
+from .autosave import Autosave
 from .build_service import BuildService
 from .canvas import CanvasWidget
 from .canvas_tools import MoveTool
+from .clipboard_actions import ClipboardActions
 from .code_render import make_code_renderer
 from .document import Document
 from .export_dialog import ExportDialog
@@ -162,6 +164,12 @@ class MainWindow(QMainWindow):
         self.move_tool.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.timeline.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.builds.pendingChanged.connect(self._on_pending_changed)
+        # Cut, copy, paste, duplicate; a recovery copy of unsaved work (ADR 0038).
+        has_project = lambda: self._has_project  # noqa: E731
+        self.clipboard = ClipboardActions(self.builds, self.selection, lambda: self.t, has_project, self)
+        self.clipboard.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
+        self.autosave = Autosave(self.document, lambda: self.path, has_project, self)
+        self.autosave.timer.start()
 
         self.library = library.load_library()  # presets, themes, templates (ADR 0039)
         self.timeline.preset_menu = self._preset_menu
@@ -208,6 +216,7 @@ class MainWindow(QMainWindow):
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addActions([undo, redo])
         edit_menu.addSeparator()
+        self.clipboard.add_to(edit_menu)
         add_subtitle = QAction("Add &Subtitle", self)
         add_subtitle.setShortcut(QKeySequence("Ctrl+T"))
         add_subtitle.setToolTip("A subtitle at the playhead (ADR 0035)")
@@ -321,9 +330,67 @@ class MainWindow(QMainWindow):
             log.exception("could not open %s", path)
             QMessageBox.critical(self, "Could not open project", str(exc))
             return
+        if self._offer_recovery(self.autosave.offered(path)):  # a crash left newer work (ADR 0038)
+            return
         log.info("opened %s (%d layers)", path, len(project.layers))
         self.path = path
         self.document.replace(project)
+
+    # -- crash recovery (ADR 0038) ---------------------------------------------------
+
+    def check_recovery(self) -> bool:
+        """At start-up: offer work a crashed instance left behind; True if it was restored."""
+        recovery.prune(self.autosave.folder)
+        return self._offer_recovery(self.autosave.offered())
+
+    def _offer_recovery(self, entries: list[recovery.Entry]) -> bool:
+        if not entries:
+            return False
+        answer = self.ask_recover(entries)
+        if answer == "restore":
+            return self.restore(entries[0])
+        if answer == "discard":
+            for entry in entries:
+                recovery.remove(entry.folder, entry.stem)
+            log.info("recovery copies discarded: %s", [e.stem for e in entries])
+        return False
+
+    def ask_recover(self, entries: list[recovery.Entry]) -> str:
+        """``"restore"`` the newest copy, ``"discard"`` them all, or decide ``"later"``."""
+        lines = [
+            f"  - {e.name} ({time.strftime('%Y-%m-%d %H:%M', time.localtime(e.saved_at))})" for e in entries
+        ]
+        box = QMessageBox(self)
+        box.setWindowTitle("Recover unsaved work?")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(
+            "Manim Studio closed without saving this work:\n\n"
+            + "\n".join(lines)
+            + "\n\nRestore the most recent one? Discard deletes "
+            + ("it." if len(entries) == 1 else "all of them.")
+        )
+        restore = box.addButton("Restore", QMessageBox.ButtonRole.AcceptRole)
+        discard = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        return {restore: "restore", discard: "discard"}.get(box.clickedButton(), "later")
+
+    def restore(self, entry: recovery.Entry) -> bool:
+        """Open a recovery copy as unsaved changes to its original file."""
+        try:
+            project = recovery.read_project(entry)
+        except Exception as exc:  # a damaged copy: say so and keep it for the user
+            log.exception("could not restore %s", entry.project_file)
+            QMessageBox.critical(self, "Could not restore", f"{entry.project_file}:\n{exc}")
+            return False
+        self.path = entry.path
+        self.document.replace(project)
+        self.document.undo_stack.resetClean()  # unsaved: Save writes it to the original file
+        self.autosave.write_now()  # this instance's copy first, then the old one goes
+        recovery.remove(entry.folder, entry.stem)
+        log.info("restored %s from %s", entry.path or "an untitled project", entry.project_file)
+        self.statusBar().showMessage(f"Restored unsaved work on {entry.name}", 10000)
+        return True
 
     @property
     def project(self) -> Project | None:
@@ -492,6 +559,8 @@ class MainWindow(QMainWindow):
         if not self.confirm_discard():
             event.ignore()
             return
+        self.autosave.timer.stop()
+        self.autosave.discard()  # saved, or thrown away on purpose (ADR 0038)
         if exporting:
             self.export_dialog.cancel()
         if self.export_dialog is not None:
@@ -963,5 +1032,7 @@ def run(argv: list[str] | None = None) -> int:
     window = MainWindow()
     window.show()
     if len(argv) > 1:
-        window.load(Path(argv[1]))
+        window.load(Path(argv[1]))  # offers that file's recovery copies (ADR 0038)
+    else:
+        window.check_recovery()
     return app.exec()

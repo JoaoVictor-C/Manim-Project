@@ -161,6 +161,23 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Clipboard and crash recovery (P5d, ADR 0038): **Edit > Cut / Copy / Paste /
+  Duplicate** (Ctrl+X / C / V / D) for the selected layer, clip, sound or
+  subtitle, each one undo step. A layer is copied with its parts or objects on
+  axes, keys, clips and lifetime; pasted copies get fresh ids, references
+  between them follow the copies, references to other layers are kept when the
+  same layer (id and type) is there and otherwise left out and reported, and a
+  copy appears and disappears when its original does. Parts cannot be copied.
+  Pasted layers go above the selected layer and are selected; clips paste onto
+  the selected layer at the playhead where there is room and the kind is
+  allowed; sounds and subtitles paste at the playhead. The clipboard holds
+  versioned JSON (`application/x-manim-studio+json` and plain text), so another
+  window can paste it; pasted code is never trusted by pasting. While there are
+  unsaved changes a recovery copy is written every 30 s (atomically, 2-41 ms for
+  20-2000 layers, B51) and deleted when the work is saved or thrown away; at
+  start-up or when its file is opened, a copy left by an instance that is no
+  longer running is offered back (restore, discard, later) and restores as
+  unsaved changes to the original file.
 - Explainer example: `examples/build_explainer.py` builds "What is a derivative?",
   a 95-second lesson with subtitles, section headers, formulas, a secant sliding
   into the tangent, a tangent riding the curve with a traced tail, and

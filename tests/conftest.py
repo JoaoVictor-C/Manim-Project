@@ -22,6 +22,8 @@ os.environ["MANIM_STUDIO_LOG_DIR"] = str(Path(tempfile.mkdtemp(prefix="manim-stu
 os.environ["MANIM_STUDIO_TRUST_FILE"] = str(
     Path(tempfile.mkdtemp(prefix="manim-studio-test-trust-")) / "trusted.json"
 )
+# ... nor the user's recovery copies of unsaved work (ADR 0038).
+os.environ["MANIM_STUDIO_RECOVERY"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-recovery-")))
 # Editor windows in tests render no code layers unless a test opts in (ADR 0019).
 os.environ["MANIM_STUDIO_CODE"] = "0"
 # Editor windows in tests build synchronously; the worker has its own tests (ADR 0015).
@@ -81,6 +83,7 @@ def _no_unsaved_changes_dialog(request, monkeypatch):
     monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
     monkeypatch.setattr(MainWindow, "ask_stop_export", lambda self: "stop")
     monkeypatch.setattr(MainWindow, "ask_trust", lambda self, names: "skip")
+    monkeypatch.setattr(MainWindow, "ask_recover", lambda self, entries: "later")
 
 
 @pytest.fixture(autouse=True)

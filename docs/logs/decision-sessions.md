@@ -580,6 +580,33 @@ left open, so ADRs can cite it.
   another stops at its last free frame; markers as comments in readable exports were
   dropped (no visible benefit; the exact scene keeps them).
 
+## Session 31 — P5d clipboard and safety · 2026-10-11
+
+(Session 30 is P5c's.)
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the lead's brief (clipboard of layers, clips, sounds and subtitles;
+  autosave every 30 s; recovery of dead owners' copies), the reference rules of the
+  schema (parts, objects on axes, morphs, paths, traces, connectors), the trust
+  store (ADR 0019, checked during the session: trust is per code hash) and the undo
+  machinery (ADR 0014).
+- **Decisions:** a pure clipboard core whose pastes are ordinary edits; subtrees
+  with fresh ids and remapped references; outside references kept for the same id
+  and object type; frozen lifetimes when a morph is lost; parts refused; clips
+  placed like the timeline's Add clip; JSON under a private mime type plus text;
+  recovery copies named per owner process with a sidecar written last; prompts for
+  dead owners' newer copies only; restore writes before it deletes (-> ADR 0038).
+  Plan: [../plans/p5d-clipboard.md](../plans/p5d-clipboard.md).
+- **Critiques that changed the plan:** copies named by path alone would let two
+  instances overwrite each other -> the pid is in the name; deleting copies that
+  look older than the saved file can lose work (sync tools change file times) ->
+  kept, pruned after 14 days, never while offered; a cross-project paste could join
+  a connector to an unrelated layer with the same id -> the type must match too; a
+  copy losing its morph would never disappear -> lifetimes frozen; clipboard text
+  from another program could carry code -> paste never trusts (already true by
+  hash).
+
 ## Session 32 — P5e presets, templates and themes · 2026-10-11
 
 (Session 31 is P5d's, run in its own branch.)

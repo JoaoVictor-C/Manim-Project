@@ -19,6 +19,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_subtitles.py` | building and drawing a subtitle line, wrapping widths — B48 |
 | `bench_readouts.py` | DecimalNumber builds and set_value, connectors per frame — B49 |
 | `bench_markers.py` | sounds on clip edges in the explainer, snap point gathering — B50 |
+| `bench_autosave.py` | recovery copies by project size, duplicate vs any edit, clipboard paste — B51 |
 | `bench_presets.py` | repeated clip patterns and layer groups in the explainer — B52 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |
