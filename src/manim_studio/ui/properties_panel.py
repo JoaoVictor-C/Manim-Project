@@ -220,6 +220,7 @@ class PropertiesPanel(QWidget):
         self.key_time: float | None = None
         self.audio_id: str | None = None  # a sound is shown (ADR 0034)
         self.subtitle_id: str | None = None  # a subtitle is shown (ADR 0035)
+        self.others_selected = 0  # other selected objects besides the one shown (ADR 0043)
         self.marker_id: str | None = None  # a marker is shown (ADR 0037)
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
@@ -561,7 +562,13 @@ class PropertiesPanel(QWidget):
             note = f"<br><i>Not drawn: {orphans[layer.id]}</i>" if layer.id in orphans else ""
             self.title.setText(f"<b>{name}</b> - part of {parent.name or parent.id}{note}")
         elif self.clip_id is None:
-            self.title.setText(f"<b>{name}</b> - {layer.spec.type}")
+            more = ""
+            if self.others_selected:  # several objects (ADR 0043): this panel shows the primary one
+                more = (
+                    f"<br><i>and {self.others_selected} more selected: "
+                    "moves, presets and themes apply to all</i>"
+                )
+            self.title.setText(f"<b>{name}</b> - {layer.spec.type}{more}")
         else:
             clip = self._clip(layer.id, self.clip_id)
             self.title.setText(f"<b>{clip.kind}</b> clip on {name}")

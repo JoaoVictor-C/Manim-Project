@@ -1,6 +1,6 @@
 # P6c — Canvas interaction
 
-- **Status:** In progress
+- **Status:** Done
 - **Date:** 2026-10-12
 - **Decided in:** [decision session 39](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.92)
 - **Evidence:** B60 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -34,4 +34,4 @@ moved, deleted, copied and given a preset together, and Arrange lines them up.
 | step | content | acceptance |
 |---|---|---|
 | ✅ P6c.1 | parameter handles, snapping guides | every handle type dragged on a turned, scaled object; guides; undo; Escape |
-| P6c.2 | multi-select, group actions, Arrange | marquee, group move/delete/copy/preset, align and distribute |
+| ✅ P6c.2 | multi-select, group actions, Arrange | marquee, group move/delete/copy/preset, align and distribute |

@@ -156,6 +156,7 @@ AXES_MENU = (  # Parts > Add to axes (ADR 0030): type, menu label
 
 class LayersPanel(QWidget):
     layerSelected = Signal(str)  # layer id, or "" for none
+    layersPicked = Signal(list, str)  # several layers (Ctrl/Shift+click) and the current one (ADR 0043)
     message = Signal(str)  # errors for the status bar
 
     def __init__(self, builds: BuildService, parent: QWidget | None = None) -> None:
@@ -180,7 +181,9 @@ class LayersPanel(QWidget):
         )
         self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list.customContextMenuRequested.connect(self._show_context_menu)
+        self.list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.list.currentItemChanged.connect(self._on_current_changed)
+        self.list.itemSelectionChanged.connect(self._on_selection_changed)
         self.list.itemChanged.connect(self._on_item_renamed)
         self.list.rowDropped.connect(self._on_row_dropped)
 
@@ -266,6 +269,11 @@ class LayersPanel(QWidget):
         item = self.list.currentItem()
         return item.data(0, ID_ROLE) if item is not None else None
 
+    def selected_ids(self) -> list[str]:
+        """Every selected layer, in display order (front first)."""
+        chosen = {id(item) for item in self.list.selectedItems()}
+        return [item.data(0, ID_ROLE) for item in self.items() if id(item) in chosen]
+
     def items(self) -> list[QTreeWidgetItem]:
         """Every item in display order (objects front first, each followed by its parts)."""
         out, iterator = [], QTreeWidgetItemIterator(self.list)
@@ -274,12 +282,16 @@ class LayersPanel(QWidget):
             iterator += 1
         return out
 
-    def select(self, layer_id: str | None) -> None:
+    def select(self, layer_id: str | None, others=()) -> None:
+        """Make ``layer_id`` current and select it with ``others`` (ADR 0043)."""
+        wanted = {layer_id, *others} - {None}
+        current = None
         for item in self.items():
             if item.data(0, ID_ROLE) == layer_id:
-                self.list.setCurrentItem(item)
-                return
-        self.list.setCurrentItem(None)
+                current = item
+        self.list.setCurrentItem(current)
+        for item in self.items():
+            item.setSelected(item.data(0, ID_ROLE) in wanted)
 
     def ids_front_to_back(self) -> list[str]:
         return [item.data(0, ID_ROLE) for item in self.items()]
@@ -287,6 +299,7 @@ class LayersPanel(QWidget):
     def sync(self) -> None:
         """Rebuild the tree from the document, keeping the selection."""
         selected = self.selected_id()
+        chosen = self.selected_ids()
         ids = {layer.id for layer in self.project.layers}
         new = ids - self._known_ids
         self._known_ids = ids
@@ -303,7 +316,8 @@ class LayersPanel(QWidget):
             if self._select_new and new:
                 self._select_new = False
                 target = next(layer.id for layer in self.project.layers if layer.id in new)
-            self.select(target)
+                chosen = []
+            self.select(target, [i for i in chosen if i in ids])
         if target != selected:
             self.layerSelected.emit(target or "")
         self.update_buttons()
@@ -470,6 +484,10 @@ class LayersPanel(QWidget):
         return keys
 
     def delete_selected(self) -> None:
+        chosen = self.selected_ids()
+        if len(chosen) > 1:  # several: one undo step (ADR 0043)
+            self._submit(partial(edits.remove_layers, layer_ids=chosen), "Delete layers")
+            return
         layer_id = self.selected_id()
         if layer_id is not None:
             self._submit(partial(edits.remove_layer, layer_id=layer_id), "Delete layer")
@@ -520,7 +538,17 @@ class LayersPanel(QWidget):
 
     def _on_current_changed(self, current: QTreeWidgetItem | None, _previous) -> None:
         self.update_buttons()
+        if len(self.list.selectedItems()) > 1:
+            return  # several: _on_selection_changed reports them
         self.layerSelected.emit(current.data(0, ID_ROLE) if current is not None else "")
+
+    def _on_selection_changed(self) -> None:
+        chosen = self.selected_ids()
+        if len(chosen) > 1:
+            current = self.selected_id()
+            self.layersPicked.emit(chosen, current if current in chosen else chosen[-1])
+        elif chosen and chosen[0] != self.selected_id():
+            self.layerSelected.emit(chosen[0])
 
     def _on_item_renamed(self, item: QTreeWidgetItem) -> None:
         layer = self.project.layer(item.data(0, ID_ROLE))

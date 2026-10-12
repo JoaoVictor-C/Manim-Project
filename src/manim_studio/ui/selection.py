@@ -1,4 +1,5 @@
-"""What is selected: one layer, optionally one of its clips or key times (S3, P2b).
+"""What is selected: one layer, optionally one of its clips or key times (S3, P2b);
+or several layers, ``layer_id`` being the primary one (P6c.2, ADR 0043).
 
 The single source of truth for the canvas, the Layers panel, the timeline and
 the Properties panel. Views report user choices to it and follow ``changed``.
@@ -20,6 +21,7 @@ class Selection(QObject):
         super().__init__(parent)
         self.document = document
         self.layer_id: str | None = None
+        self.layer_ids: tuple[str, ...] = ()  # every selected layer, the primary (layer_id) last
         self.clip_id: str | None = None
         self.key_time: float | None = None  # all keys of the layer at this time (P2b)
         self.audio_id: str | None = None  # a sound instead of a layer (ADR 0034)
@@ -34,11 +36,40 @@ class Selection(QObject):
         if clip_id is not None:
             key_time = None  # a clip or a key time, not both
         now = (self.layer_id, self.clip_id, self.key_time, self.audio_id, self.subtitle_id, self.marker_id)
-        if (layer_id, clip_id, key_time, None, None, None) == now:
+        ids = (layer_id,) if layer_id else ()
+        if (layer_id, clip_id, key_time, None, None, None) == now and self.layer_ids == ids:
             return
         self.layer_id, self.clip_id, self.key_time = layer_id, clip_id, key_time
+        self.layer_ids = ids
         self.audio_id = self.subtitle_id = self.marker_id = None
         self.changed.emit()
+
+    @property
+    def many(self) -> bool:
+        """Several layers are selected (ADR 0043)."""
+        return len(self.layer_ids) > 1
+
+    def set_layers(self, layer_ids, primary: str | None = None) -> None:
+        """Select several layers (no clip or key); ``primary`` (default: the last) is the one
+        Properties shows and the gizmo belongs to."""
+        ids = tuple(dict.fromkeys(i for i in layer_ids if i))
+        if primary is not None and primary in ids:
+            ids = (*(i for i in ids if i != primary), primary)
+        if len(ids) <= 1:
+            self.set(ids[0] if ids else None)
+            return
+        if ids == self.layer_ids and self.clip_id is None and self.key_time is None:
+            return
+        self.layer_ids, self.layer_id = ids, ids[-1]
+        self.clip_id = self.key_time = self.audio_id = self.subtitle_id = self.marker_id = None
+        self.changed.emit()
+
+    def toggle_layer(self, layer_id: str) -> None:
+        """Add a layer to the selection (it becomes the primary one) or take it out."""
+        if layer_id in self.layer_ids:
+            self.set_layers([i for i in self.layer_ids if i != layer_id])
+        else:
+            self.set_layers([*self.layer_ids, layer_id])
 
     def set_audio(self, audio_id: str | None) -> None:
         """Select a sound (or nothing): no layer is selected then."""
@@ -78,7 +109,7 @@ class Selection(QObject):
 
     def select_layer(self, layer_id: str | None) -> None:
         """Select a layer; a clip or key time of that same layer stays selected."""
-        if layer_id and layer_id == self.layer_id:
+        if layer_id and layer_id == self.layer_id and not self.many:
             return
         self.set(layer_id)
 
@@ -95,6 +126,12 @@ class Selection(QObject):
         if self.marker_id is not None and all(m.id != self.marker_id for m in self.document.project.markers):
             self.clear()
         if self.layer_id is None:
+            return
+        if self.many:
+            present = {lay.id for lay in self.document.project.layers}
+            kept = [i for i in self.layer_ids if i in present]
+            if len(kept) != len(self.layer_ids):
+                self.set_layers(kept)
             return
         layer = next((lay for lay in self.document.project.layers if lay.id == self.layer_id), None)
         if layer is None:

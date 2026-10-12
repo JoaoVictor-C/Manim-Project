@@ -64,6 +64,49 @@ def test_selecting_the_same_layer_keeps_its_clip(selection) -> None:
     assert selection.layer_id is None
 
 
+def test_several_layers_with_the_primary_last(selection) -> None:
+    selection.set("a", "c")
+    selection.set_layers(["a", "b"])
+    assert selection.layer_ids == ("a", "b") and selection.layer_id == "b"
+    assert selection.clip_id is None and selection.many
+    selection.set_layers(["b", "a"], primary="b")
+    assert selection.layer_ids == ("a", "b") and selection.layer_id == "b"
+    assert selection.events[-1] == ("b", None)
+    count = len(selection.events)
+    selection.set_layers(["a", "b"])  # no change: no signal
+    assert len(selection.events) == count
+    selection.set_layers(["a"])
+    assert selection.layer_ids == ("a",) and not selection.many
+    selection.set_layers([])
+    assert selection.layer_id is None and selection.layer_ids == ()
+
+
+def test_toggle_adds_and_takes_out(selection) -> None:
+    selection.set("a")
+    selection.toggle_layer("b")
+    assert selection.layer_ids == ("a", "b") and selection.layer_id == "b"
+    selection.toggle_layer("b")
+    assert selection.layer_ids == ("a",) and selection.layer_id == "a"
+    selection.toggle_layer("a")
+    assert selection.layer_id is None
+
+
+def test_selecting_one_layer_of_several_selects_only_it(selection) -> None:
+    selection.set_layers(["a", "b"])
+    selection.select_layer("b")
+    assert selection.layer_ids == ("b",)
+    selection.set_layers(["a", "b"])
+    selection.set("a")
+    assert selection.layer_ids == ("a",)
+
+
+def test_a_deleted_layer_leaves_the_others_selected(selection) -> None:
+    doc = selection.document
+    selection.set_layers(["a", "b"])
+    doc.apply(edits.remove_layer(doc.project, "b"), "Delete layer")
+    assert selection.layer_ids == ("a",) and selection.layer_id == "a"
+
+
 def test_deleted_things_drop_out(selection) -> None:
     doc = selection.document
     selection.set("a", "c")
