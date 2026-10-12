@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 import manim as m
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
 from ..core import adapter
@@ -71,6 +71,9 @@ class CanvasWidget(QWidget):
         self.half_resolution = False
         self.last_render_ms = 0.0
         self.selected_layer: str | None = None  # whose outline to draw
+        self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
+        self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
+        self.marquee: tuple[np.ndarray, np.ndarray] | None = None  # a selection rectangle being drawn
         self.outline: Outline | None = None
         self.readout: tuple[QPointF, str] | None = None  # a value shown next to the cursor while dragging
         self.tool = None  # receives mouse/key input (canvas_tools.MoveTool)
@@ -176,11 +179,16 @@ class CanvasWidget(QWidget):
         if cached is not None:  # rendered ahead (ADR 0028): only the selected object is evaluated
             self._image = cached
             self.outline = self._outline(self._selected_object(t), t)
+            self.other_outlines = [
+                (layer_id, self._path_of(layer_id, self._evaluator.object_frame(layer_id, t)))
+                for layer_id in self._others()
+            ]
         else:
             layers = self._evaluator.frame_layers(t)
             overlay = self._evaluator.overlay(t)  # subtitles, never hit-tested (ADR 0035)
             pixels = render_frame(self._camera, [*(mob for _, mob in layers), *overlay])
             self.outline = self._outline(layers, t)  # built now: the mobjects are shared buffers
+            self.other_outlines = [(i, self._path_of(i, layers)) for i in self._others()]
             height, width = pixels.shape[:2]
             self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.motion = self._motion(t)
@@ -208,7 +216,7 @@ class CanvasWidget(QWidget):
         )
 
     def _motion(self, t: float) -> motion_overlay.MotionPath | None:
-        if self.playing or not self.selected_layer or self._evaluator is None:
+        if self.playing or not self.selected_layer or self._evaluator is None or self.other_layers:
             return None
         project = self._evaluator.project
         if not any(layer.id == self.selected_layer for layer in project.layers):
@@ -219,6 +227,8 @@ class CanvasWidget(QWidget):
     def _param_handles(self, t: float) -> list[param_handles.ParamHandle]:
         """The selected object's parameter handles at ``t`` (roots only; none while playing)."""
         if self.playing or self.outline is None or not self.selected_layer or self._evaluator is None:
+            return []
+        if self.other_layers:  # several objects: they move together, no sizes (ADR 0043)
             return []
         project = self._evaluator.project
         layer = next((x for x in project.layers if x.id == self.selected_layer), None)
@@ -246,6 +256,27 @@ class CanvasWidget(QWidget):
                 np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((0, 2))
             )
         return self._rest[key]
+
+    def _others(self) -> list[str]:
+        """The other selected layers that still exist."""
+        present = {layer.id for layer in self._evaluator.project.layers}
+        return [i for i in self.other_layers if i in present and i != self.selected_layer]
+
+    def _path_of(self, layer_id: str, layers: list[tuple[str, m.Mobject]]) -> QPainterPath:
+        """The drawing of ``layer_id`` with its parts and child objects, in Manim units."""
+        project = self._evaluator.project
+        members = {layer_id} | {d.id for d in project.descendants(layer_id)}
+        path = QPainterPath()
+        for owner, mob in layers:
+            if owner not in members:
+                continue
+            if isinstance(mob, (m.ImageMobject, CodeFrame)):
+                path.addPolygon(QPolygonF([QPointF(*mob.points[i, :2]) for i in (0, 1, 3, 2, 0)]))
+                continue
+            for sub in mob.family_members_with_points():
+                if isinstance(sub, m.VMobject):
+                    path.addPath(vmobject_path(sub))
+        return path
 
     def _outline(self, layers: list[tuple[str, m.Mobject]], t: float) -> Outline | None:
         if not self.selected_layer:
@@ -292,9 +323,49 @@ class CanvasWidget(QWidget):
                 self._paint_motion(painter)
             if self.outline is not None:
                 self._paint_outline(painter)
+            if self.other_outlines:
+                self._paint_others(painter)
+            if self.marquee is not None:
+                self._paint_marquee(painter)
             if self.guides:
                 self._paint_guides(painter)
+            if self.readout is not None:
+                pos, text = self.readout
+                painter.setPen(BADGE_TEXT)
+                painter.drawText(pos + QPointF(14, -10), text)
         painter.end()
+
+    def _paint_others(self, painter: QPainter) -> None:
+        """The other selected objects: their outline and box, no handles (ADR 0043)."""
+        to_px = self.units_transform()
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(OUTLINE_COLOR, 1.5)
+        pen.setCosmetic(True)
+        dashed = QPen(OUTLINE_COLOR, 1, Qt.PenStyle.DashLine)
+        dashed.setCosmetic(True)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for _layer_id, path in self.other_outlines:
+            mapped = to_px.map(path)
+            painter.setPen(pen)
+            painter.drawPath(mapped)
+            painter.setPen(dashed)
+            painter.drawRect(mapped.boundingRect())
+        painter.restore()
+
+    def _paint_marquee(self, painter: QPainter) -> None:
+        """The selection rectangle being drawn from empty canvas (ADR 0043)."""
+        to_px = self.units_transform()
+        start, end = (to_px.map(QPointF(float(p[0]), float(p[1]))) for p in self.marquee)
+        painter.save()
+        fill = QColor(OUTLINE_COLOR)
+        fill.setAlpha(40)
+        pen = QPen(OUTLINE_COLOR, 1, Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(fill)
+        painter.drawRect(QRectF(start, end).normalized())
+        painter.restore()
 
     def _paint_guides(self, painter: QPainter) -> None:
         """Where a dragged edge or centre snapped (ADR 0043)."""
@@ -366,6 +437,8 @@ class CanvasWidget(QWidget):
         box = self.outline.box
         corners = [to_px.map(QPointF(*c)) for c in box.corners]
         painter.drawPolygon(QPolygonF(corners))
+        if self.other_outlines:  # several objects selected: they move together (ADR 0043)
+            return
         cx, cy = to_px.map(QPointF(*self.outline.anchor)).toTuple()
         painter.setPen(pen)
         painter.drawLine(QPointF(cx - 6, cy), QPointF(cx + 6, cy))
@@ -386,10 +459,6 @@ class CanvasWidget(QWidget):
         radius = PARAM_HANDLE_PX / 2
         for handle in self.param_handles:
             painter.drawEllipse(to_px.map(QPointF(*handle.world)), radius, radius)
-        if self.readout is not None:
-            pos, text = self.readout
-            painter.setPen(BADGE_TEXT)
-            painter.drawText(pos + QPointF(14, -10), text)
 
     # -- input: forwarded to the tool ---------------------------------------------
 

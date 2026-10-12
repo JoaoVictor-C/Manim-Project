@@ -53,3 +53,13 @@ def test_a_shift_moves_the_base_and_every_position_key_rigidly() -> None:
 def test_set_params_refuses_an_unknown_layer() -> None:
     with pytest.raises(edits.EditError):
         edits.set_params(project(), "nope", {"radius": 1.0})
+
+
+def test_remove_layers_deletes_several_in_one_edit() -> None:
+    edit = edits.remove_layers(project(), ["line", "moving"])
+    assert edit.project.layers == []
+    assert edits.remove_layers(project(), ["line"]).project == edits.remove_layer(project(), "line").project
+    with pytest.raises(edits.EditError):
+        edits.remove_layers(project(), [])
+    with pytest.raises(edits.EditError):
+        edits.remove_layers(project(), ["line", "nope"])

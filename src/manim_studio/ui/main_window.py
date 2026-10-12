@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         # One selection for every view (ADR 0016): views report, then follow it.
         self.selection = Selection(self.document, self)
         self.layers.layerSelected.connect(self.selection.select_layer)
+        self.layers.layersPicked.connect(lambda ids, current: self.selection.set_layers(ids, current))
         self.timeline.clipSelected.connect(self.selection.set)
         self.timeline.keySelected.connect(self.selection.set_key)
         self.timeline.audioSelected.connect(self.selection.set_audio)
@@ -538,7 +539,7 @@ class MainWindow(QMainWindow):
         layer_id, clip_id = self.selection.layer_id, self.selection.clip_id
         key_time = self.selection.key_time
         with QSignalBlocker(self.layers.list):
-            self.layers.select(layer_id)
+            self.layers.select(layer_id, self.selection.layer_ids)
         self.layers.update_buttons()
         self.timeline.set_selected(layer_id, clip_id, key_time)
         self.timeline.set_selected_audio(self.selection.audio_id)
@@ -559,6 +560,7 @@ class MainWindow(QMainWindow):
         else:
             self.properties.show_nothing()
         self.canvas.selected_layer = layer_id
+        self.canvas.other_layers = tuple(i for i in self.selection.layer_ids if i != layer_id)
         self.refresh()
 
     def _on_pending_changed(self) -> None:

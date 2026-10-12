@@ -33,7 +33,7 @@ cursor (B23).
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
@@ -87,6 +87,10 @@ class _Drag:
     origin: np.ndarray | None = None  # a line end: where its parameter space sat at press
     box: tuple[np.ndarray, np.ndarray] | None = None  # moves: the moved drawing's box at press (world)
     targets: snap_guides.Targets | None = None  # what moves and handles snap to (ADR 0043)
+    group: list[tuple[str, float | None, tuple, np.ndarray]] = field(default_factory=list)  # the
+    # other selected objects a move carries: (layer id, key time, position at press, to_local)
+    toggle_out: str | None = None  # Shift+press on a selected object: a click (no move) deselects it
+    moved: bool = False  # the cursor left the press point (a click is not a move)
 
 
 VERBS = {
@@ -98,7 +102,9 @@ VERBS = {
     "rotation": "Rotate layer",
     "anchor": "Move anchor",
     "param": "Resize layer",
+    "group": "Move layers",
 }
+CLICK_PX = 3.0  # a press that moves less than this is a click
 DEGREES = "\N{DEGREE SIGN}"
 
 
@@ -160,15 +166,34 @@ class MoveTool(QObject):
                 index = hits.index(current) + 1 if current in hits else 0
                 self.selection.select_layer(hits[index % len(hits)])
             return
+        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        chosen = self.selection.layer_ids
+        inside = self._inside_selection(point)
         if current is not None and self._inside_selected_box(point):  # 3. the selected box
             target = current
+        elif inside is not None and not (hits and self._click_target(hits[0], None) not in chosen):
+            target = inside  # 3b. inside one of several selected objects' boxes: they move together
         elif hits:  # 4. whatever is under the cursor (the object, unless inside it already)
-            target = self._click_target(hits[0], current)
-        else:  # 5. empty canvas
-            self.selection.clear()
+            target = self._click_target(hits[0], None if shift or self.selection.many else current)
+        else:  # 5. empty canvas: a selection rectangle (Shift: adding to the selection)
+            if not shift:
+                self.selection.clear()
+            self._drag = _Drag(
+                "", "marquee", point, tuple(self.selection.layer_ids), point, None, self.project, np.eye(2)
+            )
             return
-        self.selection.select_layer(target)
+        toggle_out = None
+        if shift and target in chosen:
+            toggle_out = target  # a Shift+click takes it out; a Shift+drag moves them all
+        elif shift:
+            self.selection.set_layers([*chosen, target])  # Shift adds it (ADR 0043)
+        elif target not in chosen or not self.selection.many:
+            self.selection.select_layer(target)
+        else:
+            self.selection.set_layers(chosen, primary=target)
         self._start_drag(target, "position", point)
+        if self._drag is not None:
+            self._drag.toggle_out = toggle_out
 
     def double_click(
         self, pos: QPointF, modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier
@@ -214,6 +239,9 @@ class MoveTool(QObject):
     def move(self, pos: QPointF, modifiers: Qt.KeyboardModifier) -> None:
         if self._drag is None:
             return
+        if not self._drag.moved:
+            moved = np.linalg.norm(self.canvas.to_units(pos) - self._drag.press) * self.canvas.px_per_unit()
+            self._drag.moved = bool(moved >= CLICK_PX)
         self._pending = (self.canvas.to_units(pos), modifiers, QPointF(pos))
         if not self._scheduled:
             self._scheduled = True
@@ -226,7 +254,16 @@ class MoveTool(QObject):
         drag, self._drag = self._drag, None
         self.canvas.readout = None
         self.canvas.guides = []
+        if drag.prop == "marquee":
+            self._finish_marquee(drag)
+            return
+        if drag.toggle_out is not None and not drag.moved:
+            self.document.cancel_preview()
+            self.selection.toggle_layer(drag.toggle_out)
+            return
         verb = f"Change {drag.param.title}" if drag.param is not None else VERBS[drag.prop]
+        if drag.group:
+            verb = VERBS["group"]
         self.document.commit_preview(verb)
         if drag.prop == "position" and drag.key_time is None:
             layer = self.project.layer(drag.layer_id)
@@ -242,10 +279,15 @@ class MoveTool(QObject):
 
     def cancel(self) -> None:
         if self._drag is not None:
+            marquee = self._drag.prop == "marquee"
             self._drag = None
             self._pending = None
             self.canvas.readout = None
             self.canvas.guides = []
+            if marquee:
+                self.canvas.marquee = None
+                self.canvas.update()
+                return
             self.document.cancel_preview()
 
     def apply_pending(self) -> None:
@@ -261,6 +303,11 @@ class MoveTool(QObject):
         readout = None
         if drag.prop == "param":
             self._param_preview(drag, point, pos, shift, snapping)
+            return
+        if drag.prop == "marquee":
+            drag.pivot = point  # the rectangle's other corner
+            self.canvas.marquee = (drag.press, point)
+            self.canvas.update()
             return
         if drag.prop in ("key", "in", "out"):
             alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
@@ -288,6 +335,9 @@ class MoveTool(QObject):
                 )
                 delta = delta + found.offset
                 self.canvas.guides = found.guides
+            if drag.group:
+                self.document.preview(self._group_edit(drag, delta))
+                return
             delta = drag.to_local @ delta
             value = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
         elif drag.prop == "scale":
@@ -316,15 +366,82 @@ class MoveTool(QObject):
             return True
         if not self.wants_key(event):
             return False
-        layer = self.project.layer(self._owner(self.selection.layer_id))
         step = NUDGE_SHIFT_PX if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else NUDGE_PX
         world = np.array(ARROWS[event.key()]) * step / self.canvas.px_per_unit()
-        dx, dy = (float(d) for d in self.canvas.evaluator.layer_frame(layer, self.playhead())[2] @ world)
-        key_time = self._key_time(layer, "position")
-        x, y = self._value(layer, "position", key_time)
-        edit = self._edit(self.project, layer.id, "position", (x + dx, y + dy), key_time)
-        self.document.apply(edit, "Nudge layer", merge_key=("nudge", layer.id), merge=event.isAutoRepeat())
+        movers = self._movers(self.selection.layer_ids)
+        edit = self.move_by({layer_id: world for layer_id in movers})
+        if edit is None:
+            return True
+        verb = "Nudge layers" if len(movers) > 1 else "Nudge layer"
+        merge_key = ("nudge", *movers)
+        self.document.apply(edit, verb, merge_key=merge_key, merge=event.isAutoRepeat())
         return True
+
+    # -- several objects (ADR 0043) ---------------------------------------------------
+
+    def _movers(self, layer_ids) -> list[str]:
+        """What moving ``layer_ids`` moves: their owners, without any whose ancestor moves too."""
+        owners = list(dict.fromkeys(self._owner(i) for i in layer_ids if i in self._ids()))
+        chosen = set(owners)
+        return [i for i in owners if not {a.id for a in self.project.ancestors(i)} & chosen]
+
+    def _ids(self) -> set[str]:
+        return {layer.id for layer in self.project.layers}
+
+    def move_by(self, moves: dict[str, np.ndarray], project: Project | None = None) -> edits.Edit | None:
+        """One edit moving each layer by its world move, keyed where its position is keyed (or
+        Auto-key is on) at the playhead's frame, its base otherwise (the stopwatch rule, ADR 0018).
+        None when nothing moves."""
+        base = project or self.project
+        current = base
+        for layer_id, world in moves.items():
+            layer = current.layer(layer_id)
+            key_time = self._key_time(layer, "position")
+            at = key_time if key_time is not None else self.playhead()
+            to_local = self.canvas.evaluator.layer_frame(layer, at)[2]
+            dx, dy = (float(d) for d in to_local @ np.asarray(world, float))
+            x, y = self._value(layer, "position", key_time)
+            current = self._edit(current, layer_id, "position", (x + dx, y + dy), key_time).project
+        if current is base:
+            return None
+        return edits.Edit(current, *edits.classify(base, current))
+
+    def _group_edit(self, drag: _Drag, world: np.ndarray) -> edits.Edit:
+        """The primary object and the others moved together by ``world`` (one preview)."""
+        delta = drag.to_local @ world
+        value = (drag.start[0] + float(delta[0]), drag.start[1] + float(delta[1]))
+        current = self._edit(drag.base, drag.layer_id, "position", value, drag.key_time).project
+        for layer_id, key_time, start, to_local in drag.group:
+            d = to_local @ world
+            moved = (start[0] + float(d[0]), start[1] + float(d[1]))
+            current = self._edit(current, layer_id, "position", moved, key_time).project
+        return edits.Edit(current, *edits.classify(drag.base, current))
+
+    def _finish_marquee(self, drag: _Drag) -> None:
+        """Select the objects the rectangle touches (added to those selected at press)."""
+        self.canvas.marquee = None
+        self.canvas.update()
+        low = np.minimum(drag.press, drag.pivot)
+        high = np.maximum(drag.press, drag.pivot)
+        touched = []
+        if np.linalg.norm(high - low) * self.canvas.px_per_unit() >= CLICK_PX:
+            boxes: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+            for owner, mob in self.canvas.evaluator.frame_layers(self.playhead()):
+                family = mob.family_members_with_points()
+                if not family:
+                    continue
+                box = snap_guides.box_of(np.vstack([sub.points[:, :2] for sub in family]))
+                root = self.project.root_of(owner).id
+                old = boxes.get(root, box)
+                boxes[root] = (np.minimum(old[0], box[0]), np.maximum(old[1], box[1]))
+            touched = [
+                layer.id
+                for layer in self.project.roots()
+                if layer.id in boxes
+                and (boxes[layer.id][0] <= high).all()
+                and (boxes[layer.id][1] >= low).all()
+            ]
+        self.selection.set_layers([*drag.start, *touched])
 
     # -- rules ---------------------------------------------------------------------
 
@@ -350,7 +467,27 @@ class MoveTool(QObject):
             self._drag.to_anchor = self._to_anchor(layer, at, to_local)
             self._drag.snaps = self._selected_outline().snaps
         if prop == "position":
-            self._drag.box, self._drag.targets = self._snapping_for(layer_id)
+            others = [i for i in self._movers(self.selection.layer_ids) if i != layer_id]
+            if self.selection.many and others:
+                for other_id in others:
+                    other = self.project.layer(other_id)
+                    if self._morph_playing(other_id):
+                        self._drag = None
+                        self.message.emit(
+                            "An object is morphing here: move the playhead outside the morph to edit it."
+                        )
+                        return
+                    kt = self._key_time(other, "position")
+                    other_at = kt if kt is not None else self.playhead()
+                    self._drag.group.append(
+                        (
+                            other_id,
+                            kt,
+                            self._value(other, "position", kt),
+                            self.canvas.evaluator.layer_frame(other, other_at)[2],
+                        )
+                    )
+            self._drag.box, self._drag.targets = self._snapping_for([layer_id, *others])
         self.document.begin_preview()
 
     # -- parameter handles and snapping (ADR 0043) ---------------------------------
@@ -371,7 +508,7 @@ class MoveTool(QObject):
         )
         if layer.spec.type in param_handles.LINES:
             self._drag.origin = param_handles.line_origin(layer.spec, self.canvas.rest_points(layer.spec))
-        self._drag.targets = self._snapping_for(layer_id)[1]
+        self._drag.targets = self._snapping_for([layer_id])[1]
         self.document.begin_preview()
 
     def _param_preview(
@@ -400,13 +537,13 @@ class MoveTool(QObject):
     def _snap_radius(self) -> float:
         return snap_guides.SNAP_PX / self.canvas.px_per_unit()
 
-    def _snapping_for(self, layer_id: str):
+    def _snapping_for(self, layer_ids: list[str]):
         """The box of what a drag moves (world, at the playhead) and what it snaps to: the other
         objects' boxes (the other parts, inside its own object) and the video frame."""
         project = self.project
-        moved = {layer_id} | {d.id for d in project.descendants(layer_id)}
+        moved = set(layer_ids) | {d.id for i in layer_ids for d in project.descendants(i)}
         follows = project.connectors_of(moved) | project.traces_of(moved)
-        own_root = project.root_of(layer_id).id
+        own_root = project.root_of(layer_ids[0]).id
         mine, others = [], {}
         for owner, mob in self.canvas.evaluator.frame_layers(self.playhead()):
             family = mob.family_members_with_points()
@@ -484,8 +621,9 @@ class MoveTool(QObject):
         return False
 
     def _selected_outline(self):
+        """The selected object's outline, while one object is selected (its handles)."""
         outline = self.canvas.outline
-        if outline is None or self.canvas.selected_layer != self.selection.layer_id:
+        if outline is None or self.canvas.selected_layer != self.selection.layer_id or self.selection.many:
             return None
         return outline
 
@@ -560,6 +698,20 @@ class MoveTool(QObject):
             return False
         distance = np.linalg.norm(point - np.asarray(outline.anchor)) * self.canvas.px_per_unit()
         return bool(distance <= GRAB_PX)
+
+    def _inside_selection(self, point: np.ndarray) -> str | None:
+        """With several objects selected: the one whose box ``point`` is in, or None."""
+        if not self.selection.many:
+            return None
+        found = list(self.canvas.other_outlines)
+        if self.canvas.outline is not None:
+            found.append((self.canvas.selected_layer, self.canvas.outline.path))
+        margin = 4.0 / self.canvas.px_per_unit()
+        for layer_id, path in reversed(found):
+            box = path.boundingRect().adjusted(-margin, -margin, margin, margin)
+            if box.contains(QPointF(float(point[0]), float(point[1]))):
+                return layer_id
+        return None
 
     def _inside_selected_box(self, point: np.ndarray) -> bool:
         outline = self._selected_outline()
