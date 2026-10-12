@@ -35,6 +35,29 @@ def test_text_is_legible_on_every_surface(surface) -> None:
     assert theme.contrast(T.muted, background) >= 4.5
 
 
+@pytest.mark.parametrize(
+    "token",
+    [
+        "syntax_keyword",
+        "syntax_string",
+        "syntax_number",
+        "syntax_comment",
+        "syntax_manim",
+        "syntax_definition",
+    ],
+)
+def test_code_colours_are_legible_on_the_editor_field(token) -> None:
+    assert theme.contrast(getattr(T, token), T.field) >= 4.5  # P6b.3: the Code page's highlighting
+
+
+def test_error_words_and_the_line_numbers_are_legible_on_the_panel_and_the_field() -> None:
+    for surface in (T.panel, T.field):
+        assert theme.contrast(T.error_text, surface) >= 4.5
+        assert theme.contrast(T.muted, surface) >= 4.5
+        assert theme.contrast(T.warning, surface) >= 4.5
+        assert theme.contrast(T.outline, surface) >= 4.5  # the error's line link
+
+
 @pytest.mark.parametrize("bar", ["content", "emphasis", "motion", "morph", "sound", "cue"])
 def test_clip_labels_are_legible_on_their_bars(bar) -> None:
     assert theme.contrast(T.bar_text, getattr(T, bar)) >= 4.5

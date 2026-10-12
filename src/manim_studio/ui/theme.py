@@ -74,6 +74,16 @@ class Colours:
     curve: str
     curve_handle: str
     grid: str
+    # the code editor (P6b.3): Python highlighting on the field colour, the current and the error line
+    syntax_keyword: str
+    syntax_string: str
+    syntax_number: str
+    syntax_comment: str
+    syntax_manim: str  # Manim's own names: Scene, Circle, Create, ...
+    syntax_definition: str  # the name after def and class
+    code_line: str  # the line the cursor is on
+    code_error_line: str  # the line a render error points at
+    error_text: str  # error words on panels and the gutter (danger itself is 4.3:1 on a panel)
 
 
 STUDIO = Colours(
@@ -119,6 +129,15 @@ STUDIO = Colours(
     curve="#38bdf8",
     curve_handle="#fde047",
     grid="#ffffff28",
+    syntax_keyword="#c792ea",
+    syntax_string="#a5d6a7",
+    syntax_number="#f0a878",
+    syntax_comment="#8b8b98",
+    syntax_manim="#5ec8f5",
+    syntax_definition="#f2d58a",
+    code_line="#ffffff0f",
+    code_error_line="#ef444438",
+    error_text="#f87171",
 )
 
 THEME = STUDIO  # the token set in use
