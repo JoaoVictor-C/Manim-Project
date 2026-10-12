@@ -245,6 +245,11 @@ class MainWindow(QMainWindow):
         save_preset.setToolTip("The selected layer's clips and keys, as a preset of your own")
         save_preset.triggered.connect(self.save_preset)
         animate_menu.addAction(save_preset)
+        save_template = QAction("Save Object as Template...", self)
+        save_template.setToolTip("The selected object with everything under it, as a template of your own")
+        save_template.triggered.connect(self.save_template)
+        animate_menu.addAction(save_template)
+        self._fill_templates_menu()
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(self.layers_dock.toggleViewAction())
         view_menu.addAction(self.properties_dock.toggleViewAction())
@@ -706,6 +711,57 @@ class MainWindow(QMainWindow):
         titles = ["Entrance", "Emphasis", "Exit", "Motion"]
         category, ok = QInputDialog.getItem(self, "Save Preset", "Category:", titles, 0, False)
         return (name.strip(), category.lower()) if ok else None
+
+    def _fill_templates_menu(self) -> None:
+        """The Templates section of the Layers panel's Add menu (ADR 0039)."""
+        menu = self.layers.library_menu
+        for action in getattr(self, "_template_actions", []):
+            menu.removeAction(action)
+        self._template_actions = [menu.addSection("Templates")]
+        menu.setToolTipsVisible(True)
+        for template in self.library.templates:
+            action = menu.addAction(template.name, lambda tp=template: self.insert_template(tp))
+            action.setToolTip(template.description)
+            self._template_actions.append(action)
+
+    def insert_template(self, template: library.Template) -> bool:
+        """Add > Templates: the template's layers at the playhead, above the selected object."""
+        if self.project is None:
+            return False
+        try:
+            pasted = library.insert_template(self.project, template, self.t, above=self.selection.layer_id)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(str(exc), 10000)
+            return False
+        self.document.apply(pasted.edit, f"Insert {template.name}")
+        self.selection.set(pasted.selected)
+        note = f" ({'; '.join(pasted.notes)})" if pasted.notes else ""
+        self.statusBar().showMessage(f"{template.name} at {self.t:.2f} s{note}", 6000)
+        return True
+
+    def save_template(self) -> None:
+        """Animate > Save Object as Template...: the selected object with everything under it."""
+        layer_id = self.selection.layer_id
+        if self.project is None or layer_id is None:
+            self.statusBar().showMessage("Select the object to save as a template", 6000)
+            return
+        name = self.ask_template_name()
+        if not name:
+            return
+        try:
+            template = library.template_from(self.project, layer_id, name)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(str(exc), 8000)
+            return
+        path = library.save_item(template)
+        self.library.add(template)
+        self._fill_templates_menu()
+        self.statusBar().showMessage(f"Saved the template {name} ({path.name})", 6000)
+
+    def ask_template_name(self) -> str | None:
+        """A name for a new template, or None (cancelled). Tests replace it."""
+        name, ok = QInputDialog.getText(self, "Save Template", "Name:")
+        return name.strip() if ok and name.strip() else None
 
     def _fill_themes_menu(self) -> None:
         self.themes_menu.clear()

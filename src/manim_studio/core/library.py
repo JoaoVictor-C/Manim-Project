@@ -129,6 +129,11 @@ class Template(BaseModel):
     description: str = ""
     layers: list[Layer] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _a_valid_fragment(self) -> Template:
+        Project(layers=self.layers)  # references inside it, parts, objects on axes (raises)
+        return self
+
 
 Item = Preset | Theme | Template
 _KINDS: dict[str, type[BaseModel]] = {"preset": Preset, "theme": Theme, "template": Template}
@@ -382,3 +387,65 @@ def apply_theme(project: Project, theme: Theme, layer_ids: set[str] | None = Non
     result = edits._rebuilt(project, layers=layers, canvas=canvas)
     kind, changed = edits.classify(project, result)
     return Edit(result, kind, changed)
+
+
+# -- templates (P5e.2) ----------------------------------------------------------------------------------
+
+
+def _shifted(layers: list[Layer], dt: float) -> list[Layer]:
+    """``layers`` with every time (clip starts, keys, explicit lifetimes) moved by ``dt``."""
+    out = []
+    for layer in layers:
+        data = layer.model_dump(by_alias=True)
+        for clip in data["clips"]:
+            clip["start"] = round(clip["start"] + dt, 9)
+        for track in data["tracks"].values():
+            for key in track:
+                key["t"] = round(key["t"] + dt, 9)
+        for end in ("in", "out"):
+            if data["lifetime"][end] is not None:
+                data["lifetime"][end] = round(data["lifetime"][end] + dt, 9)
+        out.append(Layer.model_validate(data))
+    return out
+
+
+def _times(layers: list[Layer]) -> list[float]:
+    times = [t for x in layers for c in x.clips for t in (c.start, c.end)]
+    times += [k.t for x in layers for track in x.tracks.values() for k in track]
+    times += [t for x in layers for t in (x.lifetime.in_, x.lifetime.out) if t is not None]
+    return times
+
+
+def template_from(project: Project, root_id: str, name: str) -> Template:
+    """The object ``root_id`` with everything under it as a template, its times from 0; refused
+    when it refers to a layer outside it (a template must stand on its own)."""
+    from . import clipboard  # (imports edits, like this module)
+
+    root = project.root_of(root_id)
+    payload = clipboard.copy_layers(project, [root.id]).payload
+    if payload.outside:
+        names = ", ".join(sorted(payload.outside))
+        raise EditError(
+            f"{root.name or root.id} refers to layers outside it ({names}): it cannot be a template"
+        )
+    start = min([t for t in _times(payload.layers) if t >= 0], default=0.0)
+    return Template(name=name, layers=_shifted(payload.layers, -start))
+
+
+def insert_template(project: Project, template: Template, t: float, above: str | None = None):
+    """``template``'s layers with their times from ``t`` and fresh ids, through the clipboard
+    (ADR 0038): a ``clipboard.Pasted`` (the edit, the first layer to select, notes)."""
+    from . import clipboard
+
+    fps = project.canvas.fps
+    t = max(0.0, round(t * fps) / fps)
+    layers = _shifted(template.layers, t)
+    end = max(_times(layers), default=t)
+    if end > project.canvas.duration + 1e-9:
+        raise EditError(
+            f"{template.name} needs until {end:g} s; the scene ends at {project.canvas.duration:g} s"
+        )
+    try:
+        return clipboard.paste_layers(project, clipboard.LayersPayload(layers=layers), above=above)
+    except clipboard.ClipboardError as exc:
+        raise EditError(str(exc)) from None

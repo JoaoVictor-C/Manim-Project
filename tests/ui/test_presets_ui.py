@@ -125,3 +125,32 @@ def test_skipped_library_files_are_reported_at_start(qt_app) -> None:
         win.close()
     finally:
         bad.unlink()
+
+
+def test_insert_a_template_from_the_add_menu_and_save_one(window) -> None:
+    window.selection.set("sq")
+    window.seek(1.0)
+    menu_action(window.layers.library_menu, "Lower third").trigger()
+    added = [x for x in window.project.layers if x.id not in ("sq", "tx")]
+    assert [x.name for x in added] == ["Band", "Name", "Role"]
+    assert window.selection.layer_id == added[0].id
+    assert window.document.undo_stack.undoText() == "Insert Lower third"
+    assert [x.id for x in window.project.layers].index(added[0].id) == 1  # right above the square
+    window.ask_template_name = lambda: "My band"
+    menu_action(window.menuBar(), "Animate", "Save Object as Template...").trigger()
+    saved = Path(os.environ["MANIM_STUDIO_LIBRARY"]) / "template-My band.json"
+    try:
+        assert saved.is_file()
+        window.seek(3.0)
+        menu_action(window.layers.library_menu, "My band").trigger()
+        band = window.project.layer(window.selection.layer_id)
+        assert band.name == "Band copy" and band.clips[0].start == 3.0
+    finally:
+        saved.unlink(missing_ok=True)
+
+
+def test_a_template_that_does_not_fit_is_refused(window) -> None:
+    window.seek(5.9)
+    menu_action(window.layers.library_menu, "Title card").trigger()
+    assert "Title card needs until" in window.statusBar().currentMessage()
+    assert len(window.project.layers) == 2

@@ -1,4 +1,4 @@
-"""Write the built-in presets and themes (ADR 0039) into ``src/manim_studio/library/``.
+"""Write the built-in presets, themes and templates (ADR 0039) into ``src/manim_studio/library/``.
 
 The JSON files are the source of truth that ships with the package; this script
 is how they were made and how to regenerate them after editing the lists below.
@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from manim_studio.core.library import BUILTIN_FOLDER, Preset, Theme, item_to_json
+from manim_studio.core.library import BUILTIN_FOLDER, Preset, Template, Theme, item_to_json
+from manim_studio.core.schema import Clip, Layer, Spec, Transform2D
 
 
 def clip(kinds, duration, offset=0.0, ease=None, **params):
@@ -141,6 +142,163 @@ THEMES = [
 ]
 
 
+def layer(layer_id, name, type_name, at=(0.0, 0.0), clips=(), style=None, **params):
+    return Layer(
+        id=layer_id,
+        name=name,
+        spec=Spec(type=type_name, params=params, style=style or {}),
+        base=Transform2D(position=at),
+        clips=[
+            Clip(id=f"{layer_id}-{i}", kind=k, start=s, duration=d, params=p)
+            for i, (k, s, d, p) in enumerate(clips)
+        ],
+    )
+
+
+TEMPLATES = [
+    (
+        "Title card",
+        "A title, an underline and a subtitle, written in.",
+        [
+            layer(
+                "title", "Title", "Text", (0.0, 0.7), [("Write", 0.0, 1.0, {})], text="Title", font_size=72
+            ),
+            layer(
+                "rule",
+                "Underline",
+                "Line",
+                (0.0, 0.05),
+                [("Create", 0.6, 0.6, {})],
+                {"stroke_width": 3},
+                start=(-3.0, 0.0),
+                end=(3.0, 0.0),
+            ),
+            layer(
+                "subtitle",
+                "Subtitle",
+                "Text",
+                (0.0, -0.6),
+                [("FadeIn", 1.0, 0.6, {"shift": "UP"})],
+                text="Subtitle",
+                font_size=34,
+            ),
+        ],
+    ),
+    (
+        "Section header",
+        "A heading at the top with a short rule under it.",
+        [
+            layer(
+                "heading",
+                "Section",
+                "Text",
+                (0.0, 3.2),
+                [("Write", 0.0, 0.8, {})],
+                text="Section",
+                font_size=48,
+            ),
+            layer(
+                "rule",
+                "Rule",
+                "Line",
+                (0.0, 2.7),
+                [("Create", 0.4, 0.5, {})],
+                {"stroke_width": 2},
+                start=(-2.0, 0.0),
+                end=(2.0, 0.0),
+            ),
+        ],
+    ),
+    (
+        "Lower third",
+        "A band with a name and a role, sliding in at the bottom left.",
+        [
+            layer(
+                "band",
+                "Band",
+                "Rectangle",
+                (-3.3, -2.75),
+                [("FadeIn", 0.0, 0.5, {"shift": "RIGHT"})],
+                {"fill": "#0f172a", "fill_opacity": 0.85, "stroke_width": 0},
+                width=6.5,
+                height=1.3,
+            ),
+            layer(
+                "name",
+                "Name",
+                "Text",
+                (-3.6, -2.5),
+                [("FadeIn", 0.2, 0.5, {"shift": "RIGHT"})],
+                text="Name Surname",
+                font_size=34,
+            ),
+            layer(
+                "role",
+                "Role",
+                "Text",
+                (-3.6, -3.05),
+                [("FadeIn", 0.35, 0.5, {"shift": "RIGHT"})],
+                text="Role",
+                font_size=24,
+            ),
+        ],
+    ),
+    (
+        "Callout",
+        "A labelled box with an arrow to a dot: move the dot onto what it points at.",
+        [
+            layer("anchor", "Points at", "Dot", (0.0, 0.0), [("FadeIn", 0.0, 0.3, {})], radius=0.06),
+            layer("box", "Box", "Rectangle", (3.0, 1.8), [("Create", 0.0, 0.6, {})], width=3.2, height=1.1),
+            layer(
+                "label",
+                "Label",
+                "Text",
+                (3.0, 1.8),
+                [("Write", 0.3, 0.6, {})],
+                text="Look here",
+                font_size=30,
+            ),
+            layer(
+                "arrow", "Arrow", "Connector", clips=(), source="box", target="anchor", tips="end", gap=0.1
+            ),
+        ],
+    ),
+    (
+        "Equation reveal",
+        "An equation written, then indicated.",
+        [
+            layer(
+                "equation",
+                "Equation",
+                "MathTex",
+                (0.0, 0.0),
+                [("Write", 0.0, 1.5, {}), ("Indicate", 2.0, 0.8, {})],
+                text=r"e^{i\pi} + 1 = 0",
+                font_size=72,
+            ),
+        ],
+    ),
+    (
+        "Counter",
+        "A label and a number counting from 0 to 100.",
+        [
+            layer(
+                "label", "Label", "Text", (-1.4, 0.0), [("FadeIn", 0.0, 0.4, {})], text="Value:", font_size=40
+            ),
+            layer(
+                "number",
+                "Number",
+                "DecimalNumber",
+                (0.9, 0.0),
+                [("FadeIn", 0.0, 0.4, {}), ("ChangeDecimalToValue", 0.5, 2.0, {"target_number": 100.0})],
+                number=0.0,
+                num_decimal_places=0,
+            ),
+        ],
+    ),
+]
+
+
 def write(folder: Path, stem: str, item) -> None:
     (folder / f"{stem}.json").write_text(json.dumps(item_to_json(item), indent=1) + "\n", encoding="utf-8")
 
@@ -151,6 +309,14 @@ def main() -> None:
         old.unlink()
     for old in BUILTIN_FOLDER.glob("theme-*.json"):
         old.unlink()
+    for old in BUILTIN_FOLDER.glob("template-*.json"):
+        old.unlink()
+    for name, description, layers in TEMPLATES:
+        write(
+            BUILTIN_FOLDER,
+            f"template-{name.lower().replace(' ', '-')}",
+            Template(name=name, description=description, layers=layers),
+        )
     for i, (category, name, description, clips, keys) in enumerate(PRESETS):
         preset = Preset(name=name, category=category, description=description, clips=clips, keys=keys)
         write(
@@ -165,7 +331,7 @@ def main() -> None:
             **dict(zip(("background", "text", "shape", "accent"), colours, strict=True)),
         )
         write(BUILTIN_FOLDER, f"theme-{name.lower()}", theme)
-    print(f"{len(PRESETS)} presets and {len(THEMES)} themes in {BUILTIN_FOLDER}")
+    print(f"{len(PRESETS)} presets, {len(THEMES)} themes and {len(TEMPLATES)} templates in {BUILTIN_FOLDER}")
 
 
 if __name__ == "__main__":

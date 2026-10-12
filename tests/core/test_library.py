@@ -287,3 +287,84 @@ def test_applying_returns_a_valid_project_the_evaluator_draws() -> None:
     assert centre[1] > centre[0] + 0.5 and abs(centre[2] - centre[0]) < 1e-6
     assert layer_transform(project.layer("s"), 0.5).position == (0.0, 0.0)
     assert edits.classify(scene(), project)[0] == "transform"
+
+
+# -- templates (P5e.2) --------------------------------------------------------------------------------------
+
+
+def template(name: str) -> library.Template:
+    return next(t for t in BUILTINS.templates if t.name == name)
+
+
+def needs_latex(name: str) -> list:
+    return [pytest.mark.latex] if name in ("Equation reveal", "Counter") else []
+
+
+@pytest.mark.parametrize(
+    "name", [pytest.param(t.name, marks=needs_latex(t.name)) for t in BUILTINS.templates]
+)
+def test_every_built_in_template_inserts_and_draws(name) -> None:
+    before = scene()
+    pasted = library.insert_template(before, template(name), 1.0)
+    project = pasted.edit.project
+    added = [x for x in project.layers if x.id not in {"s"}]
+    assert len(added) == len(template(name).layers) and pasted.selected == added[0].id
+    assert min(c.start for x in added for c in x.clips) == pytest.approx(1.0)
+    evaluator = Evaluator(project)
+    drawn = {layer_id for layer_id, _ in evaluator.frame_layers(3.5)}
+    assert {x.id for x in added if x.parent_id is None} <= drawn
+
+
+def test_a_template_is_inserted_with_fresh_ids_and_its_references_follow() -> None:
+    once = library.insert_template(scene(), template("Callout"), 0.0).edit.project
+    twice = library.insert_template(once, template("Callout"), 2.0).edit.project
+    connectors = [x for x in twice.layers if x.spec.type == "Connector"]
+    assert len(connectors) == 2 and len({x.id for x in twice.layers}) == len(twice.layers)
+    for arrow in connectors:
+        source, target = twice.layer(arrow.spec.params["source"]), twice.layer(arrow.spec.params["target"])
+        assert (source.spec.type, target.spec.type) == ("Rectangle", "Dot")
+    assert connectors[0].spec.params["source"] != connectors[1].spec.params["source"]
+
+
+def test_a_template_past_the_end_is_refused() -> None:
+    with pytest.raises(EditError, match="Title card needs until"):
+        library.insert_template(scene(), template("Title card"), 5.5)
+
+
+def test_an_object_saves_as_a_template_from_time_zero(tmp_path) -> None:
+    axes = Layer(
+        id="ax",
+        name="Plot",
+        spec=Spec(type="Axes"),
+        clips=[Clip(id="c", kind="Create", start=2.0, duration=1)],
+    )
+    graph = Layer(
+        id="g",
+        parent_id="ax",
+        spec=Spec(type="Graph", params={"expression": "x**2/4"}),
+        clips=[Clip(id="w", kind="Create", start=3.0, duration=1)],
+    )
+    saved = library.template_from(scene(axes, graph), "g", "My plot")  # a member picks its object
+    assert [x.id for x in saved.layers] == ["ax", "g"]
+    assert [x.clips[0].start for x in saved.layers] == [0.0, 1.0]
+    path = library.save_item(saved, tmp_path)
+    again = library.item_from_json(json.loads(path.read_text(encoding="utf-8")))
+    inserted = library.insert_template(scene(), again, 0.5).edit.project
+    plot = next(x for x in inserted.layers if x.spec.type == "Axes")
+    assert plot.name == "Plot" and plot.clips[0].start == 0.5
+    assert inserted.children(plot.id)[0].clips[0].start == 1.5
+
+
+def test_an_object_tied_to_others_cannot_be_a_template() -> None:
+    square = Layer(id="a", spec=Spec(type="Square"))
+    dot = Layer(id="b", spec=Spec(type="Dot"))
+    link = Layer(id="link", spec=Spec(type="Connector", params={"source": "a", "target": "b"}))
+    with pytest.raises(EditError, match="refers to layers outside it"):
+        library.template_from(scene(square, dot, link), "link", "Arrow")
+
+
+def test_a_template_file_must_stand_on_its_own() -> None:
+    link = {"id": "l", "spec": {"type": "Connector", "params": {"source": "a", "target": "b"}}}
+    data = {"format": library.FORMAT, "version": 1, "kind": "template", "name": "Bad", "layers": [link]}
+    with pytest.raises(ValueError, match="is missing"):
+        library.item_from_json(data)

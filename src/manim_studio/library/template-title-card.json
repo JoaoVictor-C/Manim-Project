@@ -1,0 +1,115 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "template",
+ "name": "Title card",
+ "description": "A title, an underline and a subtitle, written in.",
+ "layers": [
+  {
+   "id": "title",
+   "name": "Title",
+   "spec": {
+    "type": "Text",
+    "params": {
+     "text": "Title",
+     "font_size": 72
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     0.7
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "title-0",
+     "kind": "Write",
+     "start": 0.0,
+     "duration": 1.0,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "rule",
+   "name": "Underline",
+   "spec": {
+    "type": "Line",
+    "params": {
+     "start": [
+      -3.0,
+      0.0
+     ],
+     "end": [
+      3.0,
+      0.0
+     ]
+    },
+    "style": {
+     "stroke_width": 3
+    }
+   },
+   "base": {
+    "position": [
+     0.0,
+     0.05
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "rule-0",
+     "kind": "Create",
+     "start": 0.6,
+     "duration": 0.6,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "subtitle",
+   "name": "Subtitle",
+   "spec": {
+    "type": "Text",
+    "params": {
+     "text": "Subtitle",
+     "font_size": 34
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     -0.6
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "subtitle-0",
+     "kind": "FadeIn",
+     "start": 1.0,
+     "duration": 0.6,
+     "params": {
+      "shift": "UP"
+     }
+    }
+   ]
+  }
+ ]
+}

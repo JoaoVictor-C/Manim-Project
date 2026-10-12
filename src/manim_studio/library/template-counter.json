@@ -1,0 +1,82 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "template",
+ "name": "Counter",
+ "description": "A label and a number counting from 0 to 100.",
+ "layers": [
+  {
+   "id": "label",
+   "name": "Label",
+   "spec": {
+    "type": "Text",
+    "params": {
+     "text": "Value:",
+     "font_size": 40
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     -1.4,
+     0.0
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "label-0",
+     "kind": "FadeIn",
+     "start": 0.0,
+     "duration": 0.4,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "number",
+   "name": "Number",
+   "spec": {
+    "type": "DecimalNumber",
+    "params": {
+     "number": 0.0,
+     "num_decimal_places": 0
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.9,
+     0.0
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "number-0",
+     "kind": "FadeIn",
+     "start": 0.0,
+     "duration": 0.4,
+     "params": {}
+    },
+    {
+     "id": "number-1",
+     "kind": "ChangeDecimalToValue",
+     "start": 0.5,
+     "duration": 2.0,
+     "params": {
+      "target_number": 100.0
+     }
+    }
+   ]
+  }
+ ]
+}

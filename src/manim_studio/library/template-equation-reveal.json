@@ -1,0 +1,48 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "template",
+ "name": "Equation reveal",
+ "description": "An equation written, then indicated.",
+ "layers": [
+  {
+   "id": "equation",
+   "name": "Equation",
+   "spec": {
+    "type": "MathTex",
+    "params": {
+     "text": "e^{i\\pi} + 1 = 0",
+     "font_size": 72
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     0.0
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "equation-0",
+     "kind": "Write",
+     "start": 0.0,
+     "duration": 1.5,
+     "params": {}
+    },
+    {
+     "id": "equation-1",
+     "kind": "Indicate",
+     "start": 2.0,
+     "duration": 0.8,
+     "params": {}
+    }
+   ]
+  }
+ ]
+}
