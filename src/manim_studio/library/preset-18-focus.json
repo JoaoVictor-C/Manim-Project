@@ -1,0 +1,19 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Focus",
+ "category": "emphasis",
+ "description": "A spotlight closes on it.",
+ "clips": [
+  {
+   "kinds": [
+    "FocusOn"
+   ],
+   "offset": 0.0,
+   "duration": 0.8,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

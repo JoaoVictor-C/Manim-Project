@@ -606,3 +606,23 @@ left open, so ADRs can cite it.
   copy losing its morph would never disappear -> lifetimes frozen; clipboard text
   from another program could carry code -> paste never trusts (already true by
   hash).
+
+## Session 32 — P5e presets, templates and themes · 2026-10-11
+
+(Session 31 is P5d's, run in its own branch.)
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the clip allow-list (ADR 0007, 0022), key tracks and their sampling,
+  P5d's clipboard insert (ADR 0038), plugins' skip-with-a-message loading (ADR 0032);
+  probe B52.
+- **Decisions:** versioned JSON library items (preset, template, theme), built-ins
+  plus a user folder; presets start at the playhead, apply whole or are refused with
+  the reason, use kind fallbacks and keys relative to the layer's transform; themes
+  recolour the selection or everything; templates go through the clipboard
+  (-> ADR 0039). Plan: [../plans/p5e-presets.md](../plans/p5e-presets.md).
+- **Critiques that changed the plan:** a track holds its first key backwards (checked
+  in `evaluator._sample`) -> a hold key one frame before the playhead; exit presets
+  ending at the playhead dropped for one rule (start at the playhead); themes scoped to
+  the selection; a preset with keys an object cannot have (a graph on axes) is refused,
+  not partly applied; the callout template carries its own anchor dot.

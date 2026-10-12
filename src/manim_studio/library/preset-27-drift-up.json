@@ -1,0 +1,33 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Drift up",
+ "category": "motion",
+ "description": "Moves half a unit up over two seconds.",
+ "clips": [],
+ "keys": {
+  "position": [
+   {
+    "dt": 0.0,
+    "value": [
+     0.0,
+     0.0
+    ],
+    "ease": {
+     "name": "linear"
+    }
+   },
+   {
+    "dt": 2.0,
+    "value": [
+     0.0,
+     0.5
+    ],
+    "ease": {
+     "name": "smooth"
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,20 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Uncreate",
+ "category": "exit",
+ "description": "Undrawn (faded on images).",
+ "clips": [
+  {
+   "kinds": [
+    "Uncreate",
+    "FadeOut"
+   ],
+   "offset": 0.0,
+   "duration": 0.8,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

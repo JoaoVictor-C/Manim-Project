@@ -1,0 +1,20 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Typewriter",
+ "category": "entrance",
+ "description": "Letter by letter (text), or written.",
+ "clips": [
+  {
+   "kinds": [
+    "AddTextLetterByLetter",
+    "Write"
+   ],
+   "offset": 0.0,
+   "duration": 1.0,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

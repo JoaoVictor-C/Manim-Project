@@ -1,0 +1,11 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "theme",
+ "name": "Manim",
+ "description": "Black, with Manim's blue and yellow.",
+ "background": "#000000",
+ "text": "#ffffff",
+ "shape": "#58c4dd",
+ "accent": "#ffff00"
+}

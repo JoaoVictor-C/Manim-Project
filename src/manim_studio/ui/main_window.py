@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -34,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, parts, recovery, subtitles
+from ..core import adapter, audio, edits, library, parts, recovery, subtitles
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
@@ -170,12 +171,16 @@ class MainWindow(QMainWindow):
         self.autosave = Autosave(self.document, lambda: self.path, has_project, self)
         self.autosave.timer.start()
 
+        self.library = library.load_library()  # presets, themes, templates (ADR 0039)
+        self.timeline.preset_menu = self._preset_menu
         self._build_menu()
         app = QApplication.instance()
         if app is not None:  # coming back from another program: files may have changed (ADR 0027)
             app.applicationStateChanged.connect(self._on_application_state)
         self.statusBar().showMessage(
-            startup_message() or "Create a project (File > New) or open one (File > Open)."
+            startup_message()
+            or self._library_message()
+            or "Create a project (File > New) or open one (File > Open)."
         )
 
     def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
@@ -233,6 +238,18 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.auto_key_action)
         self.move_tool.auto_key = self.auto_key_action.isChecked
         self.properties.auto_key = self.auto_key_action.isChecked
+        animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
+        self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
+        self._preset_menu(self.apply_preset_menu, None, None)
+        save_preset = QAction("Save Animation as Preset...", self)
+        save_preset.setToolTip("The selected layer's clips and keys, as a preset of your own")
+        save_preset.triggered.connect(self.save_preset)
+        animate_menu.addAction(save_preset)
+        save_template = QAction("Save Object as Template...", self)
+        save_template.setToolTip("The selected object with everything under it, as a template of your own")
+        save_template.triggered.connect(self.save_template)
+        animate_menu.addAction(save_template)
+        self._fill_templates_menu()
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(self.layers_dock.toggleViewAction())
         view_menu.addAction(self.properties_dock.toggleViewAction())
@@ -255,6 +272,10 @@ class MainWindow(QMainWindow):
             action.triggered.connect(slot)
             view_menu.addAction(action)
         view_menu.addSeparator()
+        self.themes_menu = view_menu.addMenu("&Themes")
+        self.themes_menu.setToolTipsVisible(True)
+        self._fill_themes_menu()
+        view_menu.addSeparator()
         reload_media = QAction("Reload &Media", self)
         reload_media.setShortcut(QKeySequence("F5"))
         reload_media.setToolTip("Read images and SVG files again after they changed on disk")
@@ -273,6 +294,15 @@ class MainWindow(QMainWindow):
             step.setShortcut(key)
             step.triggered.connect(lambda _=False, f=frames: self.step(f))
             self.addAction(step)
+
+    def _library_message(self) -> str | None:
+        """A status-bar line when library files were skipped (ADR 0039), else None."""
+        for problem in self.library.problems:
+            log.warning("library file skipped: %s", problem)
+        count = len(self.library.problems)
+        if not count:
+            return None
+        return f"{count} preset or theme file{'s' if count > 1 else ''} skipped: {self.library.problems[0]}"
 
     def show_plugins(self) -> PluginsDialog:
         """Help > Plugins...: what loaded and what failed (ADR 0032)."""
@@ -618,6 +648,138 @@ class MainWindow(QMainWindow):
         )
         if ahead:
             self.seek(min(ahead) if direction > 0 else max(ahead))
+
+    # -- presets and themes (P5e, ADR 0039) ----------------------------------------------
+
+    def _preset_menu(self, menu, layer_id: str | None, t: float | None) -> None:
+        """Fill ``menu`` with the presets by category; the Animate menu's apply to the selected
+        layer at the playhead (``layer_id`` and ``t`` None), the timeline's to its row and time."""
+        menu.clear()
+        menu.setToolTipsVisible(True)
+        titles = {"entrance": "Entrance", "emphasis": "Emphasis", "exit": "Exit", "motion": "Motion"}
+        for category in library.CATEGORIES:
+            sub = menu.addMenu(titles[category])
+            sub.setToolTipsVisible(True)
+            for preset in self.library.presets_in(category):
+                action = sub.addAction(preset.name, lambda p=preset: self.apply_preset(p, layer_id, t))
+                action.setToolTip(preset.description)
+            sub.setEnabled(bool(sub.actions()))
+
+    def apply_preset(
+        self, preset: library.Preset, layer_id: str | None = None, t: float | None = None
+    ) -> bool:
+        """Apply ``preset`` to the layer (default: the selected one) at ``t`` (default: the playhead);
+        a refusal is shown in the status bar. True when it was applied."""
+        layer_id = layer_id or self.selection.layer_id
+        if self.project is None or layer_id is None:
+            self.statusBar().showMessage("Select a layer to animate first", 6000)
+            return False
+        try:
+            edit = library.apply_preset(self.project, layer_id, preset, self.t if t is None else t)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(str(exc), 10000)
+            return False
+        self.document.apply(edit, f"Apply {preset.name}")
+        self.statusBar().showMessage(f"{preset.name} at {self.t if t is None else t:.2f} s", 4000)
+        return True
+
+    def save_preset(self) -> None:
+        """Animate > Save Animation as Preset...: the selected layer's clips and keys."""
+        layer_id = self.selection.layer_id
+        if self.project is None or layer_id is None:
+            self.statusBar().showMessage("Select the layer whose animation to save", 6000)
+            return
+        answer = self.ask_preset_name()
+        if answer is None:
+            return
+        name, category = answer
+        try:
+            preset = library.preset_from_layer(self.project.layer(layer_id), name, category)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(str(exc), 8000)
+            return
+        path = library.save_item(preset)
+        self.library.add(preset)
+        self._preset_menu(self.apply_preset_menu, None, None)
+        self.statusBar().showMessage(f"Saved the preset {name} ({path.name})", 6000)
+
+    def ask_preset_name(self) -> tuple[str, library.Category] | None:
+        """A name and a category for a new preset, or None (cancelled). Tests replace it."""
+        name, ok = QInputDialog.getText(self, "Save Preset", "Name:")
+        if not ok or not name.strip():
+            return None
+        titles = ["Entrance", "Emphasis", "Exit", "Motion"]
+        category, ok = QInputDialog.getItem(self, "Save Preset", "Category:", titles, 0, False)
+        return (name.strip(), category.lower()) if ok else None
+
+    def _fill_templates_menu(self) -> None:
+        """The Templates section of the Layers panel's Add menu (ADR 0039)."""
+        menu = self.layers.library_menu
+        for action in getattr(self, "_template_actions", []):
+            menu.removeAction(action)
+        self._template_actions = [menu.addSection("Templates")]
+        menu.setToolTipsVisible(True)
+        for template in self.library.templates:
+            action = menu.addAction(template.name, lambda tp=template: self.insert_template(tp))
+            action.setToolTip(template.description)
+            self._template_actions.append(action)
+
+    def insert_template(self, template: library.Template) -> bool:
+        """Add > Templates: the template's layers at the playhead, above the selected object."""
+        if self.project is None:
+            return False
+        try:
+            pasted = library.insert_template(self.project, template, self.t, above=self.selection.layer_id)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(str(exc), 10000)
+            return False
+        self.document.apply(pasted.edit, f"Insert {template.name}")
+        self.selection.set(pasted.selected)
+        note = f" ({'; '.join(pasted.notes)})" if pasted.notes else ""
+        self.statusBar().showMessage(f"{template.name} at {self.t:.2f} s{note}", 6000)
+        return True
+
+    def save_template(self) -> None:
+        """Animate > Save Object as Template...: the selected object with everything under it."""
+        layer_id = self.selection.layer_id
+        if self.project is None or layer_id is None:
+            self.statusBar().showMessage("Select the object to save as a template", 6000)
+            return
+        name = self.ask_template_name()
+        if not name:
+            return
+        try:
+            template = library.template_from(self.project, layer_id, name)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(str(exc), 8000)
+            return
+        path = library.save_item(template)
+        self.library.add(template)
+        self._fill_templates_menu()
+        self.statusBar().showMessage(f"Saved the template {name} ({path.name})", 6000)
+
+    def ask_template_name(self) -> str | None:
+        """A name for a new template, or None (cancelled). Tests replace it."""
+        name, ok = QInputDialog.getText(self, "Save Template", "Name:")
+        return name.strip() if ok and name.strip() else None
+
+    def _fill_themes_menu(self) -> None:
+        self.themes_menu.clear()
+        for theme in self.library.themes:
+            action = self.themes_menu.addAction(theme.name, lambda th=theme: self.apply_theme(th))
+            action.setToolTip(
+                f"{theme.description} The selected object, or everything with nothing selected."
+            )
+
+    def apply_theme(self, theme: library.Theme) -> None:
+        """View > Themes: recolour the selected object, or every layer and the background."""
+        if self.project is None:
+            return
+        selected = self.selection.layer_id
+        edit = library.apply_theme(self.project, theme, {selected} if selected else None)
+        self.document.apply(edit, f"Apply the {theme.name} theme")
+        where = "the selection" if selected else "the scene"
+        self.statusBar().showMessage(f"{theme.name} theme applied to {where}", 4000)
 
     def import_subtitles(self) -> None:
         """File > Import Subtitles...: an .srt replaces the subtitles (one undo step)."""

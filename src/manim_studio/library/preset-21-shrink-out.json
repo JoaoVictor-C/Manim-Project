@@ -1,0 +1,19 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Shrink out",
+ "category": "exit",
+ "description": "Shrinks to its centre.",
+ "clips": [
+  {
+   "kinds": [
+    "ShrinkToCenter"
+   ],
+   "offset": 0.0,
+   "duration": 0.5,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

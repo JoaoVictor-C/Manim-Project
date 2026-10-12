@@ -1,0 +1,130 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "template",
+ "name": "Callout",
+ "description": "A labelled box with an arrow to a dot: move the dot onto what it points at.",
+ "layers": [
+  {
+   "id": "anchor",
+   "name": "Points at",
+   "spec": {
+    "type": "Dot",
+    "params": {
+     "radius": 0.06
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     0.0
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "anchor-0",
+     "kind": "FadeIn",
+     "start": 0.0,
+     "duration": 0.3,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "box",
+   "name": "Box",
+   "spec": {
+    "type": "Rectangle",
+    "params": {
+     "width": 3.2,
+     "height": 1.1
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     3.0,
+     1.8
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "box-0",
+     "kind": "Create",
+     "start": 0.0,
+     "duration": 0.6,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "label",
+   "name": "Label",
+   "spec": {
+    "type": "Text",
+    "params": {
+     "text": "Look here",
+     "font_size": 30
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     3.0,
+     1.8
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "label-0",
+     "kind": "Write",
+     "start": 0.3,
+     "duration": 0.6,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "arrow",
+   "name": "Arrow",
+   "spec": {
+    "type": "Connector",
+    "params": {
+     "source": "box",
+     "target": "anchor",
+     "tips": "end",
+     "gap": 0.1
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     0.0
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": []
+  }
+ ]
+}

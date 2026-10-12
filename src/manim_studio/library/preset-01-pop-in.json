@@ -1,0 +1,43 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Pop in",
+ "category": "entrance",
+ "description": "Fades in while growing past its size and settling.",
+ "clips": [
+  {
+   "kinds": [
+    "FadeIn"
+   ],
+   "offset": 0.0,
+   "duration": 0.25,
+   "params": {}
+  }
+ ],
+ "keys": {
+  "scale": [
+   {
+    "dt": 0.0,
+    "value": 0.6,
+    "ease": {
+     "name": "smooth"
+    }
+   },
+   {
+    "dt": 0.25,
+    "value": 1.12,
+    "ease": {
+     "name": "smooth"
+    }
+   },
+   {
+    "dt": 0.4,
+    "value": 1.0,
+    "ease": {
+     "name": "smooth"
+    }
+   }
+  ]
+ }
+}

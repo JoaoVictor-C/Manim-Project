@@ -1,0 +1,11 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "theme",
+ "name": "Chalkboard",
+ "description": "Green board, chalk colours.",
+ "background": "#1f3a2e",
+ "text": "#f1f5f0",
+ "shape": "#f4d35e",
+ "accent": "#ee964b"
+}

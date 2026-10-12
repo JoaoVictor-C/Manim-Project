@@ -39,6 +39,7 @@ src/manim_studio/
 │   ├── audio.py         the project's sound: decode, peaks, one mix for playback and export (ADR 0034)
 │   ├── subtitles.py     subtitles: wrapping, .srt read/write, placing cues, changed spans (ADR 0035)
 │   ├── clipboard.py     copy/paste/duplicate: subtrees with fresh ids, remapped references (ADR 0038)
+│   ├── library.py       presets, themes, templates: library files, applying them (ADR 0039)
 │   ├── recovery.py      recovery copies of unsaved work: atomic files, owners, what to offer (ADR 0038)
 │   ├── adapter.py       the ONLY module that knows Manim classes: builders,
 │   │                    clip registry / allow-list, easing, patches (ADR 0003, 0007)

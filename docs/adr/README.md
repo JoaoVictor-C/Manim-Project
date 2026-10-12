@@ -67,3 +67,4 @@ need one.
 | [0036](0036-readouts-and-connectors.md) | Value readouts and connectors | Accepted |
 | [0037](0037-markers-and-snapping.md) | Markers and snapping | Accepted |
 | [0038](0038-clipboard-and-recovery.md) | Clipboard, duplicate and crash recovery | Accepted |
+| [0039](0039-presets-templates-themes.md) | Presets, templates and themes | Accepted |

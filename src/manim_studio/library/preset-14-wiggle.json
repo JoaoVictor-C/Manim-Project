@@ -1,0 +1,20 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Wiggle",
+ "category": "emphasis",
+ "description": "Wiggles (Indicate on images).",
+ "clips": [
+  {
+   "kinds": [
+    "Wiggle",
+    "Indicate"
+   ],
+   "offset": 0.0,
+   "duration": 0.8,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

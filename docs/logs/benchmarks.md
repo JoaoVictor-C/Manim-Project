@@ -479,3 +479,10 @@ costs what any structural edit costs (`edits.add_layer` for comparison): 0.4 / 7
 classification, which grow faster than linearly with the layer count (not the clipboard's).
 Copying axes with 40 graphs makes 10 KB of clipboard text; reading and pasting it **2.9 ms**.
 -> ADR 0038.
+
+### B52 — Presets and templates · 2026-10-11
+`benchmarks/bench_presets.py` on `examples/explainer.json` (59 layers, 105 clips):
+**93 of 105** clips share kind, duration and ease with another (17 x FadeIn 0.3 s,
+17 x FadeOut 0.3 s, 9 x FadeOut 0.8 s, 9 x Transform 1.2 s); **30 layers** are
+exactly FadeIn -> FadeOut; no keyframe tracks; layer groups rebuilt by hand: 4
+section headers. (B51 is P5d's autosave measurement.) -> ADR 0039.

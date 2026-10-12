@@ -147,6 +147,13 @@ object and choose **Add > Shapes > Connector** to draw a line from the object
 before it to it; the line follows both as they move, and Properties sets where
 it ends, its arrow tips and its gap.
 
+**Presets, themes and templates**: select an object and pick a preset from
+**Animate > Apply Preset** (or right-click its timeline row): it plays from the
+playhead. **View > Themes** recolours the selection, or the whole scene when
+nothing is selected. **Add > Templates** inserts a title card, lower third,
+callout and more. Save your own with *Save Animation as Preset* and *Save Object
+as Template*.
+
 **Copy, paste and recovery**: **Edit > Duplicate** (Ctrl+D) copies the selected
 layer, clip, sound or subtitle right next to it; **Cut / Copy / Paste** (Ctrl+X /
 C / V) move them through the clipboard, also into another project or another

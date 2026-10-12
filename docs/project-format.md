@@ -254,6 +254,31 @@ dialog in the editor):
 - Canvas sizes, fps, `frame_height` and `duration` are positive; `opacity` in `base` is in [0, 1].
 - Cubic-bezier `x1`, `x2` are in [0, 1] (y may overshoot).
 
+## Library files (ADR 0039)
+
+Presets, themes and templates are JSON files: the built-ins in
+`manim_studio/library/`, your own in `~/.manim-studio/library` (or the folder in
+`MANIM_STUDIO_LIBRARY`). Every file has `"format": "manim-studio-library"`,
+`"version": 1`, a `"kind"` and a `"name"`; files with another format or a newer
+version are skipped with a message, and one of yours replaces a built-in of the
+same kind and name.
+
+- `preset`: `category` (`entrance`, `emphasis`, `exit`, `motion`), optional
+  `description`, `clips` (each: `kinds` in order of preference, `offset` from the
+  playhead, `duration`, optional `ease` and `params`; no morph or path kinds) and
+  `keys` (track name -> list of `dt`, `value`, `ease`): position values are `[x, y]`
+  offsets from where the layer is, scale a factor, rotation a delta in degrees,
+  opacity as it is.
+- `theme`: `background`, `text`, `shape`, `accent` colours.
+- `template`: `layers` (a valid project fragment: ids and references inside it,
+  times from 0).
+
+```json
+{ "format": "manim-studio-library", "version": 1, "kind": "preset", "name": "Pulse",
+  "category": "emphasis", "keys": { "scale": [ { "dt": 0, "value": 1.0 },
+  { "dt": 0.25, "value": 1.15 }, { "dt": 0.5, "value": 1.0 } ] } }
+```
+
 ## Clipboard (ADR 0038)
 
 Cut, Copy and Duplicate put a small JSON document on the system clipboard, under

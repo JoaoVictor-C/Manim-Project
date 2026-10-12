@@ -1,0 +1,21 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Draw",
+ "category": "entrance",
+ "description": "Outline drawn, then filled.",
+ "clips": [
+  {
+   "kinds": [
+    "DrawBorderThenFill",
+    "Create",
+    "FadeIn"
+   ],
+   "offset": 0.0,
+   "duration": 1.0,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

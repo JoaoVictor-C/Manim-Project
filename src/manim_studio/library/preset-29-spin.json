@@ -1,0 +1,27 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Spin",
+ "category": "motion",
+ "description": "Turns once around.",
+ "clips": [],
+ "keys": {
+  "rotation": [
+   {
+    "dt": 0.0,
+    "value": 0.0,
+    "ease": {
+     "name": "smooth"
+    }
+   },
+   {
+    "dt": 1.0,
+    "value": 360.0,
+    "ease": {
+     "name": "smooth"
+    }
+   }
+  ]
+ }
+}

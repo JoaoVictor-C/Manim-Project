@@ -1,0 +1,19 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Grow from centre",
+ "category": "entrance",
+ "description": "Grows from its centre.",
+ "clips": [
+  {
+   "kinds": [
+    "GrowFromCenter"
+   ],
+   "offset": 0.0,
+   "duration": 0.5,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

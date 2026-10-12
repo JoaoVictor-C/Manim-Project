@@ -1,0 +1,19 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Circle it",
+ "category": "emphasis",
+ "description": "A frame is drawn around it.",
+ "clips": [
+  {
+   "kinds": [
+    "Circumscribe"
+   ],
+   "offset": 0.0,
+   "duration": 1.0,
+   "params": {}
+  }
+ ],
+ "keys": {}
+}

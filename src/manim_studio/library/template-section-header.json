@@ -1,0 +1,81 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "template",
+ "name": "Section header",
+ "description": "A heading at the top with a short rule under it.",
+ "layers": [
+  {
+   "id": "heading",
+   "name": "Section",
+   "spec": {
+    "type": "Text",
+    "params": {
+     "text": "Section",
+     "font_size": 48
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     3.2
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "heading-0",
+     "kind": "Write",
+     "start": 0.0,
+     "duration": 0.8,
+     "params": {}
+    }
+   ]
+  },
+  {
+   "id": "rule",
+   "name": "Rule",
+   "spec": {
+    "type": "Line",
+    "params": {
+     "start": [
+      -2.0,
+      0.0
+     ],
+     "end": [
+      2.0,
+      0.0
+     ]
+    },
+    "style": {
+     "stroke_width": 2
+    }
+   },
+   "base": {
+    "position": [
+     0.0,
+     2.7
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "rule-0",
+     "kind": "Create",
+     "start": 0.4,
+     "duration": 0.5,
+     "params": {}
+    }
+   ]
+  }
+ ]
+}

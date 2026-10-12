@@ -1,0 +1,21 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "preset",
+ "name": "Grow from below",
+ "category": "entrance",
+ "description": "Grows up from its bottom edge.",
+ "clips": [
+  {
+   "kinds": [
+    "GrowFromEdge"
+   ],
+   "offset": 0.0,
+   "duration": 0.6,
+   "params": {
+    "edge": "DOWN"
+   }
+  }
+ ],
+ "keys": {}
+}
