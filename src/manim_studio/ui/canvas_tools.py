@@ -91,6 +91,7 @@ class _Drag:
     # other selected objects a move carries: (layer id, key time, position at press, to_local)
     toggle_out: str | None = None  # Shift+press on a selected object: a click (no move) deselects it
     moved: bool = False  # the cursor left the press point (a click is not a move)
+    collapse: str | None = None  # a plain press on one of several: a click selects only it
 
 
 VERBS = {
@@ -182,7 +183,7 @@ class MoveTool(QObject):
                 "", "marquee", point, tuple(self.selection.layer_ids), point, None, self.project, np.eye(2)
             )
             return
-        toggle_out = None
+        toggle_out = collapse = None
         if shift and target in chosen:
             toggle_out = target  # a Shift+click takes it out; a Shift+drag moves them all
         elif shift:
@@ -191,9 +192,10 @@ class MoveTool(QObject):
             self.selection.select_layer(target)
         else:
             self.selection.set_layers(chosen, primary=target)
+            collapse = target  # a drag moves them all; a click selects only it
         self._start_drag(target, "position", point)
         if self._drag is not None:
-            self._drag.toggle_out = toggle_out
+            self._drag.toggle_out, self._drag.collapse = toggle_out, collapse
 
     def double_click(
         self, pos: QPointF, modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier
@@ -260,6 +262,10 @@ class MoveTool(QObject):
         if drag.toggle_out is not None and not drag.moved:
             self.document.cancel_preview()
             self.selection.toggle_layer(drag.toggle_out)
+            return
+        if drag.collapse is not None and not drag.moved:
+            self.document.cancel_preview()
+            self.selection.select_layer(drag.collapse)
             return
         verb = f"Change {drag.param.title}" if drag.param is not None else VERBS[drag.prop]
         if drag.group:
