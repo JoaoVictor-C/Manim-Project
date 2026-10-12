@@ -602,3 +602,11 @@ rebuild and the frame - in **3.4 ms** for a rectangle's width, a line's end or a
 circle's radius, **6.5 ms** for a text's font size with cached glyphs. Gathering 24
 objects' world boxes and finding the nearest edge for snapping: **0.63 ms**. Moving 20
 objects as 20 chained edits: **2.3 ms**. -> ADR 0043.
+
+### B61 — Preset thumbnails · 2026-10-12
+`benchmarks/bench_preset_thumbs.py`: every built-in preset (32) applied to a square at
+t = 0 in a 160x90 project, 8 frames across its run with the in-process evaluator and
+Cairo. First frame (clip activation included) **0.5 ms** median, 3.1 ms worst; the other
+frames **0.1 ms**; a whole thumbnail **1.7 ms** median, 6.0 ms worst; all 32 in **62 ms**.
+A probe confirmed the frames are drawn (about 1300 lit pixels mid-entrance). Thumbnails
+can be rendered eagerly when the browser opens. -> ADR 0044.

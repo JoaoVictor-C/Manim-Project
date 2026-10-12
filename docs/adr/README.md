@@ -71,3 +71,4 @@ need one.
 | [0040](0040-design-system.md) | The design system | Accepted |
 | [0041](0041-workspace-pages.md) | Workspace pages | Accepted |
 | [0043](0043-canvas-interaction.md) | Canvas interaction: handles, guides, several objects | Accepted |
+| [0044](0044-preferences-help-presets-browser.md) | Preferences, help and the presets browser | Accepted |
