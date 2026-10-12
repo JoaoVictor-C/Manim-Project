@@ -161,6 +161,11 @@ All notable changes to this project are documented here. The format follows
   Render-ahead redraws it when an object changes. Python exports write numbers
   and counts as plain Manim, and a centre-to-centre connector as
   `always_redraw(lambda: Line(a.get_center(), b.get_center(), buff=...))`.
+- Workspace pages (P6b.1, ADR 0041): the window is a set of pages switched from a
+  page bar at the bottom, View > Pages or Shift+1..5, sharing one canvas,
+  timeline, Layers and Properties panel (moved between pages in about 23 ms). Compose is
+  the former layout; the docks are gone and View > Layers / Properties hide a
+  panel on every page. Animate, Code, Audio and Deliver pages follow.
 - Design system (P6a, ADR 0040): the editor has a dark studio look - the Fusion
   style, a palette and one stylesheet generated from colour tokens in
   `ui/theme.py`, a 9 pt UI font, and Phosphor icons (QtAwesome, a new dependency)

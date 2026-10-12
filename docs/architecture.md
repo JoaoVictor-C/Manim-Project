@@ -51,6 +51,7 @@ src/manim_studio/
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
 └── ui/                  PySide6
     ├── theme.py         design tokens, Fusion palette, generated stylesheet, contrast (ADR 0040)
+    ├── pages/           workspace pages: Page, PageHost (parking, page bar), compose.py (ADR 0041)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)

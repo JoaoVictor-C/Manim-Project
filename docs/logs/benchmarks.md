@@ -519,3 +519,12 @@ unchanged); one crash became a message: a morph aimed at a sound's id raised `St
 virus scan, once). All 23 Phosphor icons the editor needs exist. Applying a 300-rule
 application stylesheet with the main window open takes **11 ms**, opening a window
 under it **20 ms**. (B53 is the validation performance slice.) -> ADR 0040.
+
+### B55 — Workspace pages · 2026-10-11
+`benchmarks/bench_pages.py` with the showcase project at 1600x1000: moving the one
+canvas (with its transport) and the timeline into another page's splitter and back,
+repaint included, takes **13.6 ms** per switch; hiding and showing both docks
+**18.7 ms**; building a second `CanvasWidget` 1.6 ms (rejected: it would duplicate the
+frame cache and the selection wiring). With the pages built (P6b.1), a real
+`show_page` round trip - parking, re-parenting, splitter sizes, repaint - takes
+**22.8 ms** per switch. -> ADR 0041.

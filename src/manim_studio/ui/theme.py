@@ -276,6 +276,13 @@ QGroupBox {{
     border: 1px solid {c.divider}; border-radius: {r}px; margin-top: {3 * s}px; padding-top: {s}px;
 }}
 QGroupBox::title {{ subcontrol-origin: margin; left: {2 * s}px; color: {c.muted}; }}
+QTabBar#pageBar {{ background: {c.window}; }}
+QTabBar#pageBar::tab {{
+    background: transparent; color: {c.muted}; padding: {s + 2}px {4 * s}px; min-width: 96px;
+    border: 0; border-top: 2px solid transparent;
+}}
+QTabBar#pageBar::tab:selected {{ color: {c.text}; border-top-color: {c.accent}; }}
+QTabBar#pageBar::tab:hover {{ color: {c.text}; }}
 QLabel[role="section"] {{ color: {c.muted}; font-weight: 600; }}
 QLabel[role="readout"] {{ color: {c.text}; }}
 """

@@ -69,3 +69,4 @@ need one.
 | [0038](0038-clipboard-and-recovery.md) | Clipboard, duplicate and crash recovery | Accepted |
 | [0039](0039-presets-templates-themes.md) | Presets, templates and themes | Accepted |
 | [0040](0040-design-system.md) | The design system | Accepted |
+| [0041](0041-workspace-pages.md) | Workspace pages | Accepted |
