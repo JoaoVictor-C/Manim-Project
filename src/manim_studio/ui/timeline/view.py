@@ -331,6 +331,7 @@ class TimelineView(QGraphicsView):
         self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
         # Fills an "Apply preset" menu for a row and a time (ADR 0039); set by the window.
         self.preset_menu = None
+        self.browse_presets = None  # opens the presets browser for a row and a time (ADR 0044)
         self._marker_drag: _MarkerDrag | None = None
         self._drag: _Drag | None = None
         self._audio_drag: _AudioDrag | None = None
@@ -828,7 +829,12 @@ class TimelineView(QGraphicsView):
         self._add_key_menu(menu, layer)
         if self.preset_menu is not None:  # at the clicked time, like Add clip (ADR 0039)
             fps = self.project.canvas.fps
-            self.preset_menu(menu.addMenu("Apply preset"), layer.id, max(0.0, round(t * fps) / fps))
+            at = max(0.0, round(t * fps) / fps)
+            self.preset_menu(menu.addMenu("Apply preset"), layer.id, at)
+            if self.browse_presets is not None:  # the presets browser, for this row and time (ADR 0044)
+                menu.setToolTipsVisible(True)
+                browse = menu.addAction("Browse presets...", lambda: self.browse_presets(layer.id, at))
+                browse.setToolTip("Pick a preset by its moving preview and apply it to this row here")
         add = menu.addMenu("Add clip")
         placement = place_new_clip(
             layer,
