@@ -476,3 +476,38 @@ def test_the_clip_menu_on_a_part_has_no_morphs_and_respects_the_object_clips(tre
     assert titles == ["Appear / disappear", "Emphasis"]
     action(menu, "Add clip", "Emphasis", "Indicate").trigger()
     assert [c.kind for c in tree_view.project.layer("b").clips] == ["FadeIn", "Indicate"]
+
+
+def test_an_opened_project_fits_the_timeline_and_fit_timeline_does_it_again(view, qt_app) -> None:
+    """P6d.4: a project opens showing its whole length; View > Fit Timeline zooms back to it."""
+    from manim_studio.ui.timeline.model import FIT_MARGIN_PX
+
+    width = view.viewport().width()
+    view.document.replace(project().model_copy(update={"canvas": Canvas(duration=12.0, fps=FPS)}))
+    assert view.scale.x(12.0) == pytest.approx(width - FIT_MARGIN_PX, abs=0.5)
+    view.zoom(3.0, 10)
+    assert view.scale.x(12.0) > width
+    view.horizontalScrollBar().setValue(200)
+    view.fit_to_width()
+    assert view.scale.x(12.0) == pytest.approx(width - FIT_MARGIN_PX, abs=0.5)
+    assert view.horizontalScrollBar().value() == 0
+
+
+def test_a_fit_before_layout_waits_for_the_real_width(qt_app) -> None:
+    from manim_studio.ui.timeline.model import FIT_MARGIN_PX
+
+    doc = Document(project())
+    v = TimelineView()
+    v.set_document(doc)
+    v.resize(120, 100)  # not laid out yet: too narrow to mean anything
+    doc.replace(project())
+    assert v.scale.px_per_second == 120.0  # unchanged, waiting
+    v.resize(900, 200)
+    v.show()
+    qt_app.processEvents()
+    assert v.scale.x(6.0) == pytest.approx(v.viewport().width() - FIT_MARGIN_PX, abs=0.5)
+    v.zoom(2.0, 0)
+    v.resize(950, 200)  # later resizes keep the user's zoom
+    qt_app.processEvents()
+    assert v.scale.x(6.0) > v.viewport().width()
+    v.close()

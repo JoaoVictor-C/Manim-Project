@@ -380,3 +380,17 @@ def test_a_marker_drag_snaps_and_never_lands_on_another_marker() -> None:
     assert drag_marker(project, "n", 2.97, 5.0, scale=SCALE, snapping=False) == pytest.approx(
         2.9666, abs=1e-3
     )
+
+
+def test_fit_scale_shows_the_whole_scene_within_the_zoom_limits() -> None:
+    from manim_studio.ui.timeline.model import (
+        FIT_MARGIN_PX,
+        MAX_PX_PER_SECOND,
+        MIN_PX_PER_SECOND,
+        fit_scale,
+    )
+
+    assert fit_scale(5.0, 500 + FIT_MARGIN_PX).px_per_second == pytest.approx(100.0)
+    assert fit_scale(0.0, 800).px_per_second == MAX_PX_PER_SECOND  # a zero-length scene
+    assert fit_scale(3600.0, 300).px_per_second == MIN_PX_PER_SECOND  # an hour in 300 px
+    assert fit_scale(5.0, 500).offset == 0.0
