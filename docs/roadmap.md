@@ -77,4 +77,5 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 - ✅ **P6c** — [plan](plans/p6c-canvas.md): canvas interaction: more on-canvas handles, snapping guides, multi-select with align/distribute
 - ✅ **P6d** — [plan](plans/p6d-polish.md): presets browser, preferences, recent files, shortcuts help, onboarding, visual-bug sweep
 - **P6e** — [plan](plans/p6e-release.md): release preparation
+- **GP** — [plan](plans/golden-path.md): the golden path - create, save, reopen and export a typical animation, excellently; readable Python export; 10+ minute scenes
 
