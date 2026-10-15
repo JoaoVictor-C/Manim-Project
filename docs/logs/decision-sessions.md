@@ -810,3 +810,26 @@ left open, so ADRs can cite it.
 - **Critiques that changed the plan:** the changelog heading stays undated until the user
   tags; the check redirects every user folder so it never touches real settings; release
   notes are written after P6d so they are written once.
+
+## Session 42 — The golden path · 2026-10-15
+
+(Session 41 is P6e's, on the release branch.)
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.88**.
+- **Input:** the user's three asks (real Manim code out of the Python export, evidence for
+  10+ minute videos, a narrow golden path first); the export's readability rules (ADR 0031);
+  the benchmark log; probes measured during the session.
+- **Decisions:** a walkthrough through real actions and events that becomes a slow
+  acceptance test, then its friction fixed; readable export of keyframed layers first, by an
+  agent in parallel; other export translations later; a 15-minute benchmark on mains power.
+  Plan: [../plans/golden-path.md](../plans/golden-path.md).
+- **Measured during the session:** none of the four example projects exports readable; 7 of
+  32 built-in presets write keyframes and so make a project exact.
+- **Critiques that changed the plan:** keyframes are on the golden path itself (a popular
+  preset), not a side quest; a walkthrough calling window methods would skip the widgets, so
+  it drives menu actions and input events and counts them; keys as `.animate` calls would
+  cut rotations as chords and could not overlap clips, so the keyed transform is applied on
+  top of each frame's clip state; whether Manim's update order allows that while a clip
+  animates the same object is open - the agent finds a construction or reports it; timings on
+  battery are noisy, so budgets are measured later.
