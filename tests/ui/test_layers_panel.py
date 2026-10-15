@@ -262,3 +262,30 @@ def test_the_part_dialog_says_whether_a_part_resolves(eq_panel) -> None:
     assert not ok.isEnabled() and "superscript" in dialog.status.text()
     dialog.tex.setText("z")
     assert dialog.status.text() == "'z' is not in the text"
+
+
+def test_the_buttons_drop_their_captions_when_the_panel_is_narrow(panel, qt_app) -> None:
+    """P6d.4: the panel can be narrower than its captioned buttons; then they show icons only."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QWidget
+
+    host = QWidget()  # as in a splitter: a child, not a window that enforces its layout's minimum
+    panel.setParent(host)
+    host.resize(800, 500)
+    host.show()
+    assert panel.minimumSizeHint().width() < panel._full_width
+    panel.resize(panel._full_width + 40, 400)
+    panel.show()
+    qt_app.processEvents()
+    assert not panel.compact
+    assert panel.add_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    panel.resize(panel.minimumSizeHint().width(), 400)
+    qt_app.processEvents()
+    assert panel.compact and panel.part_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    for button in (panel.add_button, panel.part_button, panel.down_button):
+        assert button.geometry().right() <= panel.width()  # every button still fits
+        assert button.toolTip()  # and says what it does
+    panel.resize(panel._full_width + 40, 400)
+    qt_app.processEvents()
+    assert not panel.compact
+    panel.setParent(None)
