@@ -44,6 +44,8 @@ NAMES: dict[str, str] = {
     "code-page": "code",
     "audio": "speaker-high",
     "deliver": "rocket-launch",
+    # the welcome (P6d.1)
+    "example": "sparkle",
     # the Code page (P6b.3)
     "revert": "arrow-counter-clockwise",
 }

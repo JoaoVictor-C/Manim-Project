@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Preferences, recent files and the first-run welcome (P6d.1, ADR 0044): the editor remembers
+  how it was left in one ini file (`MANIM_STUDIO_SETTINGS`, default `manim-studio.ini` in the user
+  configuration folder): File > Open Recent (ten files, newest first, missing ones dropped, Clear
+  Recent), the window, each page's splitter sizes (every page, generic), the view toggles (snap to
+  objects, half-resolution playback, render ahead) and the last page, which returns when the first
+  project opens. Until a project opens the viewer shows a welcome with New, Open..., Open Example
+  (File > Open Example: the showcase scene as an untitled copy) and the recent files as links.
+  Tests start from a fresh settings file each.
 - `core/edits.py` (S1.1): `move_clip`, `trim_clip`, `update_clip`, `update_layer`
   return validated snapshots plus an edit kind computed by diffing; `Evaluator.apply(edit)`.
 - Edit kind **timing** keeps every evaluator cache; morph animations are reused
@@ -172,6 +180,10 @@ All notable changes to this project are documented here. The format follows
     its ease or the curve editor; F frames all keys and the wheel zooms;
   - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
     curve's key (B56: curves stroked as separate segments, 20x faster).
+- Release preparation (P6e.1, ADR 0045): `manim-studio --version` (the version now
+  comes from `pyproject.toml` through the package metadata), `scripts/release_check.py`
+  (builds the wheel, installs it alone in a fresh venv, renders an example from it and
+  opens the editor offscreen from it) and `THIRD-PARTY-NOTICES.md`.
 - Keyboard shortcuts help and layout checks (P6d.2, ADR 0044): **Help > Keyboard
   Shortcuts** (F1) lists every shortcut - read from the window's own menus and panel
   actions, so it never goes stale - and the canvas and timeline gestures, with a search

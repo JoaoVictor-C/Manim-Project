@@ -73,3 +73,4 @@ need one.
 | [0042](0042-deliver-options.md) | Deliver options: size, fps, range, quality, subtitles and a render queue | Accepted |
 | [0043](0043-canvas-interaction.md) | Canvas interaction: handles, guides, several objects | Accepted |
 | [0044](0044-preferences-help-presets-browser.md) | Preferences, help and the presets browser | Accepted |
+| [0045](0045-releases.md) | Releases: a wheel, a release check, nothing published by itself | Accepted |

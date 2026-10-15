@@ -1,0 +1,137 @@
+"""Preferences (P6d.1, ADR 0044): how the editor was left, in one ini file.
+
+The file is ``MANIM_STUDIO_SETTINGS`` or, by default, ``manim-studio.ini`` in the user's
+configuration folder (the registry is never used). It holds the recent files, the
+window's geometry and state, each page's splitter sizes, the view toggles (snap to
+objects, half-resolution playback, render ahead) and the last page shown.
+
+The recent-file rules (``push_recent``, ``existing``) are plain functions over lists of
+paths; ``Preferences`` wraps ``QSettings`` around them. Tests point the environment
+variable at a fresh file each, so windows in tests start at the defaults.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from PySide6.QtCore import QByteArray, QSettings, QStandardPaths
+
+MAX_RECENT = 10
+FILE_NAME = "manim-studio.ini"
+
+
+def _key(path: str | Path) -> str:
+    """Two spellings of one file give one key (case counts only where the system's does)."""
+    return os.path.normcase(str(Path(path).resolve()))
+
+
+def push_recent(items: list[str], path: str | Path, limit: int = MAX_RECENT) -> list[str]:
+    """``items`` with ``path`` first and no earlier copy of it, at most ``limit`` long."""
+    first = str(Path(path).resolve())
+    rest = [item for item in items if _key(item) != _key(first)]
+    return [first, *rest][:limit]
+
+
+def existing(items: list[str]) -> list[str]:
+    """The items that are files that still exist, in order."""
+    return [item for item in items if Path(item).is_file()]
+
+
+def default_path() -> Path:
+    base = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation)
+    return Path(base or Path.home()) / FILE_NAME
+
+
+class Preferences:
+    """Typed access to the settings file; every setter writes it at once."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        if path is None:
+            env = os.environ.get("MANIM_STUDIO_SETTINGS")
+            path = Path(env) if env else default_path()
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._settings = QSettings(str(self.path), QSettings.Format.IniFormat)
+
+    # -- recent files ---------------------------------------------------------------------
+
+    def _recent_raw(self) -> list[str]:
+        count = self._settings.beginReadArray("recent")
+        items = []
+        for i in range(count):
+            self._settings.setArrayIndex(i)
+            items.append(str(self._settings.value("path", "")))
+        self._settings.endArray()
+        return [item for item in items if item]
+
+    def _write_recent(self, items: list[str]) -> None:
+        self._settings.remove("recent")
+        self._settings.beginWriteArray("recent", len(items))
+        for i, item in enumerate(items):
+            self._settings.setArrayIndex(i)
+            self._settings.setValue("path", item)
+        self._settings.endArray()
+        self._settings.sync()
+
+    def recent(self) -> list[Path]:
+        """The recent files, newest first; the ones that no longer exist are left out."""
+        return [Path(item) for item in existing(self._recent_raw())]
+
+    def add_recent(self, path: Path | str) -> None:
+        self._write_recent(push_recent(existing(self._recent_raw()), path))
+
+    def clear_recent(self) -> None:
+        self._write_recent([])
+
+    # -- window and pages -----------------------------------------------------------------
+
+    def window(self) -> tuple[QByteArray | None, QByteArray | None]:
+        """The saved geometry and state, each None if never saved."""
+        return self._bytes("window/geometry"), self._bytes("window/state")
+
+    def save_window(self, geometry: QByteArray, state: QByteArray) -> None:
+        self._settings.setValue("window/geometry", geometry)
+        self._settings.setValue("window/state", state)
+        self._settings.sync()
+
+    def page_sizes(self, name: str) -> list[QByteArray | None]:
+        """A page's splitter states in their order (None: none saved for that splitter)."""
+        self._settings.beginGroup(f"pages/{name}")
+        keys = sorted(int(k) for k in self._settings.childKeys() if k.isdigit())
+        states = [self._bytes(str(k)) for k in keys]
+        self._settings.endGroup()
+        count = (keys[-1] + 1) if keys else 0
+        by_index = dict(zip(keys, states, strict=True))
+        return [by_index.get(i) for i in range(count)]
+
+    def set_page_sizes(self, name: str, states: list[QByteArray | None]) -> None:
+        self._settings.remove(f"pages/{name}")
+        for i, state in enumerate(states):
+            if state is not None:
+                self._settings.setValue(f"pages/{name}/{i}", state)
+        self._settings.sync()
+
+    def last_page(self) -> str | None:
+        value = self._settings.value("last_page", "")
+        return str(value) or None
+
+    def set_last_page(self, name: str) -> None:
+        self._settings.setValue("last_page", name)
+        self._settings.sync()
+
+    # -- view toggles ---------------------------------------------------------------------
+
+    def toggle(self, name: str, default: bool) -> bool:
+        return bool(self._settings.value(f"view/{name}", default, type=bool))
+
+    def set_toggle(self, name: str, value: bool) -> None:
+        self._settings.setValue(f"view/{name}", bool(value))
+        self._settings.sync()
+
+    def _bytes(self, key: str) -> QByteArray | None:
+        value = self._settings.value(key)
+        if value is None:
+            return None
+        data = QByteArray(value) if not isinstance(value, QByteArray) else value
+        return data if not data.isEmpty() else None

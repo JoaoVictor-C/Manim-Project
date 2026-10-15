@@ -78,6 +78,16 @@ def qt_app():
 
 
 @pytest.fixture(autouse=True)
+def _fresh_settings(tmp_path_factory, monkeypatch):
+    """Every test gets its own, empty settings file (ADR 0044): windows start at today's
+    defaults (Compose first, no remembered geometry, no recent files) and never touch the
+    user's real preferences."""
+    monkeypatch.setenv(
+        "MANIM_STUDIO_SETTINGS", str(tmp_path_factory.mktemp("manim-studio-settings") / "manim-studio.ini")
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_unsaved_changes_dialog(request, monkeypatch):
     """Editor windows closed with unsaved edits must not block on a modal question."""
     if "ui" not in request.keywords:
