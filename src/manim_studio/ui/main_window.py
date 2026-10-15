@@ -344,6 +344,11 @@ class MainWindow(QMainWindow):
             action.setShortcuts([QKeySequence(k) for k in keys])
             action.triggered.connect(slot)
             view_menu.addAction(action)
+        fit_timeline = QAction("Fit &Timeline", self)
+        fit_timeline.setShortcut(QKeySequence("Shift+F"))
+        fit_timeline.setToolTip("Zoom the timeline so the whole scene fits its width")
+        fit_timeline.triggered.connect(self.timeline.fit_to_width)
+        view_menu.addAction(fit_timeline)
         self.snap_action = QAction("&Snap to Objects", self, checkable=True, checked=True)
         self.snap_action.setShortcut(QKeySequence("Ctrl+;"))
         self.snap_action.setToolTip(

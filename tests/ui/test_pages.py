@@ -122,3 +122,47 @@ def test_hidden_panels_stay_hidden_on_every_page(window, qt_app) -> None:
     assert not window.properties.isVisible() and window.layers.isVisible()
     toggle.setChecked(True)
     assert window.properties.isVisible()
+
+
+def test_side_widths_scale_with_the_window_within_limits() -> None:
+    from manim_studio.ui.pages.compose import side_widths
+
+    assert side_widths(1300) == (260, 325)  # a fifth and a quarter
+    assert side_widths(600) == (240, 300)  # never narrower
+    assert side_widths(2560) == (280, 340)  # never wider
+
+
+@pytest.mark.parametrize("width", [1024, 1920])
+def test_compose_sizes_its_panels_for_the_window_it_opens_in(qt_app, width) -> None:
+    from manim_studio.ui.pages.compose import side_widths
+
+    win = MainWindow()
+    try:
+        win.resize(width, 800)
+        win.show()
+        qt_app.processEvents()
+        outer = win.pages.pages["compose"].outer
+        layers, centre, properties = outer.sizes()
+        assert (layers, properties) == pytest.approx(side_widths(outer.width()), abs=2)
+        assert centre >= outer.width() - sum(side_widths(outer.width())) - 2 * outer.handleWidth() - 4
+        # the Layers buttons drop their captions when the panel is narrower than they need
+        assert win.layers.compact == (layers < win.layers._full_width)
+    finally:
+        win.close()
+
+
+def test_remembered_compose_sizes_win_over_the_first_layout(qt_app) -> None:
+    win = MainWindow()
+    try:
+        page = win.pages.pages["compose"]
+        page.outer.resize(1400, 600)
+        page.outer.setSizes([400, 600, 400])
+        remembered = page.outer.saveState()
+        page.import_sizes([remembered, None])
+        page.apply_pending()
+        win.resize(1400, 800)
+        win.show()
+        qt_app.processEvents()
+        assert page.outer.sizes()[0] > 300  # not the first-layout 260
+    finally:
+        win.close()

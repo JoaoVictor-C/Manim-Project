@@ -180,6 +180,14 @@ All notable changes to this project are documented here. The format follows
     its ease or the curve editor; F frames all keys and the wheel zooms;
   - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
     curve's key (B56: curves stroked as separate segments, 20x faster).
+- Visual sweep (P6d.4, ADR 0044), from screenshots of every page at 1024x640 and
+  1920x1080: the video frame keeps its border on every side at Fit (a frame as wide as
+  the canvas lost its right or bottom edge); Compose sizes Layers and Properties for the
+  window it opens in (about a fifth and a quarter of it) instead of fixed widths, and the
+  Layers buttons show icons only when the panel is narrower than their captions, so the
+  canvas keeps its room on a small screen; the timeline opens showing the whole scene and
+  **View > Fit Timeline** (Shift+F) zooms back to it; a subtitle added from the row menu
+  starts on a frame at any zoom.
 - Release preparation (P6e.1, ADR 0045): `manim-studio --version` (the version now
   comes from `pyproject.toml` through the package metadata), `scripts/release_check.py`
   (builds the wheel, installs it alone in a fresh venv, renders an example from it and

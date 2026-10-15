@@ -12,7 +12,7 @@ from collections.abc import Callable
 from functools import partial
 
 from pydantic import ValidationError
-from PySide6.QtCore import QPoint, QSignalBlocker, Qt, Signal
+from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -216,7 +216,7 @@ class LayersPanel(QWidget):
         self.part_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.part_button.setToolTip("Animate pieces of an equation as their own layers, or plot on axes")
 
-        buttons = QHBoxLayout()
+        self.buttons = QHBoxLayout()
         for button in (
             self.add_button,
             self.part_button,
@@ -224,16 +224,55 @@ class LayersPanel(QWidget):
             self.up_button,
             self.down_button,
         ):
-            buttons.addWidget(button)
-        buttons.addStretch(1)
+            self.buttons.addWidget(button)
+        self.buttons.addStretch(1)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.addLayout(buttons)
+        layout.addLayout(self.buttons)
         layout.addWidget(self.list, 1)
+        self.labelled = (self.add_button, self.part_button)  # icons only when the panel is narrow (P6d.4)
+        self._full_width = self._row_width()
 
         self.document.changed.connect(lambda *_: self.sync())
         self.document.reset.connect(self._on_reset)
         self.sync()
+
+    # -- narrow panels (P6d.4) --------------------------------------------------------
+
+    def _row_width(self, compact: bool = False) -> int:
+        """The button row's width with its captions shown (or, ``compact``, icons only)."""
+        icon_only = self.delete_button.sizeHint().width()
+        widths = [
+            icon_only if compact and button in self.labelled else button.sizeHint().width()
+            for button in (
+                self.add_button,
+                self.part_button,
+                self.delete_button,
+                self.up_button,
+                self.down_button,
+            )
+        ]
+        margins = self.layout().contentsMargins() if self.layout() else None
+        sides = margins.left() + margins.right() if margins else 8
+        return sum(widths) + self.buttons.spacing() * (len(widths) - 1) + sides
+
+    @property
+    def compact(self) -> bool:
+        return self.add_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(self._row_width(compact=True), super().minimumSizeHint().height())
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        style = (
+            Qt.ToolButtonStyle.ToolButtonIconOnly
+            if self.width() < self._full_width
+            else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        for button in self.labelled:
+            if button.toolButtonStyle() != style:
+                button.setToolButtonStyle(style)
 
     # -- building the widget ------------------------------------------------------
 

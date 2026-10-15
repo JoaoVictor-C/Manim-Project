@@ -117,6 +117,7 @@ def test_subtitles_are_moved_trimmed_and_deleted_on_their_row(qt_app, tmp_path) 
         add = next(a for a in menu.actions() if a.text() == "Add subtitle here")
         add.trigger()
         assert [(c.start, c.end) for c in win.project.subtitles] == [(pytest.approx(0.2), 2.2), (3.0, 4.5)]
+        assert round(win.project.subtitles[0].start * CANVAS.fps, 9).is_integer()  # on a frame, any zoom
         assert isinstance(timeline.cue_items()[0], CueItem)
     finally:
         win.close()

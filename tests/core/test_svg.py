@@ -8,6 +8,7 @@ in the editor and the export alike.
 
 from __future__ import annotations
 
+import os
 import random
 
 import av
@@ -231,7 +232,9 @@ def test_a_follower_takes_the_new_path_when_the_file_changes(svg) -> None:
     track = Layer(id="track", spec=spec(path))
     evaluator = Evaluator(project(track, runner()))
     before = centre(evaluator, 0.25)
-    svg(TRACK.replace("M0 50 L200 50", "M0 10 L200 90"), "track.svg")
+    edited = svg(TRACK.replace("M0 50 L200 50", "M0 10 L200 90"), "track.svg")
+    stat = os.stat(edited)  # same size: make sure the save is not in the same clock tick as the first
+    os.utime(edited, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
     assert evaluator.check_media() == {"track"}
     after = centre(evaluator, 0.25)
     assert not np.allclose(before, after)

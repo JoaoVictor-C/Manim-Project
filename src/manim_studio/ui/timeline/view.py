@@ -72,6 +72,7 @@ from .model import (
     drag_marker,
     drag_move,
     drag_trim,
+    fit_scale,
     key_times,
     obstacles,
     place_new_clip,
@@ -86,6 +87,7 @@ log = get_logger(__name__)
 ROW_HEIGHT = 28
 RULER_HEIGHT = 26
 HEADER_WIDTH = 140
+FIT_MIN_WIDTH = 200  # narrower: not laid out yet, the fit waits
 INDENT_PX = 14  # per level of part layers (ADR 0012)
 EDGE_PX = 6
 CLIP_MARGIN = 4
@@ -366,6 +368,20 @@ class TimelineView(QGraphicsView):
         self._marker_drag = None
         self._drag = None
         self._key_drag = None
+        self._fit_pending = True  # an opened project shows whole (P6d.4)
+        self.fit_to_width()
+        self.sync()
+
+    def fit_to_width(self) -> None:
+        """Zoom so the whole scene fills the visible width (View > Fit Timeline). Before the view
+        has its real width, the fit waits for its first resize."""
+        project = self.project
+        width = self.viewport().width()
+        if project is None or width < FIT_MIN_WIDTH or not self.isVisible():
+            return
+        self._fit_pending = False
+        self.scale = fit_scale(project.canvas.duration, width)
+        self.horizontalScrollBar().setValue(0)
         self.sync()
 
     def set_selected(self, layer_id: str | None, clip_id: str | None, key_time: float | None = None) -> None:
@@ -582,6 +598,13 @@ class TimelineView(QGraphicsView):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.header.setGeometry(0, 0, HEADER_WIDTH, self.height())
+        if getattr(self, "_fit_pending", False):
+            self.fit_to_width()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if getattr(self, "_fit_pending", False):
+            self.fit_to_width()
 
     # -- zoom --------------------------------------------------------------------
 
@@ -801,7 +824,8 @@ class TimelineView(QGraphicsView):
                 menu.addAction("Delete subtitle", lambda: self.delete_subtitle(cue_id))
                 return menu
             t = self.scale.t(self.mapToScene(pos.toPoint()).x())
-            place = subtitles.place_cue(self.project, max(0.0, t))
+            fps = self.project.canvas.fps
+            place = subtitles.place_cue(self.project, max(0.0, round(t * fps) / fps))  # on a frame
             add = menu.addAction("Add subtitle here", lambda: self.add_subtitle(*place))
             add.setEnabled(place is not None)
             return menu

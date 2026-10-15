@@ -52,6 +52,15 @@ class TimeScale:
         return px / self.px_per_second
 
 
+FIT_MARGIN_PX = 24.0  # room after the end of the scene when the timeline fits it
+
+
+def fit_scale(duration: float, width: float) -> TimeScale:
+    """The scale that shows the whole scene, ``duration`` seconds, in ``width`` pixels (P6d.4)."""
+    pps = (width - FIT_MARGIN_PX) / max(duration, 0.1)
+    return TimeScale(px_per_second=min(max(pps, MIN_PX_PER_SECOND), MAX_PX_PER_SECOND))
+
+
 def quantize(t: float, fps: int) -> float:
     """Nearest frame boundary."""
     return round(t * fps) / fps

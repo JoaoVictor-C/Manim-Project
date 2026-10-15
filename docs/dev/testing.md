@@ -189,6 +189,10 @@ presets, a preset a square cannot show, and the dialog being kept between openin
 undo and redo, save a preset and find it marked. `QTest.mouseDClick` alone sends no
 double-click to a list: click first, then double-click. `.cache/p6d3/mutate.py` mutates the
 guards; every non-equivalent mutant is killed.
+The P6d.4 sweep fixes are guarded where they live: the frame border at Fit
+(`ui/test_viewport.py`), Compose's first-layout widths and remembered sizes winning over
+them (`ui/test_pages.py`), the Layers buttons going icon-only (`ui/test_layers_panel.py`)
+and the timeline's fit (`ui/test_timeline_view.py`, `ui/test_timeline_model.py`).
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,
