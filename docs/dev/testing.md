@@ -175,6 +175,10 @@ should be added to it. `ui/test_elided_label.py` covers the eliding label.
 `--version` reports it (run `uv sync` after changing the version). Before a release, run
 `scripts/release_check.py`: it is not part of the suite (it builds and installs the wheel
 in a fresh venv, about 30 s).
+The P6d.4 sweep fixes are guarded where they live: the frame border at Fit
+(`ui/test_viewport.py`), Compose's first-layout widths and remembered sizes winning over
+them (`ui/test_pages.py`), the Layers buttons going icon-only (`ui/test_layers_panel.py`)
+and the timeline's fit (`ui/test_timeline_view.py`, `ui/test_timeline_model.py`).
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

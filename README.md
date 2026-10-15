@@ -224,6 +224,9 @@ Or render from the command line:
 uv run manim-studio render examples/euler.json out/euler.mp4
 ```
 
+The timeline opens showing the whole scene; **View > Fit Timeline** (Shift+F) brings it
+back after zooming (Ctrl+wheel).
+
 Press **F1** (Help > Keyboard Shortcuts) for every shortcut and mouse gesture, with
 a search field.
 
