@@ -244,7 +244,7 @@ def test_cards_have_the_description_as_tooltip_a_thumbnail_and_no_mark_for_built
 
 def test_the_still_is_a_frame_from_the_middle_of_the_run(window) -> None:
     browser = browse(window)
-    frames = preset_thumbs.thumbnails(BY_NAME["Fade in"], pb.theme.THEME.field)
+    frames = preset_thumbs.thumbnails(BY_NAME["Fade in"], pb.thumb_background())
     expected = pb.to_pixmap(frames[preset_thumbs.STILL]).toImage()
     assert shown(browser, "Fade in") == expected
     assert expected != pb.to_pixmap(frames[0]).toImage() != pb.to_pixmap(frames[-1]).toImage()
@@ -253,7 +253,7 @@ def test_the_still_is_a_frame_from_the_middle_of_the_run(window) -> None:
 def test_hovering_a_card_plays_its_frames_and_leaving_puts_the_still_back(window, qt_app) -> None:
     browser = browse(window)
     name = "Slide in from left"
-    frames = [pb.to_pixmap(f).toImage() for f in preset_thumbs.thumbnails(BY_NAME[name], pb.theme.THEME.field)]
+    frames = [pb.to_pixmap(f).toImage() for f in preset_thumbs.thumbnails(BY_NAME[name], pb.thumb_background())]
     still = shown(browser, name)
     assert browser.playing is None and not browser.timer.isActive()
     hover(qt_app, browser, name)
@@ -497,6 +497,52 @@ def test_a_row_deleted_since_the_menu_is_not_a_crash(window, qt_app) -> None:
     assert browser.status.text() == pb.NO_LAYER or "Select a layer" in browser.status.text()
 
 
+def test_the_line_survives_the_row_being_deleted_while_the_dialog_is_open(window) -> None:
+    browser = browse(window, "sq", 2.0)
+    window.document.replace(window.project.model_copy(update={"layers": [window.project.layer("tx")]}))
+    window.selection.set("tx")  # the line is rebuilt: no row to name, so it names the selection
+    assert browser.status.text() == "Applies to Title at the playhead"
+
+
+def test_the_numeric_keypad_enter_applies_too(window, qt_app) -> None:
+    browser = browse(window)
+    window.selection.set("sq")
+    browser.grid.setCurrentItem(browser.item("Indicate"))
+    QApplication.sendEvent(
+        browser.grid,
+        QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Enter, Qt.KeyboardModifier.NoModifier),
+    )
+    assert [c.kind for c in window.project.layer("sq").clips] == ["Indicate"]
+
+
+def test_the_empty_messages_say_why_there_are_no_cards(window) -> None:
+    browser = browse(window)
+    type_in_search(browser, "zzzz")
+    window.selection.set("sq")  # a new line about the target must not replace "No presets match"
+    assert browser.status.text() == "No presets match"
+    window.library.presets.clear()
+    browser.reload()
+    type_in_search(browser, "")
+    assert browser.names() == [] and browser.status.text() == "There are no presets"
+
+
+def test_a_card_without_a_description_has_its_name_as_tooltip(window) -> None:
+    save_a_preset(window, "Plain")
+    browser = browse(window)
+    assert browser.item("Plain").toolTip() == "Plain"
+
+
+def test_frames_become_pixmaps_with_their_colours(qt_app) -> None:
+    import numpy as np
+
+    frame = np.zeros((2, 3, 4), dtype=np.uint8)
+    frame[0, 1] = (0x3B, 0x82, 0xF6, 255)
+    image = pb.to_pixmap(frame).toImage()
+    assert (image.width(), image.height()) == (3, 2)
+    assert image.pixelColor(1, 0).getRgb() == (0x3B, 0x82, 0xF6, 255)
+    assert image.pixelColor(0, 0).getRgb() == (0, 0, 0, 0)
+
+
 # -- the user's own presets -------------------------------------------------------------------------------
 
 
@@ -524,7 +570,7 @@ def test_a_saved_preset_appears_marked_as_the_users_own(window, qt_app) -> None:
     item = browser.item("My grow")
     assert item.data(pb.USER_ROLE) is True and item.data(pb.PRESET_ROLE).name == "My grow"
     assert [browser.item(n).data(pb.USER_ROLE) for n in ("Fade in", "Pop in")] == [False, False]
-    plain = pb.to_pixmap(preset_thumbs.thumbnails(item.data(pb.PRESET_ROLE), pb.theme.THEME.field)[4])
+    plain = pb.to_pixmap(preset_thumbs.thumbnails(item.data(pb.PRESET_ROLE), pb.thumb_background())[4])
     assert shown(browser, "My grow") != plain.toImage()  # the "Yours" badge is on it
     browser.tabs.setCurrentIndex(1)
     assert "My grow" in browser.names()

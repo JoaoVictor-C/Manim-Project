@@ -137,6 +137,8 @@ def test_the_background_is_the_one_given() -> None:
 def test_the_square_is_drawn_in_the_middle_in_its_fill() -> None:
     frame = thumbs.render_thumbnail(preset("Fade in"), BACKGROUND)[-1]
     assert tuple(frame[45, 80][:3]) == (0x3B, 0x82, 0xF6)
+    assert tuple(frame[45, 80 + 14][:3]) == (0x3B, 0x82, 0xF6)  # 3 units wide: about 34 px
+    assert tuple(frame[45, 80 + 24][:3]) == (0x14, 0x14, 0x17)  # and no wider
 
 
 # -- the cache ----------------------------------------------------------------------------------------

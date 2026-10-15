@@ -44,7 +44,7 @@ TABS: tuple[tuple[str, str | None], ...] = (
     ("Motion", "motion"),
 )
 FRAME_MS = 110  # a hovered card shows 9 frames a second: its whole run in about a second
-CARD = QSize(preset_thumbs.WIDTH + 28, preset_thumbs.HEIGHT + 50)
+CARD = QSize(preset_thumbs.WIDTH + 28, preset_thumbs.HEIGHT + 44)
 BADGE_TEXT = "Yours"
 NO_LAYER = "Select a layer to animate first"
 
@@ -53,6 +53,11 @@ NO_LAYER = "Select a layer to animate first"
 def builtin_presets() -> dict[str, library.Preset]:
     """The presets that ship with the editor, by name."""
     return {p.name: p for p in library.load_library([library.BUILTIN_FOLDER]).presets}
+
+
+def thumb_background() -> str:
+    """The colour behind a thumbnail's square: a tile one step above the grid's field."""
+    return theme.THEME.panel
 
 
 def is_user_preset(preset: library.Preset) -> bool:
@@ -273,7 +278,7 @@ class PresetsBrowser(QDialog):
         user = preset.name in self._user
         key = (preset.model_dump_json(), user)
         if key not in self._pixmaps:
-            frames = preset_thumbs.thumbnails(preset, theme.THEME.field)
+            frames = preset_thumbs.thumbnails(preset, thumb_background())
             pixmaps = [to_pixmap(f) for f in frames] or [placeholder()]
             self._pixmaps[key] = [with_badge(p) for p in pixmaps] if user else pixmaps
         return self._pixmaps[key]
@@ -359,7 +364,10 @@ class PresetsBrowser(QDialog):
         if self.grid.count() == 0 and self._presets:
             return  # "No presets match" stays until the search changes
         names = self._layer_names()
-        self.status.setText(target_text(names, self.fixed_time, self.fixed_layer is not None and bool(names)))
+        if self.fixed_layer is not None and not names:  # the row's layer is gone: the selection again
+            self.fixed_layer = self.fixed_time = None
+            names = self._layer_names()
+        self.status.setText(target_text(names, self.fixed_time, self.fixed_layer is not None))
 
     def _on_current(self, *_args) -> None:
         self.apply_button.setEnabled(self.grid.currentItem() is not None)
