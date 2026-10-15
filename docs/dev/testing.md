@@ -13,6 +13,11 @@ and text, so workers never write the same file at once. Tests marked **`slow`**
 start real processes — the build worker, the renderer, the code runner — and
 pay Manim's import (5-8 s here) each time; skip them while iterating.
 
+`conftest.py` points `MANIM_STUDIO_SETTINGS` at a fresh ini file for every test (ADR 0044), so a
+window starts at today's defaults - Compose first, no remembered geometry, no recent files - and
+never reads or writes the developer's own preferences. A test that restarts the editor builds a
+second `MainWindow` on the same file; one that wants a fresh start sets the variable again.
+
 `conftest.py` puts Manim back on the shared cache after every test: CLI tests
 point it at their own folder, and leaving it there made every later LaTeX build
 compile from scratch (that alone cost a minute, B32).
@@ -316,6 +321,18 @@ flagged, each cell edit one undo step that the timeline, evaluator and meter fol
 the status bar, selection both ways (a subtitle row seeks, the timeline's selection does not), the
 buttons, and the meter on known tones; `ui/test_acceptance_p6b4.py` imports two sounds and an `.srt`,
 edits both tables, and undoes everything.
+
+## Preferences (P6d.1)
+
+`ui/test_preferences.py` covers the recent-file rules without Qt (newest first, de-duplicated by
+resolved path, ten at most, missing files dropped), the settings file (the environment variable,
+a round trip of every kind of value, replacing older page sizes) and the real window: open, save-as
+and Open Recent, Clear Recent, a vanished file, the window, view toggles, the last page (only when
+the first project opens), splitter sizes per page (also for a page never shown in the run and for
+sizes changed after the last page switch), the welcome (visible without a project, hidden after
+New/Open/example, its links) and a tooltip on every new action. The offscreen screen is 800 px wide
+and the window's minimum is wider, so geometry is checked by height. `ui/test_acceptance_p6d1.py`
+is the story across three runs: work, quit, start again as left, then a fresh file gives defaults.
 
 ## Property tests
 

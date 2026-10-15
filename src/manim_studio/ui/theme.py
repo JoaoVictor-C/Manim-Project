@@ -315,6 +315,12 @@ QTabBar#pageBar::tab:selected {{ color: {c.text}; border-top-color: {c.accent}; 
 QTabBar#pageBar::tab:hover {{ color: {c.text}; }}
 QLabel[role="section"] {{ color: {c.muted}; font-weight: 600; }}
 QLabel[role="readout"] {{ color: {c.text}; }}
+QLabel[role="title"] {{ color: {c.text}; font-size: 24pt; font-weight: 600; }}
+QLabel[role="hint"] {{ color: {c.muted}; }}
+QPushButton[role="link"] {{
+    background: transparent; border: 0; color: {c.outline}; text-align: left; padding: {s}px;
+}}
+QPushButton[role="link"]:hover {{ text-decoration: underline; }}
 """
 
 

@@ -230,6 +230,13 @@ one undo step; typing alone never runs anything, and unapplied text is kept (and
 switch layers or pages. A render error shows under the editor, and clicking its line number moves
 the cursor to that line.
 
+**Preferences** (P6d.1): Manim Studio remembers how you left it - the recent files (File > Open
+Recent), the window, the size of every panel on every page, the view toggles (snap to objects,
+half-resolution playback, render ahead) and the page you were on, which comes back when you open a
+project. Until a project is open the viewer greets you with New, Open..., Open Example and your
+recent files. Everything lives in one ini file, `manim-studio.ini` in your user configuration
+folder (`MANIM_STUDIO_SETTINGS` moves it); delete it to start fresh.
+
 ## How it works
 
 Manim's `play()` is a loop of `begin()` → `interpolate(alpha)` → `finish()`. Manim

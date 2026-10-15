@@ -62,6 +62,8 @@ src/manim_studio/
     ├── graph_model.py   graph editor rules: curves, ranges, sampling, hits, key drags (pure, P6b.2)
     ├── graph_editor.py  the graph editor widget: keys as curves over time, drags, eases (P6b.2)
     │                    audio.py: sounds and subtitles tables, level meter (ADR 0041, P6b.4)
+    ├── preferences.py   the settings file: recent files, window, splitter sizes, view toggles, last page (ADR 0044)
+    ├── welcome.py       the viewer's first-run panel: New, Open, the example, recent files (ADR 0044)
     ├── icons.py         semantic icon names drawn as Phosphor glyphs via QtAwesome (ADR 0040)
     ├── document.py      current snapshot, QUndoStack, drag previews, `changed` (ADR 0014)
     ├── build_service.py every panel edit: apply now, or after the worker warmed it (ADR 0015)

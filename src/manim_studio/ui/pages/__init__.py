@@ -9,7 +9,8 @@ widget, never without a parent (a parentless widget would become a window).
 A page subclasses ``Page``: ``build()`` makes its widget once, ``place(shared)``
 puts the shared views it uses into its layout every time it is shown, and
 ``on_show`` / ``on_hide`` keep page-specific state. Its splitters' sizes are kept
-while the editor runs. Pages are registered in ``MainWindow.__init__`` before the
+while the editor runs, and between runs in the preferences (P6d.1: ``page_states`` /
+``restore_states``, generic for every page). Pages are registered in ``MainWindow.__init__`` before the
 menus are built, so View > Pages lists them with their Shift+number shortcuts.
 """
 
@@ -48,6 +49,9 @@ class Page:
         self.window = window
         self.widget = self.build()
         self._states: dict[int, QByteArray] = {}
+        # Sizes read from the preferences, applied after the first show (a page that sets its
+        # own first-show sizes in ``on_show`` would otherwise overwrite them).
+        self._pending: list[QByteArray | None] | None = None
 
     def build(self) -> QWidget:
         raise NotImplementedError
@@ -72,6 +76,27 @@ class Page:
                 splitter.restoreState(state)
                 restored = True
         return restored
+
+    def export_sizes(self) -> list[QByteArray | None]:
+        """The splitters' sizes in a stable order, for the preferences (None: never shown, none known).
+
+        The page being shown must ``save_sizes()`` first (``PageHost.page_states`` does)."""
+        if self._pending is not None:  # read at start-up, not yet shown: keep them for next time
+            return list(self._pending)
+        return [self._states.get(id(splitter)) for splitter in self.splitters()]
+
+    def import_sizes(self, states: list[QByteArray | None]) -> None:
+        """Sizes from the preferences, applied by ``apply_pending`` once the page has been shown."""
+        self._pending = list(states) if states else None
+
+    def apply_pending(self) -> None:
+        """Put back the sizes imported from the preferences (a state that no longer fits is skipped)."""
+        pending, self._pending = self._pending, None
+        if pending is None:
+            return
+        for splitter, state in zip(self.splitters(), pending, strict=False):
+            if state is not None:
+                splitter.restoreState(state)  # a state that no longer fits is refused: no change
 
     def on_show(self) -> None:
         """The page became current (after ``place``)."""
@@ -142,7 +167,24 @@ class PageHost(QWidget):
             self.bar.setCurrentIndex(index)
             self.bar.blockSignals(False)
         page.on_show()
+        page.apply_pending()  # after on_show: its first-show sizes must not win over the remembered ones
         self.pageChanged.emit(name)
+
+    def page_states(self) -> dict[str, list[QByteArray | None]]:
+        """Every page's splitter sizes now, for the preferences."""
+        current = self.pages.get(self.current) if self.current else None
+        if current is not None:
+            current.save_sizes()
+        return {name: page.export_sizes() for name, page in self.pages.items()}
+
+    def restore_states(self, states: dict[str, list[QByteArray | None]]) -> None:
+        """Sizes from the preferences: a page gets its own when first shown (the current one now)."""
+        for name, sizes in states.items():
+            if name in self.pages:
+                self.pages[name].import_sizes(sizes)
+        current = self.pages.get(self.current) if self.current else None
+        if current is not None:
+            current.apply_pending()
 
     def set_visible(self, view: QWidget, visible: bool) -> None:
         """Show or hide a shared panel on every page (View > Layers, View > Properties)."""
