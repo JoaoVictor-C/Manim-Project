@@ -211,11 +211,21 @@ until it has been built.
 in the background, with progress and Cancel; an existing video is only
 replaced once the new one is complete.
 
+The **Deliver** page (Shift+5) is the full export: choose the file, a size
+(480p to 2160p at your canvas's proportions, or your own), the frame rate, a range
+(the whole scene, from-to, or between two markers), the quality and what happens to
+subtitles, add it to the queue, and let several exports render one after another
+while you keep editing - each uses the project as it was when you added it. It
+also previews the Python scene (readable code, or an exact scene and why) and saves it.
+
 Or render from the command line:
 
 ```bash
 uv run manim-studio render examples/euler.json out/euler.mp4
 ```
+
+Press **F1** (Help > Keyboard Shortcuts) for every shortcut and mouse gesture, with
+a search field.
 
 ## The look
 

@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -43,7 +42,7 @@ from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
-from . import arrange, icons, snap_guides, theme
+from . import arrange, icons, shortcuts_help, snap_guides, theme
 from .audio_player import make_audio_player
 from .autosave import Autosave
 from .build_service import BuildService
@@ -52,6 +51,7 @@ from .canvas_tools import MoveTool
 from .clipboard_actions import ClipboardActions
 from .code_render import make_code_renderer
 from .document import Document
+from .elided_label import ElidedLabel
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
 from .pages import PageHost, Shared
@@ -59,12 +59,14 @@ from .pages.animate import AnimatePage
 from .pages.audio import AudioPage
 from .pages.code import CodePage
 from .pages.compose import ComposePage
+from .pages.deliver import DeliverPage
 from .plugins_dialog import PluginsDialog, startup_message
 from .preferences import Preferences
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
 from .render_ahead import RenderAhead
 from .selection import Selection
+from .shortcuts_help import ShortcutsDialog
 from .timeline.view import TimelineView
 from .viewport import ZOOM_STEP
 from .welcome import EXAMPLE, WelcomePanel
@@ -115,8 +117,8 @@ class MainWindow(QMainWindow):
         self.slider.valueChanged.connect(self._on_slider)
         self.play_button = QPushButton(icons.icon("play"), "Play")
         self.play_button.clicked.connect(self.toggle_play)
-        self.time_label = QLabel("0.00 s")
-        self.time_label.setMinimumWidth(170)
+        self.time_label = ElidedLabel("0.00 s", minimum=170)  # shortened, not cut, in a narrow window
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         controls = QHBoxLayout()
         controls.addWidget(self.play_button)
@@ -160,7 +162,7 @@ class MainWindow(QMainWindow):
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.
         self.pages = PageHost(Shared(self.viewer, self.timeline, self.layers, self.properties), self)
-        for page in (ComposePage, AnimatePage, CodePage, AudioPage):  # then Deliver (Shift+1..5)
+        for page in (ComposePage, AnimatePage, CodePage, AudioPage, DeliverPage):  # Shift+1..5
             self.pages.add(page(self))
         self.setCentralWidget(self.pages)
         # One selection for every view (ADR 0016): views report, then follow it.
@@ -203,19 +205,35 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
-        for text, shortcut, slot in (
-            ("&New", QKeySequence.StandardKey.New, self.new_project),
-            ("&Open...", QKeySequence.StandardKey.Open, self.open_dialog),
-            ("&Save", QKeySequence.StandardKey.Save, self.save),
-            ("Save &As...", QKeySequence.StandardKey.SaveAs, self.save_as),
-            ("&Export Video...", QKeySequence("Ctrl+E"), self.show_export_dialog),
-            ("Export &Python...", QKeySequence(), self.export_python),
-            ("Import &Audio...", QKeySequence(), self.import_audio),
-            ("Import &Subtitles...", QKeySequence(), self.import_subtitles),
-            ("Export Su&btitles...", QKeySequence(), self.export_subtitles),
+        for text, shortcut, slot, tip in (
+            ("&New", QKeySequence.StandardKey.New, self.new_project, "Start an empty project"),
+            ("&Open...", QKeySequence.StandardKey.Open, self.open_dialog, "Open a project file (.json)"),
+            ("&Save", QKeySequence.StandardKey.Save, self.save, "Save the project to its file"),
+            ("Save &As...", QKeySequence.StandardKey.SaveAs, self.save_as, "Save the project to a new file"),
+            (
+                "&Export Video...",
+                QKeySequence("Ctrl+E"),
+                self.show_export_dialog,
+                "Render the whole video with Manim to an MP4 file",
+            ),
+            ("Export &Python...", QKeySequence(), self.export_python, "Write the scene as a Manim script"),
+            ("Import &Audio...", QKeySequence(), self.import_audio, "Add a sound at the playhead"),
+            (
+                "Import &Subtitles...",
+                QKeySequence(),
+                self.import_subtitles,
+                "Read subtitles from an .srt file",
+            ),
+            (
+                "Export Su&btitles...",
+                QKeySequence(),
+                self.export_subtitles,
+                "Write the subtitles as an .srt file",
+            ),
         ):
             action = QAction(text, self)
             action.setShortcut(shortcut)
+            action.setToolTip(tip)
             action.triggered.connect(slot)
             file_menu.addAction(action)
             if slot == self.open_dialog:  # then the ways to open something else (ADR 0044)
@@ -242,13 +260,19 @@ class MainWindow(QMainWindow):
         add_subtitle.triggered.connect(self.add_subtitle)
         edit_menu.addAction(add_subtitle)
         edit_menu.addSeparator()  # markers (ADR 0037)
-        for text, key, slot in (
-            ("Add &Marker", "M", self.add_marker),
-            ("Previous Marker", "[", lambda: self.jump_to_marker(-1)),
-            ("Next Marker", "]", lambda: self.jump_to_marker(+1)),
+        for text, key, slot, tip in (
+            ("Add &Marker", "M", self.add_marker, "A marker at the playhead, to snap to and jump between"),
+            (
+                "Previous Marker",
+                "[",
+                lambda: self.jump_to_marker(-1),
+                "Move the playhead to the marker before it",
+            ),
+            ("Next Marker", "]", lambda: self.jump_to_marker(+1), "Move the playhead to the marker after it"),
         ):
             action = QAction(text, self)
             action.setShortcut(QKeySequence(key))
+            action.setToolTip(tip)
             action.triggered.connect(slot)
             edit_menu.addAction(action)
         edit_menu.addSeparator()
@@ -279,10 +303,11 @@ class MainWindow(QMainWindow):
             pages_menu.addAction(action)
         for title, panel in (("&Layers", self.layers), ("P&roperties", self.properties)):
             toggle = QAction(title, self, checkable=True, checked=True)
+            toggle.setToolTip(f"Show or hide the {title.replace('&', '')} panel on every page")
             toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
             view_menu.addAction(toggle)
         self.half_action = QAction("Half-resolution playback", self, checkable=True)
-        self.half_action.setToolTip("Draw the canvas at half size while playing, for slow computers")
+        self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
         self.half_action.toggled.connect(self._set_half_resolution)
         view_menu.addAction(self.half_action)
         self.render_ahead_action = QAction("Render Ahead", self, checkable=True, checked=True)
@@ -290,13 +315,24 @@ class MainWindow(QMainWindow):
         self.render_ahead_action.toggled.connect(self._set_render_ahead)
         view_menu.addAction(self.render_ahead_action)
         view_menu.addSeparator()  # the canvas view (ADR 0023)
-        for text, keys, slot in (
-            ("Zoom &In", ("Ctrl+=", "Ctrl++"), lambda: self.canvas.zoom(ZOOM_STEP)),
-            ("Zoom &Out", ("Ctrl+-",), lambda: self.canvas.zoom(1 / ZOOM_STEP)),
-            ("&Fit", ("Ctrl+0",), self.canvas.fit),
-            ("&Actual Size (100 %)", ("Ctrl+1",), self.canvas.actual_size),
+        for text, keys, slot, tip in (
+            ("Zoom &In", ("Ctrl+=", "Ctrl++"), lambda: self.canvas.zoom(ZOOM_STEP), "Zoom in on the canvas"),
+            (
+                "Zoom &Out",
+                ("Ctrl+-",),
+                lambda: self.canvas.zoom(1 / ZOOM_STEP),
+                "Zoom out (Ctrl+wheel zooms about the cursor)",
+            ),
+            ("&Fit", ("Ctrl+0",), self.canvas.fit, "Fit the whole video frame in the canvas"),
+            (
+                "&Actual Size (100 %)",
+                ("Ctrl+1",),
+                self.canvas.actual_size,
+                "One video pixel per screen pixel",
+            ),
         ):
             action = QAction(text, self)
+            action.setToolTip(tip)
             action.setShortcuts([QKeySequence(k) for k in keys])
             action.triggered.connect(slot)
             view_menu.addAction(action)
@@ -337,7 +373,14 @@ class MainWindow(QMainWindow):
         reload_media.triggered.connect(lambda: self.reload_media(report=True))
         view_menu.addAction(reload_media)
         help_menu = self.menuBar().addMenu("&Help")
+        help_menu.setToolTipsVisible(True)
+        shortcuts_action = QAction("&Keyboard Shortcuts...", self)
+        shortcuts_action.setShortcut(QKeySequence("F1"))
+        shortcuts_action.setToolTip("Every shortcut and mouse gesture, searchable (ADR 0044)")
+        shortcuts_action.triggered.connect(self.show_shortcuts)
+        help_menu.addAction(shortcuts_action)
         plugins_action = QAction("&Plugins...", self)
+        plugins_action.setToolTip("Which plugins loaded, the object types they add, and which failed")
         plugins_action.triggered.connect(self.show_plugins)
         help_menu.addAction(plugins_action)
         play = QAction("Play / Pause", self)
@@ -367,6 +410,13 @@ class MainWindow(QMainWindow):
     def show_page(self, name: str) -> None:
         """Show the workspace page ``name`` (compose, animate, code, audio, deliver)."""
         self.pages.show_page(name)
+
+    def show_shortcuts(self) -> ShortcutsDialog:
+        """Help > Keyboard Shortcuts (F1): the window's shortcuts and the gestures (ADR 0044)."""
+        rows = shortcuts_help.keyboard_rows(self.menuBar(), self) + list(shortcuts_help.GESTURES)
+        self.shortcuts_dialog = ShortcutsDialog(rows, self)
+        self.shortcuts_dialog.show()
+        return self.shortcuts_dialog
 
     def show_plugins(self) -> PluginsDialog:
         """Help > Plugins...: what loaded and what failed (ADR 0032)."""
@@ -738,7 +788,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        exporting = self.export_dialog is not None and self.export_dialog.running
+        exporting = (self.export_dialog is not None and self.export_dialog.running) or self.deliver_busy()
         if exporting and self.ask_stop_export() != "stop":
             event.ignore()
             return
@@ -749,7 +799,9 @@ class MainWindow(QMainWindow):
         self.autosave.timer.stop()
         self.autosave.discard()  # saved, or thrown away on purpose (ADR 0038)
         if exporting:
-            self.export_dialog.cancel()
+            if self.export_dialog is not None:
+                self.export_dialog.cancel()
+            self.pages.pages["deliver"].cancel_all()
         if self.export_dialog is not None:
             self.export_dialog.close()
         self.builds.client.stop()
@@ -1120,6 +1172,11 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Export: {text}")
         elif self.statusBar().currentMessage().startswith("Export: "):
             self.statusBar().clearMessage()
+
+    def deliver_busy(self) -> bool:
+        """The Deliver page's queue is rendering (P6b.5)."""
+        deliver = self.pages.pages.get("deliver")
+        return deliver is not None and deliver.busy
 
     def ask_stop_export(self) -> str:
         """An export is running: "stop" it and quit, or "cancel" quitting."""
