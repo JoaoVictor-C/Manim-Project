@@ -62,6 +62,7 @@ initexmf --set-config-value=[MPM]AutoInstall=1
 Environment variables: `MANIM_STUDIO_LOG_DIR` moves the log folder;
 `MANIM_STUDIO_WORKER=0` turns the build worker off (text is then built on the
 UI thread — slower, but handy when debugging the worker, ADR 0015).
+`MANIM_STUDIO_SETTINGS` is the preferences file (recent files, window, panel sizes, view toggles; ADR 0044).
 
 ## Troubleshooting (Windows)
 

@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
+    QStackedLayout,
     QVBoxLayout,
     QWidget,
 )
@@ -60,6 +61,7 @@ from .pages.code import CodePage
 from .pages.compose import ComposePage
 from .pages.deliver import DeliverPage
 from .plugins_dialog import PluginsDialog, startup_message
+from .preferences import Preferences
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
 from .render_ahead import RenderAhead
@@ -67,6 +69,7 @@ from .selection import Selection
 from .shortcuts_help import ShortcutsDialog
 from .timeline.view import TimelineView
 from .viewport import ZOOM_STEP
+from .welcome import EXAMPLE, WelcomePanel
 from .worker_process import make_worker
 
 log = get_logger(__name__)
@@ -80,6 +83,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Manim Studio")
         self.resize(1280, 820)
+        self.prefs = Preferences()  # how the editor was left (ADR 0044)
+        self._page_restored = False  # the last page returns once, when the first project opens
         # The document always exists (so the Edit menu can bind to its undo stack);
         # ``project`` is None until a file is opened.
         self.document = Document(Project(), self)
@@ -119,10 +124,17 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.play_button)
         controls.addWidget(self.slider, 1)
         controls.addWidget(self.time_label)
-        self.viewer = QWidget()  # the canvas with its transport, shown by the pages (ADR 0041)
-        layout = QVBoxLayout(self.viewer)
+        self.stage = QWidget()  # the canvas with its transport
+        layout = QVBoxLayout(self.stage)
         layout.addWidget(self.canvas, 1)
         layout.addLayout(controls)
+        # What the pages show: the stage, or the welcome until a project is open (ADR 0041, 0044).
+        self.viewer = QWidget()
+        self.viewer_stack = QStackedLayout(self.viewer)
+        self.welcome = WelcomePanel()
+        self.viewer_stack.addWidget(self.stage)
+        self.viewer_stack.addWidget(self.welcome)
+        self.viewer_stack.setCurrentWidget(self.welcome)
 
         self.timeline = TimelineView()
         self.timeline.set_document(self.document)
@@ -178,6 +190,8 @@ class MainWindow(QMainWindow):
         self.library = library.load_library()  # presets, themes, templates (ADR 0039)
         self.timeline.preset_menu = self._preset_menu
         self._build_menu()
+        self._wire_welcome()
+        self._restore_preferences()
         app = QApplication.instance()
         if app is not None:  # coming back from another program: files may have changed (ADR 0027)
             app.applicationStateChanged.connect(self._on_application_state)
@@ -222,6 +236,16 @@ class MainWindow(QMainWindow):
             action.setToolTip(tip)
             action.triggered.connect(slot)
             file_menu.addAction(action)
+            if slot == self.open_dialog:  # then the ways to open something else (ADR 0044)
+                self.open_recent_menu = file_menu.addMenu("Open &Recent")
+                self.open_recent_menu.setToolTipsVisible(True)
+                self.open_recent_menu.menuAction().setToolTip("The projects opened or saved lately")
+                self.open_recent_menu.aboutToShow.connect(self._fill_recent_menu)
+                example = QAction("Open Examp&le", self)
+                example.setToolTip("The showcase scene, as an untitled copy you can change freely")
+                example.triggered.connect(self.open_example)
+                file_menu.addAction(example)
+                self.open_example_action = example
         edit_menu = self.menuBar().addMenu("&Edit")
         undo = self.document.undo_stack.createUndoAction(self, "&Undo")
         undo.setShortcut(QKeySequence.StandardKey.Undo)
@@ -282,10 +306,10 @@ class MainWindow(QMainWindow):
             toggle.setToolTip(f"Show or hide the {title.replace('&', '')} panel on every page")
             toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
             view_menu.addAction(toggle)
-        half = QAction("Half-resolution playback", self, checkable=True)
-        half.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
-        half.toggled.connect(self._set_half_resolution)
-        view_menu.addAction(half)
+        self.half_action = QAction("Half-resolution playback", self, checkable=True)
+        self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
+        self.half_action.toggled.connect(self._set_half_resolution)
+        view_menu.addAction(self.half_action)
         self.render_ahead_action = QAction("Render Ahead", self, checkable=True, checked=True)
         self.render_ahead_action.setToolTip("Render frames ahead of the playhead in another process")
         self.render_ahead_action.toggled.connect(self._set_render_ahead)
@@ -425,11 +449,124 @@ class MainWindow(QMainWindow):
             log.exception("could not open %s", path)
             QMessageBox.critical(self, "Could not open project", str(exc))
             return
+        self._remember(path)
         if self._offer_recovery(self.autosave.offered(path)):  # a crash left newer work (ADR 0038)
             return
         log.info("opened %s (%d layers)", path, len(project.layers))
         self.path = path
         self.document.replace(project)
+
+    # -- recent files, the example, the welcome (P6d.1, ADR 0044) -------------------------
+
+    def recent_paths(self) -> list[Path]:
+        """The recent files that still exist, newest first."""
+        return self.prefs.recent()
+
+    def _remember(self, path: Path) -> None:
+        """A file was opened or saved: first in the recent list, in the menu and the welcome."""
+        self.prefs.add_recent(path)
+        self._refresh_recent()
+
+    def _refresh_recent(self) -> None:
+        recent = self.recent_paths()
+        self.open_recent_menu.menuAction().setEnabled(bool(recent))
+        self.welcome.set_recent(recent)
+
+    def _fill_recent_menu(self) -> None:
+        menu = self.open_recent_menu
+        menu.clear()
+        recent = self.recent_paths()
+        for path in recent:
+            action = menu.addAction(path.name, lambda p=path: self.open_recent(p))
+            action.setData(str(path))
+            action.setToolTip(str(path))
+        if not recent:
+            placeholder = menu.addAction("No recent files")
+            placeholder.setEnabled(False)
+            placeholder.setToolTip("Files you open or save appear here")
+        menu.addSeparator()
+        clear = menu.addAction("Clear Recent", self.clear_recent)
+        clear.setEnabled(bool(recent))
+        clear.setToolTip("Forget the list of recent files (the files stay where they are)")
+
+    def clear_recent(self) -> None:
+        self.prefs.clear_recent()
+        self._refresh_recent()
+
+    def open_recent(self, path: Path) -> None:
+        """File > Open Recent, or a link on the welcome: open ``path``, if it is still there."""
+        if not self.confirm_discard():
+            return
+        if not Path(path).is_file():
+            self.statusBar().showMessage(f"{Path(path).name} no longer exists", 8000)
+            self._refresh_recent()
+            return
+        self.load(Path(path))
+
+    def open_example(self) -> None:
+        """File > Open Example: the showcase scene as an untitled copy (Save asks where)."""
+        if not self.confirm_discard():
+            return
+        try:
+            project = Project.model_validate_json(EXAMPLE.read_text(encoding="utf-8"))
+        except Exception as exc:  # a missing or damaged example: say so
+            log.exception("could not open the example %s", EXAMPLE)
+            QMessageBox.critical(self, "Could not open the example", str(exc))
+            return
+        self.path = None
+        self.document.replace(project)
+
+    def _wire_welcome(self) -> None:
+        self.welcome.newRequested.connect(self.new_project)
+        self.welcome.openRequested.connect(self.open_dialog)
+        self.welcome.exampleRequested.connect(self.open_example)
+        self.welcome.recentRequested.connect(self.open_recent)
+        self._refresh_recent()
+
+    # -- preferences (P6d.1, ADR 0044) ----------------------------------------------------
+
+    def _restore_preferences(self) -> None:
+        """Window, view toggles and panel sizes as they were left; then follow the pages."""
+        geometry, state = self.prefs.window()
+        if geometry is not None:
+            self.restoreGeometry(geometry)
+        if state is not None:
+            self.restoreState(state)
+        for name, action, default in self._toggles():
+            action.setChecked(self.prefs.toggle(name, default))
+        self.pages.restore_states({name: self.prefs.page_sizes(name) for name in self.pages.pages})
+        self.pages.pageChanged.connect(self._on_page_changed)
+
+    def _toggles(self) -> tuple[tuple[str, QAction, bool], ...]:
+        """The view toggles that are remembered: name in the file, action, default."""
+        return (
+            ("snap", self.snap_action, True),
+            ("half_resolution", self.half_action, False),
+            ("render_ahead", self.render_ahead_action, True),
+        )
+
+    def _on_page_changed(self, name: str) -> None:
+        self.prefs.set_last_page(name)
+        self._save_page_sizes()
+
+    def _save_page_sizes(self) -> None:
+        for name, sizes in self.pages.page_states().items():
+            self.prefs.set_page_sizes(name, sizes)
+
+    def _save_preferences(self) -> None:
+        self.prefs.save_window(self.saveGeometry(), self.saveState())
+        for name, action, _ in self._toggles():
+            self.prefs.set_toggle(name, action.isChecked())
+        self._save_page_sizes()
+
+    def _restore_last_page(self) -> None:
+        """The first project opened in this run brings back the page the editor was left on."""
+        if self._page_restored:
+            return
+        self._page_restored = True
+        name = self.prefs.last_page()
+        if name in self.pages.pages:
+            self.show_page(name)
 
     # -- crash recovery (ADR 0038) ---------------------------------------------------
 
@@ -494,6 +631,7 @@ class MainWindow(QMainWindow):
     def _on_reset(self, project: Project) -> None:
         """A project was opened: rebuild everything that depends on it."""
         self._has_project = True
+        self.viewer_stack.setCurrentWidget(self.stage)  # the welcome is for an empty start
         self.layers.setEnabled(True)
         self.evaluator = Evaluator(project, self.code.cache)  # frames where the renderer writes them
         self.canvas.set_scene(project.canvas, self.evaluator)
@@ -520,6 +658,7 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(
                     "Code layers were not run: they show a placeholder. Edit their code to run it.", 15000
                 )
+        self._restore_last_page()  # the first project of this run (ADR 0044)
 
     def ask_trust(self, names: list[str]) -> str:
         """``"run"`` or ``"skip"``: may this project's code run on this computer?"""
@@ -656,6 +795,7 @@ class MainWindow(QMainWindow):
         if not self.confirm_discard():
             event.ignore()
             return
+        self._save_preferences()
         self.autosave.timer.stop()
         self.autosave.discard()  # saved, or thrown away on purpose (ADR 0038)
         if exporting:
@@ -1087,6 +1227,7 @@ class MainWindow(QMainWindow):
             self.save_as()
             return
         self.path.write_text(self.project.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+        self._remember(self.path)
         self.document.undo_stack.setClean()
         self._update_title()
         log.info("saved %s", self.path)
