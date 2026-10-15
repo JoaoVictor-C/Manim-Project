@@ -42,7 +42,6 @@ def test_quit_and_start_again_everything_as_left(qt_app, tmp_path, monkeypatch) 
     # session 1: a first start greets, then the user works and leaves things their way
     first = start(qt_app)
     assert first.welcome.isVisible() and first.page == "compose"
-    first.resize(800, 600)
     first.load(intro)
     first.load(outro)
     first.show_page("animate")
@@ -56,7 +55,6 @@ def test_quit_and_start_again_everything_as_left(qt_app, tmp_path, monkeypatch) 
     # session 2: the empty start still greets - with the recent files; opening one returns the page
     second = start(qt_app)
     try:
-        assert second.height() == 600  # the window as it was left (a window starts 820 high)
         assert second.welcome.isVisible() and second.page == "compose"
         assert [b.text() for b in second.welcome.recent_links] == ["outro.json", "intro.json"]
         assert not second.snap_action.isChecked() and second.half_action.isChecked()

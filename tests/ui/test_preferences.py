@@ -415,12 +415,29 @@ def test_the_recent_list_holds_ten(qt_app, tmp_path) -> None:
         win.close()
 
 
-def test_the_window_comes_back_as_it_was_left(qt_app) -> None:
-    win = start(qt_app, 1100, 560)  # the offscreen screen is 800 wide: only the height can come back
+def test_the_window_comes_back_as_it_was_left(qt_app, monkeypatch) -> None:
+    # The offscreen screen (800 x 800) is smaller than the window's minimum, so a restored size
+    # cannot be told from a default one: the test watches what the window is given back.
+    win = start(qt_app)
     win.close()
+    geometry, state = Preferences().window()
+    assert geometry is not None and state is not None
+    given = {}
+
+    def spy(name):
+        original = getattr(MainWindow, name)
+
+        def restore(self, data):
+            given[name] = bytes(data)
+            return original(self, data)
+
+        monkeypatch.setattr(MainWindow, name, restore)
+
+    spy("restoreGeometry")
+    spy("restoreState")
     again = MainWindow()
     try:
-        assert again.height() == 560  # not the 820 a window starts with
+        assert given == {"restoreGeometry": bytes(geometry), "restoreState": bytes(state)}
     finally:
         again.close()
 
@@ -524,6 +541,55 @@ def test_sizes_changed_after_the_last_page_switch_are_saved_on_close(qt_app, tmp
         again.load(path)
         qt_app.processEvents()
         assert abs(again.pages.pages["compose"].outer.sizes()[0] - kept) <= 20 and kept > 400
+    finally:
+        again.close()
+
+
+def test_every_page_keeps_every_splitter_between_runs(qt_app, tmp_path) -> None:
+    """Generic: each page of the host (Deliver included) is saved and restored by the same hook."""
+    path = write_project(tmp_path)
+
+    def page_sizes(win) -> dict[str, list[list[int]]]:
+        out = {}
+        for name in win.pages.pages:
+            win.show_page(name)
+            qt_app.processEvents()
+            out[name] = [s.sizes() for s in win.pages.pages[name].splitters()]
+        return out
+
+    win = start(qt_app, 1400, 900)
+    win.load(path)
+    names = list(win.pages.pages)
+    assert len(names) >= 5 and "deliver" in names
+    for name in names:  # give every splitter of every page a distinctive first size
+        win.show_page(name)
+        qt_app.processEvents()
+        for splitter in win.pages.pages[name].splitters():
+            sizes = splitter.sizes()
+            if len(sizes) >= 2 and sizes[0] > 140:
+                splitter.setSizes([sizes[0] - 60, sizes[1] + 60, *sizes[2:]])
+    left = page_sizes(win)
+    win.show_page("compose")
+    win.close()
+    prefs = Preferences()
+    for name in names:
+        saved = prefs.page_sizes(name)
+        assert saved and all(state is not None for state in saved), name
+        assert len(saved) == len(left[name]), name
+
+    again = start(qt_app, 1400, 900)
+    try:
+        again.load(path)
+        back = page_sizes(again)
+        for name in names:
+            for before, after in zip(left[name], back[name], strict=True):
+                assert [abs(a - b) <= 25 for a, b in zip(before, after, strict=True)] == [True] * len(
+                    before
+                ), (
+                    name,
+                    before,
+                    after,
+                )
     finally:
         again.close()
 
