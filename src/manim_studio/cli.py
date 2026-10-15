@@ -32,6 +32,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="render code layers that are not cached yet (runs the project's Python code; ADR 0019)",
     )
+    render.add_argument("--size", metavar="WxH", help="video size in pixels (default: the project's canvas)")
+    render.add_argument("--fps", type=int, help="frames per second (default: the project's canvas)")
+    render.add_argument("--start", type=float, default=0.0, help="first second to render (default: 0)")
+    render.add_argument("--end", type=float, help="end of the range, in seconds (default: the scene's end)")
+    render.add_argument("--crf", type=int, default=18, help="H.264 quality, 0 best to 51 worst (default: 18)")
+    render.add_argument(
+        "--subtitles",
+        choices=("burn", "srt", "none"),
+        help="burn: drawn in the video and an .srt beside it; srt: only the .srt; none: neither "
+        "(default: as the project)",
+    )
 
     python = sub.add_parser("python", help="write a project.json as a Manim scene file (ADR 0031)")
     python.add_argument("project", type=Path)
@@ -55,7 +66,22 @@ def main(argv: list[str] | None = None) -> int:
         return run([sys.argv[0]] + ([str(args.project)] if args.project else []))
     if args.command == "python":
         return _python(args.project, args.output, args.scene, args.cache_dir)
-    return _render(args.project, args.output, args.cache_dir, args.progress, args.trust_code)
+    from .render.options import OptionsError, RenderOptions, parse_size
+
+    try:
+        size = parse_size(args.size) if args.size else (None, None)
+        options = RenderOptions(
+            width=size[0],
+            height=size[1],
+            fps=args.fps,
+            start=args.start,
+            end=args.end,
+            crf=args.crf,
+            subtitles=args.subtitles,
+        )
+    except OptionsError as exc:
+        return _fail(str(exc))
+    return _render(args.project, args.output, args.cache_dir, args.progress, args.trust_code, options)
 
 
 def _render(
@@ -64,10 +90,14 @@ def _render(
     cache_dir: Path | None = None,
     mode: str = "text",
     trust_code: bool = False,
+    options=None,
 ) -> int:
     from .core import adapter
     from .core.schema import Project
     from .render.cairo_export import export_video
+    from .render.options import OptionsError, RenderOptions, apply_options, frame_window
+
+    options = options or RenderOptions()
 
     try:
         project = Project.model_validate_json(project_path.read_text(encoding="utf-8"))
@@ -84,9 +114,14 @@ def _render(
             print(f"\rframe {done}/{total}", end="", flush=True)
 
     start = time.perf_counter()
-    warnings = _render_code_layers(project, trust_code, mode)
     try:
-        result = export_video(project, output, progress)
+        sized = apply_options(project, options)
+        frame_window(sized.canvas, options)  # a bad range is refused before any code runs
+    except OptionsError as exc:
+        return _fail(str(exc))
+    warnings = _render_code_layers(sized, trust_code, mode)  # at the size being exported (ADR 0042)
+    try:
+        result = export_video(project, output, progress, options=options)
     except OSError as exc:
         return _fail(f"cannot write {output}: {exc.strerror or exc}")
     warnings += [result.warning] if result.warning else []

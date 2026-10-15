@@ -159,6 +159,13 @@ Shift+click, the marquee, Ctrl+click in Layers, group drags and nudges (keyed la
 a part with its object moved once, corners not grabbed), Delete, the clipboard, presets,
 themes and Arrange; `ui/test_acceptance_p6c.py` does all of it on three objects, one undo
 step each.
+`ui/test_shortcuts_help.py` covers the shortcut rows (menu paths, panel actions once,
+the search) and F1; `ui/test_layout_checks.py` runs the layout checks over every page
+and the dialogs at 1024x640 - menu items with tooltips (`SELF_EXPLANATORY` and
+`DATA_MENUS` are the allowlists), nothing below its minimum size hint (`SQUEEZABLE`), no
+clipped non-wrapping label (eliding labels are skipped) - and checks that the checks
+catch a cramped label, a squeezed button and a bare menu item. A new page or dialog
+should be added to it. `ui/test_elided_label.py` covers the eliding label.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,
@@ -286,6 +293,17 @@ Editor windows in tests build synchronously: `conftest.py` sets
 `ui/test_worker_process.py` (lifecycle rules with tiny stand-in programs, then
 one shared real worker) and its effect on edits in `ui/test_build_service.py`
 with a deterministic fake.
+
+`render/test_options.py` covers the render options: even sizes and presets at several aspect
+ratios, the frame window (rounding, clamping, empty ranges), the sound and `.srt` cut to it,
+real exports (frames equal the evaluator's at `(a + k) / fps`, size, fps, crf, subtitle modes,
+a sound at a known time landing 0.3 s earlier in a range from 0.3 s) and the command line with
+its bad options; `ui/test_render_queue.py` the queue's state machine without Qt;
+`ui/test_deliver_page.py` the Deliver page through the main window with a fake `ExportJob`
+(settings, markers, snapshot-at-add, the queue's buttons, closing while it renders, the Python
+preview and Save as); `ui/test_acceptance_p6b5.py` queues two exports with different sizes and
+ranges, edits the project while they render, runs them through the real export process, checks
+frames, size, `.srt` and burned-in subtitles of both, and saves the Python scene.
 
 ## Markers
 

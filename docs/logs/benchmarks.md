@@ -595,6 +595,17 @@ an edit **0.7-1.3 ms**; a cell edit end to end (`setData` -> undo step -> evalua
 **36-56 ms**, almost all of it the evaluator and canvas of the 300 s project. -> ADR 0041, plan
 [p6b4-audio](../plans/p6b4-audio.md).
 
+### B59 — The Deliver page · 2026-10-12
+`benchmarks/bench_deliver.py` with the showcase project at 1400x860, warm. `to_python`
+of the showcase (an exact scene, 11 reasons, 15.6 k characters) takes **0.5 ms**, of a small
+readable project **0.1 ms**, so the Python preview is recomputed 0.4 s after the last edit
+without a worker. The first `show_page("deliver")` (which builds the preview) takes
+**19 ms**, again **12 ms**; `add_to_queue` (a reference, the options, one row) **0.2 ms**.
+Exporting a 1.5 s range of the showcase (45 frames) in the exporter: 480p (854x480)
+**0.92 s** (21 ms/frame), 720p **1.44 s** (32 ms/frame), 1080p **2.15 s** (48 ms/frame),
+so a draft size is about twice as cheap as 1080p. (A first run, with a cold disk cache, was
+47 ms for the first show and 1.0 ms for the showcase's `to_python`.) -> ADR 0042.
+
 ### B60 — Canvas interaction · 2026-10-12
 `benchmarks/bench_handles.py` at 960x540 (B56-B59 belong to the page slices). A
 parameter handle drag edits the spec on every mouse move - the edit, the evaluator's

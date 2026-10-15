@@ -25,6 +25,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_design.py` | icon fonts and an application stylesheet: load and apply times — B54 |
 | `bench_graph_editor.py` | the Animate page's graph: sampling, repaints, drag steps with up to 1000 keys — B56 |
 | `bench_pages.py` | moving the shared views between pages, docks, a second canvas — B55 |
+| `bench_deliver.py` | Deliver page: Python preview, queueing, a range exported at 480p/720p/1080p — B59 |
 | `bench_code_editor.py` | the Code page's editor on 2000 lines: lexer, highlighting, a typed character, the dirty check, page switch — B57 |
 | `bench_audio_page.py` | the level meter (whole mix vs a 100 ms window), table refresh, a cell edit end to end — B58 |
 | `bench_handles.py` | parameter handle drags, snap points, moving many objects — B60 |

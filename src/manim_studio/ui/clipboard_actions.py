@@ -56,6 +56,9 @@ class ClipboardActions(QObject):
             action.triggered.connect(slot)
             self.actions[name] = action
         self.actions["duplicate"].setToolTip("A copy of the selection next to it (the clipboard is kept)")
+        self.actions["cut"].setToolTip("Copy the selection and delete it")
+        self.actions["copy"].setToolTip("Copy the selected layers, clip, sound or subtitle")
+        self.actions["paste"].setToolTip("Paste layers above the selection, a clip at the playhead")
 
     def add_to(self, menu: QMenu) -> None:
         menu.addActions(list(self.actions.values()))

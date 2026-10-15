@@ -4,8 +4,9 @@
 ``<cache_dir>/exports/<uuid>.json`` and runs ``python -m manim_studio render``
 with ``--cache-dir`` and ``--progress json`` in a ``QProcess``. It reports
 ``progress(frame, total)``, then ``finished(path, warning)`` or
-``failed(message)``. ``cancel()`` kills the process and removes the partial
-video; the snapshot file is always removed when the job ends.
+``failed(message)``. ``options`` (size, fps, range, quality, subtitles) become flags of that
+command (ADR 0042). ``cancel()`` kills the process and removes the partial video; the
+snapshot file is always removed when the job ends.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 from ..core.schema import Project
 from ..logging_config import get_logger
 from ..render.cairo_export import partial_path
+from ..render.options import RenderOptions
 
 log = get_logger(__name__)
 
@@ -40,11 +42,13 @@ class ExportJob(QObject):
         *,
         program: str = sys.executable,
         trust_code: bool = False,
+        options: RenderOptions | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self.trust_code = trust_code  # run code layers missing from the cache (ADR 0019)
         self.project, self.output, self.cache_dir = project, Path(output), Path(cache_dir)
+        self.options = options or RenderOptions()  # size, fps, range, quality, subtitles (ADR 0042)
         self._program = program
         self._snapshot: Path | None = None
         self._process: QProcess | None = None
@@ -77,6 +81,7 @@ class ExportJob(QObject):
                 "--progress",
                 "json",
                 *(["--trust-code"] if self.trust_code else []),
+                *self.options.to_args(),
             ]
         )
         process.setWorkingDirectory(os.getcwd())  # relative image paths resolve as in the editor
