@@ -621,3 +621,12 @@ Cairo. First frame (clip activation included) **0.5 ms** median, 3.1 ms worst; t
 frames **0.1 ms**; a whole thumbnail **1.7 ms** median, 6.0 ms worst; all 32 in **62 ms**.
 A probe confirmed the frames are drawn (about 1300 lit pixels mid-entrance). Thumbnails
 can be rendered eagerly when the browser opens. -> ADR 0044.
+
+### B62 — The release check · 2026-10-15
+`scripts/release_check.py` on the tree at 0.1.0 (warm uv cache). `uv build`: **0.3 s**; every
+one of the 124 files under `src/` (the 43 library JSON items too) is in the wheel. A fresh
+Python 3.13 venv at the system temp folder's ASCII (8.3) path: **0.1 s**; installing the wheel
+**3.6 s**; `--version` **0.7 s**; rendering `examples/euler.json` from the installed package
+(210 frames, MiKTeX) **14.8 s**, all 210 frames in the file; the editor opened offscreen from
+the installed package with five pages, 32 presets, 5 themes and 6 templates **10.4 s**. Whole
+check about **31 s**. -> ADR 0045.

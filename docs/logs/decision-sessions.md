@@ -793,3 +793,20 @@ left open, so ADRs can cite it.
   P6d.2 so later slices are born guarded; the last page is restored when a project opens,
   not at an empty start; the presets browser does not depend on the Deliver page and
   starts at once; the clipping check needs an allowlist.
+
+## Session 41 — P6e release preparation · 2026-10-15
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.91**.
+- **Input:** pyproject (0.1.0, uv_build), the CLI, the run-time data files, the machine's
+  path quirks (non-ASCII repository and profile paths); probes measured before each synthesis.
+- **Decisions:** 0.2.0 proposed; a wheel and sdist with `uv tool install` as the install path,
+  no standalone bundle; `--version` from the package metadata; a release-check script with a
+  clean venv; third-party notices; the version, a tag, a push and any publication wait for
+  the user (-> ADR 0045). Plan: [../plans/p6e-release.md](../plans/p6e-release.md).
+- **Measured during the session:** the wheel holds every file under `src/` (package data is
+  not a risk); a venv at the temp folder's 8.3 path installs the wheel and renders euler.json
+  (210 frames, 30 s); the CLI had no `--version`.
+- **Critiques that changed the plan:** the changelog heading stays undated until the user
+  tags; the check redirects every user folder so it never touches real settings; release
+  notes are written after P6d so they are written once.
