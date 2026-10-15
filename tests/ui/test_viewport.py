@@ -186,3 +186,32 @@ def _mouse(kind, pos: QPointF, button):
 
     buttons = Qt.MouseButton.NoButton if kind == QEvent.Type.MouseButtonRelease else button
     return QMouseEvent(kind, pos, pos, button, buttons, Qt.KeyboardModifier.NoModifier)
+
+
+@pytest.mark.parametrize("size", [(400, 400), (700, 200)])
+def test_the_frame_border_shows_on_every_side_at_fit(window, qt_app, size) -> None:
+    """P6d.4: a frame as wide (or tall) as the canvas still shows its border at the edges."""
+    from manim_studio.ui.canvas import FRAME_BORDER
+
+    canvas = window.canvas
+    canvas.setFixedSize(*size)
+    window.canvas.fit()
+    qt_app.processEvents()
+    image = canvas.grab().toImage()
+    border = FRAME_BORDER.rgb() & 0xFFFFFF
+    frame = canvas.frame_rect().toAlignedRect().intersected(canvas.rect())
+    middle_x, middle_y = frame.center().x(), frame.center().y()
+    edges = {
+        "left": (frame.left(), middle_y),
+        "right": (frame.right(), middle_y),
+        "top": (middle_x, frame.top()),
+        "bottom": (middle_x, frame.bottom()),
+    }
+    for side, (x, y) in edges.items():
+        near = [
+            image.pixel(x + dx, y + dy) & 0xFFFFFF
+            for dx in (-1, 0, 1)
+            for dy in (-1, 0, 1)
+            if 0 <= x + dx < image.width() and 0 <= y + dy < image.height()
+        ]
+        assert border in near, side

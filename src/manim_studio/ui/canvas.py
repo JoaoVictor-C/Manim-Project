@@ -394,7 +394,9 @@ class CanvasWidget(QWidget):
         pen.setCosmetic(True)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(frame)
+        # Half a pixel inside, so a frame exactly as wide or tall as the widget (Fit) keeps
+        # its border on the far edges too: a 1 px line at x = width lies outside (P6d.4).
+        painter.drawRect(frame.adjusted(0.5, 0.5, -0.5, -0.5))
 
     def _paint_motion(self, painter: QPainter) -> None:
         """The motion path: dashed through the keys, a square per key, its tangent handles."""
