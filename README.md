@@ -176,7 +176,11 @@ opacity, each in its own colour, which the legend switches on and off.
 playhead. **View > Themes** recolours the selection, or the whole scene when
 nothing is selected. **Add > Templates** inserts a title card, lower third,
 callout and more. Save your own with *Save Animation as Preset* and *Save Object
-as Template*.
+as Template*. **Animate > Browse Presets...** (Ctrl+Shift+P, or *Browse presets...* in
+a timeline row's menu) shows every preset as a card that plays its animation on a
+square while the pointer is over it; filter by category tab or search, then
+double-click a card to put it on the selected layers (one undo step) and go on
+trying others.
 
 **Copy, paste and recovery**: **Edit > Duplicate** (Ctrl+D) copies the selected
 layer, clip, sound or subtitle right next to it; **Cut / Copy / Paste** (Ctrl+X /

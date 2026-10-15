@@ -621,3 +621,11 @@ Cairo. First frame (clip activation included) **0.5 ms** median, 3.1 ms worst; t
 frames **0.1 ms**; a whole thumbnail **1.7 ms** median, 6.0 ms worst; all 32 in **62 ms**.
 A probe confirmed the frames are drawn (about 1300 lit pixels mid-entrance). Thumbnails
 can be rendered eagerly when the browser opens. -> ADR 0044.
+
+### B62 — Presets browser · 2026-10-15
+`benchmarks/bench_presets_browser.py` (offscreen, the 32 built-in presets): the first
+*Browse Presets...* - the dialog built and shown with every thumbnail drawn - takes
+**101 ms**; showing it again **1.4 ms** (the frames are kept); a search keystroke (the cards
+rebuilt) **1.3 ms** median, 3.2 ms worst; a tab switch **1.0 ms**; one frame of a hovered
+card **0.14 ms**. Drawing everything when the dialog opens is cheap enough that no
+background thread is needed. -> ADR 0044.

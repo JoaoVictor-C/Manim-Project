@@ -60,7 +60,11 @@ def test_filter_by_category_and_by_every_word_in_the_name_or_description() -> No
 
 def test_the_filter_keeps_the_order_of_each_category() -> None:
     first, second = make("Zeta"), make("Alpha")
-    assert pb.filter_presets([first, make("Mid", "exit"), second], None, "") == [first, second, make("Mid", "exit")]
+    assert pb.filter_presets([first, make("Mid", "exit"), second], None, "") == [
+        first,
+        second,
+        make("Mid", "exit"),
+    ]
 
 
 def test_the_target_line_says_what_apply_will_do() -> None:
@@ -76,6 +80,11 @@ def test_a_preset_is_the_users_unless_it_is_the_built_in_of_its_name() -> None:
     assert pb.is_user_preset(make("Mine"))
     changed = BY_NAME["Fade in"].model_copy(update={"description": "Changed"})
     assert pb.is_user_preset(changed)  # a user's file of a built-in's name
+
+
+def test_a_thumbnail_tile_stands_out_from_the_grid_behind_it() -> None:
+    assert pb.thumb_background() != pb.theme.THEME.field
+    assert pb.theme.contrast(pb.thumb_background(), pb.theme.THEME.field) > 1.1
 
 
 def test_badge_and_icons_keep_the_thumbnail_size_and_mark_only_the_copy(qt_app) -> None:
@@ -213,9 +222,7 @@ def test_search_matches_names_and_descriptions_and_combines_with_the_tab(window)
     browser = browse(window)
     type_in_search(browser, "fade")
     assert set(browser.names()) >= {"Fade in", "Fade out"}
-    assert all(
-        "fade" in f"{p.name} {p.description}".lower() for p in (BY_NAME[n] for n in browser.names())
-    )
+    assert all("fade" in f"{p.name} {p.description}".lower() for p in (BY_NAME[n] for n in browser.names()))
     browser.tabs.setCurrentIndex(3)  # Exit
     assert "Fade out" in browser.names() and "Fade in" not in browser.names()
     browser.tabs.setCurrentIndex(0)
@@ -253,7 +260,9 @@ def test_the_still_is_a_frame_from_the_middle_of_the_run(window) -> None:
 def test_hovering_a_card_plays_its_frames_and_leaving_puts_the_still_back(window, qt_app) -> None:
     browser = browse(window)
     name = "Slide in from left"
-    frames = [pb.to_pixmap(f).toImage() for f in preset_thumbs.thumbnails(BY_NAME[name], pb.thumb_background())]
+    frames = [
+        pb.to_pixmap(f).toImage() for f in preset_thumbs.thumbnails(BY_NAME[name], pb.thumb_background())
+    ]
     still = shown(browser, name)
     assert browser.playing is None and not browser.timer.isActive()
     hover(qt_app, browser, name)
@@ -458,7 +467,7 @@ def test_the_timeline_row_menu_has_a_browse_item_next_to_apply_preset(window) ->
     titles = [a.text() for a in menu.actions()]
     assert titles.index("Browse presets...") == titles.index("Apply preset") + 1
     action = menu_action(menu, "Browse presets...")
-    assert action.toolTip() and menu.toolTipsVisible()
+    assert "preview" in action.toolTip() and menu.toolTipsVisible()
 
 
 def test_from_a_row_the_preset_goes_to_that_layer_at_that_time_only(window, qt_app) -> None:

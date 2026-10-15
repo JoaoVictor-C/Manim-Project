@@ -22,7 +22,12 @@ def only_keys(dt: float = 0.2) -> library.Preset:
     return library.Preset(
         name="Nudge",
         category="motion",
-        keys={"position": [library.PresetKey(dt=0.0, value=(0.0, 0.0)), library.PresetKey(dt=dt, value=(1.0, 0.0))]},
+        keys={
+            "position": [
+                library.PresetKey(dt=0.0, value=(0.0, 0.0)),
+                library.PresetKey(dt=dt, value=(1.0, 0.0)),
+            ]
+        },
     )
 
 

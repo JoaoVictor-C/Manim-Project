@@ -180,6 +180,18 @@ All notable changes to this project are documented here. The format follows
   minimum size, no label cut off. They found the transport readout cut off on narrow
   windows: it now shortens with "..." (`ui/elided_label.py`) and shows the whole line as
   a tooltip.
+- Presets browser (P6d.3, ADR 0044): **Animate > Browse Presets...** (Ctrl+Shift+P) and
+  **Browse presets...** in a timeline row's menu open a dialog with a card for every preset:
+  category tabs (All, Entrance, Emphasis, Exit, Motion), a search over names and
+  descriptions, and a thumbnail that is the preset really drawn on a square (the in-process
+  evaluator and Cairo, 160x90, eight frames; all of them when the dialog first opens,
+  about 0.1 s, kept per preset). A card shows a still from the middle of the run and plays
+  the whole run while the pointer is over it. A double-click, Enter or *Apply* puts the
+  preset on every selected layer at the playhead - or on the clicked row at the clicked
+  time - as one undo step, whole or refused; the refusal is on the dialog's status line
+  and in the status bar, and the dialog stays open for the next try. Presets of your own
+  carry a "Yours" mark and appear as soon as they are saved. New `render/preset_thumbs.py`
+  (Qt-free: which frames, the project, the cache) and `ui/presets_browser.py`.
 - Several selected objects (P6c.2, ADR 0043): Shift+click on the canvas adds or takes
   out an object, a drag from empty canvas draws a selection rectangle (Shift: adding),
   and Ctrl/Shift+click in Layers selects several. Dragging any of them moves them all
