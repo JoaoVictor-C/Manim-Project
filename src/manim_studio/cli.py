@@ -15,9 +15,23 @@ from .logging_config import get_logger, setup_logging
 log = get_logger(__name__)
 
 
+def version_text() -> str:
+    """``manim-studio --version``: this package's version and the Manim it is pinned to (P6e)."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    from . import __version__
+
+    try:
+        manim = version("manim")
+    except PackageNotFoundError:  # pragma: no cover - manim is a hard dependency
+        manim = "missing"
+    return f"manim-studio {__version__} (Manim {manim}, Python {sys.version.split()[0]})"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="manim-studio")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="-v info, -vv debug")
+    parser.add_argument("--version", action="version", version=version_text())
     sub = parser.add_subparsers(dest="command", required=True)
 
     render = sub.add_parser("render", help="render a project.json to a video")

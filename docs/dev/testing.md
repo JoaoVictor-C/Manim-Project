@@ -166,6 +166,10 @@ and the dialogs at 1024x640 - menu items with tooltips (`SELF_EXPLANATORY` and
 clipped non-wrapping label (eliding labels are skipped) - and checks that the checks
 catch a cramped label, a squeezed button and a bare menu item. A new page or dialog
 should be added to it. `ui/test_elided_label.py` covers the eliding label.
+`test_version.py` checks that the package's version is `pyproject.toml`'s and that
+`--version` reports it (run `uv sync` after changing the version). Before a release, run
+`scripts/release_check.py`: it is not part of the suite (it builds and installs the wheel
+in a fresh venv, about 30 s).
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

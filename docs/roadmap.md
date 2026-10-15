@@ -76,5 +76,5 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 - ✅ **P6b** — [plan](plans/p6b-pages.md): workspace pages like DaVinci Resolve's: Compose, Animate, Code, Audio, Deliver
 - ✅ **P6c** — [plan](plans/p6c-canvas.md): canvas interaction: more on-canvas handles, snapping guides, multi-select with align/distribute
 - **P6d** — [plan](plans/p6d-polish.md): presets browser, preferences, recent files, shortcuts help, onboarding, visual-bug sweep
-- **P6e** — release preparation
+- **P6e** — [plan](plans/p6e-release.md): release preparation
 

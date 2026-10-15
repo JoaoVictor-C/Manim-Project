@@ -172,6 +172,10 @@ All notable changes to this project are documented here. The format follows
     its ease or the curve editor; F frames all keys and the wheel zooms;
   - `edits.retime_keys` and `edits.remove_keys` take `props` to move or delete one
     curve's key (B56: curves stroked as separate segments, 20x faster).
+- Release preparation (P6e.1, ADR 0045): `manim-studio --version` (the version now
+  comes from `pyproject.toml` through the package metadata), `scripts/release_check.py`
+  (builds the wheel, installs it alone in a fresh venv, renders an example from it and
+  opens the editor offscreen from it) and `THIRD-PARTY-NOTICES.md`.
 - Keyboard shortcuts help and layout checks (P6d.2, ADR 0044): **Help > Keyboard
   Shortcuts** (F1) lists every shortcut - read from the window's own menus and panel
   actions, so it never goes stale - and the canvas and timeline gestures, with a search
