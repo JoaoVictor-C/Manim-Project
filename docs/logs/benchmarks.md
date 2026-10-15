@@ -630,3 +630,11 @@ Python 3.13 venv at the system temp folder's ASCII (8.3) path: **0.1 s**; instal
 (210 frames, MiKTeX) **14.8 s**, all 210 frames in the file; the editor opened offscreen from
 the installed package with five pages, 32 presets, 5 themes and 6 templates **10.4 s**. Whole
 check about **31 s**. -> ADR 0045.
+
+### B63 — Presets browser · 2026-10-15
+`benchmarks/bench_presets_browser.py` (offscreen, the 32 built-in presets): the first
+*Browse Presets...* - the dialog built and shown with every thumbnail drawn - takes
+**101 ms**; showing it again **1.4 ms** (the frames are kept); a search keystroke (the cards
+rebuilt) **1.3 ms** median, 3.2 ms worst; a tab switch **1.0 ms**; one frame of a hovered
+card **0.14 ms**. Drawing everything when the dialog opens is cheap enough that no
+background thread is needed. -> ADR 0044.

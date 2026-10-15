@@ -30,6 +30,7 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_audio_page.py` | the level meter (whole mix vs a 100 ms window), table refresh, a cell edit end to end — B58 |
 | `bench_handles.py` | parameter handle drags, snap points, moving many objects — B60 |
 | `bench_preset_thumbs.py` | every built-in preset drawn as an 8-frame thumbnail at 160x90 — B61 |
+| `bench_presets_browser.py` | the presets browser: first open, reopen, a search keystroke, a tab switch, a hover frame — B63 |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |
 | `bench_render_ahead.py` | preview frame cost at widget size, keeping frames (raw, zlib), showing them again — B41 |

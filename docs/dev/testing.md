@@ -175,6 +175,20 @@ should be added to it. `ui/test_elided_label.py` covers the eliding label.
 `--version` reports it (run `uv sync` after changing the version). Before a release, run
 `scripts/release_check.py`: it is not part of the suite (it builds and installs the wheel
 in a fresh venv, about 30 s).
+The presets browser (P6d.3) has three test files. `render/test_preset_thumbs.py` tests the
+Qt-free helper: the run's length and the eight frame times, the small project a preset is
+drawn from, every built-in preset's frames (eight, 160x90, moving, never blank), entrances
+growing from nothing and exits going to it, the colours and the square's size, and the cache
+(drawn once, keyed by content and background). `ui/test_presets_browser.py` tests the filter,
+the target line and the badge, then the dialog through the real `MainWindow`: tabs, search,
+tooltips, the still, hover playing frame by frame with real mouse events, applying (button,
+double-click, Enter, one undo step, two selected layers, whole-or-refused, refusals on the
+status line), the timeline row's menu (that layer and time only), saved and overriding user
+presets, a preset a square cannot show, and the dialog being kept between openings.
+`ui/test_acceptance_p6d3.py` runs the whole story: browse, search, hover, apply to two layers,
+undo and redo, save a preset and find it marked. `QTest.mouseDClick` alone sends no
+double-click to a list: click first, then double-click. `.cache/p6d3/mutate.py` mutates the
+guards; every non-equivalent mutant is killed.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,

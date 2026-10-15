@@ -62,6 +62,7 @@ from .pages.compose import ComposePage
 from .pages.deliver import DeliverPage
 from .plugins_dialog import PluginsDialog, startup_message
 from .preferences import Preferences
+from .presets_browser import PresetsBrowser
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
 from .render_ahead import RenderAhead
@@ -189,6 +190,8 @@ class MainWindow(QMainWindow):
 
         self.library = library.load_library()  # presets, themes, templates (ADR 0039)
         self.timeline.preset_menu = self._preset_menu
+        self.timeline.browse_presets = self.show_presets_browser
+        self.presets_browser: PresetsBrowser | None = None  # made on the first Browse Presets
         self._build_menu()
         self._wire_welcome()
         self._restore_preferences()
@@ -284,6 +287,11 @@ class MainWindow(QMainWindow):
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
+        browse_presets = QAction("&Browse Presets...", self)  # moving previews (P6d.3, ADR 0044)
+        browse_presets.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        browse_presets.setToolTip("Pick a preset by its moving preview and apply it to the selected layers")
+        browse_presets.triggered.connect(lambda: self.show_presets_browser())
+        animate_menu.addAction(browse_presets)
         save_preset = QAction("Save Animation as Preset...", self)
         save_preset.setToolTip("The selected layer's clips and keys, as a preset of your own")
         save_preset.triggered.connect(self.save_preset)
@@ -899,6 +907,18 @@ class MainWindow(QMainWindow):
                 action.setToolTip(preset.description)
             sub.setEnabled(bool(sub.actions()))
 
+    def show_presets_browser(self, layer_id: str | None = None, t: float | None = None) -> PresetsBrowser:
+        """Animate > Browse Presets...: the presets as moving previews. From a timeline row
+        (``layer_id`` and ``t``) it applies to that layer at that time, else to the selected
+        layers at the playhead. One non-modal dialog, kept between openings."""
+        if self.presets_browser is None:
+            self.presets_browser = PresetsBrowser(self)
+        self.presets_browser.set_target(layer_id, t)
+        self.presets_browser.show()
+        self.presets_browser.raise_()
+        self.presets_browser.activateWindow()
+        return self.presets_browser
+
     def apply_preset(
         self, preset: library.Preset, layer_id: str | None = None, t: float | None = None
     ) -> bool:
@@ -940,6 +960,8 @@ class MainWindow(QMainWindow):
         path = library.save_item(preset)
         self.library.add(preset)
         self._preset_menu(self.apply_preset_menu, None, None)
+        if self.presets_browser is not None:  # open or not, it shows the new card next time
+            self.presets_browser.reload()
         self.statusBar().showMessage(f"Saved the preset {name} ({path.name})", 6000)
 
     def ask_preset_name(self) -> tuple[str, library.Category] | None:

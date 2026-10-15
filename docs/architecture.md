@@ -49,6 +49,7 @@ src/manim_studio/
 ├── render/
 │   ├── cairo_export.py  Manim Cairo camera → frames → PyAV/libx264
 │   ├── preview.py       the preview camera shared by canvas and preview process (ADR 0028)
+│   ├── preset_thumbs.py a preset drawn on a square, 8 frames at 160x90, kept per preset (ADR 0044; no Qt)
 │   ├── qt_paths.py      Manim geometry → QPainterPath (outlines)
 │   ├── options.py       render options: size, fps, frame window, crf, subtitles; cuts of sound and .srt (ADR 0042)
 │   └── hit_test.py      which layers are under a canvas point (ADR 0016)
@@ -87,6 +88,7 @@ src/manim_studio/
     ├── export_dialog.py File > Export Video: progress, cancel, open folder
     ├── render_queue.py  the Deliver queue: jobs, states, which is next (pure; ADR 0042)
     ├── plugins_dialog.py Help > Plugins: loaded plugins, their types, failures (ADR 0032)
+    ├── presets_browser.py Animate > Browse Presets: cards with moving previews, tabs, search, apply (ADR 0044)
     ├── audio_player.py  plays the mix; the sound card's clock drives playback (ADR 0034)
     ├── worker_process.py QProcess client for worker.py: queue, timeout, restart
     ├── preview_client.py QProcess client for preview.py: latest state, restart, give up

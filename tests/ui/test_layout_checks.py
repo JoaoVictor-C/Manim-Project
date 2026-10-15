@@ -119,7 +119,7 @@ def test_no_page_squeezes_or_clips_at_a_small_window(window, qt_app, page) -> No
 
 
 def test_dialogs_neither_squeeze_nor_clip(window, qt_app) -> None:
-    for dialog in (window.show_shortcuts(), window.show_plugins()):
+    for dialog in (window.show_shortcuts(), window.show_plugins(), window.show_presets_browser()):
         qt_app.processEvents()
         assert squeezed(dialog) == [], dialog.windowTitle()
         assert clipped(dialog) == [], dialog.windowTitle()
