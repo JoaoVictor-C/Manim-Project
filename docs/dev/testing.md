@@ -193,6 +193,12 @@ The P6d.4 sweep fixes are guarded where they live: the frame border at Fit
 (`ui/test_viewport.py`), Compose's first-layout widths and remembered sizes winning over
 them (`ui/test_pages.py`), the Layers buttons going icon-only (`ui/test_layers_panel.py`)
 and the timeline's fit (`ui/test_timeline_view.py`, `ui/test_timeline_model.py`).
+`ui/test_golden_path.py` (slow) walks the golden path through menu actions, buttons,
+typing and the mouse - welcome, New, four objects, presets, a marquee and Arrange, Save,
+close, Open Recent, Export Python, Export Video - and checks the action count, the round trip,
+every exported frame count and sampled frames against the editor, and that nothing logs a
+warning; its strict xfail marks what G3a must make readable. `core/test_placement.py` covers
+where new objects go and `Layer.label`; `ui/test_places.py` the cache and default folders.
 `core/test_library.py` applies every built-in preset to a shape (frames before
 the playhead unchanged, or empty for an entrance), checks kind fallbacks, params
 for the chosen kind, relative keys, the hold key, replaced same-frame keys,
