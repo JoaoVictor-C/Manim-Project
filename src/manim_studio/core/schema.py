@@ -184,6 +184,7 @@ class Canvas(BaseModel):
     background: str = "#000000"
     frame_height: PositiveFloat = 8.0  # Manim units; frame_width follows from the aspect ratio
     duration: PositiveFloat = 5.0
+    grow_with_content: bool = True  # the length grows to cover what an edit places past the end (P7.1)
 
     @property
     def frame_width(self) -> float:

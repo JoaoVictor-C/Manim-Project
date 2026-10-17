@@ -414,6 +414,26 @@ def set_params(project: Project, layer_id: str, params: dict[str, Any], shift: A
     return _replace_layer(project, layer_id, fields)
 
 
+CANVAS_FIELDS = frozenset({"duration", "width_px", "height_px", "fps", "background", "grow_with_content"})
+
+
+def set_canvas(project: Project, **fields: Any) -> Edit:
+    """Change the scene's settings (P7.1): its length, size, frame rate, background, or whether its
+    length grows with its content. The layers are untouched; the edit kind is ``spec`` for all of
+    them (every frame may change), ``timing`` for none when only the length or the growth changes."""
+    unknown = set(fields) - CANVAS_FIELDS
+    if unknown:
+        raise EditError(f"not a scene setting: {', '.join(sorted(unknown))}")
+    canvas = project.canvas.model_validate({**project.canvas.model_dump(), **fields})
+    new = _rebuilt(project, canvas=canvas)
+    picture = {"width_px", "height_px", "fps", "background"} & {
+        k for k in fields if getattr(project.canvas, k) != getattr(canvas, k)
+    }
+    if not picture:
+        return Edit(new, "timing", frozenset())
+    return Edit(new, "spec", frozenset(layer.id for layer in project.layers))
+
+
 def anchor_shifts_elsewhere(layer: Layer) -> bool:
     """Whether moving the anchor keeps the drawing only at the edit time (keyed rotation/scale)."""
     return bool(layer.tracks.get("rotation") or layer.tracks.get("scale"))

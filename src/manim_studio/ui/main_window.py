@@ -284,6 +284,14 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.auto_key_action)
         self.move_tool.auto_key = self.auto_key_action.isChecked
         self.properties.auto_key = self.auto_key_action.isChecked
+        edit_menu.addSeparator()  # the scene's settings (P7.1)
+        scene_settings = QAction("&Scene Settings...", self)
+        scene_settings.setToolTip("The video's length, size, frame rate and background, in Properties")
+        scene_settings.triggered.connect(self.show_scene_settings)
+        fit_length = QAction("&Fit Length to Content", self)
+        fit_length.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
+        fit_length.triggered.connect(lambda: self._has_project and self.properties.fit_length())
+        edit_menu.addActions([scene_settings, fit_length])
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
@@ -309,11 +317,13 @@ class MainWindow(QMainWindow):
             action.setToolTip(page.tooltip)
             action.triggered.connect(lambda _=False, n=name: self.show_page(n))
             pages_menu.addAction(action)
+        self.panel_toggles: dict[QWidget, QAction] = {}
         for title, panel in (("&Layers", self.layers), ("P&roperties", self.properties)):
             toggle = QAction(title, self, checkable=True, checked=True)
             toggle.setToolTip(f"Show or hide the {title.replace('&', '')} panel on every page")
             toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
             view_menu.addAction(toggle)
+            self.panel_toggles[panel] = toggle
         self.half_action = QAction("Half-resolution playback", self, checkable=True)
         self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
         self.half_action.toggled.connect(self._set_half_resolution)
@@ -692,9 +702,17 @@ class MainWindow(QMainWindow):
         """An edit, undo or redo changed the snapshot (ADR 0013, 0014)."""
         assert self.evaluator is not None
         before = self.evaluator.project
-        self.evaluator.apply(Edit(project, kind, layer_ids))
-        if self.render_ahead is not None:
-            self.render_ahead.changed(project)
+        length_only = project.canvas.model_copy(
+            update={"duration": before.canvas.duration, "grow_with_content": before.canvas.grow_with_content}
+        )
+        if length_only != before.canvas:
+            self._scene_changed(before, project)  # size, fps, background: start again (P7.1)
+        else:
+            self.evaluator.apply(Edit(project, kind, layer_ids))
+            if self.render_ahead is not None:
+                self.render_ahead.changed(project)
+            if project.canvas != before.canvas:
+                self._length_changed(project)  # frames do not depend on the length (P7.1)
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
@@ -708,6 +726,37 @@ class MainWindow(QMainWindow):
             if self.play_timer.isActive() and self._audio_signature != audio.mix_signature(project):
                 self._start_sound()  # hear the edit from where the playhead is
         self.code.sync(project)
+
+    def _scene_changed(self, before: Project, project: Project) -> None:
+        """The picture's settings changed: everything drawn starts again; the view stays where it
+        was when the frame's shape did not change."""
+        self.evaluator = Evaluator(project, self.code.cache)
+        shape = ("width_px", "height_px", "frame_height")
+        same_shape = all(getattr(before.canvas, f) == getattr(project.canvas, f) for f in shape)
+        view = self.canvas.view
+        self.canvas.set_scene(project.canvas, self.evaluator)
+        if same_shape:
+            self.canvas.view = view
+        if self.render_ahead is not None:
+            self.render_ahead.reset(project)
+        self._length_changed(project)
+        self.idle_timer.start()
+
+    def _length_changed(self, project: Project) -> None:
+        """The scene's length changed: the slider and the playhead follow."""
+        self.canvas.set_canvas(project.canvas)
+        self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
+        if self.t > project.canvas.duration:
+            self.seek(project.canvas.duration)
+
+    def show_scene_settings(self) -> None:
+        """Nothing selected, so Properties shows the scene; its length is ready to type."""
+        if not self._has_project:
+            return
+        self.selection.clear()
+        self.panel_toggles[self.properties].setChecked(True)
+        self.properties.show_nothing()  # also when nothing was selected already
+        self.properties.fields["canvas.duration"].widget.setFocus()
 
     # -- media files (ADR 0027) ------------------------------------------------
 
