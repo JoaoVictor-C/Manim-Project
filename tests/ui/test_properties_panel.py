@@ -440,7 +440,7 @@ def test_a_part_shows_its_key_and_transform_but_no_object_or_style(part_panel) -
     assert not any(path.startswith(("params.", "style.")) for path in part_panel.fields)
     assert part_panel.fields["part.tex"].widget.text() == "b^2"
     assert part_panel.fields["part.occurrence"].widget.value() == 1
-    assert "part of eq" in part_panel.title.text()
+    assert "part of a^2 + b^2 = c^2" in part_panel.title.text()  # the equation by its words (GP)
 
 
 def test_editing_a_part_key_retargets_it_or_is_refused(part_panel) -> None:

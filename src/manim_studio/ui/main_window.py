@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self.idle_timer.timeout.connect(self._on_idle)
 
         self.layers = LayersPanel(self.builds)
+        self.layers.playhead = lambda: self.t  # new objects are placed where they are free then (GP)
         self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.layers.trust_code = lambda code: self.trust.trust([code])
         self.layers.setEnabled(False)
@@ -201,11 +202,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None:  # coming back from another program: files may have changed (ADR 0027)
             app.applicationStateChanged.connect(self._on_application_state)
-        self.statusBar().showMessage(
-            startup_message()
-            or self._library_message()
-            or START_HINT
-        )
+        self.statusBar().showMessage(startup_message() or self._library_message() or START_HINT)
 
     # -- menu ------------------------------------------------------------------
 

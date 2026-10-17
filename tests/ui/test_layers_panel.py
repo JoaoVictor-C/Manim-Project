@@ -289,3 +289,24 @@ def test_the_buttons_drop_their_captions_when_the_panel_is_narrow(panel, qt_app)
     qt_app.processEvents()
     assert not panel.compact
     panel.setParent(None)
+
+
+def test_new_shapes_are_placed_where_they_cover_nothing_and_texts_show_their_words(panel) -> None:
+    """GP: every new object used to land on the centre, on top of the others."""
+    import numpy as np
+
+    from manim_studio.core import placement
+
+    panel.document.replace(Project(canvas=CANVAS))
+    for type_name in ("Square", "Circle", "Star"):
+        panel.add_object(type_name)
+    boxes = placement.occupied(panel.project, 0.0)
+    assert len(boxes) == 3
+    assert panel.project.layers[0].base.position == (0.0, 0.0)  # the first one: the centre
+    for i, a in enumerate(boxes):
+        for b in boxes[i + 1 :]:
+            assert not placement._overlaps(a, b)
+    assert all(np.isfinite(layer.base.position).all() for layer in panel.project.layers)
+    text = Layer(id="text-1", spec=Spec(type="Text", params={"text": "Hello world"}))
+    panel.document.replace(Project(canvas=CANVAS, layers=[text]))
+    assert [item.text(0) for item in panel.items()] == ["Hello world"]

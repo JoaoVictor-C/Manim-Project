@@ -189,7 +189,7 @@ class ClipboardActions(QObject):
             return clipboard.copy_layers(project, chosen), f"{len(chosen)} layers"
         if sel.layer_id is not None:
             layer = project.layer(sel.layer_id)
-            return clipboard.copy_layers(project, [sel.layer_id]), layer.name or layer.id
+            return clipboard.copy_layers(project, [sel.layer_id]), layer.label
         raise ClipboardError("Select a layer, clip, sound or subtitle first")
 
     def _chosen(self) -> list[str]:
@@ -245,7 +245,7 @@ class ClipboardActions(QObject):
         elif pasted.selected in present:
             self.selection.set(pasted.selected)
         layer = next((x for x in pasted.edit.project.layers if x.id == pasted.selected), None)
-        self._report(verb, layer.name or layer.id if layer is not None else "layers", pasted.notes)
+        self._report(verb, layer.label if layer is not None else "layers", pasted.notes)
 
     def _commit(self, pasted: Pasted, verb: str, kind: str) -> None:
         names = {"clip": "clip", "audio": "sound", "cue": "subtitle"}
