@@ -519,7 +519,7 @@ def evaluator_section(project: Project) -> dict[str, object]:
         "rss_open",
         "RSS after the open and deep seek",
         f"{after_open:,.0f} MB",
-        f"+{after_open - base:,.0f} MB",
+        f"{after_open - base:+,.0f} MB",
     )
 
     rng = random.Random(1)
@@ -546,7 +546,7 @@ def evaluator_section(project: Project) -> dict[str, object]:
         f"{median(timed(lambda: ev.frame(gap), 30)):.2f} ms",
         "frame_layers() walks every layer and asks its lifetime: grows with the layer count",
     )
-    report("rss_scrub", "RSS after the scrub", f"{mid:,.0f} MB", f"+{mid - after_open:,.0f} MB")
+    report("rss_scrub", "RSS after the scrub", f"{mid:,.0f} MB", f"{mid - after_open:+,.0f} MB")
 
     slides = slides_of(project)
     visit_times = [on_grid(project, k * SLIDE + 6.0) for k in range(slides)]
@@ -565,7 +565,7 @@ def evaluator_section(project: Project) -> dict[str, object]:
         "rss_visit",
         "RSS after visiting every slide",
         f"{visited:,.0f} MB",
-        f"+{visited - mid:,.0f} MB; +{visited - base:,.0f} MB over the base",
+        f"{visited - mid:+,.0f} MB; {visited - base:+,.0f} MB over the base",
     )
 
     missing = ev.missing_checkpoints()
@@ -591,7 +591,7 @@ def evaluator_section(project: Project) -> dict[str, object]:
         "rss_checkpoints",
         "RSS with every checkpoint computed",
         f"{warmed:,.0f} MB",
-        f"+{warmed - visited:,.0f} MB; +{warmed - base:,.0f} MB over the base",
+        f"{warmed - visited:+,.0f} MB; {warmed - base:+,.0f} MB over the base",
     )
     report(
         "caches",
@@ -755,7 +755,7 @@ def audio_section(project: Project) -> None:
         "rss_decode",
         "RSS after decoding",
         f"{decoded:,.0f} MB",
-        f"+{decoded - base:,.0f} MB held by the decoded file",
+        f"{decoded - base:+,.0f} MB held by the decoded file",
     )
     report(
         "peaks",
@@ -1010,6 +1010,13 @@ def window_section(project: Project, app: QApplication, folder: Path) -> None:
         f"seek in the window ({len(times)} {'slide starts' if MODEL_ONLY else 'random frames'})",
         f"{median(seeks):.1f} / {p95(seeks):.1f} ms",
         "median / p95: playhead, canvas, properties, readout (the first visits build objects)",
+    )
+    again = [timed(lambda t=t: seek(t))[0] for t in times]
+    report(
+        "win_seek_warm",
+        "... the same seeks again",
+        f"{median(again):.1f} / {p95(again):.1f} ms",
+        "median / p95 with the objects built",
     )
     layer_id = f"title-{slides // 2 + 1}"
     state = {"i": 0}
