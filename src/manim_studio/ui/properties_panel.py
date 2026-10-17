@@ -281,7 +281,7 @@ class PropertiesPanel(QWidget):
         self._rebuild()
         layer = self.project.layer(layer_id)
         self._section(
-            "Layer", [("Name", "name", TextField(self._layer_op("name", self._set_name), layer.id))]
+            "Layer", [("Name", "name", TextField(self._layer_op("name", self._set_name), layer.label))]
         )
         if layer.is_part:
             self._part_section()
@@ -553,14 +553,14 @@ class PropertiesPanel(QWidget):
                 field.widget.setToolTip("Keyed: a change sets a key at the playhead frame")
 
     def _update_title(self, layer: Layer) -> None:
-        name = layer.name or layer.id
+        name = layer.label
         if self.key_time is not None:
             self.title.setText(f"<b>Keys at {self.key_time:g} s</b> on {name}")
         elif self.clip_id is None and layer.is_part:
             parent = self.project.layer(layer.parent_id)
             orphans = parts.resolve(self.project, self.project.root_of(layer.id).id).orphans
             note = f"<br><i>Not drawn: {orphans[layer.id]}</i>" if layer.id in orphans else ""
-            self.title.setText(f"<b>{name}</b> - part of {parent.name or parent.id}{note}")
+            self.title.setText(f"<b>{name}</b> - part of {parent.label}{note}")
         elif self.clip_id is None:
             more = ""
             if self.others_selected:  # several objects (ADR 0043): this panel shows the primary one
@@ -692,14 +692,14 @@ class PropertiesPanel(QWidget):
                 graphs = [
                     x for x in self.project.children(layer.parent_id) if x.spec and x.spec.type == "Graph"
                 ]
-                choices = [(x.name or x.id, x.id) for x in graphs]
+                choices = [(x.label, x.id) for x in graphs]
                 required = dict(GRAPH_PARAMS.get(layer.spec.type, ())).get(param.name, True)
                 if not required:
                     choices.insert(0, ("(the x axis)", ""))
                 rows.append((param.title, path, ChoiceField(commit, choices)))
                 continue
             if param.kind == "layer":  # the layer a trace follows, or a connector joins (ADR 0033, 0036)
-                names = {x.id: x.name or x.id for x in self.project.layers}
+                names = {x.id: x.label for x in self.project.layers}
                 choices = [(names[i], i) for i in self.project.traceable_ids(layer.id)]
                 rows.append((param.title, path, ChoiceField(commit, choices)))
                 continue
@@ -866,7 +866,7 @@ class PropertiesPanel(QWidget):
         ]
         if morph:
             targets = [
-                (other.name or other.id, other.id)
+                (other.label, other.id)
                 for other in self.project.layers
                 if other.id != layer.id
                 and (other.id == clip.to_layer or other.id not in self.project.morph_sources())
@@ -885,7 +885,7 @@ class PropertiesPanel(QWidget):
             )
             op = partial(set_clip_param, clip_id=clip_id, name=param.name)
             if param.kind == "layer":  # a path layer (ADR 0025)
-                choices = [(other.name or other.id, other.id) for other in self.project.path_layers(layer.id)]
+                choices = [(other.label, other.id) for other in self.project.path_layers(layer.id)]
                 commit = self._op(path, op, f"Change {param.label.lower()}")
                 rows.append((param.label, path, ChoiceField(commit, choices)))
                 continue

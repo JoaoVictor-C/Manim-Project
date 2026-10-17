@@ -73,9 +73,10 @@ def open_folder(path: Path) -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
 
-def default_output(path: Path | None) -> Path:
+def default_output(path: Path | None, folder: Path | None = None) -> Path:
+    """Next to the project in ``out/``; a never-saved one in ``folder`` (GP)."""
     name = path.stem if path else "untitled"
-    return (path.parent if path else Path.cwd()) / "out" / f"{name}.mp4"
+    return (path.parent if path else folder or Path.cwd()) / "out" / f"{name}.mp4"
 
 
 class DeliverPage(Page):
@@ -384,7 +385,7 @@ class DeliverPage(Page):
 
     def _follow_default_output(self, force: bool = False) -> None:
         """The path field offers ``out/<project>.mp4`` until the user types another."""
-        new = str(default_output(self.window.path))
+        new = str(default_output(self.window.path, self.window.default_folder()))
         if force or not self.path.text() or self.path.text() == self._default_output:
             self.path.setText(new)
         self._default_output = new

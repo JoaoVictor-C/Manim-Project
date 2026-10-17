@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits, parts
+from ..core import adapter, edits, parts, placement
 from ..core.expressions import check as check_expression
 from ..core.schema import (
     CHILD_TYPES,
@@ -154,6 +154,17 @@ AXES_MENU = (  # Parts > Add to axes (ADR 0030): type, menu label
 )
 
 
+def add_placed(project: Project, spec: Spec, t: float) -> edits.Edit:
+    """Add an object where it does not cover the others (GP, ``core.placement``)."""
+    edit = edits.add_layer(project, spec)
+    where = placement.position_for(project, spec, t)
+    if where == (0.0, 0.0):
+        return edit
+    new = edit.project.layers[-1]
+    moved = edits.update_layer(edit.project, new.id, base=new.base.model_copy(update={"position": where}))
+    return edits.Edit(moved.project, *edits.classify(project, moved.project))
+
+
 class LayersPanel(QWidget):
     layerSelected = Signal(str)  # layer id, or "" for none
     layersPicked = Signal(list, str)  # several layers (Ctrl/Shift+click) and the current one (ADR 0043)
@@ -170,6 +181,7 @@ class LayersPanel(QWidget):
         self.ask_expression: Callable[[], str | None] = self._ask_expression_dialog  # Add graph (ADR 0024)
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self._known_ids: set[str] = set()
+        self.playhead: Callable[[], float] = lambda: 0.0  # set by the window: where new objects are placed
         self._select_new = False
 
         self.list = LayerTree()
@@ -362,12 +374,12 @@ class LayersPanel(QWidget):
         self.update_buttons()
 
     def _item(self, layer: Layer, orphans: dict[str, str]) -> QTreeWidgetItem:
-        item = QTreeWidgetItem([layer.name or layer.id])
+        item = QTreeWidgetItem([layer.label])
         item.setData(0, ID_ROLE, layer.id)
         if layer.is_part:
             tip = f"{layer.id} - part {layer.part.tex!r} (occurrence {layer.part.occurrence + 1})"
             if layer.id in orphans:
-                item.setText(0, f"{layer.name or layer.id} (not found)")
+                item.setText(0, f"{layer.label} (not found)")
                 tip += f"\nNot drawn: {orphans[layer.id]}"
             item.setToolTip(0, tip)
             item.setFlags((item.flags() | Qt.ItemFlag.ItemIsEditable) & ~Qt.ItemFlag.ItemIsDragEnabled)
@@ -434,7 +446,7 @@ class LayersPanel(QWidget):
         if type_name in CODE_TYPES:
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene
         self._select_new = True
-        self._submit(partial(edits.add_layer, spec=spec), f"Add {type_name}")
+        self._submit(partial(add_placed, spec=spec, t=self.playhead()), f"Add {type_name}")
 
     def add_part(self) -> None:
         """Ask for a part of the selected equation (or part) and add it."""
@@ -592,7 +604,7 @@ class LayersPanel(QWidget):
     def _on_item_renamed(self, item: QTreeWidgetItem) -> None:
         layer = self.project.layer(item.data(0, ID_ROLE))
         name = item.text(0).strip()
-        if name == (layer.name or layer.id):
+        if name == (layer.label):
             return
         self.rename(layer.id, "" if name in ("", layer.id) else name)
 

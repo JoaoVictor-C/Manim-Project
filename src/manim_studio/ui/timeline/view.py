@@ -245,7 +245,7 @@ class LayerHeader(QWidget):
             y = RULER_HEIGHT + row * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT < RULER_HEIGHT:
                 continue
-            text = layer.name or layer.id
+            text = layer.label
             indent = INDENT_PX * depth(project, layer)
             if indent:
                 text = "\u21b3 " + text
@@ -907,7 +907,7 @@ class TimelineView(QGraphicsView):
                     sub.setEnabled(bool(paths))
                     for path in paths:
                         sub.addAction(
-                            path.name or path.id,
+                            path.label,
                             lambda k=kind, p=path.id: self.add_clip(
                                 layer.id, k, start, length, params={"path": p}
                             ),
@@ -921,7 +921,7 @@ class TimelineView(QGraphicsView):
                 sub.setEnabled(bool(targets))
                 for target in targets:
                     sub.addAction(
-                        target.name or target.id,
+                        target.label,
                         lambda k=kind, to=target.id: self.add_clip(layer.id, k, start, length, to_layer=to),
                     )
         return menu

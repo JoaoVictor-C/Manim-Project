@@ -181,3 +181,19 @@ def test_real_worker_restarts_after_a_crash_and_finishes_the_request(real_worker
     wait_until(qt_app, lambda: worker.replies, timeout=60)
     assert worker.replies == [(3, True, "")]
     assert worker.pid != first_pid
+
+
+def test_a_worker_torn_down_with_the_application_does_not_restart(make, qt_app) -> None:
+    """GP: when the application ends without closing the window, Qt deletes the worker's
+    process first; its late ``finished`` must not try to restart it (it raised RuntimeError)."""
+    import shiboken6
+
+    worker = make("import time; time.sleep(30)")
+    worker.start()
+    process = worker._process
+    restarts = []
+    worker.start = lambda: restarts.append(1)  # a restart would call start() again
+    shiboken6.delete(process)  # what the application's teardown does to the child QProcess
+    worker._on_exit(process)  # its finished signal, arriving late
+    assert restarts == []
+    worker._process = None

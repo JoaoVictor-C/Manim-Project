@@ -407,7 +407,7 @@ class CodePage(Page):
         if not dirty:
             self._moved = False
         layer = next((x for x in self._layers() if x.id == self.layer_id), None)
-        self.title_label.setText("" if layer is None else layer.name or layer.id)
+        self.title_label.setText("" if layer is None else layer.label)
         self.dirty_label.setVisible(dirty)
         self.notice.setVisible(self._moved)  # _moved is false while clean
         self.run_button.setEnabled(self.layer_id is not None)
@@ -453,7 +453,7 @@ class CodePage(Page):
             with QSignalBlocker(self.list):
                 self.list.clear()
                 for layer in layers:
-                    text = layer.name or layer.id
+                    text = layer.label
                     if layer.id in dirty:
                         text += " *"
                     if layer.id in failed:

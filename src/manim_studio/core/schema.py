@@ -28,6 +28,7 @@ from pydantic import (
 )
 
 SCHEMA_VERSION = 1
+LABEL_CHARS = 32  # a text layer named by its words shows at most this many (GP)
 TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
@@ -321,6 +322,20 @@ class Layer(BaseModel):
     def locked(self) -> bool:
         """Follows its parent exactly (a graph on its axes): only opacity is its own."""
         return self.spec is not None and self.spec.type in LOCKED_TYPES
+
+    @property
+    def label(self) -> str:
+        """How views name it: its name, else a text's own words (GP: "The Pythagorean theorem",
+        not "text-1"), else its id. Never saved; renaming sets ``name``."""
+        if self.name:
+            return self.name
+        if self.spec is not None and self.spec.type in TEXT_TYPES:
+            words = " ".join(str(self.spec.params.get("text", "")).split())
+            if words:
+                return words if len(words) <= LABEL_CHARS else words[: LABEL_CHARS - 1] + "…"
+        if self.part is not None:
+            return self.part.tex
+        return self.id
 
     @model_validator(mode="after")
     def _lane_rules(self) -> Layer:

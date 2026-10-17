@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- The golden path (GP, decision session 42): a typical animation - a title, an equation and two
+  shapes, presets, Arrange, save, close, reopen, export the video and the Python scene - walked
+  through the real window the way a user does (`tests/ui/test_golden_path.py`, 40 actions or
+  fewer, no warning logged, the video's frames checked against the editor's). What the walk
+  found is fixed: new objects are placed where they cover nothing (the first at the centre, the
+  next below, above or beside the others - `core/placement.py`) instead of all on the centre;
+  text layers are named by their words ("The Pythagorean theorem", not "text-1") in Layers, the
+  timeline and Properties until they are renamed; the start hint leaves the status bar once a
+  project is open; Manim's cache moved from the folder the editor was started from to the user's
+  cache folder (`MANIM_STUDIO_CACHE` overrides it), and a never-saved project is suggested next
+  to the last project (else `Documents/Manim Studio`, Documents or home), its exports too
+  (`ui/places.py`); a build worker torn down with the application no longer tries to restart.
 - Preferences, recent files and the first-run welcome (P6d.1, ADR 0044): the editor remembers
   how it was left in one ini file (`MANIM_STUDIO_SETTINGS`, default `manim-studio.ini` in the user
   configuration folder): File > Open Recent (ten files, newest first, missing ones dropped, Clear
