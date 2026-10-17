@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "canvas": { "width_px": 1280, "height_px": 720, "fps": 30, "background": "#0f172a", "duration": 7.0 },
+  "layers": [
+    {
+      "id": "title",
+      "spec": { "type": "Text", "params": { "text": "Euler's identity", "font_size": 40 } },
+      "base": { "position": [0, 3.0] },
+      "clips": [
+        { "id": "t-in", "kind": "FadeIn", "start": 0.0, "duration": 0.8 },
+        { "id": "t-out", "kind": "FadeOut", "start": 6.0, "duration": 0.8 }
+      ]
+    },
+    {
+      "id": "eq1",
+      "spec": { "type": "MathTex", "params": { "text": "e^{i\\pi} + 1 = 0", "font_size": 72 } },
+      "tracks": {
+        "position": [
+          { "t": 2.2, "value": [0, 0], "ease": { "name": "smooth" } },
+          { "t": 3.2, "value": [0, 1.2] }
+        ],
+        "scale": [
+          { "t": 2.2, "value": 1.0, "ease": { "bezier": [0.34, 1.56, 0.64, 1.0] } },
+          { "t": 3.2, "value": 0.8 }
+        ]
+      },
+      "clips": [
+        { "id": "e1-write", "kind": "Write", "start": 0.5, "duration": 1.5 },
+        { "id": "e1-ind", "kind": "Indicate", "start": 3.4, "duration": 0.8 },
+        { "id": "e1-morph", "kind": "Transform", "start": 4.4, "duration": 1.2, "to_layer": "eq2" }
+      ]
+    },
+    {
+      "id": "eq2",
+      "spec": {
+        "type": "MathTex",
+        "params": { "text": "e^{i\\theta} = \\cos\\theta + i\\sin\\theta", "font_size": 64 },
+        "style": { "fill": "#facc15" }
+      },
+      "base": { "position": [0, -0.5] },
+      "clips": [
+        { "id": "e2-out", "kind": "FadeOut", "start": 6.0, "duration": 0.8 }
+      ]
+    }
+  ]
+}

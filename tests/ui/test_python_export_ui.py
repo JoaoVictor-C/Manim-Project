@@ -11,7 +11,7 @@ import pytest
 pytest.importorskip("PySide6")
 
 from manim_studio import cli
-from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
+from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec, Transform2D
 from manim_studio.ui.main_window import MainWindow
 from ui.test_acceptance_v1 import menu_action
 
@@ -52,23 +52,35 @@ def test_file_export_python_writes_readable_code(window, tmp_path) -> None:
     assert window.statusBar().currentMessage() == "Wrote intro scene.py: readable Manim code"
 
 
-def test_a_keyed_project_is_written_as_the_exact_scene(window, tmp_path) -> None:
+def test_a_turned_project_is_written_as_the_exact_scene(window, tmp_path) -> None:
+    turned = simple().model_copy(
+        update={"layers": [simple().layers[0].model_copy(update={"base": Transform2D(rotation=15.0)})]}
+    )
+    window.document.replace(turned)
+    export = window.write_python(tmp_path / "turned.py")
+    assert not export.readable
+    assert "class Turned(StudioScene):" in (tmp_path / "turned.py").read_text(encoding="utf-8")
+    message = window.statusBar().currentMessage()
+    assert (
+        message.startswith("Wrote turned.py: exact scene (needs Manim Studio)")
+        and "Ring: clips on a turned or scaled object" in message
+    )
+
+
+def test_a_keyed_project_is_written_as_readable_code(window, tmp_path) -> None:
     keyed = simple().model_copy(
         update={
             "layers": [
-                simple().layers[0].model_copy(update={"tracks": {"opacity": [Keyframe(t=0, value=1.0)]}})
+                simple().layers[0].model_copy(
+                    update={"tracks": {"opacity": [Keyframe(t=0, value=1.0), Keyframe(t=1, value=0.5)]}}
+                )
             ]
         }
     )
     window.document.replace(keyed)
     export = window.write_python(tmp_path / "keyed.py")
-    assert not export.readable
-    assert "class Keyed(StudioScene):" in (tmp_path / "keyed.py").read_text(encoding="utf-8")
-    message = window.statusBar().currentMessage()
-    assert (
-        message.startswith("Wrote keyed.py: exact scene (needs Manim Studio)")
-        and "Ring: keyframes" in message
-    )
+    assert export.readable and "ring_keyed = Keyed(self, ring," in export.code
+    assert window.statusBar().currentMessage() == "Wrote keyed.py: readable Manim code"
 
 
 def test_the_command_line(tmp_path, capsys) -> None:
