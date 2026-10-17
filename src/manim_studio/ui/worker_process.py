@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
 from ..logging_config import get_logger
@@ -142,7 +143,7 @@ class WorkerProcess(WorkerClient):
     def _restart(self, reason: str) -> None:
         log.warning("restarting build worker: %s", reason)
         old, self._process = self._process, None
-        if old is not None:
+        if old is not None and shiboken6.isValid(old):
             old.blockSignals(True)
             old.kill()
             old.waitForFinished(1000)
@@ -161,6 +162,8 @@ class WorkerProcess(WorkerClient):
     def _on_exit(self, process: QProcess) -> None:
         if process is not self._process or self._stopping:
             return
+        if not shiboken6.isValid(self) or not shiboken6.isValid(process):
+            return  # torn down with the application (no closeEvent): nothing to restart (GP)
         if not self._ready:
             self._failed_starts += 1
             if self._failed_starts >= MAX_FAILED_STARTS:
