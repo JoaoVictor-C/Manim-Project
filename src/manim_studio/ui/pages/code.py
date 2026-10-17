@@ -28,9 +28,11 @@ from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
     QSplitter,
     QVBoxLayout,
@@ -111,12 +113,36 @@ class CodePage(Page):
         self.list = QListWidget()
         self.list.setObjectName("codeLayers")
         self.list.currentItemChanged.connect(self._on_list_current)
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(
+            lambda pos: self.list_menu().exec(self.list.viewport().mapToGlobal(pos))
+        )
+        self.list.itemDoubleClicked.connect(lambda _item: self.rename_layer())
         self.new_button = QPushButton(icons.icon("add"), "New code layer")
         self.new_button.setToolTip("Add a code layer with a starter scene")
         self.new_button.clicked.connect(self.new_layer)
+        self.rename_button = QPushButton("Rename")
+        self.rename_button.setToolTip("Rename the chosen code layer (F2, or double-click it)")
+        self.rename_button.clicked.connect(self.rename_layer)
+        self.delete_button = QPushButton(icons.icon("delete"), "Delete")
+        self.delete_button.setToolTip("Delete the chosen code layer (Delete); Ctrl+Z brings it back")
+        self.delete_button.clicked.connect(self.delete_layer)
+        for keys, slot in (
+            (QKeySequence(Qt.Key.Key_F2), self.rename_layer),
+            (QKeySequence.StandardKey.Delete, self.delete_layer),
+        ):
+            shortcut = QShortcut(keys, self.list)
+            shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
+            shortcut.activated.connect(slot)
+        manage = QHBoxLayout()
+        manage.addWidget(self.rename_button)
+        manage.addWidget(self.delete_button)
         column.addWidget(heading)
         column.addWidget(self.list, 1)
+        column.addLayout(manage)
         column.addWidget(self.new_button)
+        # Hooks for tests and other front-ends: a new name, or None (cancelled).
+        self.ask_name = self._ask_name_dialog
 
         centre = QWidget()
         stack = QVBoxLayout(centre)
@@ -386,6 +412,51 @@ class CodePage(Page):
         self.editor.replace_text(code)  # one step of the editor's own undo
         self._last_dirty = None
         self._after_change()
+
+    # -- managing code layers (P7.1) ------------------------------------------------------
+
+    def chosen_layer(self) -> str | None:
+        item = self.list.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+
+    def list_menu(self) -> QMenu:
+        """The right-click menu of the code layer list (built separately so it can be tested)."""
+        menu = QMenu(self.list)
+        chosen = self.chosen_layer() is not None
+        for text, slot, tip in (
+            ("Rename...", self.rename_layer, "Give the code layer a name (F2)"),
+            ("Delete", self.delete_layer, "Delete the code layer (Delete)"),
+        ):
+            action = menu.addAction(text, slot)
+            action.setToolTip(tip)
+            action.setEnabled(chosen)
+        menu.addSeparator()
+        menu.addAction("New code layer", self.new_layer).setToolTip("Add a code layer with a starter scene")
+        return menu
+
+    def rename_layer(self) -> None:
+        layer_id = self.chosen_layer()
+        if layer_id is None or self.window.project is None:
+            return
+        layer = self.window.project.layer(layer_id)
+        name = self.ask_name(layer.label)
+        if name is None or name.strip() == layer.label:
+            return
+        self.window.layers.rename(layer_id, "" if name.strip() == layer.id else name)
+
+    def delete_layer(self) -> None:
+        """Delete the chosen code layer (one undo step); its unapplied text stays in the drafts."""
+        layer_id = self.chosen_layer()
+        if layer_id is None or self.window.project is None:
+            return
+        try:
+            self.window.builds.submit(partial(edits.remove_layer, layer_id=layer_id), "Delete layer")
+        except (edits.EditError, ValidationError) as error:
+            self.window.statusBar().showMessage(f"Delete layer: {error}", 10000)
+
+    def _ask_name_dialog(self, current: str) -> str | None:
+        name, ok = QInputDialog.getText(self.list, "Rename code layer", "Name:", text=current)
+        return name if ok and name.strip() else None
 
     def new_layer(self) -> None:
         if self.window.project is None:

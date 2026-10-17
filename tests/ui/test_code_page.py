@@ -658,3 +658,36 @@ def test_a_layer_deleted_while_another_page_is_shown_keeps_its_draft(window, qt_
     window.selection.select_layer("orbit")
     window.show_page("code")
     assert code.layer_id == "orbit" and code.editor.text() == typed and code.is_dirty()
+
+
+def test_code_layers_are_renamed_and_deleted_from_the_list(window, qt_app) -> None:
+    """P7.1: the Code page's list could not rename or delete a code layer."""
+    code = page(window)
+    code.list.setCurrentRow(0)  # Orbit
+    qt_app.processEvents()
+    first = code.chosen_layer()
+    before = window.project.layer(first).label
+    asked = []
+    code.ask_name = lambda current: asked.append(current) or "Planets"
+    code.rename_button.click()
+    qt_app.processEvents()
+    assert asked == [before]
+    assert window.project.layer(first).name == "Planets"
+    assert window.document.undo_stack.undoText() == "Rename layer"
+    assert any(code.list.item(i).text().startswith("Planets") for i in range(code.list.count()))
+    code.ask_name = lambda current: None  # cancelled: nothing changes
+    code.rename_layer()
+    assert window.document.undo_stack.undoText() == "Rename layer"
+    menu = code.list_menu()
+    assert [a.text() for a in menu.actions() if a.text()] == ["Rename...", "Delete", "New code layer"]
+    assert all(a.toolTip() for a in menu.actions() if a.text())
+    count = len(window.project.layers)
+    code.delete_button.click()
+    qt_app.processEvents()
+    assert len(window.project.layers) == count - 1
+    assert first not in {x.id for x in window.project.layers}
+    window.document.undo_stack.undo()
+    assert first in {x.id for x in window.project.layers}
+    code.list.setCurrentRow(-1)
+    code.delete_layer()  # nothing chosen: nothing deleted
+    assert len(window.project.layers) == count
