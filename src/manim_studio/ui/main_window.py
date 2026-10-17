@@ -76,6 +76,9 @@ from .worker_process import make_worker
 log = get_logger(__name__)
 
 
+START_HINT = "Create a project (File > New) or open one (File > Open)."
+
+
 class MainWindow(QMainWindow):
     SLIDER_STEPS_PER_SECOND = 1000
     playheadMoved = Signal(float)  # every seek and playback tick: pages' own views follow it
@@ -201,7 +204,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             startup_message()
             or self._library_message()
-            or "Create a project (File > New) or open one (File > Open)."
+            or START_HINT
         )
 
     # -- menu ------------------------------------------------------------------
@@ -645,6 +648,8 @@ class MainWindow(QMainWindow):
         """A project was opened: rebuild everything that depends on it."""
         self._has_project = True
         self.viewer_stack.setCurrentWidget(self.stage)  # the welcome is for an empty start
+        if self.statusBar().currentMessage() == START_HINT:
+            self.statusBar().clearMessage()  # done: a project is open (GP)
         self.layers.setEnabled(True)
         self.evaluator = Evaluator(project, self.code.cache)  # frames where the renderer writes them
         self.canvas.set_scene(project.canvas, self.evaluator)

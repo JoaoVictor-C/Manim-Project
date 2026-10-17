@@ -162,3 +162,26 @@ def test_timeline_drag_updates_canvas_and_undo(window) -> None:
     assert window.timeline.clip_item("eq1", "e1-write").rect().x() == pytest.approx(
         window.timeline.scale.x(0.5)
     )
+
+
+def test_the_start_hint_goes_once_a_project_is_open(qt_app, tmp_path) -> None:
+    """GP: "Create a project..." stayed in the status bar after New and after opening a file."""
+    from manim_studio.core.schema import Project
+    from manim_studio.ui.main_window import START_HINT
+
+    win = MainWindow()
+    try:
+        assert win.statusBar().currentMessage() == START_HINT
+        win.new_project()
+        assert win.statusBar().currentMessage() != START_HINT
+        win.statusBar().showMessage(START_HINT)  # as at start
+        path = tmp_path / "p.json"
+        path.write_text(Project().model_dump_json(by_alias=True), encoding="utf-8")
+        win.load(path)
+        assert win.statusBar().currentMessage() != START_HINT
+        win.statusBar().showMessage("Something else")
+        win.new_project()
+        assert win.statusBar().currentMessage() == "Something else"  # other messages stay
+    finally:
+        win.document.undo_stack.setClean()
+        win.close()
