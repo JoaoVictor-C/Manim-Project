@@ -719,3 +719,10 @@ for validation) and small. The first deep seek does not depend on the scene's le
 6. **Export:** 53.6 ms per frame is 24 min for 27 000 frames (and ~45 s of AAC); linear, on battery.
    Autosave is 23 ms at 344 KB (every 30 s on the GUI thread); the 650-checkpoint idle pass is ~17-22 s of
    background work at 26-34 ms each.
+
+### B65 — Manim's 3D camera at the default view · 2026-10-17
+`.cache/gp/probe3d.py` (a probe, battery): the showcase project's frames at 12 times, drawn by
+Manim's `Camera` and by `ThreeDCamera` at phi = 0, theta = -90 degrees, 640x360. Maximum pixel
+difference **0** on every frame (the frames are drawn: 15 939 lit pixels mid-scene); tilting the
+3D camera 60 degrees changes the picture (mean difference 5.9). Time per frame: 2D **6.2-7.1 ms**,
+3D **7.8-8.7 ms** (about 25 % more). -> P7.5, decision session 43.
