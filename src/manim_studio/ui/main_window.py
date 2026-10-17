@@ -42,7 +42,7 @@ from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, setup_logging
-from . import arrange, icons, shortcuts_help, snap_guides, theme
+from . import arrange, icons, places, shortcuts_help, snap_guides, theme
 from .audio_player import make_audio_player
 from .autosave import Autosave
 from .build_service import BuildService
@@ -450,7 +450,7 @@ class MainWindow(QMainWindow):
     def open_dialog(self) -> None:
         if not self.confirm_discard():
             return
-        start = str(self.path.parent if self.path else Path.cwd())
+        start = str(self.path.parent if self.path else self.default_folder())
         name, _ = QFileDialog.getOpenFileName(self, "Open project", start, "Manim Studio project (*.json)")
         if name:
             self.load(Path(name))
@@ -852,7 +852,7 @@ class MainWindow(QMainWindow):
         if self.project is None:
             self.statusBar().showMessage("Create or open a project first.", 5000)
             return
-        start = self.path.with_suffix(".py") if self.path else Path.cwd() / "scene.py"
+        start = self.path.with_suffix(".py") if self.path else self.default_folder() / "scene.py"
         name = self.ask_python_path(start)
         if name:
             self.write_python(Path(name))
@@ -1183,7 +1183,7 @@ class MainWindow(QMainWindow):
             return
         if self.export_dialog is None:
             name = self.path.stem if self.path else "untitled"
-            folder = self.path.parent if self.path else Path.cwd()
+            folder = self.path.parent if self.path else self.default_folder()
             self.export_dialog = ExportDialog(
                 lambda: self.document.project,
                 folder / "out" / f"{name}.mp4",
@@ -1249,6 +1249,10 @@ class MainWindow(QMainWindow):
         dirty = "" if self.document.undo_stack.isClean() else " *"
         self.setWindowTitle(f"Manim Studio - {name}{dirty}")
 
+    def default_folder(self) -> Path:
+        """Where a never-saved project and its exports are suggested (GP, ``places``)."""
+        return places.default_folder(self.prefs.recent())
+
     def save(self) -> None:
         if self.project is None:
             return
@@ -1265,9 +1269,8 @@ class MainWindow(QMainWindow):
     def save_as(self) -> None:
         if self.project is None:
             return
-        name, _ = QFileDialog.getSaveFileName(
-            self, "Save project", str(self.path or "project.json"), "*.json"
-        )
+        start = self.path or self.default_folder() / "untitled.json"
+        name, _ = QFileDialog.getSaveFileName(self, "Save project", str(start), "*.json")
         if name:
             self.path = Path(name)
             self.save()
@@ -1403,7 +1406,7 @@ def run(argv: list[str] | None = None) -> int:
     app = QApplication(argv)
     app.setApplicationName("Manim Studio")
     theme.apply(app)  # the studio look (ADR 0040)
-    adapter.configure(Path.cwd() / ".cache" / "manim")
+    adapter.configure(places.cache_folder())  # not under the folder it was started from (GP)
     window = MainWindow()
     window.show()
     if len(argv) > 1:
