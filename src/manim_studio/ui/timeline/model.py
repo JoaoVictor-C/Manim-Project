@@ -20,6 +20,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from ...core.layer_index import LayerIndex
 from ...core.schema import Clip, Layer, Project
 
 SNAP_RADIUS_PX = 8.0
@@ -132,12 +133,14 @@ def drag_marker(
     return current if round(t * canvas.fps) in taken else t
 
 
-def obstacles(project: Project, layer_id: str) -> list[Clip]:
+def obstacles(project: Project, layer_id: str, index: LayerIndex | None = None) -> list[Clip]:
     """Clips a clip of ``layer_id`` may not overlap besides its own lane (ADR 0012).
 
-    Those of the layer's ancestors and of its parts; sibling parts may overlap.
+    Those of the layer's ancestors and of its parts; sibling parts may overlap. Pass the project's
+    ``LayerIndex`` when asking for many layers (B66).
     """
-    related = [*project.ancestors(layer_id), *project.descendants(layer_id)]
+    tree = index or project
+    related = [*tree.ancestors(layer_id), *tree.descendants(layer_id)]
     return [clip for layer in related for clip in layer.clips]
 
 
@@ -245,14 +248,16 @@ def drag_trim(
     return (value, clip.end) if edge == "start" else (clip.start, value)
 
 
-def rows(project: Project) -> list[Layer]:
+def rows(project: Project, index: LayerIndex | None = None) -> list[Layer]:
     """Timeline rows: objects front-most first, each followed by its parts (ADR 0012)."""
-    return [x for root in reversed(project.roots()) for x in (root, *project.descendants(root.id))]
+    return (index or LayerIndex(project)).rows()
 
 
-def depth(project: Project, layer: Layer) -> int:
+def depth(project: Project, layer: Layer, index: LayerIndex | None = None) -> int:
     """0 for an object, 1 for its parts, 2 for parts of parts..."""
-    return len(project.ancestors(layer.id)) if layer.parent_id is not None else 0
+    if layer.parent_id is None:
+        return 0
+    return index.depth(layer.id) if index is not None else len(project.ancestors(layer.id))
 
 
 def place_new_clip(

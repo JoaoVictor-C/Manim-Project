@@ -56,6 +56,7 @@ from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
 from .frame_cache import frame_index, on_grid
+from .layer_index import LayerIndex
 from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
@@ -140,9 +141,11 @@ class Evaluator:
     def _index(self) -> None:
         self._morph_into: dict[str, tuple[Layer, Clip]] = {}
         self._layers: dict[str, Layer] = {layer.id: layer for layer in self.project.layers}
+        # Tree questions answered from maps built once, not by a scan per layer (B66).
+        self._ltree = LayerIndex(self.project)
         # Roots evaluated as trees: with parts (ADR 0012) or child objects (ADR 0029).
         self._trees_of = {
-            self.project.root_of(layer.id).id for layer in self.project.layers if layer.parent_id is not None
+            self._ltree.root_of(layer.id).id for layer in self.project.layers if layer.parent_id is not None
         }
         for layer in self.project.layers:
             for clip in layer.clips:
@@ -213,11 +216,11 @@ class Evaluator:
             self._index()
             log.debug("invalidate %s %s: caches kept", kind, layer_ids)
             return
-        old_project = self.project
+        old_project, old_tree = self.project, self._ltree
         old_partners = {
             layer.id: {c.to_layer for c in layer.clips if c.to_layer} for layer in old_project.layers
         }
-        old_builds = _builds(old_project)
+        old_builds = _builds(old_project, self._ltree)
         self.project = project
         self._index()
         affected = set(layer_ids)
@@ -228,18 +231,17 @@ class Evaluator:
         for layer in project.layers:
             if any(c.to_layer in affected for c in layer.clips):
                 affected.add(layer.id)
-        for tree_project in (old_project, project):  # a layer in a tree affects the whole tree
-            ids = {layer.id for layer in tree_project.layers}
-            for layer_id in [i for i in affected if i in ids]:
-                root = tree_project.root_of(layer_id)
-                affected |= {root.id} | {d.id for d in tree_project.descendants(root.id)}
+        for tree in (old_tree, self._ltree):  # a layer in a tree affects the whole tree
+            for layer_id in [i for i in affected if i in tree]:
+                root = tree.root_of(layer_id)
+                affected |= {root.id} | {d.id for d in tree.descendants(root.id)}
         for cache in (self._checkpoints, self._active):
             for key in [k for k in cache if k[0] in affected]:
                 del cache[key]
         for key in [k for k in self._tree_states if k[0] in affected]:
             del self._tree_states[key]
         log.debug("invalidate %s -> affected %s", layer_ids, affected)
-        new_builds = _builds(project)
+        new_builds = _builds(project, self._ltree)
         for layer_id in affected:
             self._proxies.pop(layer_id, None)
             self._trees.pop(layer_id, None)
@@ -322,7 +324,7 @@ class Evaluator:
         """The pairs ``frame_layers(t)`` yields for the object ``layer_id`` belongs to (its
         root, parts and child objects), evaluating nothing else: the selection outline over
         a cached frame (ADR 0028). The same buffer rules apply."""
-        return self._object_at(self.project.root_of(layer_id), t)
+        return self._object_at(self._ltree.root_of(layer_id), t)
 
     def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
         if root.id in self._trees_of:  # its parts or child objects too (ADR 0012, 0029)
@@ -480,7 +482,7 @@ class Evaluator:
 
     def _traced_point(self, target: Layer, t: float, offset: np.ndarray) -> np.ndarray | None:
         """Where a trace of ``target`` is at ``t`` in world units, or None when it is not drawn."""
-        root = self.project.root_of(target.id)
+        root = self._ltree.root_of(target.id)
         if root.id in self._trees_of:  # a part or child object, or an object that has them
             drawn = dict(self._tree_at(root, t)).get(target.id)
             if drawn is None or not drawn.family_members_with_points():
@@ -512,7 +514,7 @@ class Evaluator:
         """Where a connector meets ``target`` at ``t`` and the box of its drawing (world units), or
         None when it is not drawn. The point is the box's centre moved by ``offset`` (turned and
         scaled with the layer); a simulation's is its traced point (ADR 0033)."""
-        root = self.project.root_of(target.id)
+        root = self._ltree.root_of(target.id)
         drawn = [mob for owner, mob in self._object_at(root, t) if target.id in (root.id, owner)]
         points = [sub.points[:, :2] for mob in drawn for sub in mob.family_members_with_points()]
         if not points:
@@ -542,7 +544,7 @@ class Evaluator:
             if end is None:
                 out.append(None)
                 continue
-            root = self.project.root_of(target.id)
+            root = self._ltree.root_of(target.id)
             if root.id in self._trees_of and target.id != root.id:
                 a = self._member_affine(self._tree(root), target, t)[0]
             else:
@@ -588,8 +590,8 @@ class Evaluator:
                 if current in seen or current not in self._layers:
                     continue
                 seen.add(current)
-                root = self.project.root_of(current)
-                tree = [root, *self.project.descendants(root.id)]
+                root = self._ltree.root_of(current)
+                tree = [root, *self._ltree.descendants(root.id)]
                 todo.extend(x.id for x in tree)
                 for x in tree:
                     for clip in x.clips:
@@ -704,7 +706,7 @@ class Evaluator:
                 groups.append((part.tex if part is not None else None, mob.copy()))
             return groups
         if layer.is_child and not layer.is_part:  # a child object as its tree draws it (ADR 0029)
-            root = self.project.root_of(layer.id)
+            root = self._ltree.root_of(layer.id)
             members = self._tree_members_at(root, t, morphs=False)
             drawn = [mob.copy() for member, mob in members if member == layer.id]
             return [(None, drawn[0] if drawn else m.VGroup())]
@@ -714,7 +716,7 @@ class Evaluator:
     def _end_signature(self, layer: Layer, t: float):
         """What one end of a morph depends on besides edits that drop caches anyway."""
         if layer.is_child and not layer.is_part:  # drawn by its tree: depends on all of it (ADR 0029)
-            layer = self.project.root_of(layer.id)
+            layer = self._ltree.root_of(layer.id)
         if layer.id not in self._trees_of:
             paths = self._path_sigs(layer, sum(1 for c in layer.clips if c.end <= t))  # ADR 0025
             return self.transform_at(layer, t), paths
@@ -813,7 +815,7 @@ class Evaluator:
         regions = {root.id: tuple(range(len(leaves)))}
         if resolution.order:
             regions.update(zip(resolution.order, adapter.part_regions(spec), strict=True))
-        members = (root.id, *(d.id for d in self.project.descendants(root.id) if d.id in regions))
+        members = (root.id, *(d.id for d in self._ltree.descendants(root.id) if d.id in regions))
         owned = {}
         for member in members:
             taken = {
@@ -1006,7 +1008,7 @@ class Evaluator:
             return np.eye(2), anchor
         parent = self._layers[layer.parent_id]
         if layer.is_part:
-            tree = self._tree(self.project.root_of(layer.id))
+            tree = self._tree(self._ltree.root_of(layer.id))
             a, b, _ = self._member_affine(tree, parent, t)
             centre = tree.centres.get(layer.id, np.zeros(3))[:2]
             return a, a @ (centre + anchor) + b
@@ -1031,13 +1033,13 @@ class Evaluator:
             a, b = _affine(ptr)
             pivot = a @ (anchor + np.array(tr.position, dtype=float)) + b
             return pivot, tr.rotation + ptr.rotation, np.linalg.pinv(a)
-        root = self.project.root_of(layer.id)
+        root = self._ltree.root_of(layer.id)
         tree = self._tree(root)
         parent = self._layers[layer.parent_id]
         a, b, _ = self._member_affine(tree, parent, t)
         centre = tree.centres.get(layer.id, np.zeros(3))[:2]
         pivot = a @ (centre + anchor + np.array(tr.position, dtype=float)) + b
-        ancestors = self.project.ancestors(layer.id)
+        ancestors = self._ltree.ancestors(layer.id)
         rotation = tr.rotation + sum(self.transform_at(x, t).rotation for x in ancestors)
         return pivot, rotation, np.linalg.pinv(a)  # pinv: a parent scaled to 0 must not raise
 
@@ -1077,20 +1079,21 @@ class Evaluator:
         return proxy
 
 
-def _builds(project: Project) -> dict[str, object]:
+def _builds(project: Project, tree: LayerIndex) -> dict[str, object]:
     """What each layer's base object is built from: roots with their parts' spans and their child
     objects' specs (a graph edit rebuilds its axes' tree, ADR 0029), child objects with their
     parent's spec (an axes edit re-plots its graphs)."""
     out: dict[str, object] = {}
-    for root in project.roots():
-        children = tuple(x.spec for x in project.layers if x.parent_id == root.id and not x.is_part)
-        out[root.id] = (parts.build_spec(project, root.id), children)
+    by_id = {layer.id: layer for layer in project.layers}
+    for root in tree.roots():
+        children = tuple(x.spec for x in tree.children(root.id) if not x.is_part)
+        out[root.id] = (parts.build_spec(project, root.id, index=tree), children)
     for layer in project.layers:
         if layer.is_child and not layer.is_part:
             out[layer.id] = (
-                project.layer(layer.parent_id).spec,
+                tree.layer(layer.parent_id).spec,
                 layer.spec,
-                project.referenced_graphs(layer),
+                project.referenced_graphs(layer, by_id),
             )
     return out
 

@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 
 from ..core import adapter, edits, parts, placement
 from ..core.expressions import check as check_expression
+from ..core.layer_index import LayerIndex
 from ..core.schema import (
     CHILD_TYPES,
     CODE_TYPES,
@@ -354,14 +355,16 @@ class LayersPanel(QWidget):
         ids = {layer.id for layer in self.project.layers}
         new = ids - self._known_ids
         self._known_ids = ids
+        index = LayerIndex(self.project)  # one pass, not one scan per layer (B66)
+        roots = index.roots()
         orphans: dict[str, str] = {}
-        for root in self.project.roots():
-            if self.project.children(root.id):
-                orphans.update(parts.resolve(self.project, root.id).orphans)
+        for root in roots:
+            if index.children(root.id):
+                orphans.update(parts.resolve(self.project, root.id, index).orphans)
         with QSignalBlocker(self.list):
             self.list.clear()
-            for root in reversed(self.project.roots()):
-                self.list.addTopLevelItem(self._item(root, orphans))
+            for root in reversed(roots):
+                self.list.addTopLevelItem(self._item(root, orphans, index))
             self.list.expandAll()
             target = selected if selected in ids else None
             if self._select_new and new:
@@ -373,7 +376,7 @@ class LayersPanel(QWidget):
             self.layerSelected.emit(target or "")
         self.update_buttons()
 
-    def _item(self, layer: Layer, orphans: dict[str, str]) -> QTreeWidgetItem:
+    def _item(self, layer: Layer, orphans: dict[str, str], index: LayerIndex) -> QTreeWidgetItem:
         item = QTreeWidgetItem([layer.label])
         item.setData(0, ID_ROLE, layer.id)
         if layer.is_part:
@@ -386,8 +389,8 @@ class LayersPanel(QWidget):
         else:
             item.setToolTip(0, f"{layer.id} - {layer.spec.type}")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-        for child in self.project.children(layer.id):
-            item.addChild(self._item(child, orphans))
+        for child in index.children(layer.id):
+            item.addChild(self._item(child, orphans, index))
         return item
 
     def _on_reset(self, _project: Project) -> None:
