@@ -102,7 +102,7 @@ def readable_problems(project: Project) -> list[str]:
             out += [f"{name(layer)}: {why}" for why in _keyed_problems(project, layer)]
         base = layer.base
         turned = base.rotation != 0 or base.scale != 1 or tuple(base.anchor) != (0.0, 0.0)
-        if layer.clips and turned and not _keyed(layer):
+        if layer.clips and turned and not _drawn_by_keyed(project, layer):
             out.append(f"{name(layer)}: clips on a turned or scaled object animate before its transform")
         if any(c.info.category == "motion" and c.params.get("rotate") == "along" for c in layer.clips):
             out.append(f"{name(layer)}: turning along a path")
@@ -144,6 +144,17 @@ def readable_problems(project: Project) -> list[str]:
 
 def _keyed(layer: Layer) -> bool:
     return any(layer.tracks.values())
+
+
+def _drawn_by_keyed(project: Project, layer: Layer) -> bool:
+    """Is the layer drawn through the ``Keyed`` helper: a keyed layer, or one whose spotlight
+    (FocusOn) must close on the object's own origin, as the editor's does, when nothing stops it."""
+    if _keyed(layer):
+        return True
+    if layer.parent_id is not None or not any(c.kind == "FocusOn" for c in layer.clips):
+        return False
+    ends = {x.spec.params.get(n) for x in project.layers if x.spec and x.spec.type in CONNECTOR_TYPES for n in ("source", "target")}
+    return layer.id not in ends and not _keyed_problems(project, layer)
 
 
 def _keyed_problems(project: Project, layer: Layer) -> list[str]:
@@ -302,16 +313,18 @@ class Keyed(Group):
 
 class KeyedClip(Animation):
     """A clip of a keyframed layer: ``animation`` acts on the layer's source and the drawing follows
-    it - added to the scene by an introducer, taken away by a remover."""
+    it - added to the scene by an introducer, taken away by a remover. An overlay (Flash) is drawn
+    with the object while it plays."""
 
     def __init__(self, animation, drawing):
         self.animation, self.drawing = animation, drawing
+        own = animation.mobject is drawing.source  # not an overlay, whose removal is its own
         super().__init__(
             Mobject(),  # a stand-in: the source stays out of the scene, the drawing redraws itself
             run_time=animation.run_time,
             rate_func=linear,
-            introducer=animation.is_introducer(),
-            remover=animation.is_remover(),
+            introducer=own and animation.is_introducer(),
+            remover=own and animation.is_remover(),
         )
 
     def _setup_scene(self, scene):
@@ -320,11 +333,11 @@ class KeyedClip(Animation):
 
     def begin(self):
         self.animation.begin()
-        if self.animation.mobject is not self.drawing.source:  # an overlay: drawn with the object
+        if self.animation.mobject is not self.drawing.source:
             self.drawing.overlays.append(self.animation.mobject)
 
     def update_mobjects(self, dt):
-        self.animation.update_mobjects(dt)
+        pass  # the editor never runs an animation's own updaters (FocusOn's spotlight stays put)
 
     def interpolate(self, alpha):
         self.animation.interpolate(alpha)
@@ -383,7 +396,7 @@ class _Readable:
         self.project = project
         self.scene_name = scene_name
         self.names = _variable_names(project)
-        self.keyed = {layer.id for layer in project.layers if _keyed(layer)}
+        self.keyed = {layer.id for layer in project.layers if _drawn_by_keyed(project, layer)}
         self.drawings = _drawing_names(project, self.names, self.keyed)  # keyed layer -> its Keyed
         self.helpers: set[str] = set()
 
