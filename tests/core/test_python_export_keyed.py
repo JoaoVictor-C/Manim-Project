@@ -228,7 +228,7 @@ def test_the_keys_are_written_as_data() -> None:
     assert "(2.2, 1.0, cubic_bezier(0.34, 1.56, 0.64, 1.0))," in table and "(3.2, 0.8, smooth)," in table
     assert "Succession(Wait(0.5), eq1_keyed.clip(Write(eq1, run_time=1.5)))" in code
     assert "self.play(eq1_keyed.clip(Indicate(eq1)), run_time=0.8)" in code
-    assert "Transform(eq1_keyed.still(4.4), eq2, replace_mobject_with_target_in_scene=True)" in code
+    assert "self.play(ReplacementTransform(eq1_keyed.still(4.4), eq2), run_time=1.2)" in code
     assert "config.disable_caching = True" in code  # Manim's cache does not see the scene clock
     plain = to_python(Project(canvas=euler().canvas, layers=[euler().layers[0]]), "Plain").code
     assert "Keyed" not in plain and "disable_caching" not in plain
@@ -295,17 +295,25 @@ def test_waits_cover_whole_frames() -> None:
 
 
 def render_scenes(codes: dict[str, str], tmp_path: Path) -> dict[str, list[np.ndarray]]:
-    """Render every scene of ``codes`` (name -> generated file) in one Manim process."""
-    body = [code.replace("from __future__ import annotations\n", "") for code in codes.values()]
-    path = tmp_path / "scenes.py"
-    path.write_text("from __future__ import annotations\n" + "\n\n".join(body), encoding="utf-8")
-    done = subprocess.run(
-        [sys.executable, "-m", "manim", "render", str(path), "-a", "--media_dir", str(tmp_path / "media")],
-        capture_output=True,
-        text=True,
-        cwd=tmp_path,
-    )
-    assert done.returncode == 0, done.stderr[-3000:]
+    """Render the scenes of ``codes`` (name -> generated file): those with the same Manim config
+    (set at import) in one file and one Manim process."""
+    runs: dict[str, list[str]] = {}
+    for code in codes.values():
+        config = "\n".join(line for line in code.splitlines() if line.startswith("config."))
+        runs.setdefault(config, []).append(code.replace("from __future__ import annotations\n", ""))
+    for i, body in enumerate(runs.values()):
+        path = tmp_path / f"scenes{i}.py"
+        path.write_text("from __future__ import annotations\n" + "\n\n".join(body), encoding="utf-8")
+        media = tmp_path / "media"
+        done = subprocess.run(
+            [sys.executable, "-m", "manim", "render", str(path), "-a", "--media_dir", str(media)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=tmp_path,
+        )
+        assert done.returncode == 0, done.stderr[-3000:]
     out = {}
     for name in codes:
         video = next((tmp_path / "media" / "videos").rglob(f"{name}.mp4"))

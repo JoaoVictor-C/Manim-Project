@@ -22,6 +22,7 @@ import numpy as np
 
 from .. import plugins
 from . import adapter, audio
+from .evaluator import layer_transform
 from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
@@ -40,7 +41,8 @@ from .schema import (
 EPS = 1e-9
 STAR: dict = {}
 exec("from manim import *", STAR)  # what a generated file can name without a prefix
-RESERVED = set(STAR) | set(dir(__builtins__)) | {"self", "np", "math"}
+HELPERS = {"clamped", "cubic_bezier", "Keyed", "KeyedClip", "multiply_opacity", "curve_point"}
+RESERVED = set(STAR) | set(dir(__builtins__)) | {"self", "np", "math"} | HELPERS
 
 
 @dataclass
@@ -96,10 +98,11 @@ def readable_problems(project: Project) -> list[str]:
             continue
         if layer.spec.type in CODE_TYPES:
             out.append(f"{name(layer)}: code layers are rendered by the editor")
-        if layer.tracks:
-            out.append(f"{name(layer)}: keyframes")
+        if _keyed(layer):  # drawn through the Keyed helper, which applies the transform after the clips
+            out += [f"{name(layer)}: {why}" for why in _keyed_problems(project, layer)]
         base = layer.base
-        if layer.clips and (base.rotation != 0 or base.scale != 1 or tuple(base.anchor) != (0.0, 0.0)):
+        turned = base.rotation != 0 or base.scale != 1 or tuple(base.anchor) != (0.0, 0.0)
+        if layer.clips and turned and not _keyed(layer):
             out.append(f"{name(layer)}: clips on a turned or scaled object animate before its transform")
         if any(c.info.category == "motion" and c.params.get("rotate") == "along" for c in layer.clips):
             out.append(f"{name(layer)}: turning along a path")
@@ -139,6 +142,26 @@ def readable_problems(project: Project) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def _keyed(layer: Layer) -> bool:
+    return any(layer.tracks.values())
+
+
+def _keyed_problems(project: Project, layer: Layer) -> list[str]:
+    """Why a keyframed layer cannot be drawn by the ``Keyed`` helper (G3a, ADR 0046): its drawing is
+    a copy made at every frame, so nothing else may hold on to the object itself."""
+    out = []
+    if layer.spec.type in CONNECTOR_TYPES:
+        out.append("a keyframed connector")
+    if any(c.info.category == "motion" for c in layer.clips):  # its path would be in moving units
+        out.append("a keyframed object moving along a path")
+    if any(c.to_layer == layer.id for x in project.layers for c in x.clips):
+        out.append("a morph into a keyframed object")
+    for start, _end, members in _clusters(project):  # a morph takes the drawing when its play starts
+        if any(lay.id == layer.id and c.to_layer and c.start > start + EPS for lay, c in members):
+            out.append("a keyframed object morphing during other animations")
+    return out
+
+
 def _connector_problems(project: Project, layer: Layer) -> list[str]:
     """Why a connector cannot be ``always_redraw(lambda: Line(a.get_center(), b.get_center()))``
     (ADR 0036): Manim's line runs between the drawings' centres and is drawn all the time."""
@@ -158,6 +181,8 @@ def _connector_problems(project: Project, layer: Layer) -> list[str]:
         target = project.layer(target_id)
         if target_id in morphing:
             out.append("a connector to a morphing object")
+        if _keyed(target):  # its drawing is redrawn after the connector reads it
+            out.append("a connector to a keyframed object")
         target_start, target_end = infer_lifetime(target)
         if target_start > start + EPS or target_end < end - EPS:
             out.append("a connector to an object that is not drawn all the time")
@@ -195,12 +220,171 @@ def _lifetime_events(project: Project) -> list[tuple[float, str, str]]:
 
 # -- readable code ------------------------------------------------------------------------------------
 
+# Written into a readable file that has keyframed layers (G3a, ADR 0046). The editor draws a layer
+# as its clips leave the object, then moved, scaled, turned and faded by its keys; Manim's ``.animate``
+# would cut a turn as a chord and could not overlap a clip, so the file keeps the keys as data and
+# draws a copy of the object through them at every frame. Manim adds whatever an animation plays on
+# to the scene, so a keyed layer's clips play through ``KeyedClip``, which keeps the object itself out.
+_KEYED_HELPER = '''\
+class Keyed(Group):
+    """A keyframed layer, drawn as the editor draws it.
+
+    ``source`` is the object the layer's clips animate; it is never added to the scene. At every
+    frame the scene shows a copy of it scaled and turned about ``anchor``, then moved and faded, by
+    the layer's transform at that frame's time: the editor applies a layer's transform after its
+    clips. A keyed property is a list of keys ``(time, value, ease)``, each ease shaping the move to
+    the next key (the keys of a curved path add their in and out tangents); the others are constants.
+    """
+
+    def __init__(self, scene, source, anchor=(0.0, 0.0), position=(0.0, 0.0), scale=1.0, rotation=0.0, opacity=1.0):
+        super().__init__()
+        self.scene, self.source, self.anchor = scene, source, anchor
+        self.keys = {"position": position, "scale": scale, "rotation": rotation, "opacity": opacity}
+        self.overlays = []  # what an overlay clip (Flash) draws besides the object, while it plays
+        fps = config.frame_rate
+        # A dt updater, so Manim redraws it in waits too, at the frame's own time on the frame grid.
+        self.add_updater(lambda drawing, dt: drawing.draw(round(scene.renderer.time * fps) / fps))
+
+    def draw(self, t):
+        # Manim lists what it draws when a play begins, so the last drawing is emptied, not dropped.
+        for drawing in self.submobjects:
+            for part in drawing.get_family():
+                part.points = np.zeros((0, 3))
+        self.submobjects = [self.at(t)]
+
+    def at(self, t):
+        """A copy of the source (and its overlays) through the layer's transform at ``t``."""
+        drawing = self.source.copy()
+        if self.overlays:
+            drawing = Group(drawing, *(overlay.copy() for overlay in self.overlays))
+            drawing.set_z_index(self.source.z_index)
+        x, y = self.value("position", t)
+        angle, scale, opacity = self.value("rotation", t) * DEGREES, self.value("scale", t), self.value("opacity", t)
+        c, s = np.cos(angle) * scale, np.sin(angle) * scale
+        matrix = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+        pivot = np.array([*self.anchor, 0.0])
+        shift = np.array([x, y, 0.0]) + pivot - matrix @ pivot
+        for part in drawing.get_family():
+            if len(part.points):
+                part.points = part.points @ matrix.T + shift
+            if opacity != 1:
+                multiply_opacity(part, opacity)
+        return drawing
+
+    def value(self, name, t):
+        """A property at ``t``: held before the first key and after the last, eased in between."""
+        keys = self.keys[name]
+        if not isinstance(keys, list):
+            return keys
+        if t <= keys[0][0]:
+            return keys[0][1]
+        if t >= keys[-1][0]:
+            return keys[-1][1]
+        for k0, k1 in zip(keys, keys[1:]):
+            if k0[0] <= t < k1[0]:
+                u = k0[2]((t - k0[0]) / (k1[0] - k0[0]))
+                if len(k0) > 3 and (k0[4] is not None or k1[3] is not None):  # a curved path
+                    return curve_point(k0[1], k0[4], k1[3], k1[1], u)
+                if isinstance(k0[1], tuple):
+                    return tuple(a + (b - a) * u for a, b in zip(k0[1], k1[1]))
+                return k0[1] + (k1[1] - k0[1]) * u
+        return keys[-1][1]
+
+    def clip(self, animation):
+        """``animation``, acting on the source, as a clip of this layer."""
+        return KeyedClip(animation, self)
+
+    def still(self, t):
+        """The drawing at ``t``, taking this one's place in the scene: a morph starts from it."""
+        self.scene.remove(self)
+        return self.at(t)
+
+
+class KeyedClip(Animation):
+    """A clip of a keyframed layer: ``animation`` acts on the layer's source and the drawing follows
+    it - added to the scene by an introducer, taken away by a remover."""
+
+    def __init__(self, animation, drawing):
+        self.animation, self.drawing = animation, drawing
+        super().__init__(
+            Mobject(),  # a stand-in: the source stays out of the scene, the drawing redraws itself
+            run_time=animation.run_time,
+            rate_func=linear,
+            introducer=animation.is_introducer(),
+            remover=animation.is_remover(),
+        )
+
+    def _setup_scene(self, scene):
+        if self.is_introducer():
+            scene.add(self.drawing)
+
+    def begin(self):
+        self.animation.begin()
+        if self.animation.mobject is not self.drawing.source:  # an overlay: drawn with the object
+            self.drawing.overlays.append(self.animation.mobject)
+
+    def update_mobjects(self, dt):
+        self.animation.update_mobjects(dt)
+
+    def interpolate(self, alpha):
+        self.animation.interpolate(alpha)
+
+    def finish(self):
+        self.animation.finish()
+        self.drawing.overlays = [m for m in self.drawing.overlays if m is not self.animation.mobject]
+
+    def clean_up_from_scene(self, scene):
+        self.animation.clean_up_from_scene(scene)
+        scene.remove(self.mobject)
+        if self.is_remover():
+            scene.remove(self.drawing)
+
+
+def multiply_opacity(part, factor):
+    """``part``'s opacity times ``factor``, from what it is now (as the editor fades a layer)."""
+    if isinstance(part, VMobject):
+        for rgbas in (part.fill_rgbas, part.stroke_rgbas, part.background_stroke_rgbas):
+            if rgbas is not None and len(rgbas):
+                rgbas[:, 3] *= factor
+    elif isinstance(part, ImageMobject):
+        part.pixel_array[:, :, 3] = (part.pixel_array[:, :, 3] * factor).astype(np.uint8)'''
+
+_CURVE_HELPER = '''\
+def curve_point(p0, out0, in1, p1, u):
+    """The position at eased time ``u`` on a curved path from ``p0`` to ``p1``: the cubic Bezier
+    through the keys' tangents, walked by length; past either end it goes on along that end."""
+    a, b = np.array(p0, dtype=float), np.array(p1, dtype=float)
+    c0, c1 = a + np.array(out0 or (0.0, 0.0)), b + np.array(in1 or (0.0, 0.0))
+
+    def bezier(s):
+        s = np.asarray(s, dtype=float)[..., None]
+        return (1 - s) ** 3 * a + 3 * (1 - s) ** 2 * s * c0 + 3 * (1 - s) * s**2 * c1 + s**3 * b
+
+    samples = np.linspace(0.0, 1.0, 128)
+    lengths = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(bezier(samples), axis=0), axis=1))])
+    total = lengths[-1]
+    if total <= 0:
+        return (float(a[0]), float(a[1]))
+    if u < 0 or u > 1:  # an overshoot keeps going in the direction of travel
+        end = u > 1
+        direction = np.zeros(2)
+        for vector in [b - c1, b - c0, b - a] if end else [c0 - a, c1 - a, b - a]:
+            if np.linalg.norm(vector) > 1e-12:
+                direction = vector / np.linalg.norm(vector)
+                break
+        x, y = (b if end else a) + direction * ((u - 1) if end else u) * total
+        return (float(x), float(y))
+    x, y = bezier(np.interp(u * total, lengths, samples))
+    return (float(x), float(y))'''
+
 
 class _Readable:
     def __init__(self, project: Project, scene_name: str) -> None:
         self.project = project
         self.scene_name = scene_name
         self.names = _variable_names(project)
+        self.keyed = {layer.id for layer in project.layers if _keyed(layer)}
+        self.drawings = _drawing_names(project, self.names, self.keyed)  # keyed layer -> its Keyed
         self.helpers: set[str] = set()
 
     def code(self) -> str:
@@ -219,8 +403,14 @@ class _Readable:
             f"config.frame_height = {_num(canvas.frame_height)}",
             f"config.frame_width = {_num(canvas.frame_width)}",
             f"config.background_color = {canvas.background!r}",
-            "",
         ]
+        if self.keyed:
+            lines.append("config.disable_caching = True  # keyed layers read the scene clock, which the cache cannot see")
+        lines.append("")
+        if self.keyed:
+            lines += ["", *_KEYED_HELPER.splitlines(), ""]
+        if "curve_point" in self.helpers:
+            lines += ["", *_CURVE_HELPER.splitlines(), ""]
         if "clamped" in self.helpers:
             lines += [
                 "",
@@ -257,9 +447,47 @@ class _Readable:
             out.append(f"{var} = {_construct(layer.spec)}")
             out += [f"{var}.{call}" for call in _style_calls(layer.spec.style)]
             out.append(f"{var}.move_to(ORIGIN)")
+            if layer.id in self.keyed:  # its transform is drawn frame by frame, after its clips
+                out.append(f"{var}.set_z_index({index})  # the layer order")
+                out.append(self._keyed(layer))
+                continue
             out += [f"{var}.{call}" for call in _transform_calls(layer)]
             out.append(f"{var}.set_z_index({index})  # the layer order")
         return out + connectors
+
+    def _keyed(self, layer: Layer) -> str:
+        """The layer's Keyed drawing: its keys as tables, its unkeyed transform as constants."""
+        base = layer.base
+        args = []
+        if tuple(base.anchor) != (0.0, 0.0):
+            args.append(f"anchor={_pair(base.anchor)}")
+        rest = {"position": (0.0, 0.0), "scale": 1.0, "rotation": 0.0, "opacity": 1.0}
+        for prop, default in rest.items():
+            track = layer.tracks.get(prop)
+            if track:
+                curved = any(k.curved for k in track)
+                if curved:
+                    self.helpers.add("curve_point")
+                rows = [f"        {self._key(k, curved)}," for k in track]
+                args.append("\n".join([f"{prop}=[", *rows, "    ]"]))
+            elif getattr(base, prop) != default:
+                value = getattr(base, prop)
+                args.append(f"{prop}={_pair(value) if prop == 'position' else _num(value)}")
+        var = self.names[layer.id]
+        lines = [f"{self.drawings[layer.id]} = Keyed(self, {var},", *(f"    {a}," for a in args), ")"]
+        return "\n".join(lines)
+
+    def _key(self, key, curved: bool) -> str:
+        """A key as ``(time, value, ease)``; a curved track's keys add their in and out tangents."""
+        value = _pair(key.value) if isinstance(key.value, tuple) else _num(key.value)
+        cells = [_num(key.t), value, self._ease(key.ease, clamp=False)]
+        if curved:
+            cells += [_pair(t) if t is not None else "None" for t in (key.in_tangent, key.out_tangent)]
+        return f"({', '.join(cells)})"
+
+    def _drawn(self, layer_id: str) -> str:
+        """What the scene adds and removes for a layer: its Keyed drawing when it is keyed."""
+        return self.drawings.get(layer_id, self.names[layer_id])
 
     def _connector(self, layer: Layer, index: int) -> str:
         """A connector redrawn between its objects' centres every frame (ADR 0036)."""
@@ -273,22 +501,32 @@ class _Readable:
     # timeline
 
     def _timeline(self) -> list[str]:
+        """Plays and waits in time order. Waits are counted in frames: Manim draws ``ceil(run_time *
+        fps)`` frames for a play, so after a clip that ends between frames the wait covers exactly
+        the frames left until the next event, as the editor's export draws them."""
         events: list[tuple[float, int, list[str]]] = []
         for t, layer_id, what in _lifetime_events(self.project):
             order = 0 if what == "remove" else 1
-            events.append((t, order, [f"self.{what}({self.names[layer_id]})"]))
-        for start, end, members in _clusters(self.project):
+            events.append((t, order, [f"self.{what}({self._drawn(layer_id)})"]))
+        clusters = _clusters(self.project)
+        for start, end, members in clusters:
             events.append((start, 2, self._play(start, end, members)))
-        out, cursor = [], 0.0
+        fps = self.project.canvas.fps
+        out, cursor, frames = [], 0.0, 0  # cursor: the time of the timeline; frames: those Manim drew
         for t, _, lines in sorted(events, key=lambda e: (e[0], e[1])):
-            if t > cursor + EPS:
-                out.append(f"self.wait({_time(t - cursor)})")
-                cursor = t
+            first = _first_frame(t, fps)
+            if first > frames:
+                out.append(_wait(first - frames, fps, t - cursor))
+                frames = first
+            cursor = max(cursor, t)
             out += lines
             if lines[0].startswith("self.play"):
-                cursor = max(cursor, next(end for s, end, _ in _clusters(self.project) if abs(s - t) < EPS))
-        if self.project.canvas.duration > cursor + EPS:
-            out.append(f"self.wait({_time(self.project.canvas.duration - cursor)})")
+                end = next(end for s, end, _ in clusters if abs(s - t) < EPS)
+                frames += _play_frames(float(_time(end - t)), fps)
+                cursor = max(cursor, end)
+        total = round(self.project.canvas.duration * fps)
+        if total > frames:
+            out.append(_wait(total - frames, fps, self.project.canvas.duration - cursor))
         return out
 
     def _play(self, start: float, end: float, members: list[tuple[Layer, Clip]]) -> list[str]:
@@ -318,12 +556,15 @@ class _Readable:
             cls.__name__, cls.__name__
         )
         var = self.names[layer.id]
+        keyed = layer.id in self.keyed
         args = [var]
         info = clip.info
         if info.category == "morph":
+            if keyed:  # a morph is a hand-off in world space: from the drawing as its play starts
+                args[0] = f"{self.drawings[layer.id]}.still({_num(clip.start)})"
             args.append(self.names[clip.to_layer])
         if info.category == "motion":
-            args.append(self._path(clip.params["path"]))
+            args.append(self._path(clip.params["path"], clip.start))
         kwargs: dict[str, str] = {}
         for param in clip_params(clip.kind):
             value = clip.params.get(param.name, param.default)
@@ -352,13 +593,17 @@ class _Readable:
             kwargs["rate_func"] = self._ease(clip.ease, info.clamps_alpha)
         if run_time is not None:
             kwargs["run_time"] = _time(run_time)
-        return f"{name}({', '.join([*args, *(f'{k}={v}' for k, v in kwargs.items())])})"
+        text = f"{name}({', '.join([*args, *(f'{k}={v}' for k, v in kwargs.items())])})"
+        if keyed and info.category != "morph":  # it acts on the object; the drawing follows
+            return f"{self.drawings[layer.id]}.clip({text})"
+        return text
 
-    def _path(self, layer_id: str) -> str:
-        """The path layer's rest shape, built afresh (its own clips must not move the path)."""
+    def _path(self, layer_id: str, at: float) -> str:
+        """The path layer's rest shape where it is at ``at``, built afresh (its own clips must not
+        move the path; its keys place it as the clip starts, as the editor reads it)."""
         layer = self.project.layer(layer_id)
         shape = _construct(layer.spec)
-        calls = [*_style_calls(layer.spec.style), "move_to(ORIGIN)", *_transform_calls(layer)]
+        calls = [*_style_calls(layer.spec.style), "move_to(ORIGIN)", *_transform_calls(layer, at)]
         built = f"{shape}.{'.'.join(calls)}"
         if layer.spec.type == "SVGMobject" or layer.spec.type in TEXT_TYPES:  # its longest path (ADR 0027)
             return f"max({built}.family_members_with_points(), key=lambda p: p.get_arc_length())"
@@ -412,6 +657,22 @@ def _variable_names(project: Project) -> dict[str, str]:
     return out
 
 
+def _drawing_names(project: Project, names: dict[str, str], keyed: set[str]) -> dict[str, str]:
+    """``<name>_keyed`` for each keyed layer, unique among the layers' names."""
+    taken = set(names.values())
+    out = {}
+    for layer in project.layers:
+        if layer.id not in keyed:
+            continue
+        base = f"{names[layer.id]}_keyed"
+        name, n = base, 2
+        while name in taken or name in RESERVED:
+            name, n = f"{base}_{n}", n + 1
+        taken.add(name)
+        out[layer.id] = name
+    return out
+
+
 def _construct(spec) -> str:
     """The constructor call that builds ``spec`` as the editor does (adapter._build)."""
     if spec.type == "Axes":
@@ -457,8 +718,9 @@ def _style_calls(style: dict) -> list[str]:
     return out
 
 
-def _transform_calls(layer: Layer) -> list[str]:
-    base = layer.base
+def _transform_calls(layer: Layer, at: float | None = None) -> list[str]:
+    """The layer's transform as calls: its base, or its keyed transform at ``at``."""
+    base = layer.base if at is None else layer_transform(layer, at)
     pivot = _vector(base.anchor)
     out = []
     if base.scale != 1:
@@ -475,6 +737,39 @@ def _transform_calls(layer: Layer) -> list[str]:
 def _vector(value) -> str:
     x, y = (float(v) for v in list(value)[:2])
     return f"[{_num(x)}, {_num(y)}, 0.0]"
+
+
+def _pair(value) -> str:
+    x, y = (float(v) for v in list(value)[:2])
+    return f"({_num(x)}, {_num(y)})"
+
+
+def _first_frame(t: float, fps: int) -> int:
+    """The first frame the editor draws at or after ``t``."""
+    return math.ceil(t * fps - 1e-6)
+
+
+def _play_frames(run_time: float, fps: int) -> int:
+    """How many frames Manim draws for a play of ``run_time`` seconds (Scene.get_time_progression)."""
+    return len(np.arange(0, run_time, 1 / fps))
+
+
+def _wait(frames: int, fps: int, nominal: float) -> str:
+    """``self.wait`` for exactly ``frames`` frames, whether Manim holds one frame (``int(run_time /
+    dt)`` of them) or draws them one by one (``np.arange(0, run_time, dt)``): the timeline's own
+    interval when it does, else the nearest time that does (said in a comment)."""
+    dt = 1 / fps
+    nominal = round(nominal, 9)
+    value = next((v for v in (nominal, frames / fps, frames * dt) if v > 0 and v / dt == frames), None)
+    if value is None:
+        value = frames / fps
+        for _ in range(64):  # a few ulps away, w / dt is exactly the count
+            value = float(np.nextafter(value, math.inf if value / dt < frames else 0.0))
+            if value / dt == frames:
+                break
+    if value == nominal:
+        return f"self.wait({_num(value)})"
+    return f"self.wait({_num(value)})  # {frames} frames at {fps} fps"
 
 
 def _time(value: float) -> str:
