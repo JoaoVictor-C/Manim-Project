@@ -96,6 +96,10 @@ class CanvasWidget(QWidget):
         self._camera = None
         self.view = viewport.View()  # a project opens at Fit
 
+    def set_canvas(self, canvas: Canvas) -> None:
+        """The same picture with other settings that do not move it (its length)."""
+        self._canvas = canvas
+
     # -- geometry ----------------------------------------------------------------
 
     def geometry_now(self) -> viewport.ViewGeometry:

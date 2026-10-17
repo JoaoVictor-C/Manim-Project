@@ -20,7 +20,7 @@ from collections.abc import Hashable
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
-from ..core import edits
+from ..core import edits, scene_length
 from ..core.schema import Project
 from ..logging_config import get_logger
 
@@ -106,9 +106,10 @@ class Document(QObject):
         """
         if self.dragging:
             raise RuntimeError("finish or cancel the drag before applying another edit")
-        if edit.project == self._project:
+        after = scene_length.grow_to_fit(edit.project)  # the scene covers what the edit placed (P7.1)
+        if after == self._project:
             return
-        command = _SnapshotCommand(self, self._project, edit.project, text, False, merge_key, merge)
+        command = _SnapshotCommand(self, self._project, after, text, False, merge_key, merge)
         self.undo_stack.push(command)
 
     # -- drags ---------------------------------------------------------------
@@ -131,6 +132,9 @@ class Document(QObject):
         if before is None:
             return
         if before is not self._project:
+            grown = scene_length.grow_to_fit(self._project)  # a clip dragged past the end (P7.1)
+            if grown is not self._project:
+                self._set(grown)
             self.undo_stack.push(_SnapshotCommand(self, before, self._project, text, applied=True))
         self.dragFinished.emit()
 

@@ -20,6 +20,8 @@ Span = tuple[float, float]  # [start, end) in seconds
 # Parts of a project whose changes are not "every frame": layers, sounds (ADR 0034), subtitles (ADR 0035),
 # markers (ADR 0037: no frame at all).
 _NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers"}
+# The scene's length draws nothing: a frame is the same in a longer scene (P7.1).
+_NOT_DRAWN = {"canvas": {"duration", "grow_with_content"}}
 BUDGET = 512 * 2**20  # bytes of compressed frames (B41: 4500-9700 frames)
 
 
@@ -58,9 +60,14 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     return _merge(spans + subtitles.changed_spans(old, new))  # subtitles are drawn too (ADR 0035)
 
 
+def _drawn(project: Project) -> dict:
+    """What of the project draws every frame."""
+    return project.model_dump(exclude={**dict.fromkeys(_NOT_CANVAS, True), **_NOT_DRAWN})
+
+
 def changed_layers(old: Project, new: Project) -> set[str] | None:
     """The layers whose frames can differ (see ``changed_spans``); None when the canvas changed."""
-    if old.model_dump(exclude=_NOT_CANVAS) != new.model_dump(exclude=_NOT_CANVAS):
+    if _drawn(old) != _drawn(new):
         return None
     before = {layer.id: layer for layer in old.layers}
     after = {layer.id: layer for layer in new.layers}
