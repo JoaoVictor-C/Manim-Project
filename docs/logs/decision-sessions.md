@@ -833,3 +833,24 @@ left open, so ADRs can cite it.
   top of each frame's clip state; whether Manim's update order allows that while a clip
   animates the same object is open - the agent finds a construction or reports it; timings on
   battery are noisy, so budgets are measured later.
+
+## Session 43 — P7 studio workflow · 2026-10-17
+
+- **Tool / profile:** Terza, `fast`; 2 iterations, 2 passes, halted on `halt_signal`,
+  confidence **0.90**.
+- **Input:** the user's six asks (video length, timeline row selection, code layer rename and
+  delete, a less confusing Animate page, Unity as a reference, 3D preparation); research on
+  Unity's Animation window and tools and After Effects' graph editor; B64 (the 15-minute
+  scene) and B65 (the 3D camera probe); checks in the code.
+- **Decisions:** five slices - scene settings with dynamic length, row selection and code
+  rename/delete now; B64's scaling fixes; Animate as expandable property sub-rows with curves
+  for the chosen properties and a Record button; F / Shift+F framing; 3D preparation as an ADR,
+  a project camera and a conditional 3D camera. Plan: [../plans/p7-studio-workflow.md](../plans/p7-studio-workflow.md).
+- **Measured during the session:** no UI changed the scene's duration; clicking a row's name or
+  an empty row did nothing; the Code page had no rename or delete; the schema accepts content
+  past the scene's end; the 3D camera at the default view is pixel-identical (B65).
+- **Critiques that changed the plan:** a separate dope sheet would show every key twice under
+  the timeline's own diamonds, so the rows expand instead; tool modes would remove capability on
+  a 2D canvas, so they wait for 3D; 3D prep shrank to what can be verified (no un-editable 3D
+  fields); dynamic length needs the timeline to allow content past the end, bounded by the
+  visible width; the timeline's quadratic rebuild must be fixed before rows multiply.

@@ -78,4 +78,5 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 - ✅ **P6d** — [plan](plans/p6d-polish.md): presets browser, preferences, recent files, shortcuts help, onboarding, visual-bug sweep
 - **P6e** — [plan](plans/p6e-release.md): release preparation
 - **GP** — [plan](plans/golden-path.md): the golden path - create, save, reopen and export a typical animation, excellently; readable Python export; 10+ minute scenes
+- **P7** — [plan](plans/p7-studio-workflow.md): studio workflow - scene length, row selection, code layer management, Animate like After Effects and Unity, scaling for long scenes, 3D preparation
 
