@@ -48,8 +48,8 @@ def motions() -> Project:
     curve = [
         Keyframe(t=0.4, value=(-1.5, -0.5), ease=Easing(name="ease_in_out_back"), out_tangent=(0.5, 2.0)),
         Keyframe(t=2.4, value=(1.5, -0.5), in_tangent=(0.0, 1.5), ease=Easing(name="linear")),
-        Keyframe(t=3.6, value=(1.0, -2.5), ease=Easing(name="smooth"), out_tangent=(1.0, 0.0)),
-        Keyframe(t=4.6, value=(-1.0, -2.5), in_tangent=(0.5, 0.5)),
+        Keyframe(t=3.6, value=(1.0, -2.5), ease=Easing(name="smooth")),
+        Keyframe(t=4.6, value=(-1.0, -2.5), in_tangent=(0.5, 1.5)),  # curved by its in tangent alone
     ]
     return Project(
         canvas=Canvas(**SMALL, duration=6.0),
@@ -86,7 +86,9 @@ def motions() -> Project:
             Layer(
                 id="fade",
                 name="Fade",
-                spec=Spec(type="Triangle", style={"fill": "#facc15", "fill_opacity": 1.0}),
+                spec=Spec(
+                    type="Triangle", style={"fill": "#facc15", "fill_opacity": 1.0, "stroke_width": 10.0}
+                ),
                 base=Transform2D(position=(4.5, -2.0), rotation=20.0, scale=1.3, opacity=0.9),
                 tracks={
                     "opacity": [
@@ -102,11 +104,23 @@ def motions() -> Project:
 
 def clips() -> Project:
     """Keyed layers whose clips play while their keys change: alone, in a group with another
-    object's clips (after a wait), an overlay, a remover, a morph from a keyed layer, and a keyed
-    layer as the path of a move."""
+    object's clips (after a wait), an overlay drawn at the layer's place in the stack (over the
+    panel below it), a remover, a morph from a keyed layer, and a keyed layer as the path of a
+    move."""
     return Project(
         canvas=Canvas(**SMALL, duration=5.0),
         layers=[
+            Layer(
+                id="panel",
+                name="Panel",
+                spec=Spec(
+                    type="Rectangle",
+                    params={"width": 4.0, "height": 3.6},
+                    style={"fill": "#334155", "fill_opacity": 1.0},
+                ),
+                base=Transform2D(position=(-4.5, 1.5)),
+                tracks={"scale": [Keyframe(t=0.0, value=1.0)]},  # one key: a constant
+            ),
             Layer(
                 id="pop",
                 name="Pop",
@@ -115,7 +129,7 @@ def clips() -> Project:
                 clips=[
                     Clip(id="in", kind="FadeIn", start=0.5, duration=1.0, params={"shift": "UP"}),
                     Clip(id="ind", kind="Indicate", start=2.0, duration=0.6),
-                    Clip(id="fl", kind="Flash", start=2.7, duration=0.5),
+                    Clip(id="fl", kind="Circumscribe", start=2.7, duration=0.5),
                     Clip(id="out", kind="FadeOut", start=4.3, duration=0.6),
                 ],
                 tracks={
@@ -302,6 +316,116 @@ def test_waits_cover_whole_frames() -> None:
     wait = float(re.search(r"self\.wait\(([^)]*)\)", code).group(1))
     dt = 1 / 10
     assert len(np.arange(0, wait, dt)) == 7 and int(wait / dt) == 7
+
+
+def test_names_never_hide_the_helpers() -> None:
+    layers = [
+        Layer(id="a", name="Ring", spec=Spec(type="Circle"), tracks={"scale": [Keyframe(t=0, value=1.0)]}),
+        Layer(id="b", name="Ring keyed", spec=Spec(type="Circle")),
+        Layer(
+            id="c",
+            name="Cubic bezier",
+            spec=Spec(type="Square"),
+            clips=[
+                Clip(id="x", kind="FadeIn", start=0, duration=1, ease=Easing(bezier=(0.2, 0.0, 0.2, 1.0)))
+            ],
+        ),
+    ]
+    code = to_python(Project(canvas=Canvas(**SMALL, duration=2.0), layers=layers), "Names").code
+    assert "ring_keyed_2 = Keyed(self, ring," in code and "ring_keyed = Circle()" in code
+    assert "cubic_bezier_2 = Square()" in code and "rate_func=cubic_bezier(0.2, 0.0, 0.2, 1.0)" in code
+
+
+def test_a_spotlight_on_a_connector_end_is_played_as_it_is() -> None:
+    """A spotlight (FocusOn) closes on the object's own origin through Keyed, unless a connector
+    reads the object's centre (then Manim's own FocusOn is the nearest)."""
+    spot = Layer(
+        id="spot",
+        name="Spot",
+        spec=Spec(type="Dot"),
+        base=Transform2D(position=(2.0, 0.0)),
+        clips=[Clip(id="f", kind="FocusOn", start=0.0, duration=1.0)],
+    )
+    other = Layer(id="other", spec=Spec(type="Dot"), base=Transform2D(position=(-2.0, 0.0)))
+    project = Project(canvas=Canvas(**SMALL, duration=2.0), layers=[spot, other])
+    assert "spot_keyed = Keyed(self, spot," in to_python(project, "Spot").code
+    line = Layer(
+        id="line",
+        spec=Spec(type="Connector", params={"source": "spot", "target": "other", "ends": "centres"}),
+    )
+    linked = project.model_copy(update={"layers": [spot, other, line]})
+    export = to_python(linked, "Spot")
+    assert export.readable and "Keyed" not in export.code
+
+
+class FakeScene:
+    """What the helpers use of a scene: the clock, add and remove."""
+
+    def __init__(self) -> None:
+        self.renderer = type("Renderer", (), {"time": 0.0})()
+        self.added: list = []
+        self.removed: list = []
+
+    def add(self, mobject) -> None:
+        self.added.append(mobject)
+
+    def remove(self, mobject) -> None:
+        self.removed.append(mobject)
+
+
+def helpers() -> dict:
+    """The helpers a readable file defines, with what ``from manim import *`` gives them."""
+    from manim_studio.core import python_export
+
+    namespace: dict = {}
+    exec("from manim import *", namespace)
+    exec(python_export._KEYED_HELPER + "\n\n" + python_export._CURVE_HELPER, namespace)
+    return namespace
+
+
+def test_the_drawing_is_the_frame_on_the_editor_grid() -> None:
+    """Manim's clock adds 1/fps per frame; a key whose ease jumps (there_and_back) must still be
+    sampled at the frame's own time."""
+    ns, scene = helpers(), FakeScene()
+    square = ns["Square"]().set_stroke(opacity=1.0).set_stroke(ns["WHITE"], 4, opacity=0.8, background=True)
+    keyed = ns["Keyed"](scene, square, opacity=[(0.0, 1.0, ns["there_and_back"]), (1.0, 0.25, ns["linear"])])
+    scene.renderer.time = 1.0 - 1e-12  # the frame at 1 s, as Manim's sum of frame steps reaches it
+    keyed.update(0.01)
+    (drawing,) = keyed.submobjects
+    assert drawing.get_stroke_opacity() == pytest.approx(0.25)
+    assert drawing.background_stroke_rgbas[0, 3] == pytest.approx(0.2)
+    first = drawing
+    keyed.update(0.01)
+    assert len(first.points) == 0 and len(keyed.submobjects[0].points)  # the last drawing is emptied
+    assert len(square.points) and square.get_stroke_opacity() == 1.0  # the source is never touched
+    image = ns["ImageMobject"](np.full((4, 4, 4), 200, np.uint8))
+    faded = ns["Keyed"](scene, image, opacity=0.5).at(0.0)
+    assert int(faded.pixel_array[0, 0, 3]) == 100 and int(image.pixel_array[0, 0, 3]) == 200
+
+
+def test_a_keyed_clip_adds_removes_and_draws_overlays() -> None:
+    ns, scene = helpers(), FakeScene()
+    square = ns["Square"]()
+    keyed = ns["Keyed"](scene, square)
+    fade_in = keyed.clip(ns["FadeIn"](square))
+    fade_in._setup_scene(scene)
+    assert scene.added == [keyed] and fade_in.is_introducer() and not fade_in.is_remover()
+    flash = keyed.clip(ns["Flash"](square))
+    flash._setup_scene(scene)
+    flash.begin()
+    assert keyed.overlays == [flash.animation.mobject] and scene.added == [keyed]
+    flash.interpolate(0.5)
+    flash.finish()
+    flash.clean_up_from_scene(scene)
+    assert keyed.overlays == [] and flash.mobject in scene.removed  # its stand-in, not the drawing
+    assert keyed not in scene.removed
+    spot = keyed.clip(ns["FocusOn"](square))
+    assert not spot.is_remover()  # FocusOn removes its spotlight, not the object
+    fade_out = keyed.clip(ns["FadeOut"](square))
+    fade_out.begin()
+    fade_out.finish()
+    fade_out.clean_up_from_scene(scene)
+    assert scene.removed[-1] is keyed and square not in scene.added
 
 
 # -- rendered by Manim --------------------------------------------------------------------------------

@@ -339,6 +339,8 @@ class KeyedClip(Animation):
             scene.add(self.drawing)
 
     def begin(self):
+        if isinstance(self.animation, Succession):  # sets up its parts as they start: none in the scene
+            self.animation.scene = None
         self.animation.begin()
         if self.animation.mobject is not self.drawing.source:
             self.drawing.overlays.append(self.animation.mobject)
