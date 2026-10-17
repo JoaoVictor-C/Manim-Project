@@ -638,3 +638,84 @@ check about **31 s**. -> ADR 0045.
 rebuilt) **1.3 ms** median, 3.2 ms worst; a tab switch **1.0 ms**; one frame of a hovered
 card **0.14 ms**. Drawing everything when the dialog opens is cheap enough that no
 background thread is needed. -> ADR 0044.
+
+### B64 — A long scene: do 10+ minutes scale? · 2026-10-17 (golden path G4)
+`benchmarks/bench_long_scene.py`. **This entry is the 2-minute `--quick` run, measured on battery**
+(single runs, noise of +-30 %: three quick runs gave 11-17 ms for the same layer move and 121-155 ms
+for the same easing change), plus a `--model-only` run of the full 15 minutes, which builds and draws
+nothing and so costs seconds. **The full 15-minute run on mains power is still to do**, as is the
+column of the table it fills:
+
+```
+python benchmarks/bench_long_scene.py            # 15 minutes: a few minutes warm (the first run builds ~270 texts, much longer), ~1.5-2 GB of RAM
+python benchmarks/bench_long_scene.py --quick    # 2 minutes (this entry)
+python benchmarks/bench_long_scene.py --model-only [--profile]   # 15 minutes, no objects built or drawn
+```
+
+The synthetic explainer is seeded and shaped like a real one: a 15 s slide with a Text title, a MathTex
+(8 formulas reused), 2-4 shapes entering (FadeIn / Write / GrowFromCenter / Create), one Indicate and
+FadeOut exits; the title or a shape of some slides enters with the built-in "Pop in" preset (keyframed
+scale), applied through `library.apply_preset`. Full: 900 s, **295 root layers, 650 clips, 50 keyframed
+layers, 200 cues**, 27 000 frames, a 38 MB mono 22.05 kHz tone over the whole scene, 344 KB of JSON.
+Quick: 120 s, **40 layers, 88 clips, 7 keyframed, 27 cues**, 3600 frames, 47 KB. Both 1280x720 at 30 fps.
+(The first run also fills Manim's text cache: 1.2 s for titles and formulas, 5.0 s for the 27 cues when
+warm; cold Pango/LaTeX takes minutes at 15 minutes, once.)
+
+| quick run (120 s, 40 layers) | result | what it means |
+|---|---:|---|
+| validation / save / load | 3.1 / 3.2 / 2.9 ms | the document, linear |
+| first frame at t = 0 / slide 1 on screen | 0.2 / 302 ms | the second builds the slide's five objects |
+| first (cold) seek to 95 % | 433 ms (+16.8 ms drawn) | builds only that slide; **same with new evaluator, builds warm: 167 ms** |
+| scrub, 100 random frames | evaluate 14 ms median, p95 416 (first visits); evaluate + draw 19 / 68 ms | 1100x620, second pass is the warm one |
+| memory (RSS) | 195 MB base; open + deep seek +0; scrub **+63 MB**; every slide visited +0; every checkpoint +5 | grows with the slides visited (below) |
+| idle checkpoint pass | 40 checkpoints, 1.3 s (34 ms each) | `missing_checkpoints()` scan 0.3 ms per tick |
+| move one layer, end to end | 14 ms (1.2 `update_layer`, 0.0 `apply`, 12.2 drawn frame) | a drag step |
+| move one clip / change an easing | 13.6 / 155 ms | the second drops the layer's checkpoints and rebuilds |
+| `add_layer` / `remove_layer` | 0.9 / 0.9 ms | B53 held up |
+| `changed_spans` (move / add / ease) | 0.6 ms each; 420 / 3600 / 390 frames | |
+| autosave `recovery.write` | 12 ms | |
+| audio: decode / mix rebuild / `level_at` | 360 ms (+46 MB) / 92-101 ms / 0.44 ms | mix 44 MB |
+| timeline: `set_document` / sync / whole paint / window repaint / edit + repaint | 463 (cold sound) 32 ms / 10 ms / 33 ms (1465x1203 px) / 13 ms / 27 ms | |
+| render-ahead (zlib 1, 1100x620) | 34 KB per frame; whole scene 121 MB (100 % of 512 MB) | accept 0.001 ms, `missing(60)` 0.83 ms |
+| export, 60 frames at 1280x720 | 3.21 s = **53.6 ms/frame** | x264 + burned-in subtitles; AAC 3.0 s per 60 s of sound |
+| in the real window (1600x1000) | open 0.5-0.7 s; seek 192 / 678 ms cold, 22 / 58 ms warm; move a layer 43-62 ms | median / p95 |
+
+**The same code at 120 / 300 / 900 s (`--model-only`, ms; 40 / 97 / 295 root layers, 88 / 214 / 650
+clips):** validation 2.7 / 8.8 / 33; save 3.5 / 6.4 / 20; load 2.3 / 6.0 / 24; `update_layer` 0.8 / 1.8 / 6.3;
+`add_layer` 0.7 / 1.8 / 6.0; `changed_spans` 0.4 / 1.3 / 3.5; autosave 9.9 / 10.4 / 23.2; evaluating a frame
+with nothing alive 0.08 / 0.23 / 0.87; `missing_checkpoints()` 0.2 / 0.5 / 1.6; mix rebuild 84 / 257 / **614**;
+sound decode 187 / 886 / 2146; **timeline sync 10 / 26 / 151**; **an easing change (`apply` + a frame) 2.0 / 7.2 /
+48.8**; **a layer moved in the real window 46 / 79 / 176**; `set_document` with a cold sound 375 / 1523 / 3047.
+The edit pieces, the document, the autosave and the evaluator's walk are **linear** (about 0.1 ms per layer
+for validation) and small. The first deep seek does not depend on the scene's length (635 / 472 / 433 ms at
+30 / 60 / 120 s: it builds the slide it lands on).
+
+**What grows faster than linearly or too large, with the numbers:**
+1. **Timeline `sync()` is quadratic.** It rebuilds the whole scene on every document change: 10 ms at 40
+   layers, 26 ms at 97, 151 ms at 295 (per layer 0.25 -> 0.27 -> 0.51 ms). `--profile` at 900 s: `Project.children()`
+   885 calls from `rows()`/`descendants()` (16 ms), `Project.morph_sources()` rebuilt on each of the 295
+   `lifetime()` calls (15 ms) and `Project.layer()` (3 ms) are about half of a 110 ms sync; the 650 `ClipItem`s
+   cost 21 ms. A layer moved in the real window is 176 ms (timeline sync ~106 ms, `LayersPanel.sync` 35 ms - its
+   `children()` again - and the repaint 36 ms): a timeline drag of the 15-minute project would run at ~5 fps.
+   An index built once per sync (children map, morph map, id map) would make it linear. `Evaluator.invalidate`
+   ("clip"/"spec" edits) also grows by ~n^1.6 (2 / 7 / 49 ms).
+2. **Sound memory and mix time.** The engine's rate is 48 kHz stereo float32: decoding the one 15-minute sound
+   holds **332 MB**, its mix **331 MB**, and `audio._MIXES` keeps two, so an audio edit peaks near 1 GB for one
+   38 MB file (RSS was 813 MB with the decode and one mix). The mix rebuild after an audio edit is **614 ms**
+   (0.68 ms per second of scene, linear; B58's 115 ms was for 4 sounds of 60 s); decode **2.1 s**, paid on the
+   GUI thread by the first timeline sync (`set_document` 3.0 s against 0.27 s warm).
+3. **Render-ahead does not fit.** At 34 KB per frame the whole scene is **923 MB against the 512 MB budget:
+   55 % (14 979 frames, 8.3 min) fits** (B41's richer frames, 50-110 KB, would keep 2.5-5.4 min). A full store
+   evicts with a `max()` over every kept frame: **7.4 ms per accepted frame** and **6.2 ms per `missing(60)`**
+   on the GUI thread (0.001 and 0.8 ms when the store is small): not alarming, but O(frames kept).
+4. **The evaluator keeps everything it builds.** The scrub over the 8 slides of the quick run took RSS from 195
+   to 255 MB (2 slides: +19 MB, 4: +35, 8: +61-63), about **8 MB per slide** (five objects, their clip states,
+   the slide's cues); dropping the evaluator and the adapter's build caches gives back 44-46 MB of that. At 60
+   slides that extrapolates to **~470 MB** on top of the ~190 MB base and the ~660 MB of sound - about 1.3-1.5 GB
+   for the full scene, to be confirmed by the full run.
+5. **The timeline cannot show a long scene whole.** `MIN_PX_PER_SECOND` is 10, so *Fit Timeline* fits only up
+   to ~145 s in a 1600 px window; the 15-minute scene is 9041 px wide (a window repaint is still 22 ms and
+   painting every item 195 ms).
+6. **Export:** 53.6 ms per frame is 24 min for 27 000 frames (and ~45 s of AAC); linear, on battery.
+   Autosave is 23 ms at 344 KB (every 30 s on the GUI thread); the 650-checkpoint idle pass is ~17-22 s of
+   background work at 26-34 ms each.
