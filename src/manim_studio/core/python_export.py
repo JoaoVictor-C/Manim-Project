@@ -153,7 +153,12 @@ def _drawn_by_keyed(project: Project, layer: Layer) -> bool:
         return True
     if layer.parent_id is not None or not any(c.kind == "FocusOn" for c in layer.clips):
         return False
-    ends = {x.spec.params.get(n) for x in project.layers if x.spec and x.spec.type in CONNECTOR_TYPES for n in ("source", "target")}
+    ends = {
+        x.spec.params.get(n)
+        for x in project.layers
+        if x.spec and x.spec.type in CONNECTOR_TYPES
+        for n in ("source", "target")
+    }
     return layer.id not in ends and not _keyed_problems(project, layer)
 
 
@@ -247,7 +252,9 @@ class Keyed(Group):
     the next key (the keys of a curved path add their in and out tangents); the others are constants.
     """
 
-    def __init__(self, scene, source, anchor=(0.0, 0.0), position=(0.0, 0.0), scale=1.0, rotation=0.0, opacity=1.0):
+    def __init__(
+        self, scene, source, anchor=(0.0, 0.0), position=(0.0, 0.0), scale=1.0, rotation=0.0, opacity=1.0
+    ):
         super().__init__()
         self.scene, self.source, self.anchor = scene, source, anchor
         self.keys = {"position": position, "scale": scale, "rotation": rotation, "opacity": opacity}
@@ -269,8 +276,8 @@ class Keyed(Group):
         if self.overlays:
             drawing = Group(drawing, *(overlay.copy() for overlay in self.overlays))
             drawing.set_z_index(self.source.z_index)
-        x, y = self.value("position", t)
-        angle, scale, opacity = self.value("rotation", t) * DEGREES, self.value("scale", t), self.value("opacity", t)
+        (x, y), scale, opacity = self.value("position", t), self.value("scale", t), self.value("opacity", t)
+        angle = self.value("rotation", t) * DEGREES
         c, s = np.cos(angle) * scale, np.sin(angle) * scale
         matrix = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
         pivot = np.array([*self.anchor, 0.0])
@@ -418,7 +425,9 @@ class _Readable:
             f"config.background_color = {canvas.background!r}",
         ]
         if self.keyed:
-            lines.append("config.disable_caching = True  # keyed layers read the scene clock, which the cache cannot see")
+            lines.append(
+                "config.disable_caching = True  # keyed layers read the clock, which the cache cannot see"
+            )
         lines.append("")
         if self.keyed:
             lines += ["", *_KEYED_HELPER.splitlines(), ""]

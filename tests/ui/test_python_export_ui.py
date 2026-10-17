@@ -71,7 +71,9 @@ def test_a_keyed_project_is_written_as_readable_code(window, tmp_path) -> None:
     keyed = simple().model_copy(
         update={
             "layers": [
-                simple().layers[0].model_copy(
+                simple()
+                .layers[0]
+                .model_copy(
                     update={"tracks": {"opacity": [Keyframe(t=0, value=1.0), Keyframe(t=1, value=0.5)]}}
                 )
             ]

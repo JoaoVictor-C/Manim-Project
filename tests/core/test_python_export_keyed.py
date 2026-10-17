@@ -57,7 +57,9 @@ def motions() -> Project:
             Layer(
                 id="eases",
                 name="Eases",
-                spec=Spec(type="Square", params={"side_length": 1.2}, style={"fill": "#38bdf8", "fill_opacity": 0.6}),
+                spec=Spec(
+                    type="Square", params={"side_length": 1.2}, style={"fill": "#38bdf8", "fill_opacity": 0.6}
+                ),
                 base=Transform2D(position=(-4.5, 1.5)),
                 tracks={"scale": scale},
             ),
@@ -158,13 +160,17 @@ def clips() -> Project:
                 name="Track",
                 spec=Spec(type="Circle", params={"radius": 1.0}),
                 base=Transform2D(position=(-1.5, -2.0)),
-                tracks={"position": [Keyframe(t=0.0, value=(-1.5, -2.0)), Keyframe(t=2.0, value=(0.0, -2.0))]},
+                tracks={
+                    "position": [Keyframe(t=0.0, value=(-1.5, -2.0)), Keyframe(t=2.0, value=(0.0, -2.0))]
+                },
             ),
             Layer(
                 id="runner",
                 name="Runner",
                 spec=Spec(type="Dot", params={"radius": 0.15}),
-                clips=[Clip(id="mv", kind="MoveAlongPath", start=3.4, duration=0.8, params={"path": "track"})],
+                clips=[
+                    Clip(id="mv", kind="MoveAlongPath", start=3.4, duration=0.8, params={"path": "track"})
+                ],
             ),
         ],
     )
@@ -247,7 +253,10 @@ def test_what_keyframed_layers_cannot_express() -> None:
     assert problems(star={"tracks": key}) == ["Star: a morph into a keyframed object"]
     assert problems(runner={"tracks": key}) == ["Runner: a keyframed object moving along a path"]
     write = base.layer("label").clips[0]
-    late = [write, Clip(id="mo", kind="Transform", start=2.4, duration=0.5, to_layer="star")]  # in Ring's Create
+    late = [
+        write,
+        Clip(id="mo", kind="Transform", start=2.4, duration=0.5, to_layer="star"),
+    ]  # in Ring's Create
     assert problems(label={"clips": late}) == ["Label: a keyframed object morphing during other animations"]
     dots = [
         Layer(id=f"dot{i}", spec=Spec(type="Dot"), base=Transform2D(position=(float(i), 1.0))) for i in (1, 2)
@@ -283,7 +292,11 @@ def test_waits_cover_whole_frames() -> None:
     exactly, whether Manim draws the wait frame by frame or as one held frame."""
     project = Project(
         canvas=Canvas(**{**SMALL, "fps": 10}, duration=1.0),
-        layers=[Layer(id="a", spec=Spec(type="Dot"), clips=[Clip(id="c", kind="FadeIn", start=0.0, duration=0.25)])],
+        layers=[
+            Layer(
+                id="a", spec=Spec(type="Dot"), clips=[Clip(id="c", kind="FadeIn", start=0.0, duration=0.25)]
+            )
+        ],
     )
     code = to_python(project, "Short").code
     wait = float(re.search(r"self\.wait\(([^)]*)\)", code).group(1))
@@ -327,7 +340,11 @@ def frame_differences(project: Project, frames: list[np.ndarray]) -> list[float]
     assert len(frames) == len(times)
     evaluator, camera = Evaluator(project), make_camera(project.canvas)
     return [
-        float(np.abs(frames[i].astype(int) - render_frame(camera, evaluator.frame(t))[:, :, :3].astype(int)).mean())
+        float(
+            np.abs(
+                frames[i].astype(int) - render_frame(camera, evaluator.frame(t))[:, :, :3].astype(int)
+            ).mean()
+        )
         for i, t in enumerate(times)
     ]
 
@@ -335,7 +352,9 @@ def frame_differences(project: Project, frames: list[np.ndarray]) -> list[float]
 def assert_matches_editor(project: Project, frames: list[np.ndarray], label: str = "") -> None:
     diffs = frame_differences(project, frames)
     worst = int(np.argmax(diffs))
-    assert diffs[worst] < TOLERANCE, f"{label} frame {worst} ({worst / project.canvas.fps:.1f} s): {diffs[worst]:.2f}"
+    assert diffs[worst] < TOLERANCE, (
+        f"{label} frame {worst} ({worst / project.canvas.fps:.1f} s): {diffs[worst]:.2f}"
+    )
 
 
 @pytest.mark.slow
