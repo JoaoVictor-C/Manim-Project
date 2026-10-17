@@ -17,6 +17,11 @@ Run (each run on mains power for the full scene)::
     python benchmarks/bench_long_scene.py            # 15 minutes
     python benchmarks/bench_long_scene.py --quick    # 2 minutes, the same density (battery-friendly)
     python benchmarks/bench_long_scene.py --seconds 30
+    python benchmarks/bench_long_scene.py --model-only   # 15 minutes, nothing built or drawn: seconds
+
+``--model-only`` skips the texts, frames and export (the costs that are linear by construction) and
+keeps what depends on the number of layers and clips: validation, save and load, edits, the
+timeline, autosave, the audio mix, the evaluator's walk over the layers, the frame store.
 
 The first run on a new machine also fills Manim's text cache (LaTeX for the formulas, Pango for the
 titles and cues); the "warm-up" line says how long that took, and the numbers below it are warm, as
@@ -26,12 +31,15 @@ in an editor whose build worker has already seen the text.
 from __future__ import annotations
 
 import argparse
+import cProfile
 import ctypes
 import gc
+import io
 import json
 import logging
 import math
 import os
+import pstats
 import random
 import shutil
 import statistics
@@ -47,6 +55,8 @@ _SCRATCH = Path(tempfile.mkdtemp(prefix="bench-long-env-"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MANIM_STUDIO_PREVIEW", "0")
 os.environ.setdefault("MANIM_STUDIO_AUDIO", "0")
+os.environ.setdefault("MANIM_STUDIO_WORKER", "0")
+os.environ.setdefault("MANIM_STUDIO_CODE", "0")
 os.environ.setdefault("MANIM_STUDIO_SETTINGS", str(_SCRATCH / "settings.json"))
 os.environ.setdefault("MANIM_STUDIO_RECOVERY", str(_SCRATCH / "recovery"))
 
@@ -96,6 +106,9 @@ WORDS = "the a curve moves along its path while we watch how each part changes o
 SHAPES = ["Circle", "Square", "Rectangle", "Triangle", "Star"]
 PALETTE = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#a855f7", "#14b8a6"]
 RESULTS: dict[str, object] = {}
+MODEL_ONLY = False  # --model-only: nothing is built or drawn, so a 15-minute scene costs seconds
+PROFILE = False  # --profile: cProfile tops for the timeline's sync and an edit in the window
+ASSUMED_FRAME_KB = 35  # a kept frame (zlib 1) when --model-only draws none: the quick run's mean
 
 
 # -- helpers ----------------------------------------------------------------------------------------
@@ -167,6 +180,18 @@ def report(key: str, label: str, value: str, meaning: str = "") -> None:
 
 def section(title: str) -> None:
     print(f"\n== {title}", flush=True)
+
+
+def profile_call(label: str, work, lines: int = 14) -> None:
+    """With ``--profile``: the cProfile top (by cumulative time) of one run of ``work``."""
+    if not PROFILE:
+        return
+    profiler = cProfile.Profile()
+    profiler.runcall(work)
+    print(f"\n  -- cProfile: {label}")
+    stream = io.StringIO()
+    pstats.Stats(profiler, stream=stream).sort_stats("cumulative").print_stats(lines)
+    print("\n".join("     " + row for row in stream.getvalue().splitlines() if row.strip()))
 
 
 def clear_builds() -> None:
@@ -322,8 +347,10 @@ def widget_camera(project: Project) -> m.Camera:
     )
 
 
-def draw(camera: m.Camera, evaluator: Evaluator, t: float) -> np.ndarray:
-    return cairo_export.render_frame(camera, evaluator.frame(t))
+def draw(camera: m.Camera | None, evaluator: Evaluator, t: float) -> np.ndarray | None:
+    """Evaluate and draw a frame; with no camera (``--model-only``) only evaluate it."""
+    frame = evaluator.frame(t)
+    return cairo_export.render_frame(camera, frame) if camera is not None else None
 
 
 def on_grid(project: Project, t: float) -> float:
@@ -390,6 +417,44 @@ def document_section(project: Project, folder: Path) -> Project:
         "File > Open before the window reacts",
     )
     return Project.model_validate_json(target.read_text(encoding="utf-8"))
+
+
+def slides_of(project: Project) -> int:
+    return int(project.canvas.duration // SLIDE)
+
+
+def gap_time(project: Project, slide: int = 0) -> float:
+    """A time inside slide ``slide``'s first 0.5 s: no object of that slide is alive yet and the
+    previous slide's are gone, so evaluating it builds nothing."""
+    return on_grid(project, slide * SLIDE + 0.2)
+
+
+def model_evaluator_section(project: Project) -> dict[str, object]:
+    section("the evaluator, model side only (nothing is built or drawn)")
+    start = time.perf_counter()
+    ev = Evaluator(project)
+    report(
+        "ev_build",
+        "Evaluator(project)",
+        f"{(time.perf_counter() - start) * 1000:,.1f} ms",
+        "indexes layers and morphs",
+    )
+    gaps = [gap_time(project, k) for k in range(int(project.canvas.duration // SLIDE))]
+    samples = timed(lambda: ev.frame(gaps[len(gaps) // 2]), 30)
+    report(
+        "scrub_gap",
+        "evaluate a frame with nothing alive",
+        f"{median(samples):.2f} ms",
+        "frame_layers() walks every layer and asks its lifetime: grows with the layer count",
+    )
+    scan = timed(ev.missing_checkpoints, 5)
+    report(
+        "missing_scan",
+        f"missing_checkpoints() ({len(ev.missing_checkpoints())} missing)",
+        f"{median(scan):.1f} ms",
+        "run again before every idle checkpoint (one per idle tick)",
+    )
+    return {"evaluator": ev, "camera": None}
 
 
 def evaluator_section(project: Project) -> dict[str, object]:
@@ -474,18 +539,16 @@ def evaluator_section(project: Project) -> dict[str, object]:
         f"{median(scrub_draw):.1f} / {p95(scrub_draw):.1f} ms",
         "median / p95 at 1100x620 (the second pass over the same times)",
     )
-    scrub_empty = [
-        timed(lambda t=t: ev.frame(t))[0] for t in (on_grid(project, 0.5), on_grid(project, SLIDE - 0.1))
-    ]
+    gap = gap_time(project, slides_of(project) // 2)
     report(
         "scrub_gap",
-        "evaluate when no slide object is alive",
-        f"{median(scrub_empty):.1f} ms",
-        "the pass over every layer, nothing to draw",
+        "evaluate a frame with nothing alive",
+        f"{median(timed(lambda: ev.frame(gap), 30)):.2f} ms",
+        "frame_layers() walks every layer and asks its lifetime: grows with the layer count",
     )
     report("rss_scrub", "RSS after the scrub", f"{mid:,.0f} MB", f"+{mid - after_open:,.0f} MB")
 
-    slides = int(duration // SLIDE)
+    slides = slides_of(project)
     visit_times = [on_grid(project, k * SLIDE + 6.0) for k in range(slides)]
     start = time.perf_counter()
     for t in visit_times:
@@ -506,6 +569,13 @@ def evaluator_section(project: Project) -> dict[str, object]:
     )
 
     missing = ev.missing_checkpoints()
+    scan = timed(ev.missing_checkpoints, 5)
+    report(
+        "missing_scan",
+        f"missing_checkpoints() ({len(missing)} missing)",
+        f"{median(scan):.1f} ms",
+        "run again before every idle checkpoint (one per idle tick)",
+    )
     start = time.perf_counter()
     for item in missing:
         ev.compute_checkpoint(*item)
@@ -536,10 +606,9 @@ def evaluator_section(project: Project) -> dict[str, object]:
 
 def edit_section(project: Project, ev: Evaluator, camera: m.Camera) -> None:
     section("edits on the long project")
-    slides = int(project.canvas.duration // SLIDE)
-    k = slides // 2
+    k = slides_of(project) // 2
     layer_id = f"title-{k + 1}"
-    t_edit = on_grid(project, k * SLIDE + 6.0)
+    t_edit = gap_time(project, k) if MODEL_ONLY else on_grid(project, k * SLIDE + 6.0)
     ev.invalidate(project, set(), "timing")  # the evaluator on the unedited project, caches kept
     draw(camera, ev, t_edit)
     state = {"project": project, "i": 0}
@@ -576,7 +645,7 @@ def edit_section(project: Project, ev: Evaluator, camera: m.Camera) -> None:
         "edit_parts",
         "  update_layer / apply / frame",
         " / ".join(f"{median(v):.1f}" for v in steps.values()) + " ms",
-        "validation of the new snapshot dominates",
+        "the snapshot's validation, the evaluator's cache pass, the drawn frame",
     )
     clip_layer = f"equation-{k + 1}"
     clip_id = project.layer(clip_layer).clips[0].id
@@ -602,7 +671,7 @@ def edit_section(project: Project, ev: Evaluator, camera: m.Camera) -> None:
         edit = edits.update_clip(state["project"], clip_layer, clip_id, ease=Easing(name=name))
         state["project"] = edit.project
         ev.apply(edit)
-        draw(camera, ev, t_edit + 1.0)
+        draw(camera, ev, t_edit if MODEL_ONLY else t_edit + 1.0)
 
     report(
         "edit_clip",
@@ -740,24 +809,34 @@ def timeline_section(project: Project, app: QApplication) -> None:
     view.set_document(document)
     view.show()
     app.processEvents()
-    start = time.perf_counter()
-    document.replace(project)  # what File > Open does: reset -> fit -> sync
-    app.processEvents()
-    opened = (time.perf_counter() - start) * 1000
+    audio.forget()  # a freshly started editor: the sound is decoded for its waveform on the first sync
+
+    def open_document() -> None:
+        document.replace(project)  # what File > Open does: reset -> fit -> sync
+        app.processEvents()
+
+    opened = timed(open_document)[0]
     items = len(view.scene().items())
     report(
-        "tl_open",
-        "set document (reset, fit, sync)",
+        "tl_open_cold",
+        "set document, sound not decoded yet",
         f"{opened:,.0f} ms",
-        f"{items} graphics items, {len(view.rows())} rows (first peaks decode counted in audio)",
+        f"{items} graphics items, {len(view.rows())} rows; includes decoding the sound for its waveform",
+    )
+    report(
+        "tl_open",
+        "set document again (reset, fit, sync)",
+        f"{median(timed(open_document, 3)):,.0f} ms",
+        "the sound is decoded and its peaks kept",
     )
     sync = timed(view.sync, 5)
     report(
         "tl_sync",
         "view.sync() alone",
-        f"{median(sync):,.0f} ms",
+        f"{median(sync):,.1f} ms",
         "rebuilds the scene; runs on EVERY document change, a drag step included",
     )
+    profile_call("TimelineView.sync()", view.sync)
     scene = view.scene().sceneRect()
     image = QImage(int(scene.width()) + 1, int(scene.height()) + 1, QImage.Format.Format_ARGB32_Premultiplied)
 
@@ -821,20 +900,28 @@ def render_ahead_section(project: Project, ev: Evaluator, camera: m.Camera, edit
     rng = random.Random(41)
     indices = sorted(rng.sample(range(total), min(40, total)))
     sizes, pack = [], []
-    for i in indices:
+    for i in indices if camera is not None else ():
         pixels = draw(camera, ev, frame_cache.frame_time(i, fps))
         start = time.perf_counter()
         sizes.append(len(zlib.compress(pixels.tobytes(), 1)))  # as preview.py sends them (B41)
         pack.append((time.perf_counter() - start) * 1000)
-    mean = statistics.mean(sizes)
+    mean = statistics.mean(sizes) if sizes else ASSUMED_FRAME_KB * 1024
     whole = mean * total / 2**20
     budget = frame_cache.BUDGET
-    report(
-        "ra_frame",
-        "a kept frame (zlib 1, 1100x620)",
-        f"{mean / 1024:,.0f} KB",
-        f"mean of {len(sizes)}; largest {max(sizes) / 1024:,.0f} KB; compress {median(pack):.1f} ms",
-    )
+    if sizes:
+        report(
+            "ra_frame",
+            "a kept frame (zlib 1, 1100x620)",
+            f"{mean / 1024:,.0f} KB",
+            f"mean of {len(sizes)}; largest {max(sizes) / 1024:,.0f} KB; compress {median(pack):.1f} ms",
+        )
+    else:
+        report(
+            "ra_frame",
+            "a kept frame (zlib 1, 1100x620)",
+            f"{mean / 1024:,.0f} KB",
+            "ASSUMED (the quick run measured it); no frame was drawn in --model-only",
+        )
     report(
         "ra_whole",
         f"the whole scene ({total} frames)",
@@ -847,8 +934,9 @@ def render_ahead_section(project: Project, ev: Evaluator, camera: m.Camera, edit
     )  # one object shared by every frame: the accounting is len(), the RAM is not spent
     start = time.perf_counter()
     for i in range(total):
-        if not store.accept(0, 0, i, payload, playhead=0):
+        if store.nbytes + len(payload) > store.budget:  # the editor stops asking here (missing())
             break
+        store.accept(0, 0, i, payload, playhead=0)
     fill = (time.perf_counter() - start) * 1000
     kept = len(store)
     report(
@@ -876,6 +964,89 @@ def render_ahead_section(project: Project, ev: Evaluator, camera: m.Camera, edit
     inv = timed(lambda: store.invalidate(indices_dropped), 3)
     report(
         "ra_invalidate", f"invalidate an edit's {len(indices_dropped)} frames", f"{median(inv):.2f} ms", ""
+    )
+
+
+def window_section(project: Project, app: QApplication, folder: Path) -> None:
+    """The real window (1600x1000, Compose page): every panel reacting, not just the pieces above."""
+    from manim_studio.ui.main_window import MainWindow
+
+    section("the real window (Compose page, 1600x1000, offscreen)")
+    window = MainWindow()
+    window.resize(1600, 1000)
+    window.show()
+    app.processEvents()
+    path = folder / "window.json"
+    path.write_text(project.model_dump_json(by_alias=True), encoding="utf-8")
+
+    def settle() -> None:
+        window.idle_timer.stop()  # the idle checkpoint pass is background work: not part of the step
+        app.processEvents()
+
+    def open_project() -> None:
+        window.load(path)
+        settle()
+
+    report(
+        "win_open",
+        "File > Open (layers, timeline, canvas, panels)",
+        f"{timed(open_project)[0]:,.0f} ms",
+        "load -> Document.replace -> every panel rebuilt, the first frame drawn",
+    )
+    slides = slides_of(project)
+    if MODEL_ONLY:
+        times = [gap_time(project, k) for k in range(slides)]
+    else:
+        rng = random.Random(7)
+        times = [on_grid(project, rng.uniform(0.0, project.canvas.duration - 0.1)) for _ in range(30)]
+
+    def seek(t: float) -> None:
+        window.seek(t)
+        settle()
+
+    seeks = [timed(lambda t=t: seek(t))[0] for t in times]
+    report(
+        "win_seek",
+        f"seek in the window ({len(times)} {'slide starts' if MODEL_ONLY else 'random frames'})",
+        f"{median(seeks):.1f} / {p95(seeks):.1f} ms",
+        "median / p95: playhead, canvas, properties, readout (the first visits build objects)",
+    )
+    layer_id = f"title-{slides // 2 + 1}"
+    state = {"i": 0}
+
+    def edit_in_window() -> None:
+        state["i"] += 1
+        edit = edits.update_layer(
+            window.project, layer_id, base={"position": (0.01 * (state["i"] % 9 + 1), 3.2)}
+        )
+        window.document.apply(edit, "move")
+        settle()
+
+    seek(times[len(times) // 2])
+    report(
+        "win_edit",
+        "move one layer in the window, end to end",
+        f"{median(timed(edit_in_window, 9)):.1f} ms",
+        "Document.apply -> undo step -> evaluator, timeline, layers panel, properties, canvas",
+    )
+    profile_call("a layer moved in the window", edit_in_window, 22)
+    window.document.undo_stack.setClean()  # closing would ask about the edits
+    window.close()
+
+
+def release_section(holders: dict[str, object]) -> None:
+    """What the evaluator and the adapter's build caches hold: drop them and see what RSS gives back."""
+    section("memory held by the evaluator (what dropping it gives back)")
+    gc.collect()
+    before = settled_rss()
+    holders.clear()
+    clear_builds()
+    after = settled_rss()
+    report(
+        "rss_release",
+        "RSS after dropping the evaluator and build caches",
+        f"{after:,.0f} MB",
+        f"{before - after:,.0f} MB given back (a lower bound: the allocator keeps some)",
     )
 
 
@@ -929,8 +1100,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--quick", action="store_true", help="a 2-minute scene with the same density")
     parser.add_argument("--seconds", type=float, help="the scene's length in seconds (default 900)")
+    parser.add_argument(
+        "--model-only",
+        action="store_true",
+        help="skip everything that builds or draws objects (text, frames, export): the model-side costs "
+        "of a long scene in seconds",
+    )
     parser.add_argument("--json", type=Path, help="also write the results to this file")
+    parser.add_argument(
+        "--profile", action="store_true", help="print cProfile tops for the timeline and window edits"
+    )
     args = parser.parse_args()
+    global MODEL_ONLY, PROFILE
+    MODEL_ONLY, PROFILE = args.model_only, args.profile
     seconds = args.seconds or (120.0 if args.quick else FULL_SECONDS)
 
     app = QApplication(sys.argv)
@@ -944,6 +1126,10 @@ def main() -> None:
     try:
         started = time.perf_counter()
         project, info = build_project(seconds, folder)
+        if MODEL_ONLY:  # no cue text may be built when a seek lands on a cue
+            project = project.model_copy(
+                update={"subtitle_style": project.subtitle_style.model_copy(update={"burn_in": False})}
+            )
         built = (time.perf_counter() - started) * 1000
         print(
             f"B64 long scene: {seconds:.0f} s at {project.canvas.width_px}x{project.canvas.height_px}, "
@@ -955,24 +1141,29 @@ def main() -> None:
             f"{info['frames']} frames (built in {built / 1000:.1f} s)"
         )
         RESULTS.update(seconds=seconds, **info)
-        warm_up(project)
+        if not MODEL_ONLY:
+            warm_up(project)
         project = document_section(project, folder)
-        state = evaluator_section(project)
+        state = model_evaluator_section(project) if MODEL_ONLY else evaluator_section(project)
         ev, camera = state["evaluator"], state["camera"]
         edit_section(project, ev, camera)
         autosave_section(project, folder)
         audio_section(project)
         timeline_section(project, app)
-        k = int(project.canvas.duration // SLIDE) // 2
+        k = slides_of(project) // 2
         edited = edits.update_layer(project, f"title-{k + 1}", base={"position": (1.0, 3.0)}).project
         render_ahead_section(project, ev, camera, edited)
-        export_section(project, folder)
+        if not MODEL_ONLY:
+            export_section(project, folder)
+        ev = camera = None  # the state dict is the last holder: release_section drops it
         report(
             "rss_end",
-            "RSS at the end",
+            "RSS before dropping the evaluator",
             f"{settled_rss():,.0f} MB",
             "the whole run, audio and timeline included",
         )
+        release_section(state)
+        window_section(project, app, folder)
         if args.json:
             args.json.write_text(json.dumps(RESULTS, indent=1), encoding="utf-8")
     finally:
