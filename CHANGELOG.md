@@ -14,6 +14,13 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Colour part of a text (U5, ADR 0049, from the Pythagoras project): a MathTex/Tex part layer has
+  Fill and Stroke colours; Properties of an equation has **Colour a part** (the TeX, which occurrence,
+  Colour...) and Layers **Colour part...**, each one undo step that makes the part layer if needed.
+  The colour is applied before the clips, as `set_color` in Manim: Indicate goes from the part's
+  colour to its own and back. A `Text` colours pieces with Manim's own `t2c` (Properties lists them),
+  written as plain `Text(..., t2c={...})` by the readable Python export. Files without colours save
+  as before.
 - View > Follow Playhead (on by default, remembered; U3): the timeline scrolls to keep the playhead in
   view when you scrub, step or play, and a view scrolled away by hand comes back on the next playhead
   move; off, the view stays where you put it. (The timeline used to stay put while the video moved on.)

@@ -245,6 +245,49 @@ def add_parts(
     return edit
 
 
+def set_part_style(project: Project, layer_id: str, **style: Any) -> Edit:
+    """Change a part's colours (ADR 0049): each given key is set, or removed when None.
+
+    The keys are those ``Spec.style`` uses (``fill``, ``stroke``, ...); the layer validates them."""
+    layer = _layer(project, layer_id)
+    if not layer.is_part:
+        raise EditError(f"{layer_id!r} is not a part: colour an object with its style")
+    merged = {k: v for k, v in {**layer.style, **style}.items() if v is not None}
+    return _replace_layer(project, layer_id, {"style": merged})
+
+
+def colour_part(project: Project, parent_id: str, tex: str, occurrence: int = 0, **style: Any) -> Edit:
+    """Colour the ``occurrence``-th ``tex`` of an equation (or part) in one edit (ADR 0049): its part
+    layer if it has one, else a new part. Raises ``EditError`` when the part would not resolve."""
+    key = PartKey(tex=tex, occurrence=occurrence)
+    existing = next((x for x in project.children(parent_id) if x.part == key), None)
+    if existing is not None:
+        return set_part_style(project, existing.id, **style)
+    added = add_part(project, parent_id, tex, occurrence)
+    (new_id,) = {x.id for x in added.project.layers} - {x.id for x in project.layers}
+    final = set_part_style(added.project, new_id, **style).project
+    kind, layer_ids = classify(project, final)
+    return Edit(final, kind, layer_ids)
+
+
+def set_text_colour(project: Project, layer_id: str, piece: str, colour: str | None) -> Edit:
+    """Colour every ``piece`` of a Text (Manim's ``t2c``, ADR 0049), or stop colouring it (None)."""
+    layer = _layer(project, layer_id)
+    if layer.spec is None or layer.spec.type != "Text":
+        raise EditError(f"{layer_id!r} is not a Text")
+    if not piece:
+        raise EditError("type the piece of text to colour")
+    t2c = dict(layer.spec.params.get("t2c") or {})
+    if colour is None:
+        t2c.pop(piece, None)
+    else:
+        t2c[piece] = colour  # a recoloured piece keeps its place in the list
+    params = {k: v for k, v in layer.spec.params.items() if k != "t2c"}
+    if t2c:
+        params["t2c"] = t2c
+    return _replace_layer(project, layer_id, {"spec": layer.spec.model_copy(update={"params": params})})
+
+
 def add_clip(
     project: Project,
     layer_id: str,
@@ -829,8 +872,8 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
 def _layer_kind(a: Layer, b: Layer) -> EditKind | None:
     if a == b:
         return None
-    if a.spec != b.spec or a.part != b.part or a.parent_id != b.parent_id:
-        return "spec"
+    if a.spec != b.spec or a.part != b.part or a.parent_id != b.parent_id or a.style != b.style:
+        return "spec"  # a part's colours (ADR 0049) are in its object's states: the tree is redone
     if [c.id for c in a.clips] != [c.id for c in b.clips]:
         return "clip"  # added, removed or reordered: predecessors changed
     timing = False

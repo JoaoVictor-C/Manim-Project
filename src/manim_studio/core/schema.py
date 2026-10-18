@@ -129,10 +129,7 @@ class ClipParam:
                 return None
             return f"a direction ({', '.join(DIRECTIONS)}) or an [x, y] vector"
         if self.kind == "color":
-            ok = isinstance(value, str) and len(value) in (4, 7) and value.startswith("#")
-            if ok and all(c in "0123456789abcdefABCDEF" for c in value[1:]):
-                return None
-            return "a colour like #ffcc00"
+            return None if is_colour(value) else "a colour like #ffcc00"
         if self.kind == "float":
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 low = self.minimum if self.minimum is not None else -math.inf
@@ -298,6 +295,49 @@ class PartKey(BaseModel):
     occurrence: int = Field(default=0, ge=0)
 
 
+PART_STYLE_COLOURS = ("fill", "stroke")  # a part's colours (ADR 0049), as Spec.style names them
+PART_STYLE_NUMBERS = {"fill_opacity": (0.0, 1.0), "stroke_opacity": (0.0, 1.0), "stroke_width": (0.0, 50.0)}
+
+
+def is_colour(value: Any) -> bool:
+    """``#rgb`` or ``#rrggbb``: what the colour fields write."""
+    return (
+        isinstance(value, str)
+        and len(value) in (4, 7)
+        and value.startswith("#")
+        and all(c in "0123456789abcdefABCDEF" for c in value[1:])
+    )
+
+
+def _style_problem(style: dict[str, Any]) -> str | None:
+    """Why a part's ``style`` is not acceptable, or None (ADR 0049)."""
+    for key, value in style.items():
+        if key in PART_STYLE_COLOURS:
+            if not is_colour(value):
+                return f"{key} must be a colour like #ff0000, not {value!r}"
+        elif key in PART_STYLE_NUMBERS:
+            low, high = PART_STYLE_NUMBERS[key]
+            number = isinstance(value, (int, float)) and not isinstance(value, bool)
+            if not number or not low <= value <= high:
+                return f"{key} must be a number from {low:g} to {high:g}"
+        else:
+            known = ", ".join((*PART_STYLE_COLOURS, *PART_STYLE_NUMBERS))
+            return f"unknown style key {key!r} (known: {known})"
+    return None
+
+
+def _t2c_problem(t2c: Any) -> str | None:
+    """Why a Text's ``t2c`` (substring -> colour, Manim's own parameter) is not acceptable."""
+    if not isinstance(t2c, dict):
+        return "t2c must map pieces of the text to colours"
+    for piece, colour in t2c.items():
+        if not isinstance(piece, str) or not piece:
+            return "a coloured piece of text cannot be empty"
+        if not is_colour(colour):
+            return f"the colour of {piece!r} must be like #ff0000, not {colour!r}"
+    return None
+
+
 class Layer(BaseModel):
     id: str
     name: str = ""
@@ -308,6 +348,15 @@ class Layer(BaseModel):
     lifetime: Lifetime = Field(default_factory=Lifetime)
     tracks: dict[TrackName, list[Keyframe]] = Field(default_factory=dict)
     clips: list[Clip] = Field(default_factory=list)
+    # Parts only (ADR 0049): the colours of the part's glyphs, the keys Spec.style uses.
+    style: dict[str, Any] = Field(default_factory=dict)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_style(self, handler):
+        data = handler(self)
+        if not self.style:
+            data.pop("style", None)  # files without coloured parts save as before
+        return data
 
     @property
     def is_part(self) -> bool:
@@ -346,6 +395,13 @@ class Layer(BaseModel):
             raise ValueError(
                 f"layer {self.id!r}: a child layer needs a part key (a part) or its own spec (an object)"
             )
+        if self.style and not self.is_part:
+            raise ValueError(f"layer {self.id!r}: only part layers have a style (an object has spec.style)")
+        if self.style and (problem := _style_problem(self.style)):
+            raise ValueError(f"layer {self.id!r}: {problem}")
+        text = self.spec is not None and self.spec.type == "Text" and "t2c" in self.spec.params
+        if text and (problem := _t2c_problem(self.spec.params["t2c"])):
+            raise ValueError(f"layer {self.id!r}: {problem}")
         if self.locked:
             _check_locked(self)
         for name, track in self.tracks.items():

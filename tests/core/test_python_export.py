@@ -191,6 +191,42 @@ def test_an_exact_export_embeds_the_project_and_says_why() -> None:
     assert Project.model_validate_json(embedded) == project
 
 
+def coloured_text() -> Project:
+    """A Text with coloured pieces (U5, ADR 0049): Manim's own t2c, and a fill for the rest."""
+    words = Spec(type="Text", params={"text": "Hi ok", "t2c": {"ok": "#ff0000"}}, style={"fill": "#00ff00"})
+    write = Clip(id="w", kind="Write", start=0.0, duration=1.0)
+    return Project(
+        canvas=CANVAS.model_copy(update={"duration": 2.0}), layers=[Layer(id="t", spec=words, clips=[write])]
+    )
+
+
+def test_a_text_with_coloured_pieces_is_plain_t2c_code_that_builds_what_the_editor_builds() -> None:
+    import manim
+
+    export = to_python(coloured_text(), "Words")
+    assert export.readable
+    line = next(x.strip() for x in export.code.splitlines() if "= Text(" in x)
+    assert line.endswith("Text('Hi ok', t2c={'ok': '#ff0000'}, color='#00ff00')")
+    assert ".set_fill(" not in export.code  # it would paint over the pieces
+    built = eval(line.split(" = ", 1)[1], vars(manim))  # what the exported file builds
+    built.move_to(manim.ORIGIN)
+    camera = make_camera(CANVAS)
+    ours = adapter.build_mobject(coloured_text().layers[0].spec)
+    assert np.array_equal(render_frame(camera, [built]), render_frame(camera, [ours]))
+
+
+def test_a_project_with_a_coloured_part_exports_in_the_exact_form() -> None:
+    eq = Layer(id="eq", spec=Spec(type="MathTex", params={"text": "a+b"}))
+    part = Layer(id="b", parent_id="eq", part=PartKey(tex="b"), style={"fill": "#ff0000"})
+    project = Project(canvas=CANVAS, layers=[eq, part])
+    export = to_python(project, "Parts")
+    assert not export.readable
+    assert export.problems == ["b: parts and objects on axes are evaluated as one object"]
+    compile(export.code, "<exact>", "exec")
+    embedded = export.code.split("PROJECT = r'''")[1].split("'''")[0]
+    assert Project.model_validate_json(embedded).layer("b").style == {"fill": "#ff0000"}
+
+
 def test_names() -> None:
     assert class_name("my intro") == "MyIntro" and class_name("2d plot") == "Scene2dPlot"
     code = to_python(rich(), "Intro").code
@@ -227,6 +263,12 @@ def test_code_layer_frames_paint_through_the_exported_scene_camera() -> None:
 def test_readable_code_renders_what_the_editor_shows(tmp_path) -> None:
     export = to_python(rich(), "Intro")
     assert_matches_editor(rich(), rendered(export.code, "Intro", tmp_path))
+
+
+@pytest.mark.slow
+def test_readable_t2c_code_renders_what_the_editor_shows(tmp_path) -> None:
+    export = to_python(coloured_text(), "Words")
+    assert_matches_editor(coloured_text(), rendered(export.code, "Words", tmp_path))
 
 
 @pytest.mark.slow

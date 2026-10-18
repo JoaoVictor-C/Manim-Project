@@ -23,8 +23,10 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +39,7 @@ from ..core.schema import (
     CODE_TYPES,
     DIRECTIONS,
     GRAPH_PARAMS,
+    PART_PARENT_TYPES,
     RASTER_TYPES,
     Canvas,
     ClipParam,
@@ -61,6 +64,7 @@ from .fields import (
     PathField,
     PointField,
     TextField,
+    pick_colour,
 )
 from .gizmo import SHIFTS_ELSEWHERE
 
@@ -201,6 +205,20 @@ def set_part_key(project: Project, layer_id: str, name: str, value: Any) -> edit
     return edit
 
 
+def set_part_colour(project: Project, layer_id: str, key: str, value: str | None) -> edits.Edit:
+    """A part's fill or stroke colour (ADR 0049); None goes back to its object's."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    return edits.set_part_style(project, layer_id, **{key: value})
+
+
+def set_piece_colour(project: Project, layer_id: str, value: str | None, piece: str) -> edits.Edit:
+    """The colour of a piece of a Text (Manim's ``t2c``, ADR 0049); None stops colouring it."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    return edits.set_text_colour(project, layer_id, piece, value)
+
+
 def _has(project: Project, layer_id: str) -> bool:
     return any(layer.id == layer_id for layer in project.layers)
 
@@ -233,6 +251,12 @@ class PropertiesPanel(QWidget):
         self._generation = 0  # bumped on every rebuild: old widgets can no longer commit
         self._shown_props: tuple[str, ...] = ()  # keys view: the properties keyed at key_time
         self._shown_kind: str | None = None  # clip view: the kind whose params are shown (ADR 0022)
+        self._shown_pieces: tuple[str, ...] | None = None  # a Text's coloured pieces shown (ADR 0049)
+        self.part_tex: QLineEdit | None = None  # "Colour a part" / "Colour a piece" (ADR 0049)
+        self.part_occurrence: QSpinBox | None = None
+        self.part_colour_button: QPushButton | None = None
+        # Asks for a colour (current colour or None -> "#rrggbb" or None); tests replace it.
+        self.ask_colour: Callable[[str | None], str | None] = lambda current: pick_colour(self, current)
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window (stopwatch keys)
         self.auto_key: Callable[[], bool] = lambda: False  # Edit > Auto-key (ADR 0018)
         # Code layers (ADR 0019), set by the window: status text, retry, and trusting applied code.
@@ -423,12 +447,18 @@ class PropertiesPanel(QWidget):
         self._section(
             "Layer", [("Name", "name", TextField(self._layer_op("name", self._set_name), layer.label))]
         )
+        self._shown_pieces = None
         if layer.is_part:
             self._part_section()
+            self._part_style_section()
         else:
             self._object_section(layer)
             if layer.spec.type not in RASTER_TYPES | CODE_TYPES:  # no style on images or code
                 self._style_section()
+            if layer.spec.type in PART_PARENT_TYPES:
+                self._colour_part_section(layer.id)
+            elif layer.spec.type == "Text":
+                self._pieces_section(layer)
         self._transform_section(layer)
         self._lifetime_section()
         self.body_layout.addStretch(1)
@@ -685,6 +715,9 @@ class PropertiesPanel(QWidget):
             if keyed != self._shown_props:  # keys moved away or properties changed: rebuild or fall back
                 self.show_key(self.layer_id, self.key_time)
                 return
+        if self._shown_pieces is not None and _pieces(layer) != self._shown_pieces:
+            self.show_layer(self.layer_id)  # a piece was coloured or uncoloured: other rows
+            return
         self._update_title(layer)
         for path, field in self.fields.items():
             if field.has_focus() and not force:
@@ -720,6 +753,8 @@ class PropertiesPanel(QWidget):
     def _rebuild(self) -> None:
         self._generation += 1
         self.code_label = self.retry_button = self.fit_button = None
+        self.part_tex = self.part_occurrence = self.part_colour_button = None
+        self._shown_pieces = None
         self.scene_shown = False
         self.fields.clear()
         self._getters.clear()
@@ -894,6 +929,97 @@ class PropertiesPanel(QWidget):
             self._op("part.occurrence", partial(set_part_key, name="occurrence"), "Change part"), 1, 999
         )
         self._section("Part", [("TeX", "part.tex", tex), ("Occurrence", "part.occurrence", occurrence)])
+
+    def _part_style_section(self) -> None:
+        """A part's colours (ADR 0049): its glyphs only; Default is its object's colour."""
+        rows = []
+        for key, label in (("fill", "Fill"), ("stroke", "Stroke")):
+            path = f"part_style.{key}"
+            self._register(path, lambda layer, k=key: layer.style.get(k))
+            op = partial(set_part_colour, key=key)
+            rows.append((label, path, ColorField(self._op(path, op, f"Colour part {label.lower()}"))))
+        self._section("Style", rows)
+
+    def _colour_part_section(self, layer_id: str) -> None:
+        """Colour a part of an equation without making it a separate object (ADR 0049): the TeX to
+        match and which occurrence; the colour button makes the part layer if needed and colours it,
+        in one undo step."""
+        box = QGroupBox("Colour a part")
+        form = QFormLayout(box)
+        self.part_tex = QLineEdit()
+        self.part_tex.setPlaceholderText(r"e.g. b^2 or \pi, as it appears in the TeX")
+        self.part_occurrence = QSpinBox(minimum=1, maximum=999)
+        self.part_occurrence.setToolTip("Which match of the TeX: 1 is the first")
+        self.part_colour_button = QPushButton("Colour...")
+        self.part_colour_button.setToolTip("Choose the colour of that part (it becomes a part layer)")
+        generation = self._generation
+        self.part_colour_button.clicked.connect(
+            lambda: generation == self._generation and self.colour_part(layer_id)
+        )
+        form.addRow("TeX", self.part_tex)
+        form.addRow("Occurrence", self.part_occurrence)
+        form.addRow("", self.part_colour_button)
+        self.body_layout.addWidget(box)
+
+    def colour_part(self, parent_id: str) -> None:
+        """Ask for a colour and give it to the typed part of ``parent_id`` (one undo step)."""
+        tex, occurrence = self.part_tex.text(), self.part_occurrence.value() - 1
+        if not tex.strip():
+            self.message.emit("Colour part: type the TeX of the part first")
+            return
+        key = PartKey(tex=tex, occurrence=occurrence)
+        existing = next((x for x in self.project.children(parent_id) if x.part == key), None)
+        colour = self.ask_colour(existing.style.get("fill") if existing is not None else None)
+        if colour is None:
+            return
+        op = partial(edits.colour_part, parent_id=parent_id, tex=tex, occurrence=occurrence, fill=colour)
+        try:
+            self.builds.submit(op, "Colour part")
+        except (edits.EditError, ValidationError) as exc:
+            self.message.emit(f"Colour part: {_first_error(exc)}")
+
+    def _pieces_section(self, layer: Layer) -> None:
+        """A Text's coloured pieces (Manim's ``t2c``, ADR 0049): one row each (x stops colouring it),
+        and a row to colour another piece. Every match of a piece is coloured."""
+        box = QGroupBox("Colour a piece")
+        form = QFormLayout(box)
+        pieces = _pieces(layer)
+        for piece in pieces:
+            path = f"t2c.{piece}"
+            self._register(path, lambda layer, p=piece: (layer.spec.params.get("t2c") or {}).get(p))
+            commit = self._op(path, partial(set_piece_colour, piece=piece), "Colour piece")
+            field = ColorField(commit)
+            self.fields[path] = field
+            form.addRow(piece, field.widget)
+        self.part_tex = QLineEdit()
+        self.part_tex.setPlaceholderText("a word or letters of the text")
+        self.part_colour_button = QPushButton("Colour...")
+        self.part_colour_button.setToolTip("Choose the colour of every match of these letters")
+        generation, layer_id = self._generation, layer.id
+        self.part_colour_button.clicked.connect(
+            lambda: generation == self._generation and self.colour_piece(layer_id)
+        )
+        form.addRow("Text", self.part_tex)
+        form.addRow("", self.part_colour_button)
+        self.body_layout.addWidget(box)
+        self._shown_pieces = pieces
+
+    def colour_piece(self, layer_id: str) -> None:
+        """Ask for a colour and give it to the typed piece of the Text ``layer_id`` (one undo step)."""
+        piece = self.part_tex.text()
+        if not piece:
+            self.message.emit("Colour piece: type the letters to colour first")
+            return
+        current = (self.project.layer(layer_id).spec.params.get("t2c") or {}).get(piece)
+        colour = self.ask_colour(current)
+        if colour is None:
+            return
+        try:
+            self.builds.submit(
+                partial(edits.set_text_colour, layer_id=layer_id, piece=piece, colour=colour), "Colour piece"
+            )
+        except (edits.EditError, ValidationError) as exc:
+            self.message.emit(f"Colour piece: {_first_error(exc)}")
 
     def _style_section(self) -> None:
         rows = []
@@ -1072,6 +1198,11 @@ class PropertiesPanel(QWidget):
 
     def _clip(self, layer_id: str, clip_id: str):
         return next((c for c in self.project.layer(layer_id).clips if c.id == clip_id), None)
+
+
+def _pieces(layer: Layer) -> tuple[str, ...]:
+    """A Text's coloured pieces, in order (ADR 0049)."""
+    return tuple(layer.spec.params.get("t2c") or {}) if layer.spec is not None else ()
 
 
 def _call(op: Callable[..., edits.Edit], project: Project, *, layer_id: str, value: Any) -> edits.Edit:

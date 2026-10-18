@@ -937,7 +937,7 @@ class Evaluator:
     def _tree_state(self, root: Layer, finished: tuple[ClipKey, ...]) -> m.Mobject:
         """The whole object after ``finished`` clips, applied in that order (never mutate it)."""
         if not finished:
-            return self._base_mobject(root)
+            return self._styled_base(root)
         key = self._tree_key(root, finished)
         if key not in self._tree_states:
             work = self._tree_state(root, finished[:-1]).copy()
@@ -949,6 +949,26 @@ class Evaluator:
             anim.finish()
             if len(self._tree_states) >= _MAX_TREE_STATES:
                 self._tree_states.pop(next(iter(self._tree_states)))
+            self._tree_states[key] = work
+        return self._tree_states[key]
+
+    def _styled_base(self, root: Layer) -> m.Mobject:
+        """The object before any clip, its parts' colours applied (ADR 0049) on a copy of the build
+        (the build and its cache keys never change). Every later state starts from it, so a clip
+        that changes colour (Indicate) goes from the part's colour to its own and back, as
+        ``eq[0][3:5].set_color(RED)`` before playing does in Manim. Kept with the tree's states:
+        a colour edit is a spec edit of the whole tree (``edits.classify``)."""
+        base = self._base_mobject(root)
+        tree = self._tree(root)
+        styled = [x for x in tree.members[1:] if self._layers[x].style and tree.regions.get(x)]
+        if not styled:
+            return base
+        key = self._tree_key(root, ())
+        if key not in self._tree_states:
+            work = base.copy()
+            leaves = work.family_members_with_points()
+            for member in styled:  # parents first: an inner part's colour wins on its glyphs
+                adapter.style_glyphs([leaves[i] for i in tree.regions[member]], self._layers[member].style)
             self._tree_states[key] = work
         return self._tree_states[key]
 

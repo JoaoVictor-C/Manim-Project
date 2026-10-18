@@ -51,6 +51,7 @@ from ..core.schema import (
 )
 from . import icons
 from .build_service import BuildService
+from .fields import pick_colour
 
 ID_ROLE = Qt.ItemDataRole.UserRole
 
@@ -179,6 +180,7 @@ class LayersPanel(QWidget):
         self.choose_image: Callable[[], str] = self._choose_image_dialog
         self.choose_svg: Callable[[], str] = self._choose_svg_dialog  # an SVG path or "" (ADR 0027)
         self.ask_part: Callable[[str], tuple[str, int] | None] = self._ask_part_dialog
+        self.ask_colour: Callable[[str | None], str | None] = lambda current: pick_colour(self, current)
         self.ask_expression: Callable[[], str | None] = self._ask_expression_dialog  # Add graph (ADR 0024)
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self._known_ids: set[str] = set()
@@ -217,6 +219,7 @@ class LayersPanel(QWidget):
         part_menu = QMenu(self)
         self.add_part_action = part_menu.addAction("Add part...", self.add_part)
         self.split_action = part_menu.addAction("Split into terms", self.split_terms)
+        self.colour_part_action = part_menu.addAction("Colour part...", self.colour_part)  # ADR 0049
         part_menu.addSeparator()
         self.add_graph_action = part_menu.addAction("Add graph...", self.add_graph)
         self.axes_menu = part_menu.addMenu("Add to axes")  # more objects on axes (ADR 0030)
@@ -412,6 +415,9 @@ class LayersPanel(QWidget):
         )
         self.add_part_action.setEnabled(can_part and not has_morph)
         self.split_action.setEnabled(can_part and not has_morph)
+        is_part = layer is not None and layer.is_part
+        self.colour_part_action.setEnabled(is_part or (can_part and not has_morph))
+        self.colour_part_action.setText("Colour this part..." if is_part else "Colour part...")
         axes = self._axes_of(layer)
         can_graph = axes is not None
         self.add_graph_action.setEnabled(can_graph)
@@ -461,6 +467,27 @@ class LayersPanel(QWidget):
             return
         self._select_new = True
         self._submit(partial(edits.add_part, parent_id=parent_id, tex=key[0], occurrence=key[1]), "Add part")
+
+    def colour_part(self) -> None:
+        """Colour a part (ADR 0049): the selected part, or a part of the selected equation that is
+        asked for (made a part layer if it is not one yet), in one undo step."""
+        layer_id = self.selected_id()
+        if layer_id is None:
+            return
+        layer = self.project.layer(layer_id)
+        if layer.is_part:
+            colour = self.ask_colour(layer.style.get("fill"))
+            if colour is not None:
+                self._submit(partial(edits.set_part_style, layer_id=layer_id, fill=colour), "Colour part")
+            return
+        key = self.ask_part(layer_id)
+        if key is None:
+            return
+        colour = self.ask_colour(None)
+        if colour is None:
+            return
+        op = partial(edits.colour_part, parent_id=layer_id, tex=key[0], occurrence=key[1], fill=colour)
+        self._submit(op, "Colour part")
 
     def _axes_of(self, layer: Layer | None) -> Layer | None:
         """The axes a selection belongs to (the axes themselves, or one of their objects)."""
@@ -576,6 +603,9 @@ class LayersPanel(QWidget):
         if self.add_part_action.isEnabled():
             menu.addAction(self.add_part_action)
             menu.addAction(self.split_action)
+        if self.colour_part_action.isEnabled():
+            menu.addAction(self.colour_part_action)
+        if self.add_part_action.isEnabled() or self.colour_part_action.isEnabled():
             menu.addSeparator()
         menu.addAction("Delete", self.delete_selected)
         return menu

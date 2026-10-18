@@ -474,7 +474,7 @@ class _Readable:
                 connectors.append(f"{var} = {self._connector(layer, index)}")
                 continue
             out.append(f"{var} = {_construct(layer.spec)}")
-            out += [f"{var}.{call}" for call in _style_calls(layer.spec.style)]
+            out += [f"{var}.{call}" for call in _style_calls(adapter.text_style(layer.spec)[1])]
             out.append(f"{var}.move_to(ORIGIN)")
             if layer.id in self.keyed:  # its transform is drawn frame by frame, after its clips
                 out.append(f"{var}.set_z_index({index})  # the layer order")
@@ -632,7 +632,8 @@ class _Readable:
         move the path; its keys place it as the clip starts, as the editor reads it)."""
         layer = self.project.layer(layer_id)
         shape = _construct(layer.spec)
-        calls = [*_style_calls(layer.spec.style), "move_to(ORIGIN)", *_transform_calls(layer, at)]
+        style = adapter.text_style(layer.spec)[1]
+        calls = [*_style_calls(style), "move_to(ORIGIN)", *_transform_calls(layer, at)]
         built = f"{shape}.{'.'.join(calls)}"
         if layer.spec.type == "SVGMobject" or layer.spec.type in TEXT_TYPES:  # its longest path (ADR 0027)
             return f"max({built}.family_members_with_points(), key=lambda p: p.get_arc_length())"
@@ -734,6 +735,8 @@ def _construct(spec) -> str:
     points = {p.name for p in adapter.MOBJECT_PARAMS.get(spec.type, ()) if p.kind == "point"}
     for key, value in params.items():
         args.append(f"{key}={_vector(value) if key in points else repr(value)}")
+    for key, value in adapter.text_style(spec)[0].items():  # a Text's fill beside its t2c (ADR 0049)
+        args.append(f"{key}={value!r}")
     return f"{spec.type}({', '.join(args)})"
 
 

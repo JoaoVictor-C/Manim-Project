@@ -36,6 +36,7 @@ times are seconds.
 | `lifetime` | `{"in": s, "out": s}` | optional; inferred from clips when absent (below) |
 | `tracks` | `{property: Keyframe[]}` | `position`, `scale`, `rotation`, `opacity` |
 | `clips` | Clip[] | must not overlap in time (validated) |
+| `style` | `{"fill": c, ...}` | part layers only, optional (left out when empty): the colours of the part's glyphs, the keys of a Spec's `style` (ADR 0049) |
 
 **Lifetime inference:** visible from the start of the first clip if it is an
 introducer (Create, Write, FadeIn, …), else from 0 — or from the end of the
@@ -52,6 +53,10 @@ time. A key that no longer matches after a text edit leaves the part
 *orphaned*: kept, but drawn nowhere. Objects with parts can morph and be
 morphed into (the whole tree takes part); a part itself cannot morph, and its
 clips may not start after its object begins morphing.
+
+A part's `style` colours its glyphs (an inner part's colour wins on its own glyphs) before any
+clip plays, as `eq[0][3:5].set_color(...)` does in a Manim script: a clip that changes colour
+(Indicate) goes from the part's colour to its own and back (ADR 0049).
 
 ```json
 { "id": "b", "name": "b^2", "parent_id": "eq", "part": { "tex": "b^2", "occurrence": 0 },
@@ -162,6 +167,8 @@ that is missing or unreadable is silent.
   take their string in `text`; `ImageMobject` takes `path`; `SVGMobject` takes
   `path` and `height` (default 2). Paths are absolute. A file that is missing or
   cannot be read is drawn as a dashed placeholder; the project still opens (ADR 0027).
+  A `Text` may take `t2c`, Manim's own `{piece: "#rrggbb"}`: every match of a piece is
+  coloured; with `t2c`, the Text's `style.fill` colours the rest (ADR 0049).
 - `Axes`: `x_range` / `y_range` as `[from, to]`, `x_step` / `y_step`,
   `x_length` / `y_length` (scene units), `numbers` (`"yes"` / `"no"`).
 - `Graph`: `expression`, a function of `x` with numbers, `pi`, `e`,
