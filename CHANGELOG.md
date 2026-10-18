@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- F in the canvas frames the selected objects as large as fit, and the whole frame when nothing is
+  selected (Unity's F; View > Frame Selection). Shift+F stays Fit Timeline (P7.4).
 - The scene's length (P7.1, decision session 43): Properties shows the **Scene** when nothing is
   selected (length, size, frame rate, background, "Grow with content", Fit Length to Content; also
   Edit > Scene Settings). By default the scene grows by itself to cover whatever an edit places past

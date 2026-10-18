@@ -69,6 +69,7 @@ class CanvasWidget(QWidget):
         self._image: QImage | None = None
         self.half_resolution = False
         self.last_render_ms = 0.0
+        self._t = 0.0  # the time last drawn (F frames the selection as it is then)
         self.selected_layer: str | None = None  # whose outline to draw
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
         self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
@@ -154,6 +155,32 @@ class CanvasWidget(QWidget):
     def fit(self) -> None:
         self.set_view(viewport.View())
 
+    def frame_selection(self) -> None:
+        """Show the selected objects as large as fit (Unity's F); with nothing selected, Fit."""
+        if self._canvas is None or self._evaluator is None:
+            return
+        ids = [self.selected_layer, *self.other_layers] if self.selected_layer else []
+        points = []
+        for layer_id in dict.fromkeys(i for i in ids if i):
+            if not any(layer.id == layer_id for layer in self._evaluator.project.layers):
+                continue
+            for _, mob in self._evaluator.object_frame(layer_id, self._t):
+                points += [sub.points[:, :2] for sub in mob.family_members_with_points()]
+        if not points:
+            self.fit()
+            return
+        box = np.concatenate(points)
+        low, high = box.min(axis=0), box.max(axis=0)
+        self.set_view(
+            viewport.frame_box(
+                self._canvas,
+                self.width(),
+                self.height(),
+                (float(low[0]), float(low[1])),
+                (float(high[0]), float(high[1])),
+            )
+        )
+
     def actual_size(self) -> None:
         if self._canvas is not None:
             self.set_view(viewport.at_scale(self.view, self._canvas, self.width(), self.height(), 1.0))
@@ -167,6 +194,7 @@ class CanvasWidget(QWidget):
     def render_at(self, t: float) -> None:
         if self._canvas is None or self._evaluator is None:
             return
+        self._t = t
         view = self.preview_view()
         if self._camera is None or replace(view, centre=(0, 0)) != replace(self._camera_view, centre=(0, 0)):
             self._camera = preview_camera(view)
@@ -532,6 +560,9 @@ class CanvasWidget(QWidget):
 
     def keyPressEvent(self, event) -> None:
         if self.tool is not None and self._canvas is not None and self.tool.key(event):
+            return
+        if event.key() == Qt.Key.Key_F and not event.modifiers():  # Unity's F (P7.4)
+            self.frame_selection()
             return
         super().keyPressEvent(event)
 
