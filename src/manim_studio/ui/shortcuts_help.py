@@ -52,6 +52,10 @@ GESTURES: tuple[Row, ...] = (
     Row("Timeline", "Move or trim a clip, move a key or a marker", "Drag (Alt: no snapping)"),
     Row("Timeline", "Scrub", "Drag on the ruler"),
     Row("Timeline", "Apply a preset, add clips", "Right-click a row"),
+    Row("Timeline", "Show an object's properties as rows", "Click the arrow by its name, Alt+Click the name"),
+    Row("Timeline", "Key or unkey one property at the playhead", "Click the diamond in its row"),
+    Row("Timeline", "Show a property in the graph (Shift/Ctrl: add, remove)", "Click its name"),
+    Row("Animate", "Frame every key in the graph", "A"),
 )
 
 

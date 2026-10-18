@@ -356,9 +356,7 @@ class LayerHeader(QWidget):
         painter.setPen(TEXT_COLOR)
         y = layout.bottom - scroll  # the subtitles (ADR 0035)
         if y + ROW_HEIGHT >= RULER_HEIGHT:
-            painter.drawText(
-                QRectF(8, y, width - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, "Subtitles"
-            )
+            painter.drawText(QRectF(8, y, width - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, "Subtitles")
         for i, clip in enumerate(project.audio):  # sounds under the subtitles (ADR 0034)
             y = layout.bottom + (1 + i) * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT >= RULER_HEIGHT:
