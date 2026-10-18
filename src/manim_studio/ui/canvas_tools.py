@@ -233,7 +233,10 @@ class MoveTool(QObject):
     def _click_target(self, hit: str, current: str | None) -> str:
         """Clicks select whole objects; inside a selected object's tree they select parts."""
         root = self.project.root_of(hit)
-        if current is None or current == root.id or not self.project.layer(current).is_part:
+        selected = self.project.layer(current) if current is not None else None
+        # Inside a group (ADR 0050), a click picks another of its objects, as inside an equation.
+        in_group = selected is not None and selected.parent_id == root.id and root.is_group
+        if current is None or current == root.id or not (selected.is_part or in_group):
             return root.id
         if self.project.root_of(current).id != root.id:
             return root.id
@@ -371,8 +374,12 @@ class MoveTool(QObject):
             self.cancel()
             return True
         current = self.selection.layer_id
-        if event.key() == Qt.Key.Key_Escape and current is not None and self.project.layer(current).is_part:
-            self.selection.select_layer(self.project.layer(current).parent_id)  # back out of a part
+        layer = self.project.layer(current) if current is not None else None
+        in_group = (
+            layer is not None and layer.parent_id is not None and self.project.layer(layer.parent_id).is_group
+        )
+        if event.key() == Qt.Key.Key_Escape and layer is not None and (layer.is_part or in_group):
+            self.selection.select_layer(layer.parent_id)  # back out of a part, or of a group's object
             return True
         if not self.wants_key(event):
             return False

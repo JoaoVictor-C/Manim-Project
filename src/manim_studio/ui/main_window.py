@@ -259,6 +259,19 @@ class MainWindow(QMainWindow):
         edit_menu.addActions([undo, redo])
         edit_menu.addSeparator()
         self.clipboard.add_to(edit_menu)
+        edit_menu.addSeparator()  # groups (U6, ADR 0050)
+        self.group_action = QAction("&Group", self)
+        self.group_action.setShortcut(QKeySequence("Ctrl+G"))
+        self.group_action.setToolTip(
+            "Put the selected objects in a group that moves, scales and fades them together"
+        )
+        self.group_action.triggered.connect(self.group_selection)
+        self.ungroup_action = QAction("&Ungroup", self)
+        self.ungroup_action.setShortcut(QKeySequence("Ctrl+Shift+G"))
+        self.ungroup_action.setToolTip("Take the selected group's objects out of it, each looking as it did")
+        self.ungroup_action.triggered.connect(self.ungroup_selection)
+        edit_menu.addActions([self.group_action, self.ungroup_action])
+        edit_menu.addSeparator()
         add_subtitle = QAction("Add &Subtitle", self)
         add_subtitle.setShortcut(QKeySequence("Ctrl+T"))
         add_subtitle.setToolTip("A subtitle at the playhead (ADR 0035)")
@@ -809,6 +822,43 @@ class MainWindow(QMainWindow):
         if sel.layer_ids:
             return shift_timing.Selection(layers=sel.layer_ids)
         return None
+
+    def group_selection(self) -> None:
+        """Edit > Group (U6, ADR 0050): the selected objects in a new group, which is selected."""
+        if not self._has_project:
+            return
+        chosen = [i for i in self.selection.layer_ids if i]
+        if not chosen:
+            self.statusBar().showMessage("Group: select the objects to group", 6000)
+            return
+        try:
+            edit = edits.group_layers(self.project, chosen)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Group: {exc}", 10000)
+            return
+        (group_id,) = {x.id for x in edit.project.layers} - {x.id for x in self.project.layers}
+        self.document.apply(edit, "Group")
+        self.selection.select_layer(group_id)
+
+    def ungroup_selection(self) -> None:
+        """Edit > Ungroup: the selected group's objects (or the group of a selected object) out of it."""
+        if not self._has_project or not self.selection.layer_id:
+            return
+        layer = self.project.layer(self.selection.layer_id)
+        group = layer if layer.is_group else None
+        if group is None and layer.parent_id is not None and self.project.layer(layer.parent_id).is_group:
+            group = self.project.layer(layer.parent_id)
+        if group is None:
+            self.statusBar().showMessage("Ungroup: select a group", 6000)
+            return
+        try:
+            edit = edits.ungroup(self.project, group.id)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Ungroup: {exc}", 10000)
+            return
+        kids = [x.id for x in self.project.children(group.id)]
+        self.document.apply(edit, "Ungroup")
+        self.selection.set_layers(kids)
 
     def shift_selection(self) -> None:
         """Edit > Shift Timing: move what is selected by a typed delta (U4), in one undo step."""

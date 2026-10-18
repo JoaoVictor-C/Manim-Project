@@ -389,6 +389,10 @@ class LayersPanel(QWidget):
                 tip += f"\nNot drawn: {orphans[layer.id]}"
             item.setToolTip(0, tip)
             item.setFlags((item.flags() | Qt.ItemFlag.ItemIsEditable) & ~Qt.ItemFlag.ItemIsDragEnabled)
+        elif layer.is_group:  # ADR 0050
+            count = len(index.children(layer.id))
+            item.setToolTip(0, f"{layer.id} - group of {count} object{'s' if count != 1 else ''}")
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
         else:
             item.setToolTip(0, f"{layer.id} - {layer.spec.type}")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
