@@ -268,6 +268,40 @@ def test_a_connector_to_a_group_ends_at_its_childrens_box() -> None:
     assert np.linalg.norm(centre - end) < 0.3  # toward the box's centre, short of it by its gap
 
 
+def test_a_traced_path_of_a_group_follows_its_childrens_box() -> None:
+    track = [Keyframe(t=0.0, value=(0.0, 0.0), ease={"name": "linear"}), Keyframe(t=1.0, value=(2.0, 0.0))]
+    trace = Layer(id="tr", spec=Spec(type="TracedPath", params={"target": "g"}))
+    project = grouped(g_fields={"tracks": {"position": track}}, more=[trace])
+    evaluator = Evaluator(project)
+    drawn = dict(evaluator.frame_layers(0.6))
+    points = np.vstack([drawn[i].get_all_points()[:, :2] for i in ("sq", "ci")])
+    centre = (points.min(axis=0) + points.max(axis=0)) / 2
+    assert drawn["tr"].get_all_points()[-1, :2] == pytest.approx(centre, abs=1e-6)
+
+
+def test_a_code_layer_in_a_group_is_carried_by_it(tmp_path) -> None:
+    from manim_studio.core.code_cache import CodeCache
+
+    code = Spec(type="Code", params={"code": "class Dots(Scene): ..."})
+    group = Transform2D(position=(1.0, 0.5), scale=0.5, rotation=90.0, opacity=0.5)
+    project = Project(
+        canvas=CANVAS,
+        layers=[
+            Layer(id="g", spec=GROUP, base=group),
+            Layer(id="code", parent_id="g", spec=code, base=Transform2D(position=(0.5, 0.0))),
+        ],
+    )
+    evaluator = Evaluator(project, CodeCache(tmp_path))
+    writer = evaluator.code_cache.writer(evaluator.code_key(project.layer("code")), 320, 180, CANVAS.fps)
+    writer.add(np.full((180, 320, 4), 255, dtype=np.uint8))  # opaque: the crop is the whole frame
+    writer.finish()
+    (frame,) = evaluator.frame(0.0)
+    a, b = evaluator.world_affine(project.layer("code"), 0.0)
+    assert np.allclose(a, [[0.0, -0.5], [0.5, 0.0]]) and np.allclose(b, [1.0, 0.75])
+    assert np.allclose(frame.points[:, :2].mean(axis=0), b)  # the frame is centred where it is carried
+    assert frame.opacity == pytest.approx(0.5)
+
+
 # -- lifetime ---------------------------------------------------------------------------------------
 
 
@@ -332,6 +366,50 @@ def test_a_key_edit_on_the_group_moves_every_child() -> None:
         assert after[owner] == pytest.approx(before[owner])
 
 
+def test_a_clip_edit_on_one_child_keeps_its_siblings_caches() -> None:
+    indicate = Clip(id="i", kind="Indicate", start=0.1, duration=0.3)
+    project = grouped(sq_fields={"clips": [indicate]}, ci_fields={"clips": [indicate]})
+    evaluator = Evaluator(project)
+    evaluator.frame(0.2)
+    evaluator.frame(0.6)
+    kept = {key for key in evaluator._checkpoints if key[0] == "ci"}
+    assert kept
+    edit = edits.update_clip(project, "sq", "i", kind="Wiggle")
+    assert edit.kind == "clip"
+    evaluator.apply(edit)
+    assert kept <= set(evaluator._checkpoints)  # each child is its own object
+    assert not {key for key in evaluator._checkpoints if key[0] == "sq"}
+
+
+def test_a_morph_inside_a_group_follows_a_group_transform_edit() -> None:
+    morph = Clip(id="m", kind="Transform", start=0.2, duration=0.6, to_layer="ci")
+    project = grouped(sq_fields={"clips": [morph]})
+    evaluator = Evaluator(project)
+    evaluator.frame(0.5)  # the morph is begun with both ends baked
+    edit = edits.update_layer(project, "g", base=Transform2D(position=(-1.0, 1.0), rotation=50.0))
+    evaluator.apply(edit)  # a transform edit keeps caches: the morph must notice its ends moved
+    camera = make_camera(CANVAS)
+    fresh = Evaluator(edit.project)
+    diff = max_diff(render_frame(camera, evaluator.frame(0.5)), render_frame(camera, fresh.frame(0.5)))
+    assert diff <= TOLERANCE
+
+
+def test_a_path_clip_in_a_group_follows_a_group_transform_edit() -> None:
+    run = Clip(id="r", kind="MoveAlongPath", start=0.0, duration=1.0, params={"path": "front"})
+    project = grouped(ci_fields={"clips": [run]})
+    evaluator = Evaluator(project)
+    evaluator.frame(0.5)
+    evaluator.frame(1.0)  # the run's checkpoint
+    edit = edits.update_layer(project, "g", base=Transform2D(position=(-1.0, 1.0), scale=0.5))
+    evaluator.apply(edit)
+    fresh = Evaluator(edit.project)
+    for t in (0.5, 1.0):
+        got = dict(evaluator.frame_layers(t))["ci"].get_center()
+        assert got == pytest.approx(dict(fresh.frame_layers(t))["ci"].get_center(), abs=1e-9)
+    # it rides the path (the dot's outline, from its right) in world units, wherever the group is
+    assert dict(fresh.frame_layers(0.999))["ci"].get_center()[:2] == pytest.approx((3.3, -1.5), abs=0.05)
+
+
 def test_frame_cache_spans_follow_the_children() -> None:
     project = grouped(
         sq_fields={"lifetime": Lifetime(in_=0.2, out=0.6)}, ci_fields={"lifetime": Lifetime(in_=0.4, out=0.9)}
@@ -374,6 +452,14 @@ def test_grouping_keeps_ids_looks_and_builds() -> None:
     evaluator.apply(edit)
     assert all(evaluator._base[i] is built for i, built in builds.items())  # nothing rebuilt
     assert_same_frames(project, new)
+
+
+def test_moving_an_object_into_or_out_of_a_group_is_a_transform_edit() -> None:
+    project = grouped()
+    into = edits.update_layer(project, "front", parent_id="g")
+    assert edits.classify(project, into.project) == ("transform", frozenset({"front"}))
+    out = edits.update_layer(project, "sq", parent_id=None)
+    assert edits.classify(project, out.project) == ("transform", frozenset({"sq"}))
 
 
 def test_grouping_brings_the_objects_to_the_front_most_one() -> None:
