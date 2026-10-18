@@ -47,3 +47,13 @@ what a linter cannot.
 - The frame budget is 33 ms. Anything on the per-frame path needs a measurement;
   record it in `docs/logs/benchmarks.md` if it informs a decision.
 - Avoid `Mobject.copy()` (a deepcopy) per frame — it was the dominant cost (B1).
+
+## Documentation
+
+- A user-visible change updates the [user guide](../guide/index.md) page it touches and gets a
+  bullet in `CHANGELOG.md` under **[Unreleased]**; a file format change updates
+  [project-format.md](../project-format.md).
+- Every menu item has a tooltip (checked by `tests/ui/test_layout_checks.py`). After changing a
+  shortcut or a gesture, regenerate `docs/guide/shortcuts.md` with `scripts/gen_shortcuts.py`.
+- Links between Markdown files are relative and checked by `scripts/check_docs.py` (also run by
+  `tests/test_docs_links.py`).

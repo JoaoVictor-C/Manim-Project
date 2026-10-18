@@ -69,8 +69,10 @@ def main() -> None:
     us, lengths = table(p0, p0, p1, p1, 64)
     flat_by_length = by_length(p0, p0, p1, p1, uniform, us, lengths)
     linear = p0 + (p1 - p0) * uniform[:, None]
-    print(f"zero tangents: raw vs linear {np.abs(flat - linear).max():.1e} (not linear in u!), "
-          f"arc length vs linear {np.abs(flat_by_length - linear).max():.1e}")
+    print(
+        f"zero tangents: raw vs linear {np.abs(flat - linear).max():.1e} (not linear in u!), "
+        f"arc length vs linear {np.abs(flat_by_length - linear).max():.1e}"
+    )
 
 
 if __name__ == "__main__":

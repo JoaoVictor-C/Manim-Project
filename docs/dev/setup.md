@@ -36,12 +36,16 @@ initexmf --set-config-value=[MPM]AutoInstall=1
 
 | task | command |
 |---|---|
-| tests | `uv run pytest` |
+| quick tests (no real subprocesses) | `uv run pytest -m "not slow"` |
+| all tests (parallel) | `uv run pytest` |
 | tests without LaTeX / Qt | `uv run pytest -m "not latex and not ui"` |
-| lint | `uv run ruff check src tests benchmarks` |
-| format | `uv run ruff format src tests benchmarks` |
+| lint | `uv run ruff check src tests benchmarks scripts` |
+| format | `uv run ruff format src tests benchmarks scripts` |
+| documentation links | `uv run python scripts/check_docs.py` |
+| regenerate the shortcuts page | `uv run python scripts/gen_shortcuts.py -o docs/guide/shortcuts.md` |
 | benchmark | `uv run python benchmarks/bench_preview.py` |
 | render | `uv run manim-studio -v render examples/euler.json out/euler.mp4` |
+| release check (builds and installs the wheel) | `uv run python scripts/release_check.py` |
 
 ## Pinned dependencies
 
@@ -55,14 +59,33 @@ initexmf --set-config-value=[MPM]AutoInstall=1
 | path | content | in git? |
 |---|---|---|
 | `.venv/` | environment | no |
-| `.cache/manim/`, `examples/.cache/` | Manim's Tex/Text SVG cache (per project folder) | no |
-| `out/` | your renders and screenshots | no |
-| `%LOCALAPPDATA%\ManimStudio\logs\` | application log (ADR 0011) | — |
+| `.cache/manim/`, `.cache/test-workers/` | the tests' Manim cache (shared, and one per parallel worker) | no |
+| `<project folder>/.cache/manim/` | Manim's cache of `manim-studio render` / `python` (default `--cache-dir`) | no |
+| `out/`, `media/` | your renders and screenshots; Manim's own output when run directly | no |
+| `projects/` | your own projects, if you keep them in the checkout | no (ignored) |
+| `%LOCALAPPDATA%\Manim Studio\cache\manim\` | the editor's Manim cache | - |
+| `%LOCALAPPDATA%\ManimStudio\logs\` | application log (ADR 0011) | - |
 
-Environment variables: `MANIM_STUDIO_LOG_DIR` moves the log folder;
-`MANIM_STUDIO_WORKER=0` turns the build worker off (text is then built on the
-UI thread — slower, but handy when debugging the worker, ADR 0015).
-`MANIM_STUDIO_SETTINGS` is the preferences file (recent files, window, panel sizes, view toggles; ADR 0044).
+The user-facing list (preferences, recovery copies, trust store, library, plugins) is in
+[the user guide](../guide/troubleshooting.md#where-files-live).
+
+Environment variables:
+
+| variable | effect |
+|---|---|
+| `MANIM_STUDIO_SETTINGS` | the preferences file (ADR 0044) |
+| `MANIM_STUDIO_CACHE` | the editor's Manim cache folder |
+| `MANIM_STUDIO_LOG_DIR` | the log folder |
+| `MANIM_STUDIO_RECOVERY` | the recovery copies folder (ADR 0038) |
+| `MANIM_STUDIO_TRUST_FILE` | the trusted-code store (ADR 0019, 0051) |
+| `MANIM_STUDIO_LIBRARY` | the user's presets, themes and templates (ADR 0039) |
+| `MANIM_STUDIO_PLUGINS` | plugin folders, `os.pathsep`-separated (ADR 0032) |
+| `MANIM_STUDIO_WORKER=0` | no build worker: text is built on the UI thread - slower, handy when debugging (ADR 0015) |
+| `MANIM_STUDIO_PREVIEW=0` | no preview process: frames are not rendered ahead (ADR 0028) |
+| `MANIM_STUDIO_CODE=0` | code layers are not rendered (ADR 0019) |
+| `MANIM_STUDIO_AUDIO=0` | no sound output: playback follows the wall clock (ADR 0034) |
+
+The test suite sets most of these to temporary folders or `0` (`tests/conftest.py`).
 
 ## Troubleshooting (Windows)
 
