@@ -805,3 +805,43 @@ snapshot plus deleting what it replaced, minimum of 15, offscreen.
 - **After:** collapsed 1.8 / 3.4 / 9.4-15.7 ms, every row expanded **2.4 / 5.4 / 18.8** ms (about 0.06 ms
   per layer); the header paints in 1.7 ms (rows in view only). Scans of the project per sync stay
   constant with every row expanded (`test_long_scene_scaling`). -> ADR 0047.
+
+### B70 - P7.2 item 5: the sound mixed per span · 2026-10-18
+`benchmarks/bench_audio_spans.py`: a 15-minute 44.1 kHz mono 16-bit tone (76 MB) under a 15-minute
+scene; open, play 10 s from 5:00, move the sound (an edit heard while playing), the level meter at
+three times, export 5:00-5:30 (160x90, so the sound dominates; in a fresh-process state). Peak RSS
+sampled every 2 ms above the RSS after imports (114 MB). The same script run against master
+(`PYTHONPATH=<old src>`) for "before"; single runs on battery.
+
+| step | before (whole decode + whole mix) | after (spans) |
+|---|---:|---:|
+| open: probe, problems, waveform (GUI thread) | 1478 ms, +830 MB (decode on the GUI thread) | **57-73 ms**, +2 MB (scan in the background: 1.6-2.3 s, +8 MB) |
+| play 10 s from 5:00: first sound | 1125 ms (whole mix + 16-bit copy) | **23-27 ms** (one window sought, one span) |
+| move the sound: first playable chunk | 1165 ms, peak +1489 MB (two mixes cached) | **0.6-1.8 ms**, +15 MB |
+| `level_at`, cold / warm window | 1.0-1.7 ms (the mix's files decoded) | 35-52 ms cold (a window decoded) / 0.6-1.0 ms |
+| export 5:00-5:30 | 3201 ms | 1118-1381 ms |
+| **process peak above imports** | **1490 MB** | **75-76 MB** (decoded windows held: 11.7 MB) |
+
+- **Targets:** peak extra RSS well under 200 MB (target < 100): **76 MB, met**; mix rebuild after
+  an audio edit independent of the scene's length, < 50 ms to the first playable chunk: **0.6-1.8
+  ms, met** (it is one 0.25 s span); the first decode off the GUI thread: **met** for sounds
+  longer than 60 s (shorter ones keep their waveform at once, ~0.1 s, so the timeline tests and
+  small projects see no flat row).
+- **Exactness:** every output sample is unchanged. `tests/core/test_audio_spans.py`: windows of
+  wav (8-96 kHz, mono/stereo), FLAC, MP3, AAC (MP4 and ADTS) decoded on demand equal the same
+  samples of the whole decode; random projects and spans equal the old whole mix
+  (`np.array_equal`); the exported AAC track decodes to the same samples as the old one-frame
+  encode, whole and for a range; the playback device's bytes equal `to_int16` of the whole mix
+  from the playhead. ADR 0034's alignment tests, B58's window test and the existing export and
+  level tests pass unchanged.
+- **Measured on the way:** a resampler restarted mid-file differs in its first ~16 output samples
+  (up to 0.025 at 11 kHz) without the 4096-sample warm-up; AAC after a seek differs by 1e-6 to
+  1e-3 even with 3 s of warm-up (caught by the scan's window hashes: decoded from the start);
+  MP3 (LAME CBR) and FLAC match after a seek; a float32 `np.arange(lo, hi)` differs from
+  `np.arange(n)[lo:hi]` past 2**24 (the old level-window code had that latent difference for
+  fades longer than ~350 s).
+- **Costs left:** a cold level-meter or playback start at a new place decodes one window
+  (~25-50 ms on the GUI thread); an AAC file read deep and at random decodes from its start each
+  time no open reader is behind (bounded memory, seconds at 15 minutes); `audio.mix` (the exact
+  Python scene's wav) still builds the whole mix, once, in the render process. -> ADR 0034
+  amendment.

@@ -20,6 +20,14 @@ All notable changes to this project are documented here. The format follows
   (`invalidate` 33 -> 1 ms and the timeline rebuild 99 -> 48 ms at 295 layers; the rest is Qt items);
   render-ahead evicts and asks for missing frames in O(log n) (9 ms -> 0.01 ms with 15 000 frames kept);
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
+- The sound of a long scene (P7.2 item 5, ADR 0034 amendment, B70): the mix is computed per span
+  (`audio.mix_span`, bit-identical to the same samples of the whole mix) from files decoded on
+  demand in 1.28 s windows (64 MB at most, all files), so no file or whole mix is held in memory:
+  a 15-minute sound edited, played and exported peaks at 76 MB above the editor instead of 1.5 GB,
+  playback starts after one span (23 ms instead of 1.1 s) and is heard 1-2 ms after an audio edit,
+  the export streams the mix to AAC in 10 s pieces (the same encoded sound), and a sound longer
+  than a minute gets its waveform from a background scan (a flat row until then) instead of a
+  2 s decode on the first timeline sync. No output sample changed.
 
 ### Added
 - Groups (U6, ADR 0050, from the Pythagoras project): Edit > Group (Ctrl+G) puts the selected
