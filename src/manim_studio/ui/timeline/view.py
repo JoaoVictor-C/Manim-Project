@@ -22,11 +22,17 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 * sounds (P4d, ADR 0034): one row per sound under the subtitles, with its waveform;
   drag to move, drag an edge to trim (the left edge trims the file's start),
   Delete or the row menu removes it.
+* property rows (P7.3, ADR 0047): the arrow by a row's name (or Alt+click on the name)
+  expands it into one sub-row per property it can key, each with its value at the
+  playhead, a diamond that adds or removes that property's key there, and that
+  property's keys - dragged, deleted and eased alone. A click on a property's name
+  chooses it for the graph (Shift/Ctrl add); expanded rows are editor state.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from bisect import bisect_right
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -57,13 +63,14 @@ from ...core.schema import (
     AudioClip,
     Clip,
     Cue,
+    Easing,
     Layer,
     Marker,
     Project,
     keyable_props,
 )
 from ...logging_config import get_logger
-from .. import theme
+from .. import curve_editor, graph_model, theme
 from ..document import Document
 from .model import (
     Edge,
@@ -87,6 +94,14 @@ log = get_logger(__name__)
 ROW_HEIGHT = 28
 RULER_HEIGHT = 26
 HEADER_WIDTH = 140
+WIDE_HEADER_WIDTH = 200  # while a row is expanded: room for a property's name, value, diamond (P7.3)
+SUB_ROW_HEIGHT = 22  # a property row under an expanded object (P7.3)
+TWIRL_X = 9  # the expand arrow's middle in the header, at depth 0
+TWIRL_GRAB = 7
+NAME_X = 18  # a row's name starts after the arrow
+KEY_BUTTON_X = WIDE_HEADER_WIDTH - 14  # a property row's diamond: add or remove its key at the playhead
+KEY_BUTTON_GRAB = 8
+PROP_LABELS = {"position": "Position", "scale": "Scale", "rotation": "Rotation", "opacity": "Opacity"}
 FIT_MIN_WIDTH = 200  # narrower: not laid out yet, the fit waits
 INDENT_PX = 14  # per level of part layers (ADR 0012)
 EDGE_PX = 6
@@ -122,6 +137,35 @@ GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # the line a snapped drag rests o
 END_COLOR = GUIDE_COLOR  # the scene's end on the timeline, draggable (P7.1)
 SHADE_COLOR = QColor(RULER_BACKGROUND)  # past the scene's end
 SHADE_COLOR.setAlpha(150)
+MUTED_COLOR = theme.qcolor(theme.THEME.muted)
+SUB_BAND = QColor(RULER_BACKGROUND)  # behind a property row (P7.3)
+SUB_BAND.setAlpha(110)
+SUB_CHOSEN = theme.qcolor(theme.THEME.accent)  # behind a property row chosen for the graph
+SUB_CHOSEN.setAlpha(70)
+
+
+def _number(value: float) -> str:
+    return f"{round(float(value), 2) + 0.0:g}"
+
+
+def format_value(prop: str, value) -> str:
+    """A property's value as a property row shows it: x, y; scale; degrees; percent."""
+    if prop == "position":
+        return f"{_number(value[0])}, {_number(value[1])}"
+    if prop == "rotation":
+        return f"{_number(value)}\u00b0"
+    if prop == "opacity":
+        return f"{round(float(value) * 100) + 0:g}%"
+    return _number(value)
+
+
+@dataclass
+class _Layout:
+    """Where the layer rows are: each one's top (scene y) and the property rows under it."""
+
+    tops: list[float] = field(default_factory=list)
+    subs: list[tuple[str, ...]] = field(default_factory=list)  # empty: collapsed
+    bottom: float = RULER_HEIGHT  # under the last layer row: the Subtitles row
 
 
 class ClipItem(QGraphicsRectItem):
@@ -206,6 +250,8 @@ class CueItem(QGraphicsRectItem):
 class KeyItem(QGraphicsPolygonItem):
     """Every key of one layer at one time (P2b)."""
 
+    prop: str | None = None  # every property keyed there
+
     def __init__(
         self, layer_id: str, t: float, props: tuple[str, ...], center: QPointF, selected: bool
     ) -> None:
@@ -220,12 +266,21 @@ class KeyItem(QGraphicsPolygonItem):
         self.setZValue(3)
 
 
+class PropKeyItem(KeyItem):
+    """One property's key, on its property row (P7.3)."""
+
+    def __init__(self, layer_id: str, t: float, prop: str, center: QPointF, selected: bool) -> None:
+        super().__init__(layer_id, t, (prop,), center, selected)
+        self.prop = prop
+
+
 @dataclass
 class _KeyDrag:
     layer_id: str
     t: float
     press_x: float
     base: Project
+    prop: str | None = None  # one property's key (P7.3); None: every key at that time
 
 
 class LayerHeader(QWidget):
@@ -236,56 +291,123 @@ class LayerHeader(QWidget):
         self._view = view
 
     def mousePressEvent(self, event) -> None:
-        """A click on a name selects that object (Shift or Ctrl adds), a sound's name that sound."""
+        """A click on a name selects that object (Shift or Ctrl adds), a sound's name that sound;
+        the arrow (or Alt+click) expands an object into its property rows, where a click on a
+        name chooses that property and one on the diamond keys it at the playhead (P7.3)."""
         view = self._view
         if event.button() != Qt.MouseButton.LeftButton or view.project is None:
             super().mousePressEvent(event)
             return
-        y = event.position().y() + view.verticalScrollBar().value()
-        row = int((y - RULER_HEIGHT) // ROW_HEIGHT)
+        pos = event.position()
+        if pos.y() < RULER_HEIGHT:
+            return
+        modifiers = event.modifiers()
+        extend = bool(modifiers & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier))
+        where = view.locate(pos.y() + view.verticalScrollBar().value())
+        if where is None:
+            return
+        kind, row, sub = where
         rows = view.rows()
-        if y >= RULER_HEIGHT and 0 <= row < len(rows):
-            view.pick_layer(
-                rows[row].id,
-                bool(
-                    event.modifiers()
-                    & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
-                ),
-            )
-        elif y >= RULER_HEIGHT and 0 <= row - len(rows) - 1 < len(view.project.audio):
-            view.select_audio_row(view.project.audio[row - len(rows) - 1].id)
+        if kind == "layer":
+            layer = rows[row]
+            twirl = INDENT_PX * depth(view.project, layer, view.layer_index()) + TWIRL_X
+            if abs(pos.x() - twirl) <= TWIRL_GRAB or modifiers & Qt.KeyboardModifier.AltModifier:
+                view.toggle_expanded(layer.id)
+            else:
+                view.pick_layer(layer.id, extend)
+        elif kind == "prop":
+            layer, prop = rows[row], view.layout().subs[row][sub]
+            if abs(pos.x() - KEY_BUTTON_X) <= KEY_BUTTON_GRAB:
+                view.toggle_key(layer.id, prop)
+            else:
+                view.pick_prop(layer.id, prop, extend)
+        elif kind == "audio":
+            view.select_audio_row(view.project.audio[row].id)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), RULER_BACKGROUND)
-        project = self._view.project
+        view = self._view
+        project = view.project
         if project is None:
             return
-        painter.setPen(TEXT_COLOR)
-        scroll = self._view.verticalScrollBar().value()
-        rows = self._view.rows()
-        index = self._view.layer_index()
-        for row, layer in enumerate(rows):
-            y = RULER_HEIGHT + row * ROW_HEIGHT - scroll
-            if y + ROW_HEIGHT < RULER_HEIGHT:
-                continue
-            text = layer.label
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        width = view.header_width
+        scroll = view.verticalScrollBar().value()
+        rows = view.rows()
+        index = view.layer_index()
+        layout = view.layout()
+        first = max(0, bisect_right(layout.tops, scroll + RULER_HEIGHT) - 1)
+        for row in range(first, len(rows)):
+            top = layout.tops[row] - scroll
+            if top > self.height():
+                break
+            layer = rows[row]
             indent = INDENT_PX * depth(project, layer, index)
+            self._draw_twirl(painter, indent + TWIRL_X, top + ROW_HEIGHT / 2, bool(layout.subs[row]))
+            text = layer.label
             if indent:
                 text = "\u21b3 " + text
-            rect = QRectF(8 + indent, y, HEADER_WIDTH - 12 - indent, ROW_HEIGHT)
+            painter.setPen(TEXT_COLOR)
+            rect = QRectF(NAME_X + indent, top, width - NAME_X - 4 - indent, ROW_HEIGHT)
             painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, text)
-        y = RULER_HEIGHT + len(rows) * ROW_HEIGHT - scroll  # the subtitles (ADR 0035)
+            for i, prop in enumerate(layout.subs[row]):
+                self._draw_prop_row(painter, layer, prop, indent, top + ROW_HEIGHT + i * SUB_ROW_HEIGHT)
+        painter.setPen(TEXT_COLOR)
+        y = layout.bottom - scroll  # the subtitles (ADR 0035)
         if y + ROW_HEIGHT >= RULER_HEIGHT:
             painter.drawText(
-                QRectF(8, y, HEADER_WIDTH - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, "Subtitles"
+                QRectF(8, y, width - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, "Subtitles"
             )
         for i, clip in enumerate(project.audio):  # sounds under the subtitles (ADR 0034)
-            y = RULER_HEIGHT + (len(rows) + 1 + i) * ROW_HEIGHT - scroll
+            y = layout.bottom + (1 + i) * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT >= RULER_HEIGHT:
-                rect = QRectF(8, y, HEADER_WIDTH - 12, ROW_HEIGHT)
+                rect = QRectF(8, y, width - 12, ROW_HEIGHT)
                 painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, "\u266a " + (clip.name or clip.id))
-        painter.fillRect(0, 0, HEADER_WIDTH, RULER_HEIGHT, RULER_BACKGROUND)
+        painter.fillRect(0, 0, width, RULER_HEIGHT, RULER_BACKGROUND)
+
+    @staticmethod
+    def _draw_twirl(painter: QPainter, x: float, y: float, expanded: bool) -> None:
+        """The arrow that expands a row: pointing right when closed, down when open."""
+        h = 3.5
+        if expanded:
+            shape = [QPointF(x - h, y - h / 2), QPointF(x + h, y - h / 2), QPointF(x, y + h)]
+        else:
+            shape = [QPointF(x - h / 2, y - h), QPointF(x + h, y), QPointF(x - h / 2, y + h)]
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(MUTED_COLOR)
+        painter.drawPolygon(QPolygonF(shape))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    def _draw_prop_row(self, painter: QPainter, layer: Layer, prop: str, indent: float, y: float) -> None:
+        """A property row's header: its name, its value at the playhead and its key diamond,
+        filled when the property has a key on the playhead's frame."""
+        view = self._view
+        chosen = view.prop_layer == layer.id and prop in view.selected_props
+        painter.fillRect(QRectF(0, y, view.header_width, SUB_ROW_HEIGHT), SUB_CHOSEN if chosen else SUB_BAND)
+        left = NAME_X + indent + 8
+        font = painter.font()
+        painter.setPen(TEXT_COLOR)
+        label = QRectF(left, y, 64, SUB_ROW_HEIGHT)
+        painter.drawText(label, Qt.AlignmentFlag.AlignVCenter, PROP_LABELS[prop])
+        small = QFont(font)
+        small.setPointSizeF(max(font.pointSizeF() - 1, 7))
+        painter.setFont(small)
+        painter.setPen(MUTED_COLOR)
+        value = QRectF(left + 60, y, KEY_BUTTON_X - KEY_BUTTON_GRAB - left - 62, SUB_ROW_HEIGHT)
+        text = painter.fontMetrics().elidedText(
+            view.value_text(layer, prop), Qt.TextElideMode.ElideLeft, int(max(value.width(), 0))
+        )
+        painter.drawText(value, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, text)
+        painter.setFont(font)
+        h, cx, cy = KEY_HALF, KEY_BUTTON_X, y + SUB_ROW_HEIGHT / 2
+        keyed = view.keyed_at_playhead(layer, prop)
+        painter.setPen(QPen(KEY_EDGE if keyed else MUTED_COLOR, 1))
+        painter.setBrush(KEY_COLOR if keyed else Qt.BrushStyle.NoBrush)
+        painter.drawPolygon(
+            QPolygonF([QPointF(cx, cy - h), QPointF(cx + h, cy), QPointF(cx, cy + h), QPointF(cx - h, cy)])
+        )
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
 
 @dataclass
@@ -335,6 +457,7 @@ class TimelineView(QGraphicsView):
     layerPicked = Signal(
         str, bool
     )  # a row's name or empty space was clicked: layer id, add to selection (P7.1)
+    propsSelected = Signal()  # the properties chosen for the graph changed (P7.3)
     message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -342,6 +465,7 @@ class TimelineView(QGraphicsView):
         self.setScene(QGraphicsScene(self))
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.setBackgroundBrush(BACKGROUND)
+        self.header_width = HEADER_WIDTH  # wider while a row is expanded (P7.3)
         self.setViewportMargins(HEADER_WIDTH, 0, 0, 0)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -352,6 +476,14 @@ class TimelineView(QGraphicsView):
         self.document: Document | None = None
         self._index: LayerIndex | None = None
         self._rows: list[Layer] = []
+        # property rows (P7.3, ADR 0047): editor state, never saved in the project
+        self.expanded: set[str] = set()  # objects whose rows show their properties
+        self.prop_layer: str | None = None  # the object whose properties are chosen for the graph
+        self.selected_props: tuple[str, ...] = ()  # those properties, in the order chosen
+        self.selected_key_prop: str | None = None  # the selected key is this property's only
+        self.edit_curve = curve_editor.edit_curve  # a key's custom ease; replaced in tests
+        self._layout: _Layout | None = None
+        self._layer_id: str | None = None  # the selected object, as the shared selection says
         self.scale = TimeScale(px_per_second=120.0)
         self.playhead = 0.0
         self.selected: tuple[str, str] | None = None
@@ -400,6 +532,13 @@ class TimelineView(QGraphicsView):
         self._marker_drag = None
         self._drag = None
         self._key_drag = None
+        self.expanded.clear()
+        self._layout = None
+        self._fit_header()
+        self.selected_key_prop = None
+        if self.prop_layer is not None:
+            self.prop_layer, self.selected_props = None, ()
+            self.propsSelected.emit()
         self._fit_pending = True  # an opened project shows whole (P6d.4)
         self.fit_to_width()
         self.sync()
@@ -420,7 +559,14 @@ class TimelineView(QGraphicsView):
         """Highlight a clip or a key time chosen elsewhere (the shared selection), or none."""
         selected = (layer_id, clip_id) if layer_id and clip_id else None
         selected_key = (layer_id, key_time) if layer_id and key_time is not None else None
-        if (selected, selected_key) != (self.selected, self.selected_key):
+        self._layer_id = layer_id
+        dropped = self.prop_layer is not None and layer_id != self.prop_layer
+        if dropped:  # another object: its properties were not chosen (P7.3)
+            self.prop_layer, self.selected_props = None, ()
+            self.propsSelected.emit()
+        if selected_key != self.selected_key:
+            self.selected_key_prop = None  # chosen elsewhere: every key at that time
+        if (selected, selected_key) != (self.selected, self.selected_key) or dropped:
             self.selected, self.selected_key = selected, selected_key
             self.sync()
 
@@ -446,7 +592,8 @@ class TimelineView(QGraphicsView):
         """Whether this height is the Subtitles row."""
         if self.project is None or viewport_y < RULER_HEIGHT:
             return False
-        return int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT) == len(self.rows())
+        where = self.locate(self.mapToScene(0, int(viewport_y)).y())
+        return where is not None and where[0] == "subtitles"
 
     def set_selected_audio(self, audio_id: str | None) -> None:
         if audio_id != self.selected_audio:
@@ -457,10 +604,8 @@ class TimelineView(QGraphicsView):
         """The sound whose row is at this height (rows under the layers)."""
         if self.project is None or viewport_y < RULER_HEIGHT:
             return None
-        row = (
-            int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT) - len(self.rows()) - 1
-        )
-        return self.project.audio[row] if 0 <= row < len(self.project.audio) else None
+        where = self.locate(self.mapToScene(0, int(viewport_y)).y())
+        return self.project.audio[where[1]] if where is not None and where[0] == "audio" else None
 
     def layer_index(self) -> LayerIndex:
         """The current snapshot's tree maps, built once per snapshot (snapshots are replaced by
@@ -471,6 +616,7 @@ class TimelineView(QGraphicsView):
         if self._index is None or self._index.project is not project:
             self._index = LayerIndex(project)
             self._rows = self._index.rows()
+            self._layout = None
         return self._index
 
     def rows(self) -> list[Layer]:
@@ -484,14 +630,150 @@ class TimelineView(QGraphicsView):
         return [layer.id for layer in self.rows()].index(layer_id)
 
     def layer_at(self, viewport_y: float) -> Layer | None:
-        row = int((self.mapToScene(0, int(viewport_y)).y() - RULER_HEIGHT) // ROW_HEIGHT)
-        rows = self.rows()
-        return rows[row] if viewport_y >= RULER_HEIGHT and 0 <= row < len(rows) else None
+        """The object whose own row is at this height (not one of its property rows)."""
+        if self.project is None or viewport_y < RULER_HEIGHT:
+            return None
+        where = self.locate(self.mapToScene(0, int(viewport_y)).y())
+        return self.rows()[where[1]] if where is not None and where[0] == "layer" else None
+
+    # -- property rows (P7.3, ADR 0047) ------------------------------------------------
+
+    def layout(self) -> _Layout:
+        """Each layer row's top and its property rows: one pass over the rows, kept until the
+        snapshot or the expanded rows change."""
+        self.layer_index()
+        if self._layout is None:
+            layout, y = _Layout(), float(RULER_HEIGHT)
+            for layer in self._rows:
+                subs = tuple(keyable_props(layer)) if layer.id in self.expanded else ()
+                layout.tops.append(y)
+                layout.subs.append(subs)
+                y += ROW_HEIGHT + len(subs) * SUB_ROW_HEIGHT
+            layout.bottom = y
+            self._layout = layout
+        return self._layout
+
+    def locate(self, scene_y: float) -> tuple[str, int | None, int | None] | None:
+        """What is at a scene height: ("layer", row, None), ("prop", row, property index),
+        ("subtitles", None, None), ("audio", sound index, None), or None."""
+        if self.project is None or scene_y < RULER_HEIGHT:
+            return None
+        layout = self.layout()
+        if scene_y >= layout.bottom:
+            below = int((scene_y - layout.bottom) // ROW_HEIGHT)
+            if below == 0:
+                return ("subtitles", None, None)
+            return ("audio", below - 1, None) if below - 1 < len(self.project.audio) else None
+        row = bisect_right(layout.tops, scene_y) - 1
+        offset = scene_y - layout.tops[row]
+        if offset < ROW_HEIGHT:
+            return ("layer", row, None)
+        return ("prop", row, min(int((offset - ROW_HEIGHT) // SUB_ROW_HEIGHT), len(layout.subs[row]) - 1))
+
+    def row_top(self, layer_id: str) -> float:
+        return self.layout().tops[self.row_of(layer_id)]
+
+    def sub_rows(self, layer_id: str) -> tuple[str, ...]:
+        """The properties an expanded object's rows show (those it can key, ADR 0024)."""
+        return tuple(keyable_props(self.layer_index().layer(layer_id)))
+
+    def prop_row_top(self, layer_id: str, prop: str) -> float:
+        row = self.row_of(layer_id)
+        layout = self.layout()
+        return layout.tops[row] + ROW_HEIGHT + layout.subs[row].index(prop) * SUB_ROW_HEIGHT
+
+    def prop_row_at(self, viewport_y: float) -> tuple[Layer, str] | None:
+        """The object and property whose row is at this height."""
+        if self.project is None or viewport_y < RULER_HEIGHT:
+            return None
+        where = self.locate(self.mapToScene(0, int(viewport_y)).y())
+        if where is None or where[0] != "prop":
+            return None
+        return self.rows()[where[1]], self.layout().subs[where[1]][where[2]]
+
+    def set_expanded(self, layer_id: str, expanded: bool) -> None:
+        if (layer_id in self.expanded) == expanded:
+            return
+        (self.expanded.add if expanded else self.expanded.discard)(layer_id)
+        self._layout = None
+        self._fit_header()
+        self.sync()
+
+    def _fit_header(self) -> None:
+        """The names column widens while any row is expanded, for the property rows' values;
+        collapsed, the timeline is as it always was."""
+        width = WIDE_HEADER_WIDTH if self.expanded else HEADER_WIDTH
+        if width != self.header_width:
+            self.header_width = width
+            self.setViewportMargins(width, 0, 0, 0)
+            self.header.setGeometry(0, 0, width, self.height())
+
+    def toggle_expanded(self, layer_id: str) -> None:
+        self.set_expanded(layer_id, layer_id not in self.expanded)
+
+    def pick_prop(self, layer_id: str, prop: str, extend: bool = False) -> None:
+        """Choose a property for the graph (``extend``: add it, or take it out again); a property
+        of another object starts over. The object is selected with it."""
+        if extend and self.prop_layer == layer_id:
+            props = [p for p in self.selected_props if p != prop]
+            if prop not in self.selected_props:
+                props.append(prop)
+        else:
+            props = [prop]
+        self.prop_layer = layer_id if props else None
+        self.selected_props = tuple(props)
+        if self._layer_id != layer_id:
+            self.layerPicked.emit(layer_id, False)
+            self._layer_id = layer_id
+        self.propsSelected.emit()
+        self.sync()
+
+    def playhead_frame(self) -> float:
+        fps = self.project.canvas.fps
+        return round(self.playhead * fps) / fps
+
+    def _key_on_playhead(self, layer: Layer, prop: str):
+        t, half = self.playhead_frame(), 0.5 / self.project.canvas.fps
+        return next((key for key in layer.tracks.get(prop, []) if abs(key.t - t) < half), None)
+
+    def keyed_at_playhead(self, layer: Layer, prop: str) -> bool:
+        return self._key_on_playhead(layer, prop) is not None
+
+    def has_key_at_playhead(self, layer_id: str, prop: str) -> bool:
+        return self.keyed_at_playhead(self.layer_index().layer(layer_id), prop)
+
+    def value_text(self, layer: Layer, prop: str) -> str:
+        return format_value(prop, getattr(layer_transform(layer, self.playhead), prop))
+
+    def prop_value(self, layer_id: str, prop: str) -> str:
+        """A property's value at the playhead, as its row shows it."""
+        return self.value_text(self.layer_index().layer(layer_id), prop)
+
+    def toggle_key(self, layer_id: str, prop: str) -> None:
+        """A property row's diamond: key that property at the playhead's frame, holding the value
+        played there, or remove its key there."""
+        key = self._key_on_playhead(self.layer_index().layer(layer_id), prop)
+        if key is not None:
+            self.delete_keys(layer_id, key.t, [prop])
+            return
+        t = self.playhead_frame()
+        before = self.project
+
+        def op(project: Project) -> edits.Edit:
+            value = getattr(layer_transform(project.layer(layer_id), t), prop)
+            after = edits.set_key(project, layer_id, prop, t, value).project
+            return edits.Edit(after, *edits.classify(before, after))
+
+        self._apply(op, f"Add {prop} key")
+        if self._key_on_playhead(self.layer_index().layer(layer_id), prop) is not None:
+            self.selected, self.selected_key, self.selected_key_prop = None, (layer_id, t), prop
+            self.sync()
+            self.keySelected.emit(layer_id, t)
 
     def pick_layer(self, layer_id: str, extend: bool = False) -> None:
         """A row was clicked: select its object (``extend``: add it to the selection)."""
         self.selected = self.selected_key = self.selected_audio = self.selected_cue = None
-        self.selected_marker = None
+        self.selected_marker = self.selected_key_prop = None
         self.layerPicked.emit(layer_id, extend)
         self.sync()
 
@@ -523,6 +805,8 @@ class TimelineView(QGraphicsView):
     def set_playhead(self, t: float) -> None:
         self.playhead = t
         self.viewport().update()
+        if self.expanded:  # the property rows show values at the playhead
+            self.header.update()
 
     # -- scene -------------------------------------------------------------------
 
@@ -534,11 +818,12 @@ class TimelineView(QGraphicsView):
         if project is None:
             return
         width = self.scale.x(max(project.canvas.duration, scene_length.content_end(project)))
-        height = RULER_HEIGHT + (len(project.layers) + 1 + len(project.audio)) * ROW_HEIGHT
-        scene.setSceneRect(0, 0, width + 40, height)
         index = self.layer_index()
         rows = self.rows()
-        subtitle_top = RULER_HEIGHT + len(rows) * ROW_HEIGHT
+        layout = self.layout()
+        height = layout.bottom + (1 + len(project.audio)) * ROW_HEIGHT
+        scene.setSceneRect(0, 0, width + 40, height)
+        subtitle_top = layout.bottom
         for cue in project.subtitles:  # the Subtitles row (ADR 0035)
             rect = QRectF(
                 self.scale.x(cue.start),
@@ -547,9 +832,9 @@ class TimelineView(QGraphicsView):
                 ROW_HEIGHT - 2 * CLIP_MARGIN,
             )
             scene.addItem(CueItem(cue, rect, cue.id == self.selected_cue))
-        first_audio_row = len(rows) + 1
+        fps = project.canvas.fps
         for row, layer in enumerate(rows):
-            top = RULER_HEIGHT + row * ROW_HEIGHT
+            top = layout.tops[row]
             start, end = index.lifetime(layer.id)
             end = min(end, project.canvas.duration)
             if end > start:
@@ -574,8 +859,10 @@ class TimelineView(QGraphicsView):
                 selected = selected and abs(self.selected_key[1] - t) < 0.5 / project.canvas.fps
                 center = QPointF(self.scale.x(t), top + KEY_OFFSET)
                 scene.addItem(KeyItem(layer.id, t, props, center, selected))
+            for i, prop in enumerate(layout.subs[row]):  # property rows (P7.3)
+                self._add_prop_row(layer, prop, top + ROW_HEIGHT + i * SUB_ROW_HEIGHT, width + 40, fps)
         for i, clip in enumerate(project.audio):
-            top = RULER_HEIGHT + (first_audio_row + i) * ROW_HEIGHT
+            top = layout.bottom + (1 + i) * ROW_HEIGHT
             rect = QRectF(
                 self.scale.x(clip.start),
                 top + CLIP_MARGIN,
@@ -588,6 +875,19 @@ class TimelineView(QGraphicsView):
             scene.addItem(AudioItem(clip, rect, _heard(shown, clip), clip.id == self.selected_audio))
         self.header.update()
         self.viewport().update()
+
+    def _add_prop_row(self, layer: Layer, prop: str, top: float, width: float, fps: int) -> None:
+        """A property row: its band and that property's keys."""
+        chosen = self.prop_layer == layer.id and prop in self.selected_props
+        brush = QBrush(SUB_CHOSEN if chosen else SUB_BAND)
+        band = self.scene().addRect(QRectF(0, top, width, SUB_ROW_HEIGHT), QPen(Qt.PenStyle.NoPen), brush)
+        band.setZValue(0)
+        picked = self.selected_key is not None and self.selected_key[0] == layer.id
+        picked = picked and self.selected_key_prop in (None, prop)
+        for key in layer.tracks.get(prop, []):
+            selected = picked and abs(self.selected_key[1] - key.t) < 0.5 / fps
+            center = QPointF(self.scale.x(key.t), top + SUB_ROW_HEIGHT / 2)
+            self.scene().addItem(PropKeyItem(layer.id, key.t, prop, center, selected))
 
     def key_items(self) -> list[KeyItem]:
         return [item for item in self.scene().items() if isinstance(item, KeyItem)]
@@ -689,7 +989,7 @@ class TimelineView(QGraphicsView):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self.header.setGeometry(0, 0, HEADER_WIDTH, self.height())
+        self.header.setGeometry(0, 0, self.header_width, self.height())
         if getattr(self, "_fit_pending", False):
             self.fit_to_width()
 
@@ -755,9 +1055,11 @@ class TimelineView(QGraphicsView):
         key = self._key_hit(pos)
         if key is not None:
             self.selected, self.selected_key = None, (key.layer_id, key.t)
+            self.selected_key_prop = key.prop
             self.keySelected.emit(key.layer_id, key.t)
             self._last_key_t = key.t
-            self._key_drag = _KeyDrag(key.layer_id, key.t, self.mapToScene(pos.toPoint()).x(), self.project)
+            x = self.mapToScene(pos.toPoint()).x()
+            self._key_drag = _KeyDrag(key.layer_id, key.t, x, self.project, key.prop)
             self.document.begin_preview()
             self.sync()
             return
@@ -787,6 +1089,11 @@ class TimelineView(QGraphicsView):
             return
         item, edge = self._hit(pos)
         if item is None:
+            prop_row = self.prop_row_at(pos.y())
+            if prop_row is not None:  # empty space on a property row chooses it (P7.3)
+                extend = Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier
+                self.pick_prop(prop_row[0].id, prop_row[1], bool(event.modifiers() & extend))
+                return
             layer = self.layer_at(pos.y())
             if layer is not None:  # empty space on a row selects its object (P7.1)
                 self.pick_layer(
@@ -848,9 +1155,10 @@ class TimelineView(QGraphicsView):
             self.apply_pending()
             drag, self._key_drag = self._key_drag, None
             moved = self.project is not drag.base
-            self.document.commit_preview("Move keys")
+            self.document.commit_preview(f"Move {drag.prop} key" if drag.prop else "Move keys")
             if moved:  # keep the moved keys selected
                 self.selected_key = (drag.layer_id, self._last_key_t)
+                self.selected_key_prop = drag.prop
                 self.sync()
                 self.keySelected.emit(drag.layer_id, self._last_key_t)
             return
@@ -899,7 +1207,8 @@ class TimelineView(QGraphicsView):
                 self.delete_audio(self.selected_audio)
                 return
             if self.selected_key:
-                self.delete_keys(*self.selected_key)
+                props = [self.selected_key_prop] if self.selected_key_prop else None
+                self.delete_keys(*self.selected_key, props)
                 return
             if self.selected:
                 self.delete_clip(*self.selected)
@@ -946,9 +1255,18 @@ class TimelineView(QGraphicsView):
             menu.addAction("Delete sound", lambda: self.delete_audio(sound.id))
             return menu
         key = self._key_hit(pos)
+        if key is not None and key.prop is not None:
+            self._prop_key_menu(menu, key.layer_id, key.prop, key.t)
+            return menu
         if key is not None:
             layer_id, t = key.layer_id, key.t
             menu.addAction(f"Delete keys at {t:g} s", lambda: self.delete_keys(layer_id, t))
+            return menu
+        prop_row = self.prop_row_at(pos.y())
+        if prop_row is not None:  # a property row: key that property at the playhead (P7.3)
+            layer, prop = prop_row
+            verb = "Delete" if self.keyed_at_playhead(layer, prop) else "Add"
+            menu.addAction(f"{verb} {prop} key at playhead", lambda: self.toggle_key(layer.id, prop))
             return menu
         item, _edge = self._hit(pos)
         if item is not None:
@@ -1061,6 +1379,34 @@ class TimelineView(QGraphicsView):
         for prop in keyable:
             sub.addAction(prop.capitalize(), lambda p=prop: self.add_keys(layer.id, [p]))
 
+    def _prop_key_menu(self, menu: QMenu, layer_id: str, prop: str, t: float) -> None:
+        """A property's key: delete it, or pick the ease of the motion from it to its next key."""
+        menu.addAction(f"Delete {prop} key at {t:g} s", lambda: self.delete_keys(layer_id, t, [prop]))
+        layer, fps = self.project.layer(layer_id), self.project.canvas.fps
+        track = layer.tracks.get(prop, [])
+        index = next((i for i, k in enumerate(track) if abs(k.t - t) < 0.5 / fps), None)
+        if index is None or index == len(track) - 1:
+            menu.addAction("No easing: no motion follows the last key").setEnabled(False)
+            return
+        current = track[index].ease
+        menu.addSection(f"{PROP_LABELS[prop]} from {t:g} s: {curve_editor.ease_label(current)}")
+        for choice in graph_model.ease_choices():
+            action = menu.addAction(curve_editor.ease_label(choice))
+            action.setCheckable(True)
+            action.setChecked(choice == current)
+            action.triggered.connect(lambda _=False, e=choice: self.set_key_ease(layer_id, prop, t, e))
+        menu.addSeparator()
+
+        def edit() -> None:
+            ease = self.edit_curve(self, current)
+            if ease is not None:
+                self.set_key_ease(layer_id, prop, t, ease)
+
+        menu.addAction("Edit curve...", edit)
+
+    def set_key_ease(self, layer_id: str, prop: str, t: float, ease: Easing) -> None:
+        self._apply(lambda p: edits.set_key_ease(p, layer_id, t, ease, props=[prop]), "Set ease")
+
     def add_keys(self, layer_id: str, props: list[str]) -> None:
         """Key ``props`` at the playhead frame, holding their current values."""
         fps = self.project.canvas.fps
@@ -1074,14 +1420,16 @@ class TimelineView(QGraphicsView):
             return edits.Edit(project, *edits.classify(before, project))
 
         self._apply(op, "Add key")
-        self.selected, self.selected_key = None, (layer_id, t)
+        self.selected, self.selected_key, self.selected_key_prop = None, (layer_id, t), None
         self.sync()
         self.keySelected.emit(layer_id, t)
 
-    def delete_keys(self, layer_id: str, t: float) -> None:
+    def delete_keys(self, layer_id: str, t: float, props: list[str] | None = None) -> None:
+        """Remove the keys at ``t``: of every property, or of ``props`` only (a property row)."""
         if self.selected_key is not None and self.selected_key[0] == layer_id:
-            self.selected_key = None
-        self._apply(lambda p: edits.remove_keys(p, layer_id, t), "Delete keys")
+            self.selected_key = self.selected_key_prop = None
+        text = f"Delete {props[0]} key" if props and len(props) == 1 else "Delete keys"
+        self._apply(lambda p: edits.remove_keys(p, layer_id, t, props=props), text)
 
     def _morph_targets(self, layer: Layer, kind: str) -> list[Layer]:
         """Objects a layer can turn into with ``kind``: not parts, code or already targeted."""
@@ -1397,6 +1745,8 @@ class TimelineView(QGraphicsView):
         drag, base = self._key_drag, self._key_drag.base
         canvas = base.canvas
         layer = base.layer(drag.layer_id)
+        if drag.prop is not None:  # one property's key: only its own neighbours bound it (P7.3)
+            layer = layer.model_copy(update={"tracks": {drag.prop: layer.tracks[drag.prop]}})
         candidates = snap_candidates(base, self.playhead, exclude=[("key", drag.layer_id, drag.t)])
         proposed = drag.t + self.scale.seconds(scene_x - drag.press_x)
         t = drag_keys(
@@ -1415,7 +1765,8 @@ class TimelineView(QGraphicsView):
             self.document.preview(edits.Edit(base, "timing", frozenset()))
             return
         self._last_key_t = round(t * canvas.fps) / canvas.fps
-        self.document.preview(edits.retime_keys(base, drag.layer_id, drag.t, t))
+        props = [drag.prop] if drag.prop is not None else None
+        self.document.preview(edits.retime_keys(base, drag.layer_id, drag.t, t, props=props))
 
 
 def _heard(peaks: np.ndarray, clip: AudioClip) -> np.ndarray:

@@ -21,12 +21,14 @@ from manim_studio.core.schema import Canvas, Clip, Easing, Keyframe, Layer, Proj
 from manim_studio.ui.document import Document
 from manim_studio.ui.timeline.model import quantize
 from manim_studio.ui.timeline.view import (
+    HEADER_WIDTH,
     KEY_BUTTON_X,
     KEY_OFFSET,
     ROW_HEIGHT,
     RULER_HEIGHT,
     SUB_ROW_HEIGHT,
     TWIRL_X,
+    WIDE_HEADER_WIDTH,
     KeyItem,
     PropKeyItem,
     TimelineView,
@@ -51,7 +53,9 @@ def project() -> Project:
                     "rotation": [Keyframe(t=1.0, value=30.0), Keyframe(t=3.0, value=90.0)],
                 },
             ),
-            Layer(id="b", spec=Spec(type="Circle"), clips=[Clip(id="f", kind="FadeIn", start=0.0, duration=1.0)]),
+            Layer(
+                id="b", spec=Spec(type="Circle"), clips=[Clip(id="f", kind="FadeIn", start=0.0, duration=1.0)]
+            ),
             Layer(id="axes", spec=Spec(type="Axes")),
             Layer(id="g", parent_id="axes", spec=Spec(type="Graph", params={"expression": "sin(x)"})),
         ],
@@ -109,7 +113,8 @@ def sub_point(view: TimelineView, t: float, layer_id: str, prop: str) -> QPointF
 
 
 def key_delete(view) -> None:
-    QApplication.sendEvent(view, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier))
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(view, event)
 
 
 def keys_of(view, layer_id: str = "a") -> dict:
@@ -132,20 +137,23 @@ def test_rows_start_collapsed_exactly_as_before(view) -> None:
 
 
 def test_the_twirl_expands_a_row_into_one_sub_row_per_keyable_property(view, qt_app) -> None:
-    below = view.clip_item("b", "f").rect().y()
+    assert view.row_of("b") < view.row_of("a")  # b is in front: above a
+    below = view.clip_item("a", "c1").rect().y()
     height = view.scene().sceneRect().height()
-    twirl(view, "a")
-    assert view.expanded == {"a"}
-    assert view.sub_rows("a") == ("position", "scale", "rotation", "opacity")
-    tops = [view.prop_row_top("a", p) for p in view.sub_rows("a")]
-    assert tops == [view.row_top("a") + ROW_HEIGHT + i * SUB_ROW_HEIGHT for i in range(4)]
+    twirl(view, "b")
+    assert view.expanded == {"b"}
+    assert view.sub_rows("b") == ("position", "scale", "rotation", "opacity")
+    tops = [view.prop_row_top("b", p) for p in view.sub_rows("b")]
+    assert tops == [view.row_top("b") + ROW_HEIGHT + i * SUB_ROW_HEIGHT for i in range(4)]
     grown = 4 * SUB_ROW_HEIGHT
-    assert view.clip_item("b", "f").rect().y() == below + grown  # the rows under it move down
+    assert view.clip_item("a", "c1").rect().y() == below + grown  # the rows under it move down
     assert view.scene().sceneRect().height() == height + grown
+    assert view.header_width == WIDE_HEADER_WIDTH and view.header.width() == WIDE_HEADER_WIDTH
     assert view.document.undo_stack.count() == 0  # editor state, not an edit
     view.header.grab()  # paints names, values and diamonds
-    twirl(view, "a")
-    assert view.expanded == set() and view.clip_item("b", "f").rect().y() == below
+    twirl(view, "b")
+    assert view.expanded == set() and view.clip_item("a", "c1").rect().y() == below
+    assert view.header_width == HEADER_WIDTH  # collapsed: the timeline as it always was
 
 
 def test_alt_click_on_a_name_expands_it_too(view) -> None:
@@ -180,7 +188,7 @@ def test_each_sub_row_shows_its_own_keys(view) -> None:
     ]
     collapsed = [i for i in view.key_items() if not isinstance(i, PropKeyItem)]
     assert sorted(i.t for i in collapsed) == [1.0, 2.5, 3.0]  # the object's row is unchanged
-    item = next(i for i in view.key_items() if isinstance(i, PropKeyItem) and i.prop == "rotation" and i.t == 3.0)
+    item = next(i for i in view.key_items() if (i.prop, i.t) == ("rotation", 3.0))
     assert item.pos().y() == pytest.approx(sub_y(view, "a", "rotation"))
 
 
