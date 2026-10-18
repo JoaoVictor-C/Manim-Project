@@ -176,6 +176,7 @@ class MainWindow(QMainWindow):
         self.layers.layerSelected.connect(self.selection.select_layer)
         self.layers.layersPicked.connect(lambda ids, current: self.selection.set_layers(ids, current))
         self.timeline.clipSelected.connect(self.selection.set)
+        self.timeline.layerPicked.connect(self._on_layer_picked)
         self.timeline.keySelected.connect(self.selection.set_key)
         self.timeline.audioSelected.connect(self.selection.set_audio)
         self.timeline.subtitleSelected.connect(self.selection.set_subtitle)
@@ -758,6 +759,13 @@ class MainWindow(QMainWindow):
         folder = log_dir()
         folder.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _on_layer_picked(self, layer_id: str, extend: bool) -> None:
+        """A timeline row was clicked: select its object, as clicking it in the scene does (P7.1)."""
+        if extend:
+            self.selection.toggle_layer(layer_id)
+        else:
+            self.selection.set(layer_id)
 
     def show_scene_settings(self) -> None:
         """Nothing selected, so Properties shows the scene; its length is ready to type."""

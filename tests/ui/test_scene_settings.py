@@ -184,3 +184,16 @@ def test_fit_length_leaves_an_untimed_scene_and_says_so(qt_app, tmp_path) -> Non
     assert win.document.undo_stack.count() == 0
     assert "Nothing in the scene is timed" in win.statusBar().currentMessage()
     win.close()
+
+
+def test_clicking_a_timeline_row_selects_the_object_in_the_scene(window, qt_app) -> None:
+
+    layers = [layer.id for layer in window.project.layers]
+    first, second = layers[0], layers[1]
+    window.timeline.pick_layer(first, False)
+    assert window.selection.layer_id == first and window.selection.layer_ids == (first,)
+    assert window.canvas.selected_layer == first  # the scene shows it selected
+    window.timeline.pick_layer(second, True)  # Shift or Ctrl adds
+    assert set(window.selection.layer_ids) == {first, second}
+    window.timeline.pick_layer(second, True)  # and takes it out again
+    assert window.selection.layer_ids == (first,)

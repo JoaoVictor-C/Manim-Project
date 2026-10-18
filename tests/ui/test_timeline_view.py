@@ -530,3 +530,133 @@ def test_scrolling_redraws_the_whole_viewport(qt_app) -> None:
     v.verticalScrollBar().setValue(v.verticalScrollBar().maximum())
     assert () in updates  # the whole viewport, not only the strip uncovered by the scroll
     v.close()
+
+
+# -- P7.1: rows select their object, content past the end, the scene's end ----------------------
+
+
+def header_point(view: TimelineView, layer_id: str) -> QPointF:
+    return QPointF(20, RULER_HEIGHT + view.row_of(layer_id) * ROW_HEIGHT + ROW_HEIGHT / 2)
+
+
+def click_header(view: TimelineView, layer_id: str, **kw) -> None:
+    pos = header_point(view, layer_id)
+    global_pos = QPointF(view.header.mapToGlobal(pos.toPoint()))
+    for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+        buttons = (
+            Qt.MouseButton.NoButton if kind == QEvent.Type.MouseButtonRelease else Qt.MouseButton.LeftButton
+        )
+        QApplication.sendEvent(
+            view.header,
+            QMouseEvent(
+                kind,
+                pos,
+                global_pos,
+                Qt.MouseButton.LeftButton,
+                buttons,
+                kw.get("modifiers", Qt.KeyboardModifier.NoModifier),
+            ),
+        )
+
+
+def test_clicking_a_row_name_picks_that_layer(view) -> None:
+    picked = []
+    view.layerPicked.connect(lambda layer_id, extend: picked.append((layer_id, extend)))
+    click_header(view, "b")
+    click_header(view, "a", modifiers=Qt.KeyboardModifier.ShiftModifier)
+    assert picked == [("b", False), ("a", True)]
+    assert view.document.undo_stack.count() == 0
+
+
+def test_clicking_empty_space_on_a_row_picks_that_layer(view) -> None:
+    picked = []
+    view.layerPicked.connect(lambda layer_id, extend: picked.append((layer_id, extend)))
+    empty = point(view, 5.5, "c")  # nothing on the row there
+    press(view, empty)
+    release(view, empty)
+    press(view, empty, modifiers=Qt.KeyboardModifier.ControlModifier)
+    release(view, empty, modifiers=Qt.KeyboardModifier.ControlModifier)
+    assert picked == [("c", False), ("c", True)]
+
+
+def test_a_clip_can_be_dragged_past_the_end_and_the_scene_grows(view, qt_app) -> None:
+    end = view.project.canvas.duration
+    start = point(view, 3.5, "a")
+    press(view, start)
+    for step in (0.5, 1.0):
+        move(view, QPointF(start.x() + view.scale.px_per_second * 3.0 * step, start.y()))
+        qt_app.processEvents()
+    release(view, QPointF(start.x() + view.scale.px_per_second * 3.0, start.y()))
+    moved = clip(view, "a", "c2")
+    assert moved.start == pytest.approx(6.0, abs=0.1)  # it now ends past the old end (6 s)
+    assert view.project.canvas.duration >= moved.start + 1.0 - 1e-9
+    assert view.document.undo_stack.count() == 1
+    view.document.undo_stack.undo()
+    assert view.project.canvas.duration == end
+
+
+def test_a_scene_that_does_not_grow_keeps_drags_inside(view, qt_app) -> None:
+    from manim_studio.core import edits
+
+    view.document.apply(edits.set_canvas(view.project, grow_with_content=False), "Scene")
+    end = view.project.canvas.duration
+    start = point(view, 3.5, "a")
+    press(view, start)
+    move(view, QPointF(start.x() + view.scale.px_per_second * 5.0, start.y()))
+    qt_app.processEvents()
+    release(view, QPointF(start.x() + view.scale.px_per_second * 5.0, start.y()))
+    assert clip(view, "a", "c2").start + 1.0 <= end + 1e-9
+    assert view.project.canvas.duration == end
+
+
+def end_point(view: TimelineView) -> QPointF:
+    return QPointF(view._viewport_x(view.project.canvas.duration), RULER_HEIGHT / 2)
+
+
+def test_the_scenes_end_is_dragged_on_the_ruler(view, qt_app) -> None:
+    seeks = []
+    view.seekRequested.connect(seeks.append)
+    grab = end_point(view)
+    press(view, grab)
+    to = QPointF(grab.x() + view.scale.px_per_second * 2.0, grab.y())
+    move(view, to)
+    qt_app.processEvents()
+    release(view, to)
+    assert view.project.canvas.duration == pytest.approx(8.0, abs=1 / FPS)
+    assert seeks == []  # a drag of the end is not a scrub
+    assert view.document.undo_stack.count() == 1
+    assert view.document.undo_stack.undoText() == "Scene length"
+    view.document.undo_stack.undo()
+    assert view.project.canvas.duration == 6.0
+
+
+def test_the_end_dragged_inside_the_content_stops_the_growth(view, qt_app) -> None:
+    grab = end_point(view)
+    press(view, grab)
+    to = QPointF(grab.x() - view.scale.px_per_second * 3.0, grab.y())  # c2 ends at 4 s
+    move(view, to)
+    qt_app.processEvents()
+    release(view, to)
+    assert view.project.canvas.duration == pytest.approx(3.0, abs=1 / FPS)
+    assert not view.project.canvas.grow_with_content
+
+
+def test_the_end_cannot_be_dragged_to_nothing(view, qt_app) -> None:
+    grab = end_point(view)
+    press(view, grab)
+    to = QPointF(grab.x() - view.scale.px_per_second * 20.0, grab.y())
+    move(view, to)
+    qt_app.processEvents()
+    release(view, to)
+    assert view.project.canvas.duration == pytest.approx(1 / FPS)
+
+
+def test_the_scene_rect_covers_content_past_the_end(view) -> None:
+    """A scene that does not grow can still hold a clip past its end: it must stay reachable."""
+    from manim_studio.core import edits
+
+    view.document.apply(edits.set_canvas(view.project, grow_with_content=False), "Scene")
+    layer = view.project.layer("a")
+    view.document.apply(edits.update_clip(view.project, "a", "c2", start=5.5), "Clip")
+    assert layer is not None
+    assert view.scene().sceneRect().width() >= view.scale.x(6.5)

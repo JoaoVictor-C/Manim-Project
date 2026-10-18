@@ -1,6 +1,6 @@
 # P7 — Studio workflow
 
-- **Status:** In progress
+- **Status:** In progress (P7.1 and P7.2 items 1-3 done)
 - **Date:** 2026-10-17
 - **Decided in:** [decision session 43](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B64 (the 15-minute scene) and B65 (the 3D camera at the default view) in
@@ -14,7 +14,7 @@
 
 | step | content | who | acceptance |
 |---|---|---|---|
-| P7.1 | **Scene settings** (duration, size, fps, background) in Properties when nothing is selected and in Edit > Scene Settings; **dynamic length**: the scene grows to cover anything an edit places past its end (same undo step, never shrinks by itself; Fit Length to Content trims; the end is draggable on the ruler), the timeline lets clips, keys, sounds and subtitles go past the end up to its visible width; **timeline rows select** their object (name or empty row; Shift/Ctrl add); **Code page** rename and delete | lead | each by real input in the window, one undo step each |
+| ✅ P7.1 | **Scene settings** (duration, size, fps, background) in Properties when nothing is selected and in Edit > Scene Settings; **dynamic length**: the scene grows to cover anything an edit places past its end (same undo step, never shrinks by itself; Fit Length to Content trims; the end is draggable on the ruler), the timeline lets clips, keys, sounds and subtitles go past the end up to its visible width; **timeline rows select** their object (name or empty row; Shift/Ctrl add); **Code page** rename and delete | lead | each by real input in the window, one undo step each |
 | P7.2 (items 1-3 done, B66; evaluator cache cap found unnecessary, audio memory open) | B64's scaling problems: the quadratic timeline rebuild and `Evaluator.invalidate` indexed (first), audio memory and mixing per span, render-ahead eviction in O(log n), a capped evaluator cache, a lower Fit Timeline zoom | agent (Sonnet) | B64 re-run: linear rebuild, a layer move in a 300-layer window well under 50 ms, a 15-minute sound under 200 MB |
 | P7.3 | **Animate** like After Effects and Unity: each object's timeline row expands into one sub-row per property (value at the playhead, a key diamond to add or remove a key there, keys dragged in their sub-row on the one time axis), Curves only for the selected sub-rows instead of five overlaid ranges, a Record button (Auto-key) and A to frame all keys | agent (Opus), after P7.2's timeline part | the page explains itself: add, move, ease and delete keys on one property without the graph |
 | P7.4 | from Unity: F frames everything, Shift+F frames the selection | lead | |

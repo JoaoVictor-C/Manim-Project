@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, audio, edits, subtitles
+from ...core import adapter, audio, edits, scene_length, subtitles
 from ...core.evaluator import layer_transform
 from ...core.layer_index import LayerIndex
 from ...core.schema import (
@@ -119,6 +119,9 @@ KEY_SELECTED = theme.qcolor(theme.THEME.key_selected)
 KEY_EDGE = theme.qcolor(theme.THEME.key_edge)
 MARKER_GRAB_PX = 6.0  # how near a marker's line a ruler click picks it (ADR 0037)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # the line a snapped drag rests on
+END_COLOR = GUIDE_COLOR  # the scene's end on the timeline, draggable (P7.1)
+SHADE_COLOR = QColor(RULER_BACKGROUND)  # past the scene's end
+SHADE_COLOR.setAlpha(150)
 
 
 class ClipItem(QGraphicsRectItem):
@@ -232,6 +235,26 @@ class LayerHeader(QWidget):
         super().__init__(view)
         self._view = view
 
+    def mousePressEvent(self, event) -> None:
+        """A click on a name selects that object (Shift or Ctrl adds), a sound's name that sound."""
+        view = self._view
+        if event.button() != Qt.MouseButton.LeftButton or view.project is None:
+            super().mousePressEvent(event)
+            return
+        y = event.position().y() + view.verticalScrollBar().value()
+        row = int((y - RULER_HEIGHT) // ROW_HEIGHT)
+        rows = view.rows()
+        if y >= RULER_HEIGHT and 0 <= row < len(rows):
+            view.pick_layer(
+                rows[row].id,
+                bool(
+                    event.modifiers()
+                    & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
+                ),
+            )
+        elif y >= RULER_HEIGHT and 0 <= row - len(rows) - 1 < len(view.project.audio):
+            view.select_audio_row(view.project.audio[row - len(rows) - 1].id)
+
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), RULER_BACKGROUND)
@@ -309,6 +332,9 @@ class TimelineView(QGraphicsView):
     audioSelected = Signal(str)  # a sound's id (ADR 0034)
     subtitleSelected = Signal(str)  # a cue's id (ADR 0035)
     markerSelected = Signal(str)  # a marker's id (ADR 0037)
+    layerPicked = Signal(
+        str, bool
+    )  # a row's name or empty space was clicked: layer id, add to selection (P7.1)
     message = Signal(str)  # refused edits, for the status bar
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -344,6 +370,9 @@ class TimelineView(QGraphicsView):
         self._key_drag: _KeyDrag | None = None
         self._last_key_t = 0.0
         self._scrubbing = False
+        self._end_drag: Project | None = (
+            None  # the scene's end dragged on the ruler: the project at press (P7.1)
+        )
         self._pending: tuple[float, bool] | None = None  # (scene x, snapping)
         self._apply_scheduled = False
 
@@ -459,6 +488,35 @@ class TimelineView(QGraphicsView):
         rows = self.rows()
         return rows[row] if viewport_y >= RULER_HEIGHT and 0 <= row < len(rows) else None
 
+    def pick_layer(self, layer_id: str, extend: bool = False) -> None:
+        """A row was clicked: select its object (``extend``: add it to the selection)."""
+        self.selected = self.selected_key = self.selected_audio = self.selected_cue = None
+        self.selected_marker = None
+        self.layerPicked.emit(layer_id, extend)
+        self.sync()
+
+    def select_audio_row(self, audio_id: str) -> None:
+        self.selected = self.selected_key = self.selected_cue = self.selected_marker = None
+        self.selected_audio = audio_id
+        self.audioSelected.emit(audio_id)
+        self.sync()
+
+    def reach(self) -> float:
+        """How far a drag may place things: the scene's end, or - when the scene grows with its
+        content - as far as the timeline shows (the scene then grows when the drag is dropped)."""
+        canvas = self.project.canvas
+        if not canvas.grow_with_content:
+            return canvas.duration
+        shown = self.scale.t(self.mapToScene(self.viewport().width(), 0).x())
+        return max(canvas.duration, shown)
+
+    def _near_end(self, pos: QPointF) -> bool:
+        """The ruler position is on the scene's end line (draggable)."""
+        return (
+            pos.y() < RULER_HEIGHT
+            and abs(pos.x() - self._viewport_x(self.project.canvas.duration)) <= EDGE_PX
+        )
+
     def sizeHint(self) -> QSize:
         return QSize(800, RULER_HEIGHT + 6 * ROW_HEIGHT + 2 * self.frameWidth() + 16)
 
@@ -475,7 +533,7 @@ class TimelineView(QGraphicsView):
         project = self.project
         if project is None:
             return
-        width = self.scale.x(project.canvas.duration)
+        width = self.scale.x(max(project.canvas.duration, scene_length.content_end(project)))
         height = RULER_HEIGHT + (len(project.layers) + 1 + len(project.audio)) * ROW_HEIGHT
         scene.setSceneRect(0, 0, width + 40, height)
         index = self.layer_index()
@@ -564,7 +622,16 @@ class TimelineView(QGraphicsView):
         width = self.viewport().width()
         painter.fillRect(0, 0, width, RULER_HEIGHT, RULER_BACKGROUND)
         if project is not None:
-            self._draw_ticks(painter, width, project.canvas.duration)
+            end_x = self._viewport_x(project.canvas.duration)
+            if end_x < width:  # past the scene's end: dimmed, with the end line to drag (P7.1)
+                painter.fillRect(
+                    QRectF(max(end_x, 0), RULER_HEIGHT, width - max(end_x, 0), self.viewport().height()),
+                    SHADE_COLOR,
+                )
+            self._draw_ticks(painter, width, max(project.canvas.duration, self.reach()))
+            if 0 <= end_x <= width:
+                painter.setPen(QPen(END_COLOR, 2))
+                painter.drawLine(QPointF(end_x, 0), QPointF(end_x, self.viewport().height()))
             self._draw_markers(painter, width, project)
             if self.guide is not None:
                 gx = self._viewport_x(self.guide)
@@ -678,6 +745,10 @@ class TimelineView(QGraphicsView):
                 self.document.begin_preview()
                 self.sync()
                 return
+            if self._near_end(pos):  # drag the scene's end (P7.1)
+                self._end_drag = self.project
+                self.document.begin_preview()
+                return
             self._scrubbing = True
             self._scrub(pos.x())
             return
@@ -716,6 +787,15 @@ class TimelineView(QGraphicsView):
             return
         item, edge = self._hit(pos)
         if item is None:
+            layer = self.layer_at(pos.y())
+            if layer is not None:  # empty space on a row selects its object (P7.1)
+                self.pick_layer(
+                    layer.id,
+                    bool(
+                        event.modifiers()
+                        & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
+                    ),
+                )
             return
         self.selected_key = None
         self.selected_audio = self.selected_cue = None
@@ -731,6 +811,9 @@ class TimelineView(QGraphicsView):
         pos = event.position()
         if self._scrubbing:
             self._scrub(pos.x())
+            return
+        if self._end_drag is not None:
+            self._apply_end_drag(pos.x())
             return
         if (
             self._drag is None
@@ -750,6 +833,10 @@ class TimelineView(QGraphicsView):
     def mouseReleaseEvent(self, event) -> None:
         if self._scrubbing:
             self._scrubbing = False
+            return
+        if self._end_drag is not None:
+            self._end_drag = None
+            self.document.commit_preview("Scene length")
             return
         self._set_guide(None)
         if self._marker_drag is not None:
@@ -832,7 +919,7 @@ class TimelineView(QGraphicsView):
             return None
         menu = QMenu(self)
         if pos.y() < RULER_HEIGHT:  # the ruler: markers (ADR 0037)
-            t = min(max(self.scale.t(self.mapToScene(pos.toPoint()).x()), 0.0), self.project.canvas.duration)
+            t = min(max(self.scale.t(self.mapToScene(pos.toPoint()).x()), 0.0), self.reach())
             marker = self.marker_at(pos.x())
             if marker is None:
                 menu.addAction("Add marker here", lambda: self.add_marker_at(t))
@@ -888,7 +975,7 @@ class TimelineView(QGraphicsView):
         placement = place_new_clip(
             layer,
             t,
-            duration=self.project.canvas.duration,
+            duration=self.reach(),
             fps=self.project.canvas.fps,
             obstacles=obstacles(self.project, layer.id),
         )
@@ -1144,7 +1231,18 @@ class TimelineView(QGraphicsView):
         except (edits.EditError, ValidationError) as exc:
             self.message.emit(f"{text}: {exc}")
 
+    def _apply_end_drag(self, viewport_x: float) -> None:
+        """Preview the scene's end at the pointer (on frames, at least one frame)."""
+        base = self._end_drag
+        fps = base.canvas.fps
+        t = self.scale.t(self.mapToScene(int(viewport_x), 0).x())
+        t = max(round(t * fps), 1) / fps
+        self.document.preview(edits.Edit(scene_length.set_length(base, t), "timing", frozenset()))
+
     def _update_cursor(self, pos: QPointF) -> None:
+        if self.project is not None and self._near_end(pos):
+            self.viewport().setCursor(Qt.CursorShape.SizeHorCursor)
+            return
         item, edge = self._hit(pos) if pos.y() >= RULER_HEIGHT else (None, None)
         if item is None and pos.y() >= RULER_HEIGHT:
             item, edge = self._hit(pos, AudioItem)
@@ -1189,7 +1287,7 @@ class TimelineView(QGraphicsView):
         layer = base.layer(drag.layer_id)
         delta = self.scale.seconds(scene_x - drag.press_x)
         common = {
-            "duration": canvas.duration,
+            "duration": self.reach(),
             "fps": canvas.fps,
             "scale": self.scale,
             "candidates": snap_candidates(
@@ -1240,7 +1338,7 @@ class TimelineView(QGraphicsView):
         candidates = snap_candidates(base, self.playhead, exclude=[("cue", cue.id)])
         others = [c for c in base.subtitles if c.id != cue.id]
         low = max([c.end for c in others if c.end <= cue.start + 1e-9], default=0.0)
-        high = min([c.start for c in others if c.start >= cue.end - 1e-9], default=base.canvas.duration)
+        high = min([c.start for c in others if c.start >= cue.end - 1e-9], default=self.reach())
         frame = 1 / fps
         if drag.mode is None:
             length = cue.end - cue.start
@@ -1305,7 +1403,7 @@ class TimelineView(QGraphicsView):
             layer,
             drag.t,
             proposed,
-            duration=canvas.duration,
+            duration=self.reach(),
             fps=canvas.fps,
             scale=self.scale,
             candidates=candidates,
