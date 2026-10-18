@@ -1,0 +1,3140 @@
+{
+  "schema_version": 1,
+  "canvas": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "background": "#07111f",
+    "frame_height": 8.0,
+    "duration": 300.0
+  },
+  "layers": [
+    {
+      "id": "star-0",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.04
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -6.0,
+          3.1
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-1",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -4.1,
+          2.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-2",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -2.3,
+          3.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-3",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.04
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          0.2,
+          3.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-4",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          2.2,
+          2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-5",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          5.8,
+          3.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-6",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.04
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -6.2,
+          0.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-7",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          6.0,
+          1.4
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-8",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -5.6,
+          -1.5
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-9",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.04
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          5.7,
+          -1.8
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-10",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -3.8,
+          -3.15
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-11",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -1.0,
+          -3.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-12",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.04
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          2.0,
+          -3.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-13",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          4.4,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-14",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          0.1,
+          2.1
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-15",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.04
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          3.8,
+          1.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-16",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          -2.7,
+          -2.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "star-17",
+      "name": "Star",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.025
+        },
+        "style": {
+          "fill": "#d8e9ff",
+          "fill_opacity": 0.72
+        }
+      },
+      "base": {
+        "position": [
+          1.2,
+          -1.7
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "chapter-01-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "01",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#ffd166"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-01-number-in",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-01-number-out",
+          "kind": "FadeOut",
+          "start": 29.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-01-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Look up",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-01-title-in",
+          "kind": "FadeIn",
+          "start": 0.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-01-title-out",
+          "kind": "FadeOut",
+          "start": 29.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-01-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "The night sky is a map of light and time. Every point you see is a real sun, planet, or galaxy—separated from us by distances too large to picture.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-01-copy-in",
+          "kind": "FadeIn",
+          "start": 1.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-01-copy-out",
+          "kind": "FadeOut",
+          "start": 29.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-01-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "START WITH ONE PATCH OF SKY",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#ffd166"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-01-kicker-in",
+          "kind": "FadeIn",
+          "start": 1.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-01-kicker-out",
+          "kind": "FadeOut",
+          "start": 29.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-01-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#ffd166",
+          "stroke": "#ffd166",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          -4.8,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-01-marker-in",
+          "kind": "FadeIn",
+          "start": 0.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-01-marker-out",
+          "kind": "FadeOut",
+          "start": 29.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-02-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "02",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#67d5ff"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-02-number-in",
+          "kind": "FadeIn",
+          "start": 30.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-02-number-out",
+          "kind": "FadeOut",
+          "start": 59.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-02-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Light takes time",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-02-title-in",
+          "kind": "FadeIn",
+          "start": 30.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-02-title-out",
+          "kind": "FadeOut",
+          "start": 59.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-02-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Sunlight reaches Earth in about eight minutes. The Moon is just over one second away. When you look farther out, you also look farther back in time.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-02-copy-in",
+          "kind": "FadeIn",
+          "start": 31.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-02-copy-out",
+          "kind": "FadeOut",
+          "start": 59.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-02-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "DISTANCE BECOMES HISTORY",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#67d5ff"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-02-kicker-in",
+          "kind": "FadeIn",
+          "start": 31.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-02-kicker-out",
+          "kind": "FadeOut",
+          "start": 59.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-02-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#67d5ff",
+          "stroke": "#67d5ff",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          -3.7333333333333334,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-02-marker-in",
+          "kind": "FadeIn",
+          "start": 30.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-02-marker-out",
+          "kind": "FadeOut",
+          "start": 59.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-03-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "03",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#b197fc"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-03-number-in",
+          "kind": "FadeIn",
+          "start": 60.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-03-number-out",
+          "kind": "FadeOut",
+          "start": 89.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-03-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Find a pattern",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-03-title-in",
+          "kind": "FadeIn",
+          "start": 60.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-03-title-out",
+          "kind": "FadeOut",
+          "start": 89.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-03-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Constellations are familiar shapes we draw between stars. Their stars may be at very different distances; the pattern belongs to our point of view.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-03-copy-in",
+          "kind": "FadeIn",
+          "start": 61.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-03-copy-out",
+          "kind": "FadeOut",
+          "start": 89.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-03-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A SKY FULL OF STORIES",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#b197fc"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-03-kicker-in",
+          "kind": "FadeIn",
+          "start": 61.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-03-kicker-out",
+          "kind": "FadeOut",
+          "start": 89.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-03-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#b197fc",
+          "stroke": "#b197fc",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          -2.6666666666666665,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-03-marker-in",
+          "kind": "FadeIn",
+          "start": 60.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-03-marker-out",
+          "kind": "FadeOut",
+          "start": 89.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-04-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "04",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#ff8fab"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-04-number-in",
+          "kind": "FadeIn",
+          "start": 90.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-04-number-out",
+          "kind": "FadeOut",
+          "start": 119.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-04-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Follow the Moon",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-04-title-in",
+          "kind": "FadeIn",
+          "start": 90.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-04-title-out",
+          "kind": "FadeOut",
+          "start": 119.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-04-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "The Moon does not make its own light. As it orbits Earth, sunlight illuminates changing portions of its surface: the phases we see night after night.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-04-copy-in",
+          "kind": "FadeIn",
+          "start": 91.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-04-copy-out",
+          "kind": "FadeOut",
+          "start": 119.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-04-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A MONTHLY CYCLE",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#ff8fab"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-04-kicker-in",
+          "kind": "FadeIn",
+          "start": 91.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-04-kicker-out",
+          "kind": "FadeOut",
+          "start": 119.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-04-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#ff8fab",
+          "stroke": "#ff8fab",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          -1.5999999999999996,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-04-marker-in",
+          "kind": "FadeIn",
+          "start": 90.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-04-marker-out",
+          "kind": "FadeOut",
+          "start": 119.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-05-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "05",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#8ce99a"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-05-number-in",
+          "kind": "FadeIn",
+          "start": 120.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-05-number-out",
+          "kind": "FadeOut",
+          "start": 149.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-05-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Spot the planets",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-05-title-in",
+          "kind": "FadeIn",
+          "start": 120.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-05-title-out",
+          "kind": "FadeOut",
+          "start": 149.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-05-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Planets shine by reflected sunlight. They often look steadier than stars and travel against the background constellations over days and weeks.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-05-copy-in",
+          "kind": "FadeIn",
+          "start": 121.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-05-copy-out",
+          "kind": "FadeOut",
+          "start": 149.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-05-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "WANDERERS IN THE SKY",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#8ce99a"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-05-kicker-in",
+          "kind": "FadeIn",
+          "start": 121.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-05-kicker-out",
+          "kind": "FadeOut",
+          "start": 149.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-05-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#8ce99a",
+          "stroke": "#8ce99a",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          -0.5333333333333332,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-05-marker-in",
+          "kind": "FadeIn",
+          "start": 120.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-05-marker-out",
+          "kind": "FadeOut",
+          "start": 149.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-06-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "06",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#ffd166"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-06-number-in",
+          "kind": "FadeIn",
+          "start": 150.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-06-number-out",
+          "kind": "FadeOut",
+          "start": 179.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-06-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Gravity keeps the rhythm",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-06-title-in",
+          "kind": "FadeIn",
+          "start": 150.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-06-title-out",
+          "kind": "FadeOut",
+          "start": 179.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-06-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "An orbit is a continuous fall. A planet moves forward while the Sun's gravity bends its path, keeping it circling instead of flying away.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-06-copy-in",
+          "kind": "FadeIn",
+          "start": 151.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-06-copy-out",
+          "kind": "FadeOut",
+          "start": 179.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-06-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MOTION MEETS ATTRACTION",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#ffd166"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-06-kicker-in",
+          "kind": "FadeIn",
+          "start": 151.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-06-kicker-out",
+          "kind": "FadeOut",
+          "start": 179.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-06-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#ffd166",
+          "stroke": "#ffd166",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          0.5333333333333332,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-06-marker-in",
+          "kind": "FadeIn",
+          "start": 150.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-06-marker-out",
+          "kind": "FadeOut",
+          "start": 179.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-07-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "07",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#67d5ff"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-07-number-in",
+          "kind": "FadeIn",
+          "start": 180.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-07-number-out",
+          "kind": "FadeOut",
+          "start": 209.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-07-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Stars have a life",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-07-title-in",
+          "kind": "FadeIn",
+          "start": 180.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-07-title-out",
+          "kind": "FadeOut",
+          "start": 209.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-07-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Stars form inside clouds of gas, shine for millions or billions of years, and change as their fuel runs low. Our Sun is one ordinary star among many.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-07-copy-in",
+          "kind": "FadeIn",
+          "start": 181.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-07-copy-out",
+          "kind": "FadeOut",
+          "start": 209.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-07-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "BIRTH · LIGHT · CHANGE",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#67d5ff"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-07-kicker-in",
+          "kind": "FadeIn",
+          "start": 181.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-07-kicker-out",
+          "kind": "FadeOut",
+          "start": 209.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-07-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#67d5ff",
+          "stroke": "#67d5ff",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          1.6000000000000005,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-07-marker-in",
+          "kind": "FadeIn",
+          "start": 180.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-07-marker-out",
+          "kind": "FadeOut",
+          "start": 209.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-08-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "08",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#b197fc"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-08-number-in",
+          "kind": "FadeIn",
+          "start": 210.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-08-number-out",
+          "kind": "FadeOut",
+          "start": 239.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-08-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Our home galaxy",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-08-title-in",
+          "kind": "FadeIn",
+          "start": 210.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-08-title-out",
+          "kind": "FadeOut",
+          "start": 239.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-08-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "The Milky Way is a vast disk of stars. From inside it, we see its crowded plane as a pale band stretching across a truly dark sky.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-08-copy-in",
+          "kind": "FadeIn",
+          "start": 211.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-08-copy-out",
+          "kind": "FadeOut",
+          "start": 239.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-08-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "ONE GALAXY, MANY SUNS",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#b197fc"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-08-kicker-in",
+          "kind": "FadeIn",
+          "start": 211.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-08-kicker-out",
+          "kind": "FadeOut",
+          "start": 239.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-08-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#b197fc",
+          "stroke": "#b197fc",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          2.666666666666667,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-08-marker-in",
+          "kind": "FadeIn",
+          "start": 210.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-08-marker-out",
+          "kind": "FadeOut",
+          "start": 239.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-09-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "09",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#8ce99a"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-09-number-in",
+          "kind": "FadeIn",
+          "start": 240.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-09-number-out",
+          "kind": "FadeOut",
+          "start": 269.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-09-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Make the sky visible",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-09-title-in",
+          "kind": "FadeIn",
+          "start": 240.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-09-title-out",
+          "kind": "FadeOut",
+          "start": 269.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-09-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Your eyes adapt to darkness. Binoculars gather more light, while a telescope reveals finer detail. Give your eyes time—and let bright screens rest.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-09-copy-in",
+          "kind": "FadeIn",
+          "start": 241.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-09-copy-out",
+          "kind": "FadeOut",
+          "start": 269.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-09-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "PATIENCE IS AN INSTRUMENT",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#8ce99a"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-09-kicker-in",
+          "kind": "FadeIn",
+          "start": 241.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-09-kicker-out",
+          "kind": "FadeOut",
+          "start": 269.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-09-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#8ce99a",
+          "stroke": "#8ce99a",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          3.7333333333333334,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-09-marker-in",
+          "kind": "FadeIn",
+          "start": 240.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-09-marker-out",
+          "kind": "FadeOut",
+          "start": 269.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-10-number",
+      "name": "Chapter number",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "10",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#ff8fab"
+        }
+      },
+      "base": {
+        "position": [
+          -5.15,
+          2.35
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-10-number-in",
+          "kind": "FadeIn",
+          "start": 270.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-10-number-out",
+          "kind": "FadeOut",
+          "start": 299.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-10-title",
+      "name": "Chapter title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Keep wondering",
+          "font_size": 56
+        },
+        "style": {
+          "fill": "#eff6ff"
+        }
+      },
+      "base": {
+        "position": [
+          -2.6,
+          1.32
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-10-title-in",
+          "kind": "FadeIn",
+          "start": 270.25,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-10-title-out",
+          "kind": "FadeOut",
+          "start": 299.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-10-copy",
+      "name": "Explanation",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Step outside on a clear night. Find the Moon, trace a constellation, and remember: the sky is not a ceiling. It is a place, and we are part of it.",
+          "font_size": 30
+        },
+        "style": {
+          "fill": "#9fb3c8"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -0.2
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-10-copy-in",
+          "kind": "FadeIn",
+          "start": 271.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-10-copy-out",
+          "kind": "FadeOut",
+          "start": 299.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-10-kicker",
+      "name": "Chapter note",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "THE UNIVERSE IS OUR NEIGHBOURHOOD",
+          "font_size": 20
+        },
+        "style": {
+          "fill": "#ff8fab"
+        }
+      },
+      "base": {
+        "position": [
+          0.0,
+          -2.25
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-10-kicker-in",
+          "kind": "FadeIn",
+          "start": 271.7,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-10-kicker-out",
+          "kind": "FadeOut",
+          "start": 299.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "chapter-10-marker",
+      "name": "Progress marker",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 0.09
+        },
+        "style": {
+          "fill": "#ff8fab",
+          "stroke": "#ff8fab",
+          "stroke_width": 1.5
+        }
+      },
+      "base": {
+        "position": [
+          4.8,
+          -2.9
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "chapter-10-marker-in",
+          "kind": "FadeIn",
+          "start": 270.4,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "chapter-10-marker-out",
+          "kind": "FadeOut",
+          "start": 299.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "id": "mark-1",
+      "t": 0.0,
+      "name": "Look up",
+      "colour": "#ffd166"
+    },
+    {
+      "id": "mark-2",
+      "t": 30.0,
+      "name": "Light takes time",
+      "colour": "#67d5ff"
+    },
+    {
+      "id": "mark-3",
+      "t": 60.0,
+      "name": "Find a pattern",
+      "colour": "#b197fc"
+    },
+    {
+      "id": "mark-4",
+      "t": 90.0,
+      "name": "Follow the Moon",
+      "colour": "#ff8fab"
+    },
+    {
+      "id": "mark-5",
+      "t": 120.0,
+      "name": "Spot the planets",
+      "colour": "#8ce99a"
+    },
+    {
+      "id": "mark-6",
+      "t": 150.0,
+      "name": "Gravity keeps the rhythm",
+      "colour": "#ffd166"
+    },
+    {
+      "id": "mark-7",
+      "t": 180.0,
+      "name": "Stars have a life",
+      "colour": "#67d5ff"
+    },
+    {
+      "id": "mark-8",
+      "t": 210.0,
+      "name": "Our home galaxy",
+      "colour": "#b197fc"
+    },
+    {
+      "id": "mark-9",
+      "t": 240.0,
+      "name": "Make the sky visible",
+      "colour": "#8ce99a"
+    },
+    {
+      "id": "mark-10",
+      "t": 270.0,
+      "name": "Keep wondering",
+      "colour": "#ff8fab"
+    }
+  ],
+  "subtitles": [
+    {
+      "id": "narration-1-1",
+      "start": 1.5,
+      "end": 14.0,
+      "text": "Take a breath. Let your eyes adjust, and begin with one small patch of sky."
+    },
+    {
+      "id": "narration-1-2",
+      "start": 15.5,
+      "end": 28.0,
+      "text": "You are seeing real objects, separated by distances our everyday world cannot hold."
+    },
+    {
+      "id": "narration-2-1",
+      "start": 31.5,
+      "end": 44.0,
+      "text": "Light has a speed, so the sky arrives with a delay."
+    },
+    {
+      "id": "narration-2-2",
+      "start": 45.5,
+      "end": 58.0,
+      "text": "The farther away an object is, the older the light reaching your eyes today."
+    },
+    {
+      "id": "narration-3-1",
+      "start": 61.5,
+      "end": 74.0,
+      "text": "People connect bright stars into shapes that are easy to remember."
+    },
+    {
+      "id": "narration-3-2",
+      "start": 75.5,
+      "end": 88.0,
+      "text": "The stars in one constellation can be far apart in space, though they look nearby from Earth."
+    },
+    {
+      "id": "narration-4-1",
+      "start": 91.5,
+      "end": 104.0,
+      "text": "Half of the Moon is always lit by the Sun."
+    },
+    {
+      "id": "narration-4-2",
+      "start": 105.5,
+      "end": 118.0,
+      "text": "Our changing view of that sunlit half creates the familiar phases across the month."
+    },
+    {
+      "id": "narration-5-1",
+      "start": 121.5,
+      "end": 134.0,
+      "text": "Watch a bright point over several nights and it may change its place."
+    },
+    {
+      "id": "narration-5-2",
+      "start": 135.5,
+      "end": 148.0,
+      "text": "That slow drift across the stars is a clue that you may be looking at a planet."
+    },
+    {
+      "id": "narration-6-1",
+      "start": 151.5,
+      "end": 164.0,
+      "text": "A planet is always moving forward through space."
+    },
+    {
+      "id": "narration-6-2",
+      "start": 165.5,
+      "end": 178.0,
+      "text": "The Sun's pull continually turns that motion into a curved path: an orbit."
+    },
+    {
+      "id": "narration-7-1",
+      "start": 181.5,
+      "end": 194.0,
+      "text": "Stars begin in clouds of gas and dust, where gravity gathers material together."
+    },
+    {
+      "id": "narration-7-2",
+      "start": 195.5,
+      "end": 208.0,
+      "text": "They shine by making energy in their cores, then change as their fuel is used up."
+    },
+    {
+      "id": "narration-8-1",
+      "start": 211.5,
+      "end": 224.0,
+      "text": "On a dark night, the Milky Way appears as a soft river of light."
+    },
+    {
+      "id": "narration-8-2",
+      "start": 225.5,
+      "end": 238.0,
+      "text": "It is the edge-on view of our galaxy, home to the Sun and billions of other stars."
+    },
+    {
+      "id": "narration-9-1",
+      "start": 241.5,
+      "end": 254.0,
+      "text": "Give your eyes twenty minutes away from bright lights."
+    },
+    {
+      "id": "narration-9-2",
+      "start": 255.5,
+      "end": 268.0,
+      "text": "Binoculars are a friendly first tool: steady them, look slowly, and let detail emerge."
+    },
+    {
+      "id": "narration-10-1",
+      "start": 271.5,
+      "end": 284.0,
+      "text": "You do not need to know every star to begin exploring."
+    },
+    {
+      "id": "narration-10-2",
+      "start": 285.5,
+      "end": 298.0,
+      "text": "One clear night and one good question are enough to make the sky feel closer."
+    }
+  ],
+  "subtitle_style": {
+    "font_size": 24,
+    "y": -3.45,
+    "colour": "#eff6ff",
+    "band": true,
+    "band_colour": "#020617",
+    "band_opacity": 0.82,
+    "fade": 0.25,
+    "burn_in": true,
+    "max_width": 12.0
+  }
+}

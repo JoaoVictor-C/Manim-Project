@@ -1,0 +1,40 @@
+{
+ "format": "manim-studio-library",
+ "version": 1,
+ "kind": "template",
+ "name": "Right triangle 30-60-90",
+ "description": "A single editable right-triangle object with a square right-angle marker.",
+ "layers": [
+  {
+   "id": "triangle",
+   "name": "Right triangle",
+   "spec": {
+    "type": "RightTriangle",
+    "params": {
+     "angle": 30.0
+    },
+    "style": {}
+   },
+   "base": {
+    "position": [
+     0.0,
+     0.0
+    ],
+    "scale": 1.0,
+    "rotation": 0.0,
+    "opacity": 1.0
+   },
+   "lifetime": {},
+   "tracks": {},
+   "clips": [
+    {
+     "id": "triangle-0",
+     "kind": "Create",
+     "start": 0.0,
+     "duration": 0.8,
+     "params": {}
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,2548 @@
+{
+  "schema_version": 1,
+  "canvas": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "background": "#081426",
+    "frame_height": 8.0,
+    "duration": 150.0
+  },
+  "layers": [
+    {
+      "id": "s1-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  01",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 0.0,
+        "out": 15.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s1-kicker-in",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s1-kicker-out",
+          "kind": "FadeOut",
+          "start": 14.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s1-title",
+      "name": "A language for structure",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A language for structure",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 0.0,
+        "out": 15.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s1-title-in",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s1-title-out",
+          "kind": "FadeOut",
+          "start": 14.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s1-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A matrix is a rectangular arrangement of numbers.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 0.0,
+        "out": 15.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s1-line1-in",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s1-line1-out",
+          "kind": "FadeOut",
+          "start": 14.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s1-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Rows run across; columns run down.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 0.0,
+        "out": 15.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s1-line2-in",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s1-line2-out",
+          "kind": "FadeOut",
+          "start": 14.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s1-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A = [ 2   1 ]\n    [ 0   3 ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 0.0,
+        "out": 15.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s1-visual-in",
+          "kind": "FadeIn",
+          "start": 0.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s1-visual-out",
+          "kind": "FadeOut",
+          "start": 14.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s2-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  02",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 15.0,
+        "out": 30.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s2-kicker-in",
+          "kind": "FadeIn",
+          "start": 15.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s2-kicker-out",
+          "kind": "FadeOut",
+          "start": 29.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s2-title",
+      "name": "Read its shape",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Read its shape",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 15.0,
+        "out": 30.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s2-title-in",
+          "kind": "FadeIn",
+          "start": 15.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s2-title-out",
+          "kind": "FadeOut",
+          "start": 29.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s2-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Count rows first, then columns.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 15.0,
+        "out": 30.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s2-line1-in",
+          "kind": "FadeIn",
+          "start": 15.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s2-line1-out",
+          "kind": "FadeOut",
+          "start": 29.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s2-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "This example has 2 rows and 3 columns: a 2 by 3 matrix.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 15.0,
+        "out": 30.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s2-line2-in",
+          "kind": "FadeIn",
+          "start": 15.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s2-line2-out",
+          "kind": "FadeOut",
+          "start": 29.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s2-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "B = [ 4   1   7 ]\n    [ 2   0   5 ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 15.0,
+        "out": 30.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s2-visual-in",
+          "kind": "FadeIn",
+          "start": 15.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s2-visual-out",
+          "kind": "FadeOut",
+          "start": 29.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s3-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  03",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 30.0,
+        "out": 45.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s3-kicker-in",
+          "kind": "FadeIn",
+          "start": 30.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s3-kicker-out",
+          "kind": "FadeOut",
+          "start": 44.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s3-title",
+      "name": "Where matrices appear",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Where matrices appear",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 30.0,
+        "out": 45.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s3-title-in",
+          "kind": "FadeIn",
+          "start": 30.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s3-title-out",
+          "kind": "FadeOut",
+          "start": 44.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s3-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A spreadsheet, a pixel grid, and a table of measurements are all matrix-shaped.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 30.0,
+        "out": 45.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s3-line1-in",
+          "kind": "FadeIn",
+          "start": 30.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s3-line1-out",
+          "kind": "FadeOut",
+          "start": 44.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s3-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Each position has a meaning set by its row and column.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 30.0,
+        "out": 45.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s3-line2-in",
+          "kind": "FadeIn",
+          "start": 30.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s3-line2-out",
+          "kind": "FadeOut",
+          "start": 44.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s3-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "[ red   green ]\n[ blue  white ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 30.0,
+        "out": 45.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s3-visual-in",
+          "kind": "FadeIn",
+          "start": 30.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s3-visual-out",
+          "kind": "FadeOut",
+          "start": 44.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s4-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  04",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 45.0,
+        "out": 60.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s4-kicker-in",
+          "kind": "FadeIn",
+          "start": 45.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s4-kicker-out",
+          "kind": "FadeOut",
+          "start": 59.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s4-title",
+      "name": "Add matching entries",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Add matching entries",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 45.0,
+        "out": 60.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s4-title-in",
+          "kind": "FadeIn",
+          "start": 45.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s4-title-out",
+          "kind": "FadeOut",
+          "start": 59.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s4-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Matrices can be added when they have the same shape.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 45.0,
+        "out": 60.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s4-line1-in",
+          "kind": "FadeIn",
+          "start": 45.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s4-line1-out",
+          "kind": "FadeOut",
+          "start": 59.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s4-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Add each number to the number in the same position.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 45.0,
+        "out": 60.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s4-line2-in",
+          "kind": "FadeIn",
+          "start": 45.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s4-line2-out",
+          "kind": "FadeOut",
+          "start": 59.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s4-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "[ 1   2 ]   [ 4   0 ]   [ 5   2 ]\n[ 3   1 ] + [ 2   6 ] = [ 5   7 ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 45.0,
+        "out": 60.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s4-visual-in",
+          "kind": "FadeIn",
+          "start": 45.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s4-visual-out",
+          "kind": "FadeOut",
+          "start": 59.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s5-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  05",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 60.0,
+        "out": 75.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s5-kicker-in",
+          "kind": "FadeIn",
+          "start": 60.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s5-kicker-out",
+          "kind": "FadeOut",
+          "start": 74.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s5-title",
+      "name": "Scale every entry",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Scale every entry",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 60.0,
+        "out": 75.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s5-title-in",
+          "kind": "FadeIn",
+          "start": 60.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s5-title-out",
+          "kind": "FadeOut",
+          "start": 74.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s5-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Multiplying a matrix by a number scales every entry.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 60.0,
+        "out": 75.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s5-line1-in",
+          "kind": "FadeIn",
+          "start": 60.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s5-line1-out",
+          "kind": "FadeOut",
+          "start": 74.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s5-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "This is called scalar multiplication.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 60.0,
+        "out": 75.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s5-line2-in",
+          "kind": "FadeIn",
+          "start": 60.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s5-line2-out",
+          "kind": "FadeOut",
+          "start": 74.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s5-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "3 [ 1   2 ] = [ 3   6 ]\n  [ 0  -1 ]   [ 0  -3 ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 60.0,
+        "out": 75.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s5-visual-in",
+          "kind": "FadeIn",
+          "start": 60.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s5-visual-out",
+          "kind": "FadeOut",
+          "start": 74.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s6-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  06",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 75.0,
+        "out": 90.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s6-kicker-in",
+          "kind": "FadeIn",
+          "start": 75.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s6-kicker-out",
+          "kind": "FadeOut",
+          "start": 89.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s6-title",
+      "name": "Multiply row by column",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Multiply row by column",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 75.0,
+        "out": 90.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s6-title-in",
+          "kind": "FadeIn",
+          "start": 75.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s6-title-out",
+          "kind": "FadeOut",
+          "start": 89.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s6-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Matrix multiplication combines rows of the first matrix with columns of the second.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 75.0,
+        "out": 90.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s6-line1-in",
+          "kind": "FadeIn",
+          "start": 75.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s6-line1-out",
+          "kind": "FadeOut",
+          "start": 89.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s6-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Multiply matching entries, then add the products.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 75.0,
+        "out": 90.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s6-line2-in",
+          "kind": "FadeIn",
+          "start": 75.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s6-line2-out",
+          "kind": "FadeOut",
+          "start": 89.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s6-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "[ 1   2 ] [ 3 ] = [ 1·3 + 2·4 ] = [ 11 ]\n          [ 4 ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 75.0,
+        "out": 90.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s6-visual-in",
+          "kind": "FadeIn",
+          "start": 75.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s6-visual-out",
+          "kind": "FadeOut",
+          "start": 89.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s7-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  07",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 90.0,
+        "out": 105.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s7-kicker-in",
+          "kind": "FadeIn",
+          "start": 90.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s7-kicker-out",
+          "kind": "FadeOut",
+          "start": 104.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s7-title",
+      "name": "Order matters",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Order matters",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 90.0,
+        "out": 105.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s7-title-in",
+          "kind": "FadeIn",
+          "start": 90.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s7-title-out",
+          "kind": "FadeOut",
+          "start": 104.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s7-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A 2 by 3 matrix times a 3 by 1 matrix gives a 2 by 1 matrix.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 90.0,
+        "out": 105.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s7-line1-in",
+          "kind": "FadeIn",
+          "start": 90.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s7-line1-out",
+          "kind": "FadeOut",
+          "start": 104.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s7-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "The inside dimensions must match; the outside dimensions give the answer's shape.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 90.0,
+        "out": 105.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s7-line2-in",
+          "kind": "FadeIn",
+          "start": 90.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s7-line2-out",
+          "kind": "FadeOut",
+          "start": 104.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s7-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "(2 × 3) · (3 × 1)  →  (2 × 1)",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 90.0,
+        "out": 105.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s7-visual-in",
+          "kind": "FadeIn",
+          "start": 90.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s7-visual-out",
+          "kind": "FadeOut",
+          "start": 104.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s8-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  08",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 105.0,
+        "out": 120.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s8-kicker-in",
+          "kind": "FadeIn",
+          "start": 105.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s8-kicker-out",
+          "kind": "FadeOut",
+          "start": 119.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s8-title",
+      "name": "Matrices move points",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Matrices move points",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 105.0,
+        "out": 120.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s8-title-in",
+          "kind": "FadeIn",
+          "start": 105.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s8-title-out",
+          "kind": "FadeOut",
+          "start": 119.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s8-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "A matrix can transform a vector: rotate, stretch, reflect, or shear it.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 105.0,
+        "out": 120.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s8-line1-in",
+          "kind": "FadeIn",
+          "start": 105.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s8-line1-out",
+          "kind": "FadeOut",
+          "start": 119.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s8-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "For a quarter-turn, (x, y) becomes (-y, x).",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 105.0,
+        "out": 120.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s8-line2-in",
+          "kind": "FadeIn",
+          "start": 105.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s8-line2-out",
+          "kind": "FadeOut",
+          "start": 119.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s8-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "[ 0  -1 ] [ x ] = [ -y ]\n[ 1   0 ] [ y ]   [  x ]",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 105.0,
+        "out": 120.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s8-visual-in",
+          "kind": "FadeIn",
+          "start": 105.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s8-visual-out",
+          "kind": "FadeOut",
+          "start": 119.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s9-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  09",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 120.0,
+        "out": 135.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s9-kicker-in",
+          "kind": "FadeIn",
+          "start": 120.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s9-kicker-out",
+          "kind": "FadeOut",
+          "start": 134.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s9-title",
+      "name": "Transform, then transform",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Transform, then transform",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 120.0,
+        "out": 135.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s9-title-in",
+          "kind": "FadeIn",
+          "start": 120.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s9-title-out",
+          "kind": "FadeOut",
+          "start": 134.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s9-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Multiplying two transformation matrices combines their actions.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 120.0,
+        "out": 135.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s9-line1-in",
+          "kind": "FadeIn",
+          "start": 120.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s9-line1-out",
+          "kind": "FadeOut",
+          "start": 134.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s9-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "The rightmost transformation acts first.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 120.0,
+        "out": 135.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s9-line2-in",
+          "kind": "FadeIn",
+          "start": 120.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s9-line2-out",
+          "kind": "FadeOut",
+          "start": 134.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s9-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "point  →  rotate  →  stretch\n       same as one combined matrix",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 120.0,
+        "out": 135.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s9-visual-in",
+          "kind": "FadeIn",
+          "start": 120.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s9-visual-out",
+          "kind": "FadeOut",
+          "start": 134.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s10-kicker",
+      "name": "SECTION",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRICES  /  10",
+          "font_size": 21
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          3.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 135.0,
+        "out": 150.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s10-kicker-in",
+          "kind": "FadeIn",
+          "start": 135.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s10-kicker-out",
+          "kind": "FadeOut",
+          "start": 149.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s10-title",
+      "name": "The big idea",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "The big idea",
+          "font_size": 39
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          2.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 135.0,
+        "out": 150.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s10-title-in",
+          "kind": "FadeIn",
+          "start": 135.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s10-title-out",
+          "kind": "FadeOut",
+          "start": 149.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s10-line1",
+      "name": "Concept",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Matrices organize numbers so operations can act on many values at once.",
+          "font_size": 27
+        },
+        "style": {
+          "fill": "#edf4ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          1.12
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 135.0,
+        "out": 150.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s10-line1-in",
+          "kind": "FadeIn",
+          "start": 135.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s10-line1-out",
+          "kind": "FadeOut",
+          "start": 149.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s10-line2",
+      "name": "Detail",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Know the shape. Match positions. For multiplication, pair rows with columns.",
+          "font_size": 25
+        },
+        "style": {
+          "fill": "#a9bbd2"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          0.25
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 135.0,
+        "out": 150.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s10-line2-in",
+          "kind": "FadeIn",
+          "start": 135.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s10-line2-out",
+          "kind": "FadeOut",
+          "start": 149.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "s10-visual",
+      "name": "Matrix / diagram",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "MATRIX  =  structure  +  action",
+          "font_size": 29
+        },
+        "style": {
+          "fill": "#54d6ff"
+        }
+      },
+      "base": {
+        "position": [
+          0,
+          -1.45
+        ],
+        "scale": 1,
+        "rotation": 0,
+        "opacity": 1
+      },
+      "lifetime": {
+        "in": 135.0,
+        "out": 150.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "s10-visual-in",
+          "kind": "FadeIn",
+          "start": 135.0,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "s10-visual-out",
+          "kind": "FadeOut",
+          "start": 149.55,
+          "duration": 0.45,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    }
+  ],
+  "subtitles": [
+    {
+      "id": "cap-1",
+      "start": 0.3,
+      "end": 14.7,
+      "text": "Think of a matrix as a compact way to store relationships."
+    },
+    {
+      "id": "cap-2",
+      "start": 15.3,
+      "end": 29.7,
+      "text": "The entry in row 2, column 3 is 5. We write that position as b₂₃."
+    },
+    {
+      "id": "cap-3",
+      "start": 30.3,
+      "end": 44.7,
+      "text": "For an image, each cell can store a pixel value. For data, it can store a measurement."
+    },
+    {
+      "id": "cap-4",
+      "start": 45.3,
+      "end": 59.7,
+      "text": "Here, top left is 1 plus 4, and bottom right is 1 plus 6."
+    },
+    {
+      "id": "cap-5",
+      "start": 60.3,
+      "end": 74.7,
+      "text": "A scalar changes the values while keeping the same rows and columns."
+    },
+    {
+      "id": "cap-6",
+      "start": 75.3,
+      "end": 89.7,
+      "text": "The result is one number: the dot product of that row and column."
+    },
+    {
+      "id": "cap-7",
+      "start": 90.3,
+      "end": 104.7,
+      "text": "If the inside numbers do not match, that multiplication is not defined."
+    },
+    {
+      "id": "cap-8",
+      "start": 105.3,
+      "end": 119.7,
+      "text": "Apply this matrix to (2, 1), and the point moves to (-1, 2)."
+    },
+    {
+      "id": "cap-9",
+      "start": 120.3,
+      "end": 134.7,
+      "text": "This lets graphics and robotics build complex motion from simple steps."
+    },
+    {
+      "id": "cap-10",
+      "start": 135.3,
+      "end": 149.7,
+      "text": "You now know how to read a matrix, add and scale one, multiply matrices, and use them to transform space."
+    }
+  ],
+  "subtitle_style": {
+    "font_size": 25,
+    "y": -3.42,
+    "colour": "#edf4ff",
+    "band": true,
+    "band_colour": "#020817",
+    "band_opacity": 0.88,
+    "fade": 0.25,
+    "burn_in": true,
+    "max_width": 12.0
+  },
+  "markers": [
+    {
+      "id": "chapter-1",
+      "t": 0.0,
+      "name": "A language for structure",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-2",
+      "t": 15.0,
+      "name": "Read its shape",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-3",
+      "t": 30.0,
+      "name": "Where matrices appear",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-4",
+      "t": 45.0,
+      "name": "Add matching entries",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-5",
+      "t": 60.0,
+      "name": "Scale every entry",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-6",
+      "t": 75.0,
+      "name": "Multiply row by column",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-7",
+      "t": 90.0,
+      "name": "Order matters",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-8",
+      "t": 105.0,
+      "name": "Matrices move points",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-9",
+      "t": 120.0,
+      "name": "Transform, then transform",
+      "colour": "#54d6ff"
+    },
+    {
+      "id": "chapter-10",
+      "t": 135.0,
+      "name": "The big idea",
+      "colour": "#54d6ff"
+    }
+  ]
+}

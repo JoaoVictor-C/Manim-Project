@@ -1,0 +1,1527 @@
+{
+  "schema_version": 1,
+  "canvas": {
+    "width_px": 1920,
+    "height_px": 1200,
+    "fps": 60,
+    "background": "#000000",
+    "frame_height": 8.0,
+    "duration": 30.0,
+    "grow_with_content": true
+  },
+  "layers": [
+    {
+      "id": "text-1",
+      "name": "Title",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Definition of P ythagoras",
+          "font_size": 68.0
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -2.7755575615628914e-17,
+          0.7215815208227954
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": 3.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "title-0",
+          "kind": "Write",
+          "start": 0.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "unwrite-1",
+          "kind": "Unwrite",
+          "start": 2.2,
+          "duration": 0.8,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "line-1",
+      "name": "Underline",
+      "spec": {
+        "type": "Line",
+        "params": {
+          "start": [
+            -3.0,
+            0.0
+          ],
+          "end": [
+            3.0,
+            0.0
+          ]
+        },
+        "style": {
+          "stroke_width": 3
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          0.05
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": 3.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "rule-0",
+          "kind": "Create",
+          "start": 0.6,
+          "duration": 0.6,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "uncreate-1",
+          "kind": "Uncreate",
+          "start": 2.195689655172414,
+          "duration": 0.8,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-2",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "font_size": 34,
+          "text": "By Joao"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          -0.5892092395886022
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": 3.0
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "subtitle-0",
+          "kind": "FadeIn",
+          "start": 1.0,
+          "duration": 0.6,
+          "ease": null,
+          "params": {
+            "shift": "UP"
+          },
+          "to_layer": null
+        },
+        {
+          "id": "fadeout-1",
+          "kind": "FadeOut",
+          "start": 2.4956896551724137,
+          "duration": 0.5,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-3",
+      "name": "Text-1",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Bhaskara"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          4.440892098500626e-16,
+          2.687029764924742
+        ],
+        "scale": 1.5058191169542456,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 2.683,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "write-1",
+          "kind": "Write",
+          "start": 2.683333333333333,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "uncreate-1",
+          "kind": "Unwrite",
+          "start": 8.0,
+          "duration": 0.8,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "mathtex-1",
+      "name": "",
+      "spec": {
+        "type": "MathTex",
+        "params": {
+          "text": "a^2 = b^2 + c^2"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          -2.2283851003614754
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 1.0,
+        "out": null
+      },
+      "tracks": {
+        "scale": [
+          {
+            "t": 3.0,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.05,
+            "value": 1.3937,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ],
+        "position": [
+          {
+            "t": 3.0166666666666666,
+            "value": [
+              0.0,
+              -2.2283851003614754
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.05,
+            "value": [
+              0.0,
+              -0.4766
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "write-1",
+          "kind": "Write",
+          "start": 1.0,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "uncreate-1",
+          "kind": "Unwrite",
+          "start": 8.0,
+          "duration": 0.8,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "righttriangle-1",
+      "name": "Right triangle",
+      "spec": {
+        "type": "RightTriangle",
+        "params": {
+          "angle": 30.0,
+          "side_length": 2.0
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -0.5773502691896258,
+          -1.0000000000000002
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -0.5773502691896258,
+              -1.0000000000000002
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -3.461871287507102,
+              -1.0107954737216196
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "triangle-0",
+          "kind": "Create",
+          "start": 9.066666666666666,
+          "duration": 1.083333333333334,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "righttriangle-2",
+      "name": "Right triangle 2",
+      "spec": {
+        "type": "RightTriangle",
+        "params": {
+          "angle": 30.0,
+          "side_length": 2.0
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          1.0,
+          -0.577350269189626
+        ],
+        "scale": 1.0,
+        "rotation": 90.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 10.883,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              1.0,
+              -0.577350269189626
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -1.8845210183174763,
+              -0.5881457429112454
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "triangle-0",
+          "kind": "Create",
+          "start": 10.883333333333333,
+          "duration": 1.083333333333334,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "righttriangle-3",
+      "name": "Right triangle 3",
+      "spec": {
+        "type": "RightTriangle",
+        "params": {
+          "angle": 30.0,
+          "side_length": 2.0
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.577350269189626,
+          0.9999999999999999
+        ],
+        "scale": 1.0,
+        "rotation": 180.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 10.883,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              0.577350269189626,
+              0.9999999999999999
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -2.3071707491278506,
+              0.9892045262783804
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "triangle-0",
+          "kind": "Create",
+          "start": 10.883333333333333,
+          "duration": 1.083333333333334,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "righttriangle-4",
+      "name": "Right triangle 4",
+      "spec": {
+        "type": "RightTriangle",
+        "params": {
+          "angle": 30.0,
+          "side_length": 2.0
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -0.9999999999999999,
+          0.5773502691896254
+        ],
+        "scale": 1.0,
+        "rotation": 270.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 10.883,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -0.9999999999999999,
+              0.5773502691896254
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -3.8845210183174763,
+              0.5665547954680059
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "triangle-0",
+          "kind": "Create",
+          "start": 10.883333333333333,
+          "duration": 1.083333333333334,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-10",
+      "name": "A - Left",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "a"
+        },
+        "style": {
+          "fill": "#d6030a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -1.8045003430865054,
+          0.6354954386565651
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 14.86,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -1.8045003430865054,
+              0.6354954386565651
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -4.689021361403982,
+              0.6246999649349456
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 14.858440934502257,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-9",
+      "name": "A - Right",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "a"
+        },
+        "style": {
+          "fill": "#d6030a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          1.8302803203456242,
+          -0.7395345594092503
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 14.86,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              1.8302803203456242,
+              -0.7395345594092503
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -1.0542406979718522,
+              -0.7503300331308698
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 14.858440934502257,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-8",
+      "name": "A - Bottom",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "a"
+        },
+        "style": {
+          "fill": "#d6030a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -0.5957818553106854,
+          -1.835925987556759
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 14.86,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -0.5957818553106854,
+              -1.835925987556759
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -3.480302873628162,
+              -1.8467214612783787
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 14.858440934502257,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-11",
+      "name": "A - Top",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "a"
+        },
+        "style": {
+          "fill": "#d6030a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.7345663306549309,
+          1.8245451448978136
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 14.86,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              0.7345663306549309,
+              1.8245451448978136
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -2.1499546876625453,
+              1.8137496711761942
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 14.858440934502257,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-15",
+      "name": "B - Left",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "b"
+        },
+        "style": {
+          "fill": "#1cda39"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -1.8107705315166578,
+          -1.0
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 16.875,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -1.8107705315166578,
+              -1.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -4.695291549834134,
+              -1.0107954737216196
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 16.87472206340131,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-13",
+      "name": "B - Right",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "b"
+        },
+        "style": {
+          "fill": "#1cda39"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          1.8240101319154718,
+          0.9999999999999998
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 16.875,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              1.8240101319154718,
+              0.9999999999999998
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -1.0605108864020045,
+              0.9892045262783803
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 16.87472206340131,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-12",
+      "name": "B - Bottom",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "b"
+        },
+        "style": {
+          "fill": "#1cda39"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          1.0354778457799452,
+          -1.835925987556759
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 16.875,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              1.0354778457799452,
+              -1.835925987556759
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -1.8490431725375311,
+              -1.8467214612783787
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 16.87472206340131,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-14",
+      "name": "B - Top",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "b"
+        },
+        "style": {
+          "fill": "#1cda39"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -1.0816830341314252,
+          1.8575169349999978
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 16.875,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -1.0816830341314252,
+              1.8575169349999978
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -3.9662040524489015,
+              1.8467214612783782
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 16.87472206340131,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-5",
+      "name": "C - Left",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "c"
+        },
+        "style": {
+          "fill": "#d1c00a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -0.7388018135208861,
+          0.5023280089608142
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 12.93,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -0.7388018135208861,
+              0.5023280089608142
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -3.6233228318383626,
+              0.4915325352391947
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 12.933333333333334,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-7",
+      "name": "C - Right",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "c"
+        },
+        "style": {
+          "fill": "#d1c00a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.809979176356204,
+          -0.4226497308103745
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 12.93,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              0.809979176356204,
+              -0.4226497308103745
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -2.0745418419612722,
+              -0.433445204531994
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 12.933333333333334,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-4",
+      "name": "C - Bottom",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "c"
+        },
+        "style": {
+          "fill": "#d1c00a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -0.46928093615475286,
+          -0.8192128375596903
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 12.93,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              -0.46928093615475286,
+              -0.8192128375596903
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -3.353801954472229,
+              -0.8300083112813098
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 12.933333333333334,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "text-6",
+      "name": "C - Top",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "c"
+        },
+        "style": {
+          "fill": "#d1c00a"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.48287093771069955,
+          0.7151737168070051
+        ],
+        "scale": 0.4367802827947036,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 12.93,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 19.333333333333332,
+            "value": [
+              0.48287093771069955,
+              0.7151737168070051
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 20.5,
+            "value": [
+              -2.401650080606777,
+              0.7043782430853857
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": [
+        {
+          "id": "fadein-1",
+          "kind": "FadeIn",
+          "start": 12.933333333333334,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "mathtex-3",
+      "name": "",
+      "spec": {
+        "type": "MathTex",
+        "params": {
+          "text": "A = L \\times L"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          2.72778576301037,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 19.72,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "create-1",
+          "kind": "Create",
+          "start": 19.716666666666665,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        },
+        {
+          "id": "transform-1",
+          "kind": "Transform",
+          "start": 23.233333333333334,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": "mathtex-4"
+        }
+      ]
+    },
+    {
+      "id": "mathtex-2",
+      "name": "",
+      "spec": {
+        "type": "MathTex",
+        "params": {
+          "text": "L = a+b"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          2.9259256262359106,
+          2.691377525776897
+        ],
+        "scale": 1.301627278469867,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 21.917,
+        "out": null
+      },
+      "tracks": {},
+      "clips": [
+        {
+          "id": "write-1",
+          "kind": "Write",
+          "start": 21.916666666666668,
+          "duration": 1.0,
+          "ease": null,
+          "params": {},
+          "to_layer": null
+        }
+      ]
+    },
+    {
+      "id": "mathtex-4",
+      "name": "",
+      "spec": {
+        "type": "MathTex",
+        "params": {
+          "text": "A = (a+b) \\times (a+b)"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          2.9259256262359106,
+          1.3877787807814457e-17
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": 24.233,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    }
+  ],
+  "subtitles": [
+    {
+      "id": "cue-1",
+      "start": 2.9956896551724137,
+      "end": 5.766666666666667,
+      "text": "The theorem of P  ythagoras is generally used to find hypotenuse of a rectangular triangle"
+    },
+    {
+      "id": "cue-2",
+      "start": 5.766666666666667,
+      "end": 7.766666666666667,
+      "text": "In this video I'll show you the geometric proof of it"
+    },
+    {
+      "id": "cue-3",
+      "start": 8.8,
+      "end": 10.666666666666666,
+      "text": "First we draw a right triangle"
+    },
+    {
+      "id": "cue-4",
+      "start": 10.666666666666666,
+      "end": 12.666666666666666,
+      "text": "At the tip of one triangle add another until you form a square"
+    },
+    {
+      "id": "cue-5",
+      "start": 12.666666666666666,
+      "end": 14.666666666666666,
+      "text": "We'll call the sides of the square \"c\"  "
+    },
+    {
+      "id": "cue-6",
+      "start": 14.666666666666666,
+      "end": 16.666666666666668,
+      "text": "And the bases of the triangles \"a\""
+    },
+    {
+      "id": "cue-7",
+      "start": 16.666666666666668,
+      "end": 18.666666666666668,
+      "text": "And finally the other side of the triangle \"b\"  "
+    },
+    {
+      "id": "cue-8",
+      "start": 18.666666666666668,
+      "end": 21.733333333333334,
+      "text": "We know that the area of a square is A = L x L"
+    },
+    {
+      "id": "cue-9",
+      "start": 21.733333333333334,
+      "end": 23.933333333333334,
+      "text": "So here L = a+b"
+    },
+    {
+      "id": "cue-10",
+      "start": 23.933333333333334,
+      "end": 26.3,
+      "text": "Then we can rewrite the equation as A = (a+b) x (a+b)"
+    }
+  ],
+  "subtitle_style": {
+    "font_size": 24.0,
+    "y": -3.52,
+    "colour": "#f8fafc",
+    "band": true,
+    "band_colour": "#020617",
+    "band_opacity": 0.72,
+    "fade": 0.15,
+    "burn_in": true,
+    "max_width": 12.5
+  }
+}

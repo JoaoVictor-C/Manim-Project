@@ -345,7 +345,7 @@ def _relative(prop: str, value: float | Vec2, first: float | Vec2) -> float | Ve
 _TEXTS = TEXT_TYPES | NUMBER_TYPES | {"AxisLabels", "GraphLabel"}
 _LINES = {"Graph"} | CONNECTOR_TYPES | TRACE_TYPES  # drawn in the accent colour
 _MARKS = {"Point", "Area", "RiemannRectangles"}  # filled shapes on axes, in the accent
-_SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow"}
+_SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "RightTriangle", "Star", "Dot", "Line", "Arrow"}
 
 
 def themed_style(type_name: str, style: dict[str, Any], theme: Theme) -> dict[str, Any] | None:

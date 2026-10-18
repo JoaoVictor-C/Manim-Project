@@ -113,6 +113,7 @@ MOBJECT_TYPES: dict[str, type] = {
     for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | NUMBER_TYPES | {"Axes", "TracedPath"})
 }
 MOBJECT_TYPES["Connector"] = m.Line  # drawn frame by frame by the evaluator (ADR 0036)
+MOBJECT_TYPES["RightTriangle"] = m.VGroup
 CHILD_ONLY_TYPES = AXES_OBJECTS  # built with their parent (build_child, ADR 0024, 0030)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
@@ -164,6 +165,10 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     "Square": (Param("side_length", "float", 2.0, "Side length", **_SIZE),),
     "Rectangle": (Param("width", "float", 4.0, **_SIZE), Param("height", "float", 2.0, **_SIZE)),
     "Triangle": (),
+    "RightTriangle": (
+        Param("angle", "float", 45.0, "Acute angle (degrees)", minimum=15.0, maximum=75.0, step=1.0),
+        Param("side_length", "float", 3.0, "Base length", minimum=0.5, maximum=8.0, step=0.1),
+    ),
     "Star": (
         Param("n", "int", 5, "Points", minimum=3, maximum=24, step=1),
         Param("outer_radius", "float", 1.0, "Radius", **_SIZE),
@@ -267,7 +272,21 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
 # The object library (S2 plan): menu sections in order.
 # Plugins (ADR 0032) append their own sections: a list, changed in place.
 LIBRARY: list[tuple[str, tuple[str, ...]]] = [
-    ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow", "Connector")),
+    (
+        "Shapes",
+        (
+            "Circle",
+            "Square",
+            "Rectangle",
+            "Triangle",
+            "RightTriangle",
+            "Star",
+            "Dot",
+            "Line",
+            "Arrow",
+            "Connector",
+        ),
+    ),
     ("Text", ("Text", "MathTex", "Tex", "DecimalNumber")),
     ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
@@ -646,7 +665,23 @@ def _build(spec: Spec) -> m.Mobject:
             x, y = params[param.name][:2]
             params[param.name] = (x, y, 0.0)  # documents are 2D
     spans = params.pop(parts.SPANS_PARAM, None)
-    if spec.type == "Axes":
+    if spec.type == "RightTriangle":
+        angle = math.radians(float(params.get("angle", 45.0)))
+        base = float(params.get("side_length", 3.0))
+        height = base * math.tan(angle)
+        left, bottom = -base / 2, -height / 2
+        corner = np.array([left, bottom, 0.0])
+        base_end = np.array([left + base, bottom, 0.0])
+        top = np.array([left, bottom + height, 0.0])
+        marker = min(base, height) * 0.12
+        mob = m.VGroup(
+            m.Line(corner, base_end),
+            m.Line(corner, top),
+            m.Line(top, base_end),
+            m.Line(corner + np.array([marker, 0, 0]), corner + np.array([marker, marker, 0])),
+            m.Line(corner + np.array([marker, marker, 0]), corner + np.array([0, marker, 0])),
+        )
+    elif spec.type == "Axes":
         mob = _build_axes(spec)
     elif spec.type in TEXT_TYPES:
         text = params.pop("text", "")

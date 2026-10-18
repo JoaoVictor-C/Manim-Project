@@ -157,6 +157,16 @@ def layer(layer_id, name, type_name, at=(0.0, 0.0), clips=(), style=None, **para
 
 TEMPLATES = [
     (
+        "Right triangle 45-45-90",
+        "A single editable right-triangle object with equal legs and a square right-angle marker.",
+        [layer("triangle", "Right triangle", "RightTriangle", clips=[("Create", 0.0, 0.8, {})], angle=45.0)],
+    ),
+    (
+        "Right triangle 30-60-90",
+        "A single editable right-triangle object with a square right-angle marker.",
+        [layer("triangle", "Right triangle", "RightTriangle", clips=[("Create", 0.0, 0.8, {})], angle=30.0)],
+    ),
+    (
         "Title card",
         "A title, an underline and a subtitle, written in.",
         [

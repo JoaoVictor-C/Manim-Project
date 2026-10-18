@@ -1,3 +1,4 @@
+
 # Manim Studio
 
 Animate with [Manim](https://www.manim.community/) the way you would in After
