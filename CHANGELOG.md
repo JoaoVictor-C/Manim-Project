@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Long scenes (P7.2, B66): the layer tree is indexed once per snapshot (`core/layer_index.py`), so the
+  timeline rebuild, the Layers panel and `Evaluator.invalidate` grow linearly with the layers
+  (`invalidate` 33 -> 1 ms and the timeline rebuild 99 -> 48 ms at 295 layers; the rest is Qt items);
+  render-ahead evicts and asks for missing frames in O(log n) (9 ms -> 0.01 ms with 15 000 frames kept);
+  Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
+
 ### Added
 - The golden path (GP, decision session 42): a typical animation - a title, an equation and two
   shapes, presets, Arrange, save, close, reopen, export the video and the Python scene - walked

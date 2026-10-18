@@ -54,7 +54,7 @@ def test_zoom_keeps_the_time_under_the_anchor() -> None:
 
 
 def test_zoom_is_clamped() -> None:
-    assert TimeScale(100).zoomed(1e-6, 0).px_per_second == 10
+    assert TimeScale(100).zoomed(1e-6, 0).px_per_second == 0.5
     assert TimeScale(100).zoomed(1e6, 0).px_per_second == 4000
 
 
@@ -394,3 +394,30 @@ def test_fit_scale_shows_the_whole_scene_within_the_zoom_limits() -> None:
     assert fit_scale(0.0, 800).px_per_second == MAX_PX_PER_SECOND  # a zero-length scene
     assert fit_scale(3600.0, 300).px_per_second == MIN_PX_PER_SECOND  # an hour in 300 px
     assert fit_scale(5.0, 500).offset == 0.0
+
+
+def test_a_fifteen_minute_scene_fits_a_normal_window() -> None:
+    """P7.2 / B64: the floor was 10 px/s, so Fit Timeline could not show more than ~145 s."""
+    from manim_studio.ui.timeline.model import FIT_MARGIN_PX, fit_scale
+
+    scale = fit_scale(900.0, 1600)
+    assert scale.px_per_second < 10.0
+    assert scale.x(900.0) + FIT_MARGIN_PX == pytest.approx(1600)
+    assert fit_scale(7200.0, 1600).px_per_second == 0.5  # two hours stop at the new floor
+    zoomed_out = scale.zoomed(0.001, 0.0)  # the wheel stops at the floor too
+    assert 0.0 < zoomed_out.px_per_second <= scale.px_per_second
+
+
+def test_the_ruler_ticks_stay_apart_and_label_minutes_on_a_long_scene() -> None:
+    from manim_studio.ui.timeline.view import _tick_label, _tick_step
+
+    for pps in (0.5, 1.0, 1.78, 5.0, 10.0, 120.0, 4000.0):
+        assert _tick_step(pps) * pps >= 59.99  # never closer than ~60 px
+    assert _tick_step(120.0) == 0.5
+    assert _tick_step(1.78) == 60  # a 15-minute scene in 1600 px: a label per minute
+    assert _tick_step(0.5) == 120
+    assert _tick_label(0.5, 0.5) == "0.5s"
+    assert _tick_label(20.0, 10) == "20s"
+    assert _tick_label(90.0, 30) == "1:30"
+    assert _tick_label(600.0, 60) == "10:00"
+    assert _tick_label(930.0, 30) == "15:30"
