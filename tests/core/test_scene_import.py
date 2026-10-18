@@ -255,6 +255,34 @@ def test_matching_and_fading_morphs_and_z_index_play_as_in_manim(tmp_path) -> No
     assert_frames_match(rec, result.project)
 
 
+def test_an_ease_given_to_play_is_the_clips_ease(tmp_path) -> None:
+    rec, result = imported(tmp_path, "self.play(FadeIn(Square()), rate_func=rush_into)\nself.wait(0.5)")
+    assert result.converted, result.report
+    assert result.project.layers[0].clips[0].ease.name == "rush_into"
+    assert_frames_match(rec, result.project)
+
+
+def test_an_object_made_more_opaque_than_it_began_is_refused(tmp_path) -> None:
+    _, result = imported(
+        tmp_path, "d = Dot().set_opacity(0.5)\nself.add(d)\nself.play(d.animate.set_opacity(1))"
+    )
+    assert not result.converted and "more opaque" in result.reasons[0]
+
+
+@pytest.mark.latex
+def test_a_morph_between_equations_split_into_pieces_is_refused(tmp_path) -> None:
+    _, result = imported(
+        tmp_path,
+        """
+        eq = MathTex("a^2", "+", "b^2", "=", "c^2")
+        self.add(eq)
+        self.play(Transform(eq, MathTex("a^2 + b^2 = c^2").shift(DOWN)))
+        """,
+    )
+    assert not result.converted  # its pieces pair otherwise than one string's would
+    assert "sub-objects" in result.reasons[0] and "nested group" in result.reasons[0]
+
+
 def test_a_clip_the_editor_plays_differently_keeps_the_scene_as_code(tmp_path) -> None:
     _, result = imported(tmp_path, "t = Text('x')\nself.add(t)\nself.play(FocusOn(t))")
     assert not result.converted and "FocusOn" in result.reasons[0]
