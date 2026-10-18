@@ -445,7 +445,12 @@ class _Readable:
             ]
         if "cubic_bezier" in self.helpers:
             lines += ["", *inspect.getsource(adapter.cubic_bezier).splitlines(), ""]
-        lines += ["", f"class {self.scene_name}(Scene):", "    def construct(self):"]
+        camera = self.project.camera
+        if camera.is_default:
+            lines += ["", f"class {self.scene_name}(Scene):", "    def construct(self):"]
+        else:  # the editor's turned camera (ADR 0048): Manim's ThreeDCamera at the same angles
+            lines += ["", f"class {self.scene_name}(ThreeDScene):", "    def construct(self):"]
+            body.insert(0, _camera_orientation(camera))
         lines += [f"        {line}" if line else "" for entry in body for line in entry.split("\n")]
         return "\n".join(lines).rstrip() + "\n"
 
@@ -804,6 +809,12 @@ def _time(value: float) -> str:
 def _num(value: float) -> str:
     """Floats exactly (repr), written as floats: 1.0, 0.25, 14.222222222222221."""
     return repr(float(value))
+
+
+def _camera_orientation(camera) -> str:
+    """``set_camera_orientation`` with the angles as the editor applies them (``value * DEGREES``)."""
+    angles = ", ".join(f"{name}={_num(getattr(camera, name))} * DEGREES" for name in ("phi", "theta", "gamma"))
+    return f"self.set_camera_orientation({angles})"
 
 
 # -- exact code -----------------------------------------------------------------------------------------

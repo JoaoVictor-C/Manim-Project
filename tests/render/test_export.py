@@ -93,7 +93,7 @@ def test_a_failed_export_leaves_the_old_video_and_no_partial_file(tmp_path, monk
     out = tmp_path / "out.mp4"
     out.write_bytes(b"previous video")
 
-    def boom(camera, mobjects):
+    def boom(camera, mobjects, overlay=()):
         raise RuntimeError("render failed")
 
     monkeypatch.setattr(cairo_export, "render_frame", boom)
