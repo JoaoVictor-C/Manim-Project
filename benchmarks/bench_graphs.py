@@ -30,13 +30,18 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.render.cairo_export import make_camera, render_frame  # noqa: E402
-from support import CANVAS, FRAMES  # noqa: E402
+from manim_studio.core import adapter
+from manim_studio.render.cairo_export import make_camera, render_frame
+from support import CANVAS, FRAMES
 
 FUNCTIONS = {
-    "sin": np.sin, "cos": np.cos, "tan": np.tan, "exp": np.exp, "log": np.log,
-    "sqrt": np.sqrt, "abs": np.abs,
+    "sin": np.sin,
+    "cos": np.cos,
+    "tan": np.tan,
+    "exp": np.exp,
+    "log": np.log,
+    "sqrt": np.sqrt,
+    "abs": np.abs,
 }
 CONSTANTS = {"pi": math.pi, "e": math.e}
 OPS = {ast.Add: np.add, ast.Sub: np.subtract, ast.Mult: np.multiply, ast.Div: np.divide, ast.Pow: np.power}
@@ -47,7 +52,11 @@ def compile_expression(text: str):
     tree = ast.parse(text, mode="eval").body
 
     def build(node):
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, (int, float))
+            and not isinstance(node.value, bool)
+        ):
             value = float(node.value)
             return lambda x: value
         if isinstance(node, ast.Name) and node.id == "x":
@@ -63,8 +72,11 @@ def compile_expression(text: str):
             sign = -1.0 if isinstance(node.op, ast.USub) else 1.0
             return lambda x: sign * a(x)
         if (
-            isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FUNCTIONS
-            and len(node.args) == 1 and not node.keywords
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in FUNCTIONS
+            and len(node.args) == 1
+            and not node.keywords
         ):
             fn, a = FUNCTIONS[node.func.id], build(node.args[0])
             return lambda x: fn(a(x))
@@ -83,11 +95,18 @@ def probe_expressions() -> None:
         start = time.perf_counter()
         got = f(xs)
         eval_ms = (time.perf_counter() - start) * 1000
-        ref = eval(text, {"__builtins__": {}}, {**FUNCTIONS, **CONSTANTS, "x": xs})  # noqa: S307 - reference only
+        ref = eval(text, {"__builtins__": {}}, {**FUNCTIONS, **CONSTANTS, "x": xs})
         worst = max(worst, float(np.abs(got - ref).max()))
         print(f"  {text:24s} compile {compile_ms:5.2f} ms  1001 points {eval_ms:5.2f} ms")
     print(f"  max |whitelist - eval| = {worst:.1e}")
-    for bad in ("__import__('os')", "x.__class__", "open('f')", "[x for x in ()]", "lambda: 1", "x if x else 1"):
+    for bad in (
+        "__import__('os')",
+        "x.__class__",
+        "open('f')",
+        "[x for x in ()]",
+        "lambda: 1",
+        "x if x else 1",
+    ):
         try:
             compile_expression(bad)
             print(f"  ACCEPTED (bad): {bad}")
@@ -114,7 +133,9 @@ def probe_axes() -> m.Axes:
     _, warm_numbers = timed_build(**numbered)
     shutil.rmtree(tmp, ignore_errors=True)
     adapter.configure(Path(__file__).resolve().parents[1] / ".cache" / "manim")
-    print(f"  Axes plain {cold_plain:.0f} ms; with numbers cold {cold_numbers:.0f} ms, warm {warm_numbers:.0f} ms")
+    print(
+        f"  Axes plain {cold_plain:.0f} ms; with numbers cold {cold_numbers:.0f} ms, warm {warm_numbers:.0f} ms"
+    )
     axes, _ = timed_build(**plain)
     return axes
 
@@ -146,8 +167,13 @@ def probe_random_access(axes: m.Axes, one: m.VMobject, two: m.VMobject) -> None:
         worst = 0
         for i in random.Random(0).sample(range(len(FRAMES)), len(FRAMES)):
             scrub.interpolate(FRAMES[i])
-            worst = max(worst, int(np.abs(render_frame(camera, [axes, scrub.mobject]).astype(int) - reference[i]).max()))
-        visible = int(np.abs(reference[len(FRAMES) // 2].astype(int) - render_frame(camera, [axes]).astype(int)).max())
+            worst = max(
+                worst,
+                int(np.abs(render_frame(camera, [axes, scrub.mobject]).astype(int) - reference[i]).max()),
+            )
+        visible = int(
+            np.abs(reference[len(FRAMES) // 2].astype(int) - render_frame(camera, [axes]).astype(int)).max()
+        )
         print(f"  {name:9s} scrub diff {worst}  (the graph is visible: {visible} levels)")
 
 

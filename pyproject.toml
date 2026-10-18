@@ -9,6 +9,21 @@ authors = [
     { name = "João Victor", email = "fffjv2006@gmail.com" }
 ]
 requires-python = ">=3.13"
+keywords = ["manim", "animation", "editor", "timeline", "keyframes", "latex", "math", "video"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics :: Editors",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
 dependencies = [
     "manim==0.22.0",  # pinned: the adapter relies on Manim internals (ADR 0003)
     "numpy>=2.5.3",
@@ -19,6 +34,11 @@ dependencies = [
     "pyside6>=6.12.0",
     "qtawesome>=1.4.2",  # Phosphor icons for the editor (ADR 0040)
 ]
+
+[project.urls]
+Repository = "https://github.com/JoaoVictor-C/Manim-Project"
+Documentation = "https://github.com/JoaoVictor-C/Manim-Project/blob/master/docs/guide/index.md"
+Changelog = "https://github.com/JoaoVictor-C/Manim-Project/blob/master/CHANGELOG.md"
 
 [project.scripts]
 manim-studio = "manim_studio.cli:main"

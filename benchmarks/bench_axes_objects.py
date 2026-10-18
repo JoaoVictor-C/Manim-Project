@@ -84,11 +84,13 @@ def main() -> None:
             try:
                 worst, visible = scrub(mob, cls)
                 results.append(f"{cls.__name__} {worst}/{visible}")
-            except Exception as exc:  # noqa: BLE001 - a probe: report what fails
+            except Exception as exc:
                 results.append(f"{cls.__name__} error {type(exc).__name__}")
         leaves = len(mob.family_members_with_points())
-        print(f"{name:18s} build {cold:6.1f} ms (again {again:5.1f}), {leaves:3d} leaves; scrub diff/visible: "
-              + ", ".join(results))
+        print(
+            f"{name:18s} build {cold:6.1f} ms (again {again:5.1f}), {leaves:3d} leaves; scrub diff/visible: "
+            + ", ".join(results)
+        )
 
 
 if __name__ == "__main__":

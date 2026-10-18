@@ -25,10 +25,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.core.schema import Spec  # noqa: E402
-from manim_studio.render.cairo_export import make_camera, render_frame  # noqa: E402
-from support import CANVAS, FRAMES  # noqa: E402
+from manim_studio.core import adapter
+from manim_studio.core.schema import Spec
+from manim_studio.render.cairo_export import make_camera, render_frame
+from support import CANVAS, FRAMES
 
 
 def paths() -> dict[str, m.VMobject]:
@@ -53,7 +53,9 @@ def scrub_diff(path: m.VMobject) -> int:
     worst = 0
     for i in random.Random(0).sample(range(len(FRAMES)), len(FRAMES)):
         scrub.interpolate(FRAMES[i])
-        worst = max(worst, int(np.abs(render_frame(camera, [path, scrub.mobject]).astype(int) - reference[i]).max()))
+        worst = max(
+            worst, int(np.abs(render_frame(camera, [path, scrub.mobject]).astype(int) - reference[i]).max())
+        )
     return worst
 
 
@@ -95,7 +97,9 @@ def main() -> None:
         for i in range(200):
             point(i / 199)
         table_ms = (time.perf_counter() - start) / 200 * 1000
-        table_diff = max(np.abs(point(a) - path.point_from_proportion(a)).max() for a in np.linspace(0, 1, 50))
+        table_diff = max(
+            np.abs(point(a) - path.point_from_proportion(a)).max() for a in np.linspace(0, 1, 50)
+        )
         print(
             f"{name:7s} curves {path.get_num_curves():4d}  scrub diff {scrub_diff(path)}  "
             f"interpolate {cost_ms(path):6.2f} ms  table {table_ms:5.3f} ms (max diff {table_diff:.1e})  "

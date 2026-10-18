@@ -35,11 +35,17 @@ broken handler used to pass unnoticed.
 
 ## Layout
 
-```
+The core and UI folders hold about 60 and 100 files; [tests/README.md](../../tests/README.md) has
+the naming conventions. The main ones:
+
+```text
 tests/
 ├── conftest.py        Manim cache + LaTeX setup, session `qt_app`, auto-skip of `latex`
 ├── support.py         shared constants (CANVAS, SQUARE, TEXT, …) and frame helpers
+├── qt_support.py      Qt helpers (FakeWorker)
 ├── test_logging.py    logging setup (ADR 0011)
+├── test_docs_links.py every Markdown link, anchor and code fence (scripts/check_docs.py)
+├── test_version.py, test_code_runner.py, test_worker_messages.py
 ├── core/
 │   ├── test_random_access.py   frames == Manim's sequential loop, incl. extreme easings
 │   ├── test_properties.py      random projects: order independence, invalidation

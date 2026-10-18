@@ -1,0 +1,30 @@
+# Examples
+
+Example projects, the scripts that build them, and example plugins. The builders use the same
+edit functions as the editor (`core/edits.py`), so the projects are exactly what the editor
+would save.
+
+| file | what it is | how to make / use it |
+|---|---|---|
+| `euler.json` | a small scene: a title, Euler's identity written, keyed (position, scale), indicated and transformed into Euler's formula | `manim-studio edit examples/euler.json`; used by `scripts/release_check.py`, and a copy (`tests/core/euler_example.json`) by the export tests |
+| `showcase.json` | one 10 s scene using most features: parts, TransformMatchingTex, keys on a custom curve, a code layer | built by `build_showcase.py`; the editor's **File > Open Example**; render with `--trust-code` (it has a code layer) |
+| `graphs.json` | axes and function graphs: Create, a graph morph, `tan(x)` poles, MoveAlongPath | built by `build_graphs.py` |
+| `explainer.json` | "What is a derivative?", a 1.5-minute explainer with subtitles, sound effects and a traced path | built by `build_explainer.py`; **not committed** (its sounds are about 20 MB and its paths absolute) |
+| `build_library.py` | writes the built-in presets, themes and templates into `src/manim_studio/library/` | edit its lists, run it, commit the JSON |
+| `plugins/pendulum.py` | an example plugin object (Add > Physics > Pendulum) | copy into `~/.manim-studio/plugins` and restart the editor |
+| `plugins/swinging_pendulum.py` | an example plugin simulation, stepped frame by frame | as above; add a Traced path to draw its bob's path |
+
+Run a builder from the repository root, then open or render the result:
+
+```bash
+uv run python examples/build_showcase.py
+uv run manim-studio render examples/showcase.json out/showcase.mp4 --trust-code
+```
+
+`out/` is ignored by git. Rendering from the command line writes Manim's cache to
+`examples/.cache/manim` (also ignored).
+
+Do not commit local edits to `euler.json` by accident: tests and the release check use it.
+
+See the [user guide](../docs/guide/index.md) for what each feature does, and
+[project-format.md](../docs/project-format.md) for the JSON.

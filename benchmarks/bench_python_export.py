@@ -39,7 +39,9 @@ def render(code: str, scene: str, folder: Path) -> tuple[list[np.ndarray], float
     start = time.perf_counter()
     subprocess.run(
         [sys.executable, "-m", "manim", "render", str(path), scene, "--media_dir", str(folder / "media")],
-        check=True, capture_output=True, cwd=folder,
+        check=True,
+        capture_output=True,
+        cwd=folder,
     )
     seconds = time.perf_counter() - start
     video = next((folder / "media" / "videos").rglob(f"{scene}.mp4"))
@@ -50,10 +52,14 @@ def render(code: str, scene: str, folder: Path) -> tuple[list[np.ndarray], float
 def main() -> None:
     adapter.configure(ROOT / ".cache" / "manim")
     readable = rich()
-    keyed = readable.model_copy(update={"layers": [  # keys are readable since G3a: turn a clipped layer
-        x.model_copy(update={"base": Transform2D(rotation=20.0, scale=0.8)}) if x.id == "ring" else x
-        for x in readable.layers
-    ]})
+    keyed = readable.model_copy(
+        update={
+            "layers": [  # keys are readable since G3a: turn a clipped layer
+                x.model_copy(update={"base": Transform2D(rotation=20.0, scale=0.8)}) if x.id == "ring" else x
+                for x in readable.layers
+            ]
+        }
+    )
     folder = Path(tempfile.mkdtemp(dir=ROOT / ".cache", prefix="bench-python-"))
     for project, scene in ((readable, "Readable"), (keyed, "Exact")):
         start = time.perf_counter()
@@ -66,8 +72,10 @@ def main() -> None:
             for i, t in enumerate(frame_times(project.canvas))
         )
         form = "readable" if export.readable else "exact"
-        print(f"{scene:9s} ({form}): generated in {generate:5.1f} ms, {len(export.code.splitlines())} lines; "
-              f"manim render {seconds:4.1f} s; worst per-frame mean diff {worst:.2f}")
+        print(
+            f"{scene:9s} ({form}): generated in {generate:5.1f} ms, {len(export.code.splitlines())} lines; "
+            f"manim render {seconds:4.1f} s; worst per-frame mean diff {worst:.2f}"
+        )
 
 
 if __name__ == "__main__":

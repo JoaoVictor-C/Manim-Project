@@ -1,6 +1,17 @@
 # Benchmarks
 
-Performance scripts for the per-frame path. They are not part of the test suite.
+Performance scripts: each measures one question (a frame's cost, a drag step, a memory peak)
+and prints the numbers recorded in [../docs/logs/benchmarks.md](../docs/logs/benchmarks.md) under
+its id (B1, B2, ...). They are not part of the test suite and are never imported by tests.
+
+Conventions:
+
+- `bench_<topic>.py`, a module docstring that starts with its id and question, and a `main()`;
+  a benchmark configures Manim inside `main()`, never at import (a test fails if any imported
+  module moves Manim's cache).
+- Some take options (`--quick`, `--minutes`, `--profile`...): run them with `--help`.
+- Scratch output goes under `.cache/` in the repository, not the system temp folder (LaTeX fails
+  under Windows' 8.3 temp paths).
 
 | script | measures |
 |---|---|
@@ -32,6 +43,16 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 | `bench_preset_thumbs.py` | every built-in preset drawn as an 8-frame thumbnail at 160x90 — B61 |
 | `bench_presets_browser.py` | the presets browser: first open, reopen, a search keystroke, a tab switch, a hover frame — B63 |
 | `bench_long_scene.py` | a synthetic 15-minute explainer (295 layers, 650 clips, 200 cues, one sound): validation, save/load, cold deep seek, scrub, memory, edits, timeline, autosave, audio mix, render-ahead store, export per frame; `--quick` (2 min), `--model-only`, `--profile` — B64 |
+| `bench_audio_spans.py` | the sound of a long scene: memory and time of the mix per span (ADR 0034 amendment) — B70 |
+| `bench_property_rows.py` | a timeline rebuild with every object's property rows expanded — B69 |
+| `bench_camera.py` | the project camera: the default 2D path against the pre-P7.5 camera code, and turned cameras — B68 |
+| `bench_keyed_export.py` | readable Python export of keyframed layers rendered by Manim vs the editor — B67 |
+| `bench_part_frames.py` | frame cost of an object with parts vs the same object without — B29 |
+| `bench_tex_parts.py` | addressing parts of an equation without changing it — B28 |
+| `fit_ease_beziers.py` | fits a cubic bezier to each named ease the panel offers — B27 |
+| `bench_export_ui.py` | S4 acceptance: the editor stays responsive while a video is exported — B26 |
+| `bench_canvas_drag.py` | S3 acceptance: dragging an object on the canvas in the real editor window — B24 |
+| `bench_canvas_interaction.py` | S3 planning: the costs of clicking and dragging objects on the canvas |
 | `bench_python_export.py` | exported Python (both forms) rendered by Manim vs the editor — B44 |
 | `bench_axes_objects.py` | Manim's Axes helpers on our axes and graphs: build cost, scrubbing — B42 |
 | `bench_render_ahead.py` | preview frame cost at widget size, keeping frames (raw, zlib), showing them again — B41 |
@@ -42,6 +63,8 @@ Performance scripts for the per-frame path. They are not part of the test suite.
 ```bash
 uv run python benchmarks/bench_preview.py
 ```
+
+(Or `.venv/Scripts/python benchmarks/bench_preview.py` when `uv run` cannot find the interpreter.)
 
 When a result informs a decision, append it to
 [../docs/logs/benchmarks.md](../docs/logs/benchmarks.md) with the next id, the

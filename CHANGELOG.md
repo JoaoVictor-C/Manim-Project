@@ -29,6 +29,10 @@ All notable changes to this project are documented here. The format follows
   must draw the same thing each time) and is stopped after 10 s (new code is tried in the build
   worker first). The readable Python export writes the code once as `_build_<name>(...)`.
 
+### Changed
+- Documentation: README, user guide (docs/guide), refreshed architecture and contributing guides,
+  link checker (`scripts/check_docs.py`) and a generated shortcuts page (`scripts/gen_shortcuts.py`).
+
 ## [0.3.0] - unreleased
 
 Proposed, not yet released: a tag and any publication wait for the maintainer (ADR 0045). The
