@@ -44,6 +44,7 @@ from __future__ import annotations
 import copy
 import itertools
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import manim as m
@@ -136,6 +137,9 @@ class Evaluator:
         self._traces: dict[str, _Trace] = {}  # traced paths (ADR 0033)
         self._connectors: dict[str, tuple[object, m.Mobject]] = {}  # the last drawing of each (ADR 0036)
         self._sim_errors: dict[str, str] = {}  # simulations that failed while stepping
+        # Builds that raised, by what was built: no LaTeX on this computer, a broken file... The
+        # object is a placeholder and says why; nothing else stops (a raise here broke the editor).
+        self._build_failed: dict[str, str] = {}
         self._index()
 
     def _index(self) -> None:
@@ -274,9 +278,26 @@ class Evaluator:
                 continue
             problem = adapter.build_problem(layer.spec, self._media_signature(layer))
             problem = problem or self._sim_errors.get(layer.id)  # a step failed later (ADR 0033)
+            problem = problem or self._build_failed.get(layer.spec.model_dump_json())
             if problem is not None:
                 out[layer.id] = problem
         return out
+
+    def built(self, spec: Spec) -> m.Mobject:
+        """``spec`` built as the editor draws it: the placeholder when it cannot be (the canvas's
+        handles ask this, not the adapter, so no LaTeX does not break them either)."""
+        return self._built(spec, lambda: adapter.build_mobject(spec))
+
+    def _built(self, spec: Spec, build: Callable[[], m.Mobject]) -> m.Mobject:
+        """``build()``, or the dashed placeholder when it raises (its reason in ``build_errors``)."""
+        key = spec.model_dump_json()
+        if key not in self._build_failed:
+            try:
+                return build()
+            except Exception as exc:
+                self._build_failed[key] = adapter.build_failure(exc)
+                log.warning("cannot build %s: %s", spec.type, self._build_failed[key])
+        return adapter.build_mobject(Spec(type="?"))  # the dashed placeholder (ADR 0027)
 
     def _media_signature(self, layer: Layer) -> str | None:
         """The file signature this layer is drawn from (stat-ed once, then kept until
@@ -350,9 +371,14 @@ class Evaluator:
         if layer.id not in self._base:
             if layer.is_child:  # a child object alone, built against its parent (a path, ADR 0025)
                 parent = self._layers[layer.parent_id].spec
-                built = adapter.build_child(parent, layer.spec, self.project.referenced_graphs(layer))
+                built = self._built(
+                    layer.spec,
+                    lambda: adapter.build_child(parent, layer.spec, self.project.referenced_graphs(layer)),
+                )
             else:
-                built = adapter.build_mobject(layer.spec, self._media_signature(layer))
+                built = self._built(
+                    layer.spec, lambda: adapter.build_mobject(layer.spec, self._media_signature(layer))
+                )
             self._base[layer.id] = built
         return self._base[layer.id]
 
@@ -820,10 +846,10 @@ class Evaluator:
         resolution = parts.resolve(self.project, root.id)
         spec = parts.build_spec(self.project, root.id, resolution)
         if root.id not in self._base:
-            self._base[root.id] = adapter.build_mobject(spec)
+            self._base[root.id] = self._built(root.spec, lambda: adapter.build_mobject(spec))
         leaves = self._base[root.id].family_members_with_points()
         regions = {root.id: tuple(range(len(leaves)))}
-        if resolution.order:
+        if resolution.order and root.spec.model_dump_json() not in self._build_failed:
             regions.update(zip(resolution.order, adapter.part_regions(spec), strict=True))
         members = (root.id, *(d.id for d in self._ltree.descendants(root.id) if d.id in regions))
         owned = {}
@@ -846,9 +872,16 @@ class Evaluator:
         """An object and its child objects (ADR 0029): the root's build, then each child's built
         against it; a child owns its slice of the glyphs and pivots as before (no rest centre)."""
         if root.id not in self._base:
-            builds = [adapter.build_mobject(root.spec, self._media_signature(root))]
+            builds = [
+                self._built(root.spec, lambda: adapter.build_mobject(root.spec, self._media_signature(root)))
+            ]
             builds += [
-                adapter.build_child(root.spec, child.spec, self.project.referenced_graphs(child))
+                self._built(
+                    child.spec,
+                    lambda child=child: adapter.build_child(
+                        root.spec, child.spec, self.project.referenced_graphs(child)
+                    ),
+                )
                 for child in children
             ]
             vector = all(isinstance(b, m.VMobject) for b in builds)
