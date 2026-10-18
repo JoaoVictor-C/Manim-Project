@@ -462,10 +462,12 @@ class LayersPanel(QWidget):
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), f"Add {type_name}")
 
-    def add_python_object(self) -> None:
-        """A Python object with the starter code (ADR 0051): made on the Code page, not the library."""
-        spec = Spec(type=PYTHON_TYPE, params={"code": python_object.STARTER})
-        self.trust_code(python_object.STARTER)  # the editor's own starter
+    def add_python_object(self, code: str | None = None) -> None:
+        """A Python object (ADR 0051), from a template (the right triangle by default): made on the
+        Code page, not the library."""
+        code = python_object.STARTER if code is None else code
+        spec = Spec(type=PYTHON_TYPE, params={"code": code})
+        self.trust_code(code)  # the editor's own template
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), "Add Python object")
 

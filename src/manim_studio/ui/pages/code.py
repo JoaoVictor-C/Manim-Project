@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, edits, python_object
+from ...core import adapter, edits, python_object, python_templates
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from .. import icons, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
@@ -135,7 +135,13 @@ class CodePage(Page):
             "Add an object built by your own Manim code (PARAMS + build(p)), starting from a right "
             "triangle; its parameters become fields in Properties"
         )
-        self.new_python_button.clicked.connect(self.new_python_object)
+        self.new_python_button.clicked.connect(lambda: self.new_python_object())
+        templates = QMenu(self.new_python_button)  # the arrow: which template to start from
+        for name, code in python_templates.TEMPLATES.items():
+            action = templates.addAction(name)
+            action.setToolTip(f"Start from the {name} template")
+            action.triggered.connect(lambda _=False, c=code: self.new_python_object(c))
+        self.new_python_button.setMenu(templates)
         self.rename_button = QPushButton("Rename")
         self.rename_button.setToolTip("Rename the chosen layer (F2, or double-click it)")
         self.rename_button.clicked.connect(self.rename_layer)
@@ -510,12 +516,13 @@ class CodePage(Page):
             return
         self.window.layers.add_object("Code")  # selects it; the page follows the selection
 
-    def new_python_object(self) -> None:
-        """Add a Python object with the starter code (ADR 0051); the page shows it."""
+    def new_python_object(self, code: str | None = None) -> None:
+        """Add a Python object from a template (ADR 0051; the right triangle unless ``code``); the
+        page shows it."""
         if self.window.project is None:
             self.window.statusBar().showMessage("Create or open a project first.", 5000)
             return
-        self.window.layers.add_python_object()  # selects it; the page follows the selection
+        self.window.layers.add_python_object(code)  # selects it; the page follows the selection
         if self.window.page != self.name:
             self.window.show_page(self.name)
 

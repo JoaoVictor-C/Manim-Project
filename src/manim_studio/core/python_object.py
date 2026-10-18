@@ -36,7 +36,9 @@ from typing import Any, Literal
 PYTHON_TYPE = "Python"
 MAX_CODE = 64 * 1024  # characters of source a Python object may hold
 FILENAME = "<python object>"  # what tracebacks name the user's code (to find its lines)
-TIME_LIMIT = 10.0  # seconds a build may run before it is stopped (an endless loop must not freeze)
+# Seconds a build may run before it is stopped (an endless loop must not freeze). It counts the
+# LaTeX a build waits for: the first formula after a MiKTeX update can take many seconds.
+TIME_LIMIT = 30.0
 NOT_TRUSTED = "code not trusted yet"
 TIMED_OUT = "building took longer than"  # how a stopped build's message starts
 
