@@ -500,10 +500,20 @@ class _Recorder:
         """An object as it is now: its name, its pieces, and a built-in object that rebuilds it."""
         name = self.object(mob, line)
         pairs = self.pairs(mob)
+        self.candidate(mob, pairs)
+        return {"object": name, "leaves": pairs}
+
+    def candidate(self, mob, pairs: list[list[str]]) -> None:
+        """Find the built-in object rebuilding ``mob`` (and each member of a group: one animated on
+        its own becomes a layer of its own)."""
+        import manim as m
+
         key = "|".join(f"{a}:{b}" for a, b in pairs)
         if pairs and key not in self.candidates:
             self.candidates[key] = _candidate(mob, pairs)
-        return {"object": name, "leaves": pairs}
+        if type(mob) in (m.VGroup, m.Group):
+            for sub in mob.submobjects:
+                self.candidate(sub, self.pairs(sub))
 
     def draw(self, scene) -> list[list[str]]:
         """What Manim draws now, in its drawing order (the z-index sort included)."""
@@ -865,18 +875,22 @@ class _Recorder:
         def begin():
             if target is not None:
                 record["at_begin"] = recorder.observe(target)["leaves"]
+                record["flat"] = _flat(target)
                 if record.get("kind") == "rotate":
                     record["about"] = _about(anim, target)
             if to is not None:
                 record["to_at_begin"] = recorder.observe(to)["leaves"]
+                record["to_flat"] = _flat(to)
             own_begin()
 
         def finish():
             own_finish()
             if target is not None:
                 record["at_finish"] = recorder.pairs(target)
+                record["finish_flat"] = _flat(target)
             if to is not None:
                 record["to_at_finish"] = recorder.pairs(to)
+                record["to_finish_flat"] = _flat(to)
 
         anim.begin, anim.finish = begin, finish
 
@@ -1331,6 +1345,14 @@ def _rounded(spec):
         params={k: tidy(v) for k, v in spec.params.items()},
         style={k: tidy(v) for k, v in spec.style.items()},
     )
+
+
+def _flat(mob) -> bool:
+    """Is ``mob``'s tree what a shape's is - a group of single pieces, or one piece - so that a
+    Transform pairs the same pieces whichever of the two it is given (Mobject.null_point_align)?"""
+    if mob.has_points():
+        return not mob.submobjects
+    return all(not sub.submobjects for sub in mob.submobjects)
 
 
 def _tree(mob) -> tuple:
