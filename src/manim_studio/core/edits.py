@@ -33,6 +33,7 @@ from pydantic import ValidationError
 from . import motion_paths, parts
 from .schema import (
     CAMERA_FIELDS,
+    GROUP_TYPE,
     AudioClip,
     Camera,
     Clip,
@@ -45,7 +46,9 @@ from .schema import (
     Project,
     Spec,
     SubtitleStyle,
+    Transform2D,
     clip_params,
+    infer_lifetime,
 )
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
@@ -138,6 +141,14 @@ def remove_layers(project: Project, layer_ids) -> Edit:
     while True:  # and what is built from a deleted graph (ADR 0030), traces of what is deleted (ADR 0033)
         more = {x.id for x in project.layers if x.id not in gone and set(project.referenced_graphs(x)) & gone}
         more |= (project.traces_of(gone) | project.connectors_of(gone)) - gone  # and connectors (ADR 0036)
+        more |= {  # and a group left with nothing in it (ADR 0050)
+            x.id
+            for x in project.layers
+            if x.is_group
+            and x.id not in gone
+            and (kids := project.children(x.id))
+            and all(k.id in gone for k in kids)
+        }
         if not more:
             break
         gone |= more
@@ -167,6 +178,130 @@ def move_layer(project: Project, layer_id: str, index: int) -> Edit:
     roots = [root for root in project.roots() if root.id != layer_id]
     roots.insert(max(0, min(index, len(roots))), layer)
     return _replace_layers(project, [x for root in roots for x in (root, *project.descendants(root.id))])
+
+
+# -- groups (U6, ADR 0050) ---------------------------------------------------------------
+
+
+def group_layers(project: Project, layer_ids: Iterable[str], name: str = "") -> Edit:
+    """Put whole objects in a new group, drawn where the front-most of them was (the others come
+    up to it, in their order). Their ids, specs, clips and keys are kept; the group's transform is
+    the identity, so nothing moves."""
+    picked = list(dict.fromkeys(layer_ids))
+    if not picked:
+        raise EditError("select the objects to group")
+    for layer_id in picked:
+        layer = _layer(project, layer_id)
+        if layer.is_group:
+            raise EditError(f"{layer.label!r} is a group: groups cannot be put in a group (not yet)")
+        if layer.is_child:
+            owner = project.layer(layer.parent_id)
+            what = "is a part of" if layer.is_part else "belongs to"
+            raise EditError(f"{layer.label!r} {what} {owner.label!r}: group whole objects")
+        if project.children(layer_id):
+            raise EditError(
+                f"{layer.label!r} has parts or objects on axes: it cannot be in a group (not yet)"
+            )
+    chosen = set(picked)
+    group = Layer(id=new_layer_id(project, GROUP_TYPE), name=name, spec=Spec(type=GROUP_TYPE))
+    members = [x.model_copy(update={"parent_id": group.id}) for x in project.layers if x.id in chosen]
+    front = max(i for i, x in enumerate(project.layers) if x.id in chosen)
+    layers = []
+    for i, layer in enumerate(project.layers):
+        if layer.id not in chosen:
+            layers.append(layer)
+        elif i == front:
+            layers += [group, *members]
+    return _validated(project, layers, "Group")
+
+
+def ungroup(project: Project, group_id: str) -> Edit:
+    """Take a group's objects out of it, where it was drawn, each keeping how it looks: the
+    group's transform is baked into their own (exact while the group is not keyed: refused then),
+    and its Appears / Disappears into their lifetimes."""
+    group = _layer(project, group_id)
+    if not group.is_group:
+        raise EditError(f"{group.label!r} is not a group")
+    if any(group.tracks.values()):
+        raise EditError(
+            f"{group.label!r} has keyframes: bake the keys first (remove them, keeping its look) to ungroup"
+        )
+    g_start, g_end = project.lifetime(group_id)
+    sources = project.morph_sources()
+    freed: list[Layer] = []
+    for child in project.children(group_id):
+        data = _carried(child, group.base).model_dump(by_alias=True)
+        data["parent_id"] = None
+        start, end = infer_lifetime(child, sources.get(child.id))
+        if group.lifetime.in_ is not None and start < g_start:
+            data["lifetime"]["in"] = g_start  # the group made it appear later
+        if group.lifetime.out is not None and end > g_end:
+            data["lifetime"]["out"] = g_end
+        freed.append(Layer.model_validate(data))
+    layers = []
+    for layer in project.layers:
+        if layer.id == group_id:
+            layers += freed
+        elif layer.parent_id != group_id:
+            layers.append(layer)
+    return _validated(project, layers, "Ungroup")
+
+
+def _carried(layer: Layer, outer: Transform2D) -> Layer:
+    """``layer`` with ``outer`` (a constant parent transform) composed onto its own transform.
+
+    World = G(C(p)) with G, C similarities about their anchors. Keeping C's anchor, the composed
+    transform has scale sG*sC, rotation rG+rC, opacity oG*oC and position A_G pos + A_G anchor
+    - anchor + b_G: affine in pos alone, so every key (and path tangent) maps exactly."""
+    if outer == Transform2D():
+        return layer
+    angle = math.radians(outer.rotation)
+    c, s = math.cos(angle) * outer.scale, math.sin(angle) * outer.scale
+    a = np.array([[c, -s], [s, c]])
+    g_anchor = np.array(outer.anchor, dtype=float)
+    b_g = np.array(outer.position, dtype=float) + g_anchor - a @ g_anchor
+    anchor = np.array(layer.base.anchor, dtype=float)
+    shift = a @ anchor - anchor + b_g
+
+    def point(value) -> tuple[float, float]:
+        x, y = a @ np.asarray(value, dtype=float) + shift
+        return (float(x), float(y))
+
+    def vector(value):
+        if value is None:
+            return None
+        x, y = a @ np.asarray(value, dtype=float)
+        return (float(x), float(y))
+
+    maps = {
+        "position": point,
+        "scale": lambda v: v * outer.scale,
+        "rotation": lambda v: v + outer.rotation,
+        "opacity": lambda v: v * outer.opacity,
+    }
+    base = layer.base.model_copy(update={name: maps[name](getattr(layer.base, name)) for name in maps})
+    tracks = {}
+    for name, track in layer.tracks.items():
+        tracks[name] = [
+            key.model_copy(
+                update={
+                    "value": maps[name](key.value),
+                    "in_tangent": vector(key.in_tangent),
+                    "out_tangent": vector(key.out_tangent),
+                }
+            )
+            for key in track
+        ]
+    return layer.model_copy(update={"base": base, "tracks": tracks})
+
+
+def _validated(project: Project, layers: list[Layer], verb: str) -> Edit:
+    """``_replace_layers``, a refusal of the project's rules said as an ``EditError``."""
+    try:
+        return _replace_layers(project, layers)
+    except ValidationError as error:
+        message = str(error.errors()[0]["msg"]).removeprefix("Value error, ")
+        raise EditError(f"cannot {verb.lower()}: {message}") from None
 
 
 # -- parts (P2c, ADR 0012) ------------------------------------------------------------
@@ -835,7 +970,15 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
         touched = set(old_layers) | set(new_layers)
     for layer_id in old_layers.keys() | new_layers.keys():
         a, b = old_layers.get(layer_id), new_layers.get(layer_id)
-        layer_kind = "clip" if a is None or b is None else _layer_kind(a, b)
+        # Into, out of or between groups (ADR 0050): built and animated as before, only carried.
+        regrouped = (
+            a is not None
+            and b is not None
+            and a.parent_id != b.parent_id
+            and _group_or_none(old_layers, a.parent_id)
+            and _group_or_none(new_layers, b.parent_id)
+        )
+        layer_kind = "clip" if a is None or b is None else _layer_kind(a, b, regrouped)
         if (
             layer_kind != "spec"
             and a is not None
@@ -851,6 +994,7 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
             and b is not None
             and b.is_child
             and not b.is_part
+            and not regrouped
             and old_layers[a.parent_id].spec != new_layers[b.parent_id].spec
         ):
             layer_kind = "spec"  # its parent changed: a graph is plotted again on new axes (ADR 0024)
@@ -869,10 +1013,15 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
     return kind, frozenset(touched | _morph_partners(old, touched) | _morph_partners(new, touched))
 
 
-def _layer_kind(a: Layer, b: Layer) -> EditKind | None:
+def _group_or_none(layers: dict[str, Layer], parent_id: str | None) -> bool:
+    return parent_id is None or (parent_id in layers and layers[parent_id].is_group)
+
+
+def _layer_kind(a: Layer, b: Layer, regrouped: bool = False) -> EditKind | None:
     if a == b:
         return None
-    if a.spec != b.spec or a.part != b.part or a.parent_id != b.parent_id or a.style != b.style:
+    moved = a.parent_id != b.parent_id and not regrouped
+    if a.spec != b.spec or a.part != b.part or moved or a.style != b.style:
         return "spec"  # a part's colours (ADR 0049) are in its object's states: the tree is redone
     if [c.id for c in a.clips] != [c.id for c in b.clips]:
         return "clip"  # added, removed or reordered: predecessors changed
@@ -884,8 +1033,8 @@ def _layer_kind(a: Layer, b: Layer) -> EditKind | None:
         if changed - _TIMING_FIELDS:
             return "clip"
         timing = True
-    if a.base != b.base or a.tracks != b.tracks:
-        return "transform"
+    if a.base != b.base or a.tracks != b.tracks or a.parent_id != b.parent_id:
+        return "transform"  # another group carries it: drawn elsewhere, built the same (ADR 0050)
     return "timing" if timing or a.lifetime != b.lifetime or a.name != b.name else None
 
 

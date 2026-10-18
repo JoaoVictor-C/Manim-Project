@@ -14,6 +14,7 @@ from __future__ import annotations
 import itertools
 import math
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -49,7 +50,14 @@ GRAPH_PARAMS: dict[str, tuple[tuple[str, bool], ...]] = {
     "GraphLabel": (("graph", True),),
 }
 NOT_PATHS = frozenset({"AxisLabels", "GraphLabel"})  # text glyphs make no useful path (ADR 0030)
-_NOT_A_PATH = CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES | CONNECTOR_TYPES  # motion paths (ADR 0025)
+# A group (ADR 0050): a root that draws nothing; its transform carries its children (parent_id = it).
+GROUP_TYPE = "Group"
+GROUP_TYPES = frozenset({GROUP_TYPE})
+_NOT_A_PATH = (
+    CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES | CONNECTOR_TYPES | GROUP_TYPES
+)  # motion paths (ADR 0025)
+_WORLD_DRAWN = TRACE_TYPES | CONNECTOR_TYPES  # drawn in world units: not inside a group (ADR 0050)
+GROUPS_ONE_OBJECT = "groups are evaluated as one object"  # why the readable export falls back
 
 Vec2 = tuple[float, float]
 ClipCategory = Literal["content", "emphasis", "motion", "morph"]
@@ -369,6 +377,11 @@ class Layer(BaseModel):
         return self.parent_id is not None
 
     @property
+    def is_group(self) -> bool:
+        """A group (ADR 0050): draws nothing; its transform carries its children."""
+        return self.spec is not None and self.spec.type in GROUP_TYPES
+
+    @property
     def locked(self) -> bool:
         """Follows its parent exactly (a graph on its axes): only opacity is its own."""
         return self.spec is not None and self.spec.type in LOCKED_TYPES
@@ -394,6 +407,12 @@ class Layer(BaseModel):
         if self.parent_id is not None and (self.part is None) == (self.spec is None):
             raise ValueError(
                 f"layer {self.id!r}: a child layer needs a part key (a part) or its own spec (an object)"
+            )
+        if self.is_group and self.parent_id is not None:
+            raise ValueError(f"layer {self.id!r}: a group cannot be inside another group (not yet)")
+        if self.is_group and self.clips:
+            raise ValueError(
+                f"layer {self.id!r}: a group has no clips (not yet): put the clips on its objects"
             )
         if self.style and not self.is_part:
             raise ValueError(f"layer {self.id!r}: only part layers have a style (an object has spec.style)")
@@ -618,6 +637,13 @@ class Project(BaseModel):
                     raise ValueError(f"clip {clip.id!r}: a layer cannot morph into {what}")
                 if clip.to_layer == layer.id:
                     raise ValueError(f"clip {clip.id!r}: a layer cannot morph into itself")
+                if target.is_group:
+                    raise ValueError(f"clip {clip.id!r}: a layer cannot morph into a group")
+                if _group_of(by_id, layer) != _group_of(by_id, target):  # ADR 0050
+                    raise ValueError(
+                        f"clip {clip.id!r}: a morph stays inside its group - {layer.id!r} and "
+                        f"{target.id!r} are not in the same group"
+                    )
                 if clip.to_layer in targeted:
                     raise ValueError(
                         f"layer {clip.to_layer!r} is the target of two morphs "
@@ -633,7 +659,7 @@ class Project(BaseModel):
             for clip in layer.clips:
                 if clip.info.category != "motion":
                     continue
-                if layer.is_child:
+                if layer.is_child and _group_of(by_id, layer) is None:  # an object in a group travels
                     raise ValueError(f"clip {clip.id!r}: {clip.kind} moves whole objects, not {layer.id!r}")
                 path = by_id.get(clip.params.get("path"))
                 if path is None:
@@ -725,6 +751,7 @@ class Project(BaseModel):
         """ADR 0012: parts hang under MathTex/Tex roots; no clip on a part overlaps an ancestor's
         clip. ADR 0024: child objects hang under a root that accepts their type."""
         by_id = {layer.id: layer for layer in self.layers}
+        parents = {layer.parent_id for layer in self.layers}
         for layer in self.layers:
             if layer.parent_id is None:
                 if layer.spec.type in LOCKED_TYPES:
@@ -741,7 +768,9 @@ class Project(BaseModel):
                     raise ValueError(f"layer {layer.id!r}: its parents form a cycle")
                 seen.add(node.id)
                 node = by_id[node.parent_id]
-            if not layer.is_part:
+            if by_id[layer.parent_id].is_group:  # ADR 0050: v1 groups hold plain objects
+                _check_group_member(layer, layer.id in parents)
+            elif not layer.is_part:
                 parent = by_id[layer.parent_id]
                 if parent.spec is None or layer.spec.type not in CHILD_TYPES.get(parent.spec.type, ()):
                     raise ValueError(
@@ -805,7 +834,10 @@ class Project(BaseModel):
     def lifetime(self, layer_id: str) -> tuple[float, float]:
         """When a layer is visible; a part's lifetime is clamped to its parent's (ADR 0012)."""
         layer = self.layer(layer_id)
-        start, end = infer_lifetime(layer, self.morph_sources().get(layer_id))
+        sources = self.morph_sources()
+        if layer.is_group:  # the span of its children (ADR 0050)
+            return group_span(layer, (infer_lifetime(c, sources.get(c.id)) for c in self.children(layer_id)))
+        start, end = infer_lifetime(layer, sources.get(layer_id))
         if layer.parent_id is not None:
             parent_start, parent_end = self.lifetime(layer.parent_id)
             start, end = max(start, parent_start), min(end, parent_end)
@@ -855,6 +887,43 @@ def _traceable(own_id: str, other: Layer | None) -> bool:
         and other.id != own_id
         and not (other.spec is not None and other.spec.type in TRACE_TYPES | CODE_TYPES | CONNECTOR_TYPES)
     )
+
+
+def _check_group_member(layer: Layer, has_children: bool) -> None:
+    """ADR 0050: a v1 group holds whole plain objects - no parts, no groups, no objects with parts
+    or objects on axes, nothing drawn in world units (a traced path, a connector)."""
+    if layer.is_part:
+        raise ValueError(f"layer {layer.id!r}: a part belongs to its MathTex or Tex, not to a group")
+    if layer.spec.type in LOCKED_TYPES:
+        raise ValueError(f"layer {layer.id!r}: a {layer.spec.type} belongs to its axes, not to a group")
+    if has_children:
+        raise ValueError(
+            f"layer {layer.id!r}: an object with parts or objects on axes cannot be in a group (not yet)"
+        )
+    if layer.spec.type in _WORLD_DRAWN:
+        what = "a traced path" if layer.spec.type in TRACE_TYPES else "a connector"
+        raise ValueError(
+            f"layer {layer.id!r}: {what} is drawn where its layers are, so it cannot be in a group"
+        )
+
+
+def _group_of(by_id: dict[str, Layer], layer: Layer) -> str | None:
+    """The group ``layer`` is in (ADR 0050), or None."""
+    parent = by_id.get(layer.parent_id) if layer.parent_id is not None else None
+    return parent.id if parent is not None and parent.is_group else None
+
+
+def group_span(group: Layer, spans: Iterable[tuple[float, float]]) -> tuple[float, float]:
+    """When a group is visible (ADR 0050): its explicit Appears / Disappears, else the span of its
+    children's own lifetimes (``spans``: each child's ``infer_lifetime``, not clamped). A group with
+    no children is never visible."""
+    spans = list(spans)
+    start, end = group.lifetime.in_, group.lifetime.out
+    if start is None:
+        start = min((s for s, _ in spans), default=0.0)
+    if end is None:
+        end = max((e for _, e in spans), default=0.0)
+    return start, end
 
 
 def _within(by_id: dict[str, Layer], node: Layer, root_id: str) -> bool:

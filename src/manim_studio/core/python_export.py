@@ -27,6 +27,7 @@ from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
     DIRECTIONS,
+    GROUPS_ONE_OBJECT,
     NUMBER_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
@@ -92,7 +93,11 @@ def readable_problems(project: Project) -> list[str]:
     def name(layer: Layer) -> str:
         return layer.name or layer.id
 
+    groups = {layer.id for layer in project.layers if layer.is_group}
     for layer in project.layers:
+        if layer.is_group or layer.parent_id in groups:  # ADR 0050
+            out.append(f"{name(layer)}: {GROUPS_ONE_OBJECT}")
+            continue
         if layer.parent_id is not None:
             out.append(f"{name(layer)}: parts and objects on axes are evaluated as one object")
             continue

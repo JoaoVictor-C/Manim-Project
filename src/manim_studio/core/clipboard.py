@@ -20,6 +20,9 @@ graph / trace /    remapped                     the layer is not pasted
 connector targets
 =================  ===========================  ===================================
 
+An object copied out of a group (ADR 0050) is pasted into that group when it is in the
+destination, otherwise on its own.
+
 A copy keeps the original's visible span: a morph target copied without its source
 gets an explicit lifetime start, a copy losing its morph an explicit end.
 
@@ -40,6 +43,7 @@ from .edits import Edit
 from .schema import (
     CONNECTOR_TYPES,
     GRAPH_PARAMS,
+    GROUP_TYPE,
     TRACE_TYPES,
     AudioClip,
     Clip,
@@ -218,6 +222,8 @@ def paste_layers(project: Project, payload: LayersPayload, above: str | None = N
     if not tops or all(top.id in skipped for top in tops):
         raise ClipboardError(notes[0] if notes else NOTHING)
     for top in tops:
+        if payload.outside.get(top.parent_id or "") == GROUP_TYPE:
+            continue  # in its group if it is here, else on its own (ADR 0050)
         if top.parent_id is not None and not kept_outside(top.parent_id):
             owner = payload.outside.get(top.parent_id, "")
             where = "its axes are" if owner == "Axes" else "the object it belongs to is"

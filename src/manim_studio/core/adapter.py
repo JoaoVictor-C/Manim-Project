@@ -36,6 +36,7 @@ from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
     DIRECTIONS,
+    GROUP_TYPES,
     MEDIA_TYPES,
     NUMBER_TYPES,
     RASTER_TYPES,
@@ -413,6 +414,8 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
     """
     if spec.type in CODE_TYPES:
         raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
+    if spec.type in GROUP_TYPES:
+        return m.VGroup()  # draws nothing: its children are drawn through it (ADR 0050)
     if spec.type not in MOBJECT_TYPES:
         return _placeholder(2.0).copy()  # build_problem says why
     if spec.type in TRACE_TYPES:
@@ -462,7 +465,7 @@ def media_signature(spec: Spec) -> str | None:
 
 def build_problem(spec: Spec, signature: str | None = None) -> str | None:
     """Why an object is drawn as a placeholder (a media file, a plugin, a missing plugin), or None."""
-    if spec.type in CODE_TYPES:
+    if spec.type in CODE_TYPES | GROUP_TYPES:
         return None
     if spec.type not in MOBJECT_TYPES and spec.type not in CHILD_ONLY_TYPES:
         return f"no installed plugin provides {spec.type}"
@@ -1258,8 +1261,8 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
 
 def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
-    if mobject_type in CODE_TYPES:
-        return []  # code layers animate inside their code (ADR 0019)
+    if mobject_type in CODE_TYPES | GROUP_TYPES:
+        return []  # code layers animate inside their code (ADR 0019); groups have no clips (ADR 0050)
     if mobject_type in TRACE_TYPES | CONNECTOR_TYPES or mobject_type in plugins.SIMULATIONS:
         return []  # simulated layers and connectors are drawn frame by frame (ADR 0033, 0036)
     kinds = [
