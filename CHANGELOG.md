@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - unreleased
+
+Proposed, not yet released: a tag and any publication wait for the maintainer (ADR 0045). The
+first version with the editor - a visual, timeline-based studio on Manim 0.22 with five
+workspace pages (there was no 0.2.0 release). Summary and install notes:
+[docs/releases/0.3.0.md](docs/releases/0.3.0.md).
+
 ### Changed
 - The Animate page (P7.3, ADR 0047): an object's timeline row expands (the arrow by its name, or
   Alt+click) into one row per property it can key, each with its value at the playhead, a diamond
