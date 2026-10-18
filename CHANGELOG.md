@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- A **Right triangle** object (Add Object > Shapes): a base length and the acute angle, the right angle
+  marked, fillable and coloured like any shape, written out as plain shapes in the readable Python
+  export (it was hand-built from lines in the Pythagoras project).
 - F in the canvas frames the selected objects as large as fit, and the whole frame when nothing is
   selected (Unity's F; View > Frame Selection). Shift+F stays Fit Timeline (P7.4).
 - The scene's length (P7.1, decision session 43): Properties shows the **Scene** when nothing is
