@@ -345,6 +345,12 @@ class MainWindow(QMainWindow):
             ),
             ("&Fit", ("Ctrl+0",), self.canvas.fit, "Fit the whole video frame in the canvas"),
             (
+                "Frame &Selection",
+                (),
+                self.canvas.frame_selection,
+                "Zoom to the selected objects (F in the canvas; the whole frame when nothing is selected)",
+            ),
+            (
                 "&Actual Size (100 %)",
                 ("Ctrl+1",),
                 self.canvas.actual_size,

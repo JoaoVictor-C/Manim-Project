@@ -84,6 +84,26 @@ def at_scale(view: View, canvas: Canvas, width: float, height: float, scale: flo
     return replace(view, fit=False, scale=scale, centre=(float(geo.centre[0]), float(geo.centre[1])))
 
 
+FRAME_MARGIN = 0.15  # of the box, on each side, when a selection is framed
+MIN_FRAMED_UNITS = 0.5  # a dot or a flat line is framed as if it were this big
+
+
+def frame_box(
+    canvas: Canvas,
+    width: float,
+    height: float,
+    low: tuple[float, float],
+    high: tuple[float, float],
+) -> View:
+    """The view that shows the world box ``low``-``high`` centred, with a margin (F, P7.4)."""
+    box_w = max(high[0] - low[0], MIN_FRAMED_UNITS) * (1 + 2 * FRAME_MARGIN)
+    box_h = max(high[1] - low[1], MIN_FRAMED_UNITS) * (1 + 2 * FRAME_MARGIN)
+    ppu = min(width / box_w, height / box_h)
+    scale = min(max(ppu / export_ppu(canvas), SCALE_LIMITS[0]), SCALE_LIMITS[1])
+    centre = ((low[0] + high[0]) / 2, (low[1] + high[1]) / 2)
+    return View(fit=False, scale=scale, centre=centre)
+
+
 def label(view: View, geo: ViewGeometry) -> str:
     percent = f"{geo.scale * 100:.0f} %"
     return f"Fit ({percent})" if view.fit else percent

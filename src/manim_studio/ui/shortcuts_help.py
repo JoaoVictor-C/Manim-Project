@@ -47,6 +47,7 @@ GESTURES: tuple[Row, ...] = (
     Row("Canvas", "Move the anchor (Shift: snap); centre it", "Ctrl+Drag / Ctrl+Double-click the cross"),
     Row("Canvas", "Select a part of an object; back out", "Double-click / Escape"),
     Row("Canvas", "Cancel a drag", "Escape"),
+    Row("Canvas", "Zoom to the selected objects (the whole frame when none)", "F"),
     Row("Canvas", "Zoom about the cursor / pan", "Ctrl+Wheel / Wheel, Middle-drag"),
     Row("Canvas", "Bend a motion path; smooth or straighten a key", "Drag a handle / Double-click a key"),
     Row("Timeline", "Move or trim a clip, move a key or a marker", "Drag (Alt: no snapping)"),
