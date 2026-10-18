@@ -5,6 +5,7 @@ step that undo reverses exactly; a reason in the status bar when it cannot be fr
 from __future__ import annotations
 
 import os
+import uuid
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -44,7 +45,11 @@ def layers(tmp_path) -> list[Layer]:
             ),
         ),
         Layer(id="gone", spec=Spec(type="SVGMobject", params={"path": str(tmp_path / "gone.svg")})),
-        Layer(id="py", spec=Spec(type="Python", params={"code": python_object.STARTER})),
+        # code no other test trusted (the trust store is shared by the session)
+        Layer(
+            id="py",
+            spec=Spec(type="Python", params={"code": f"# {uuid.uuid4().hex}\n{python_object.STARTER}"}),
+        ),
         Layer(
             id="word",
             spec=Spec(type="Text", params={"text": "Hi"}),

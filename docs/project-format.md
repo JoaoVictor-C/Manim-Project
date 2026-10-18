@@ -154,7 +154,7 @@ that is missing or unreadable is silent.
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`, `Python`,
+  `Star`, `Text`, `MathTex`, `Tex`, `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`, `Python`, `Shape`,
   `Axes`, `TracedPath`, `Connector`; `Graph`, `Point`, `Area`, `RiemannRectangles`, `AxisLabels`,
   `GraphLabel` (only as children of `Axes`); any type an installed plugin
   provides (ADR 0032, 0033) - without the plugin it is drawn as a placeholder.
@@ -177,6 +177,23 @@ that is missing or unreadable is silent.
 
   ```json
   { "type": "Python", "params": { "code": "PARAMS = {\"side\": (3.0, 0.5, 8.0)}\n\ndef build(p):\n    return Square(side_length=p[\"side\"])\n", "values": { "side": 2.0 } } }
+  ```
+- `Shape` (ADR 0052) is an object frozen into plain vector data (Edit > Freeze to Shape): what
+  another object drew, so it needs no code, no trust and no LaTeX. `params.version` is `1`;
+  `params.shapes` is a non-empty list, one entry per drawn piece (Manim's
+  `family_members_with_points()` order), each with `points` (its cubic bezier control points,
+  `[x, y]`, or `[x, y, z]` when any z is not 0; stored centred on the origin, as built),
+  `fill` and `stroke` (Manim's rgbas: one colour `[r, g, b, a]` or a gradient's stops
+  `[[r, g, b, a], ...]`, each 0 to 1) and `stroke_width`; optionally, when not Manim's default,
+  `background` and `background_width` (the stroke drawn under the fill), `sheen_direction`
+  (`[x, y, z]`, default `[-1, 1, 0]`) and `sheen_factor`, `joint` (`AUTO`, `ROUND`, `BEVEL`,
+  `MITER`), `cap` (`AUTO`, `ROUND`, `BUTT`, `SQUARE`), `z_index`, `shade_in_3d`. At most
+  300 000 points; freezing refuses data over 4 MB. Floats are written exactly. `Spec.style`
+  applies on top (only what is set), so themes recolour it; it has no other params, parts or
+  children.
+
+  ```json
+  { "type": "Shape", "params": { "version": 1, "shapes": [ { "points": [[-1.0, 0.0], [-0.33, 0.0], [0.33, 0.0], [1.0, 0.0]], "fill": [0.0, 0.0, 0.0, 0.0], "stroke": [1.0, 1.0, 1.0, 1.0], "stroke_width": 4.0 } ] } }
   ```
 - `TracedPath` (ADR 0033) draws where another layer has been: `target` (a layer
   id: not a trace or a code layer), `offset` (`[x, y]` from the target's centre,

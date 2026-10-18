@@ -136,7 +136,7 @@ def test_a_text_lists_its_coloured_pieces_and_colours_another(panel) -> None:
 def test_layers_offer_colour_part_on_equations_and_parts(layers) -> None:
     layers.select("eq")
     texts = [a.text() for a in layers.context_menu("eq").actions() if a.text()]
-    assert texts == ["Add part...", "Split into terms", "Colour part...", "Delete"]
+    assert texts == ["Add part...", "Split into terms", "Colour part...", "Freeze to Shape", "Delete"]
     layers.ask_part = lambda parent_id: ("c^2", 0)
     layers.ask_colour = lambda current: RED
     layers.colour_part()
@@ -152,4 +152,4 @@ def test_layers_offer_colour_part_on_equations_and_parts(layers) -> None:
     layers.colour_part()
     assert seen == [RED] and layers.project.layer(made.id).style == {"fill": GREEN}
     layers.select("t")
-    assert [a.text() for a in layers.context_menu("t").actions() if a.text()] == ["Delete"]
+    assert [a.text() for a in layers.context_menu("t").actions() if a.text()] == ["Freeze to Shape", "Delete"]
