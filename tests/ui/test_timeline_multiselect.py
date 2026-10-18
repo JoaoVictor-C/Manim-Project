@@ -175,6 +175,14 @@ def test_a_selection_made_elsewhere_replaces_the_picks_unless_it_is_one_of_them(
     assert view.picked_clips == {("a", "c2")} and view.picked_key_times() == set()
 
 
+def test_a_pick_removed_by_another_edit_leaves_the_picks(view) -> None:
+    from manim_studio.core import edits
+
+    pick_three(view)
+    view.document.apply(edits.remove_clip(view.project, "b", "w"), "Delete clip")
+    assert view.picked_clips == {("a", "c1")} and view.picked_count() == 2
+
+
 def test_ctrl_a_selects_every_clip_and_key(view) -> None:
     view.setFocus()
     key(view, (Qt.Key.Key_A, CTRL))
@@ -278,6 +286,7 @@ def test_dragging_one_picked_item_moves_them_all_in_one_undo_step(view) -> None:
     stack.undo()
     assert starts(view, "a") == [0.5, 3.0] and starts(view, "b") == [1.0]
     assert key_times(view, "a") == [2.0, 5.0]
+    assert view.picked_key_times() == set()  # the key it picked at 3 s is gone with the undo
 
 
 def test_dragging_a_picked_key_moves_the_clips_with_it(view) -> None:
@@ -426,6 +435,19 @@ def test_in_the_window_properties_shows_the_primary_and_the_picks_stay(window) -
     assert window.statusBar().currentMessage() == "2 clips selected"
     window.selection.set("a", "c2")  # chosen elsewhere: the picks give way
     assert tl.picked_clips == {("a", "c2")}
+
+
+def test_in_the_window_dragging_a_picked_key_keeps_every_pick(window) -> None:
+    """The moved key leaves the shared selection mid-drag (no key at its old time): the picks stay."""
+    tl = window.timeline
+    click(tl, key_point(tl, 2.0, "a"))
+    click(tl, at(tl, 1.5, "b"), SHIFT)
+    click(tl, key_point(tl, 2.0, "a"), CTRL)
+    click(tl, key_point(tl, 2.0, "a"), CTRL)  # out and in again: the key is the primary
+    drag(tl, key_point(tl, 2.0, "a"), key_point(tl, 2.5, "a"), ALT)
+    assert key_times(tl, "a") == [2.5, 5.0] and starts(tl, "b") == [1.5]
+    assert tl.picked_clips == {("b", "w")} and tl.picked_key_times() == {("a", 2.5, None)}
+    assert (window.selection.layer_id, window.selection.key_time) == ("a", 2.5)
 
 
 def test_in_the_window_selected_layers_drag_whole_by_a_band(window) -> None:
