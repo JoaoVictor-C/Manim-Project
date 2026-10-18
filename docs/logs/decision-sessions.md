@@ -854,3 +854,18 @@ left open, so ADRs can cite it.
   a 2D canvas, so they wait for 3D; 3D prep shrank to what can be verified (no un-editable 3D
   fields); dynamic length needs the timeline to allow content past the end, bounded by the
   visible width; the timeline's quadratic rebuild must be fixed before rows multiply.
+
+## Session 44 - P9 the Pythagoras feedback · 2026-10-18
+
+- **Tool / profile:** Terza, `fast`; 3 iterations, **stopped at confidence 0.84 (cancelled, not halted)**: the
+  last open question (group clips) was answered by the lead, see below.
+- **Input:** the user's six notes after finishing a 30-second project (1 follow lock, 2 timing edits, 3 right
+  triangles, 4 part colour, 5 auto-key, 6 grouping and multi-select), the project file, the code (auto-key
+  ADR 0018, `infer_lifetime`, the tree evaluator's caches, the timeline view).
+- **Decisions:** the order U1-U6 and the scopes in [../plans/p9-pythagoras-feedback.md](../plans/p9-pythagoras-feedback.md).
+- **Critiques that changed the plan:** carrying Appears at only when it equals the boundary clip's start (a
+  deliberate offset, or a partial selection, would otherwise go wrong - REDUCTION-BREAK); the follow lock is
+  not scroll-to-scrub; part colour is applied after the caches and a running clip's colour wins; shifts are
+  clamped as a whole at 0.
+- **Answered by the lead after the stop:** Group v1 is transform-only (its transform tracks and opacity); clips
+  on a whole group are a later step.
