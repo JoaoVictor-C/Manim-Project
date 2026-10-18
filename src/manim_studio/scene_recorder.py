@@ -167,21 +167,30 @@ class RecordError(Exception):
 # -- entry points ---------------------------------------------------------------------------------
 
 
-def record_file(path: str | Path, scene: str | None = None, sample_fps: int | None = None) -> dict:
+def record_file(
+    path: str | Path, scene: str | None = None, sample_fps: int | None = None, prelude: bool = False
+) -> dict:
     """Record the scene ``scene`` (or the file's only scene) of the Python file at ``path``."""
     path = Path(path).resolve()
     try:
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise RecordError(f"cannot read {path.name}: {exc}") from exc
-    return record(source, str(path), scene, sample_fps)
+    return record(source, str(path), scene, sample_fps, prelude)
 
 
-def record(source: str, filename: str, scene: str | None = None, sample_fps: int | None = None) -> dict:
+def record(
+    source: str,
+    filename: str,
+    scene: str | None = None,
+    sample_fps: int | None = None,
+    prelude: bool = False,
+) -> dict:
     """Run ``source`` (named ``filename`` in tracebacks) and record its scene ``scene``.
 
-    ``sample_fps`` (tests) also plays every animation frame by frame at that rate and keeps what
-    is drawn at each frame (``samples``), as Manim would draw it.
+    ``prelude``: the code is a code layer's (ADR 0019), which may use Manim's names and ``np``
+    without importing them. ``sample_fps`` (tests) also plays every animation frame by frame at that
+    rate and keeps what is drawn at each frame (``samples``), as Manim would draw it.
     """
     import manim as m
 
@@ -193,7 +202,7 @@ def record(source: str, filename: str, scene: str | None = None, sample_fps: int
             os.chdir(folder)  # files the scene opens are found where the scene is
             sys.path.insert(0, folder)
         with m.tempconfig({}), _patched(recorder):
-            namespace = _run_module(source, filename)
+            namespace = _run_module(source, filename, prelude)
             scene_class = _pick_scene(namespace, scene)
             recorder.read_config()
             m.config.disable_caching = True
@@ -210,12 +219,16 @@ def record(source: str, filename: str, scene: str | None = None, sample_fps: int
     return recorder.result()
 
 
-def _run_module(source: str, filename: str) -> dict:
+def _run_module(source: str, filename: str, prelude: bool = False) -> dict:
     namespace: dict[str, Any] = {
         "__name__": "__manim_studio_import__",
         "__file__": filename,
         "__builtins__": builtins,
     }
+    if prelude:
+        from .code_runner import PRELUDE
+
+        exec(PRELUDE, namespace)
     try:
         code = compile(source, filename, "exec")
     except SyntaxError as exc:
@@ -1447,7 +1460,7 @@ def main(argv: list[str] | None = None) -> int:
         job = json.loads(line)
     started = time.perf_counter()
     try:
-        recording = record_file(job["file"], job.get("scene"))
+        recording = record_file(job["file"], job.get("scene"), prelude=bool(job.get("prelude")))
     except RecordError as error:
         emit({"error": str(error), "line": error.line})
         return 1
