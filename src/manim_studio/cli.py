@@ -1,4 +1,4 @@
-"""Command line entry point: ``manim-studio render``, ``python`` and ``edit``."""
+"""Command line entry point: ``manim-studio render``, ``python``, ``import`` and ``edit``."""
 
 from __future__ import annotations
 
@@ -65,6 +65,15 @@ def build_parser() -> argparse.ArgumentParser:
     python.add_argument("--scene", help="the scene class name (default: from the output file's name)")
     python.add_argument("--cache-dir", type=Path, help="the editor's cache: code layers' frames (exact form)")
 
+    scene_import = sub.add_parser(
+        "import",
+        help="turn a Manim scene file into a project: layers and clips, or one code layer (ADR 0053)",
+    )
+    scene_import.add_argument("file", type=Path, help="the Python file with the scene")
+    scene_import.add_argument("-o", "--output", type=Path, required=True, help="the project file to write")
+    scene_import.add_argument("--scene", help="the scene class (needed when the file has several)")
+    scene_import.add_argument("--cache-dir", type=Path, help="Manim's cache (default: FILE_DIR/.cache/manim)")
+
     edit = sub.add_parser("edit", help="open the editor")
     edit.add_argument("project", type=Path, nargs="?")
     return parser
@@ -79,6 +88,8 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.main_window import run
 
         return run([sys.argv[0]] + ([str(args.project)] if args.project else []))
+    if args.command == "import":
+        return _import(args.file, args.output, args.scene, args.cache_dir)
     if args.command == "python":
         return _python(args.project, args.output, args.scene, args.cache_dir)
     from .render.options import OptionsError, RenderOptions, parse_size
@@ -177,6 +188,40 @@ def _python(project_path: Path, output: Path, scene: str | None, cache_dir: Path
     print(f"wrote {output} ({'readable' if export.readable else 'exact'})")
     for problem in export.problems:
         print(f"  exact because: {problem}")
+    return 0
+
+
+def _import(path: Path, output: Path, scene: str | None, cache_dir: Path | None) -> int:
+    """Run a Manim scene once in another process and write it as a project (ADR 0053): its objects
+    as layers and clips, or the whole scene as one code layer with the reasons. Prints the report;
+    exit code 0 either way, 2 when the scene cannot be run."""
+    from .core.scene_import import import_scene, scene_classes
+    from .scene_recorder import RecordError, run_recorder
+
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _fail(f"cannot read {path}: {exc}")
+    scenes = scene_classes(source)
+    if scene is None and len(scenes) > 1:
+        return _fail(f"{path.name} has several scenes: choose one with --scene ({', '.join(scenes)})")
+    started = time.perf_counter()
+    try:
+        recording = run_recorder(path, scene, cache_dir or path.resolve().parent / ".cache" / "manim")
+    except RecordError as exc:
+        where = f" (line {exc.line})" if exc.line else ""
+        return _fail(f"{path.name}{where}: {exc}")
+    try:
+        result = import_scene(recording, source)
+    except ValueError as exc:  # a code layer cannot hold it either
+        return _fail(str(exc))
+    try:
+        output.write_text(result.project.model_dump_json(by_alias=True, indent=1), encoding="utf-8")
+    except OSError as exc:
+        return _fail(f"cannot write {output}: {exc.strerror or exc}")
+    for line in result.report:
+        print(line)
+    print(f"wrote {output} in {time.perf_counter() - started:.1f} s")
     return 0
 
 

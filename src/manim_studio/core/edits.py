@@ -423,6 +423,71 @@ def set_text_colour(project: Project, layer_id: str, piece: str, colour: str | N
     return _replace_layer(project, layer_id, {"spec": layer.spec.model_copy(update={"params": params})})
 
 
+def insert_scene(
+    project: Project, scene: Project, offset: float = 0.0, replace: str | None = None
+) -> tuple[Edit, list[str]]:
+    """An imported scene's layers, sounds and subtitles in ``project`` (P10.3, ADR 0053), as one
+    edit, and the new layers' ids: on top of the other layers - or where the code layer ``replace``
+    was, which they replace - every time moved by ``offset``. Ids that are taken are renamed (with
+    the morphs and paths naming them); a subtitle overlapping one already there is left out; the scene
+    grows to hold them."""
+    taken = {x.id for x in project.layers if x.id != replace}
+    taken |= (
+        {c.id for c in project.audio} | {c.id for c in project.subtitles} | {m.id for m in project.markers}
+    )
+    names: dict[str, str] = {}
+    for layer in scene.layers:
+        new = layer.id if layer.id not in taken else _free_id(re.sub(r"-\d+$", "", layer.id), taken)
+        names[layer.id] = new
+        taken.add(new)
+
+    def moved(value: float | None) -> float | None:
+        return None if value is None else value + offset
+
+    added = []
+    for layer in scene.layers:
+        data = layer.model_dump(by_alias=True)
+        data["id"] = names[layer.id]
+        if data.get("parent_id") is not None:
+            data["parent_id"] = names[data["parent_id"]]
+        data["lifetime"] = {"in": moved(layer.lifetime.in_), "out": moved(layer.lifetime.out)}
+        for clip in data["clips"]:
+            clip["start"] += offset
+            if clip.get("to_layer"):
+                clip["to_layer"] = names[clip["to_layer"]]
+            if clip.get("params", {}).get("path") in names:
+                clip["params"]["path"] = names[clip["params"]["path"]]
+        for track in data["tracks"].values():
+            for key in track:
+                key["t"] += offset
+        added.append(Layer.model_validate(data))
+    layers = list(project.layers)
+    index = len(layers)
+    if replace is not None:
+        index = next(i for i, x in enumerate(layers) if x.id == replace)
+        del layers[index]
+    layers[index:index] = added
+    audio = list(project.audio)
+    for clip in scene.audio:
+        new_id = _free_id("sound", taken)
+        taken.add(new_id)
+        audio.append(clip.model_copy(update={"id": new_id, "start": clip.start + offset}))
+    cues = list(project.subtitles)
+    for cue in scene.subtitles:
+        start, end = cue.start + offset, cue.end + offset
+        if any(start < c.end - 1e-9 and c.start < end - 1e-9 for c in cues):
+            continue  # one lane (ADR 0035)
+        new_id = _free_id("cue", taken)
+        taken.add(new_id)
+        cues.append(cue.model_copy(update={"id": new_id, "start": start, "end": end}))
+    canvas = project.canvas
+    if scene.canvas.duration + offset > canvas.duration:
+        canvas = canvas.model_copy(update={"duration": scene.canvas.duration + offset})
+    new = _rebuilt(project, layers=layers, audio=audio, subtitles=cues, canvas=canvas)
+    kind, layer_ids = classify(project, new)
+    return Edit(new, kind, layer_ids), [names[x.id] for x in scene.layers]
+
+
 def freeze_layer(project: Project, layer_id: str, data: dict[str, Any]) -> Edit:
     """Turn an object into a shape of what it draws (ADR 0052): plain vector data that needs no
     code, no trust and no LaTeX. ``data`` is ``adapter.freeze_data`` of the layer's spec - what

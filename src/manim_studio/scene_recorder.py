@@ -1376,6 +1376,34 @@ def _tree(mob) -> tuple:
 # -- the process ------------------------------------------------------------------------------------
 
 
+def run_recorder(
+    path: str | Path, scene: str | None, cache_dir: str | Path, timeout: float = TIME_LIMIT
+) -> dict:
+    """Record ``path``'s scene in a new process (the user's code never runs in the caller), stopped
+    after ``timeout`` seconds. Raises ``RecordError`` with the reason (and line) when it fails."""
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="manim-studio-import-") as folder:
+        output = Path(folder) / "recording.json"
+        args = [sys.executable, "-m", "manim_studio.scene_recorder", "--cache-dir", str(cache_dir)]
+        args += ["--file", str(path), "--output", str(output)] + (["--scene", scene] if scene else [])
+        env = {**os.environ, "PYTHONUTF8": "1"}
+        try:
+            done = subprocess.run(args, capture_output=True, text=True, timeout=timeout, env=env, check=False)
+        except subprocess.TimeoutExpired as exc:
+            raise RecordError(f"the scene took longer than {timeout:g} s to play, so it was stopped") from exc
+        for line in reversed(done.stdout.splitlines()):
+            if line.startswith("{"):
+                message = json.loads(line)
+                if "error" in message:
+                    raise RecordError(message["error"], message.get("line"))
+                if message.get("done"):
+                    return json.loads(output.read_text(encoding="utf-8"))
+        error = done.stderr.strip().splitlines()[-1:] or [f"exit code {done.returncode}"]
+        raise RecordError(f"the recording process failed: {error[0]}")
+
+
 def _claim_stdout():
     """Keep the real stdout for the protocol; the scene's own prints go to stderr."""
     protocol = os.fdopen(os.dup(sys.stdout.fileno()), "w", encoding="utf-8", newline="\n")
