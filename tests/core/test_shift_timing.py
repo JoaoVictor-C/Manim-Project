@@ -9,7 +9,7 @@ import pytest
 
 from manim_studio.core import edits
 from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Lifetime, Marker, Project, Spec
-from manim_studio.core.shift_timing import Selection, shift_timing, timing_warnings
+from manim_studio.core.shift_timing import Selection, remove_items, shift_timing, timing_warnings
 
 CANVAS = Canvas(width_px=320, height_px=180, fps=10, duration=30.0)
 SQUARE = Spec(type="Square")
@@ -212,3 +212,54 @@ def test_a_lifetime_that_starts_after_its_animation_is_warned_about() -> None:
     )
     [warning] = timing_warnings(project(layer))
     assert "Late" in warning and "starts after" in warning
+
+
+# -- several keys of one track (U4b: the timeline's multi-selection) ----------------------------
+
+
+def test_keys_one_delta_apart_each_move_once() -> None:
+    """Keys at 1 and 2 moved by 1 s: the key moved onto 2 is not picked up again by the pick at 2."""
+    layer = Layer(id="a", spec=SQUARE, tracks=keys(1.0, 2.0, 6.0))
+    picks = (("a", 1.0, None), ("a", 2.0, None))
+    out = shift_timing(project(layer), Selection(keys=picks), 1.0).project
+    assert key_times(out, "a") == [2.0, 3.0, 6.0]
+
+
+def test_keys_moved_earlier_in_reverse_order_each_move_once() -> None:
+    layer = Layer(id="a", spec=SQUARE, tracks=keys(1.0, 2.0, 3.0))
+    picks = (("a", 3.0, None), ("a", 2.0, None), ("a", 1.0, None))
+    out = shift_timing(project(layer), Selection(keys=picks), -1.0).project
+    assert key_times(out, "a") == [0.0, 1.0, 2.0]
+
+
+# -- removing several clips and keys at once (U4b) ----------------------------------------------
+
+
+def test_remove_items_takes_clips_and_keys_in_one_edit() -> None:
+    layers = (
+        Layer(id="a", spec=SQUARE, clips=[clip("w", "Write", 1.0), clip("i", "Indicate", 4.0)]),
+        Layer(id="b", spec=SQUARE, tracks=keys(1.0, 2.0, 3.0)),
+    )
+    picks = Selection(clips=(("a", "w"),), keys=(("b", 1.0, None), ("b", 3.0, ("scale",))))
+    out = remove_items(project(*layers), picks).project
+    assert [c.id for c in out.layer("a").clips] == ["i"]
+    assert key_times(out, "b") == [2.0]
+
+
+def test_removing_every_key_of_a_track_keeps_the_last_as_its_base() -> None:
+    layer = Layer(id="a", spec=SQUARE, tracks=keys(1.0, 2.0))
+    out = remove_items(project(layer), Selection(keys=(("a", 1.0, None), ("a", 2.0, None)))).project
+    assert "scale" not in out.layer("a").tracks
+    assert out.layer("a").base.scale == pytest.approx(1.2)  # the key removed last held 1.2
+
+
+def test_a_key_already_removed_by_a_wider_pick_is_not_an_error() -> None:
+    layer = Layer(id="a", spec=SQUARE, tracks=keys(1.0, 2.0))
+    picks = Selection(keys=(("a", 1.0, None), ("a", 1.0, ("scale",))))
+    out = remove_items(project(layer), picks).project
+    assert key_times(out, "a") == [2.0]
+
+
+def test_remove_items_refuses_nothing_selected() -> None:
+    with pytest.raises(edits.EditError):
+        remove_items(project(Layer(id="a", spec=SQUARE)), Selection())

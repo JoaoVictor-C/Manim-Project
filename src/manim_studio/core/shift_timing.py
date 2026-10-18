@@ -159,17 +159,43 @@ def _shifted_layer(
             and abs(life.out - last.end) < 0.5 / fps
         ):
             lifetime["out"] = life.out + delta
-        for t, props in key_picks:
+        picked: set[tuple[str, int]] = set()  # found first, moved once: a key moved onto another
+        for t, props in key_picks:  # pick's time must not be picked up again (U4b)
             for prop, track in data["tracks"].items():
                 if props is not None and prop not in props:
                     continue
-                for k in track:
-                    if abs(k["t"] - t) < 0.5 / fps:
-                        k["t"] = on_grid(k["t"])
+                picked.update((prop, i) for i, k in enumerate(track) if abs(k["t"] - t) < 0.5 / fps)
+        for prop, i in picked:
+            key = data["tracks"][prop][i]
+            key["t"] = on_grid(key["t"])
     data["lifetime"] = lifetime
     for track in data["tracks"].values():
         track.sort(key=lambda k: k["t"])
     return Layer.model_validate(data)
+
+
+def remove_items(project: Project, selection: Selection) -> Edit:
+    """Remove the selected clips and keys (the timeline's Delete, U4b) in one edit. Each goes
+    through ``edits.remove_clip`` / ``edits.remove_keys``, so their rules and messages hold: a
+    property losing its last key keeps that value as its base. A key a wider pick already took
+    (every key at that time) is skipped."""
+    if not (selection.clips or selection.keys):
+        raise EditError("nothing is selected to remove")
+    before = project
+    for layer_id, clip_id in selection.clips:
+        project = edits.remove_clip(project, layer_id, clip_id).project
+    half = 0.5 / project.canvas.fps
+    for layer_id, t, props in selection.keys:
+        tracks = project.layer(layer_id).tracks
+        if any(
+            abs(k.t - t) < half
+            for prop, track in tracks.items()
+            if props is None or prop in props
+            for k in track
+        ):
+            project = edits.remove_keys(project, layer_id, t, props=props).project
+    kind, layer_ids = edits.classify(before, project)
+    return Edit(project, kind, layer_ids)
 
 
 def timing_warnings(project: Project) -> list[str]:
