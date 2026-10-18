@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Python object templates (P10): "New Python object" on the Code page has an arrow with a menu of
+  starters - Right triangle, and **Matrix** (rows, columns and the entries as parameters, one LaTeX
+  build; the code is the user's from the Pythagoras project). A Python object's build may now take
+  30 s (it counts the LaTeX it waits for; it was 10 s, too short for a cold first formula).
 
 - **Python objects** (P10.1, ADR 0051): write Manim code - `PARAMS = {...}` and `def build(p)` -
   and it becomes an object you move, style, key, animate, group and morph like any other. Code

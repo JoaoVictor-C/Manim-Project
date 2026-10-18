@@ -224,3 +224,18 @@ def test_python_objects_are_renamed_and_deleted_on_the_code_page(window, qt_app)
     assert all(x.spec.type != "Python" for x in window.project.layers)
     window.document.undo_stack.undo()
     assert window.project.layer(layer_id).name == "Triangle"
+
+
+def test_the_template_menu_starts_from_the_matrix(window, qt_app) -> None:
+    from manim_studio.core import python_templates
+
+    page(window).new_python_button.menu()  # the arrow's menu exists
+    names = [a.text() for a in page(window).new_python_button.menu().actions()]
+    assert names == list(python_templates.TEMPLATES)
+    next(a for a in page(window).new_python_button.menu().actions() if a.text() == "Matrix").trigger()
+    qt_app.processEvents()
+    layer = python_layer(window)
+    assert page(window).editor.text() == python_templates.MATRIX
+    fields = window.properties.fields
+    assert {"values.rows", "values.columns", "values.values", "values.color"} <= set(fields)
+    assert not isinstance(drawn(window, layer.id), m.DashedVMobject)
