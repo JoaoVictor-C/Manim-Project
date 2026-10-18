@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- The Animate page (P7.3, ADR 0047): an object's timeline row expands (the arrow by its name, or
+  Alt+click) into one row per property it can key, each with its value at the playhead, a diamond
+  that keys or unkeys that property at the playhead, and that property's keys - dragged (snapping,
+  bounded by its own neighbours only), deleted and eased (right-click, or Properties) one property
+  at a time, each one undo step. The graph shows the curves of the properties chosen by clicking
+  their names (Shift/Ctrl add), or all of them when none is; the five checkboxes are gone. The bar
+  has a Record button (Edit > Auto-key) and A frames every key. Expanded rows are editor state; a
+  collapsed timeline is as before, and a rebuild stays linear with every row expanded (B69).
 - Long scenes (P7.2, B66): the layer tree is indexed once per snapshot (`core/layer_index.py`), so the
   timeline rebuild, the Layers panel and `Evaluator.invalidate` grow linearly with the layers
   (`invalidate` 33 -> 1 ms and the timeline rebuild 99 -> 48 ms at 295 layers; the rest is Qt items);

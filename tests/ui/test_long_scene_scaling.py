@@ -113,6 +113,30 @@ def test_a_timeline_sync_asks_the_project_a_constant_number_of_times(qt_app, sca
     assert many <= 5
 
 
+def test_a_sync_with_every_row_expanded_stays_constant_in_scans(qt_app, scans) -> None:
+    """Property sub-rows (P7.3) add rows per layer, never a scan per layer."""
+    calls, reset = scans
+    small, big = timeline_for(long_project(5)), timeline_for(long_project(40))
+    for view in (small, big):
+        for layer in view.project.layers:
+            view.set_expanded(layer.id, True)
+    counts = []
+    for view in (small, big):  # a new snapshot: the rows and their property rows laid out again
+        edit = edits.set_canvas(view.project, duration=view.project.canvas.duration + 1)
+        reset()
+        view.document.apply(edit, "Scene length")  # the timeline syncs on the new snapshot
+        counts.append(total(calls))
+    few, many = counts
+    assert len(big.layout().subs[0]) == 4
+    assert many == few and many <= 10, counts
+    reset()
+    big.show()
+    big.header.grab()
+    big.header.grab()
+    assert total(calls) == 0
+    big.close()
+
+
 def test_the_timeline_rows_and_header_use_the_same_snapshot_index(qt_app, scans) -> None:
     """Asking for rows, a row's index or the layer at a height must not rescan the layers."""
     calls, reset = scans
@@ -182,3 +206,18 @@ def test_a_clip_edit_invalidates_with_a_constant_number_of_scans(scans) -> None:
         evaluator.invalidate(edited, {"sq0"}, "clip")
         counts.append(total(calls))
     assert counts[0] == counts[1], counts
+
+
+def test_a_visible_timeline_rebuilds_into_a_new_scene_keeping_its_scroll(qt_app) -> None:
+    """Clearing one scene again and again got slower each time (B68): a rebuild starts a new one."""
+    view = timeline_for(long_project(10))
+    view.show()
+    qt_app.processEvents()
+    view.verticalScrollBar().setValue(200)
+    view.horizontalScrollBar().setValue(300)
+    before = view.scene()
+    view.sync()
+    assert view.scene() is not before
+    assert view.verticalScrollBar().value() == 200 and view.horizontalScrollBar().value() == 300
+    assert len(view.clip_items()) == sum(len(layer.clips) for layer in view.project.layers)
+    view.close()

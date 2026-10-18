@@ -1,19 +1,26 @@
 """The Animate page (P6b.2, ADR 0041, decision session 35): the viewer and Properties on top,
 the graph editor of the selected layer's keys in the middle, the timeline at the bottom.
 
-The graph is as wide as the timeline under it, so both read time the same way. Its legend
-switches each curve on and off; a value the layer cannot key (anything but opacity on a
-graph that follows its axes, ADR 0024) is greyed out.
+P7.3 (ADR 0047): the timeline's rows expand into property rows, where each property is keyed,
+retimed, eased and deleted alone; the graph shows the curves of the properties chosen there
+(all of them when none is), named in its colours in the bar. The bar's Record button is
+Edit > Auto-key, and A frames every key shown.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QSplitter, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSplitter, QToolButton, QVBoxLayout, QWidget
 
 from .. import graph_model, icons, theme
+from ..elided_label import ElidedLabel
 from ..graph_editor import GraphEditor
+from ..timeline.view import PROP_LABELS
 from . import Page, Shared
+
+ALL_HINT = "All properties: open an object's row in the timeline and click one to show it alone"
+CHOSEN_HINT = "Shift+click another property in the timeline to add it, Ctrl+click to take it out"
 
 
 class AnimatePage(Page):
@@ -24,7 +31,7 @@ class AnimatePage(Page):
 
     def build(self) -> QWidget:
         self.graph: GraphEditor | None = None  # made on the first show: the selection exists then
-        self.checks: dict[str, QCheckBox] = {}
+        self.legend: dict[str, QLabel] = {}
         self.outer = QSplitter(Qt.Orientation.Vertical)
         self.top = QSplitter(Qt.Orientation.Horizontal)
         self.panel = QWidget()
@@ -49,39 +56,67 @@ class AnimatePage(Page):
         title = QLabel("Graph")
         title.setProperty("role", "section")
         bar.addWidget(title)
-        for curve in graph_model.CURVES:
-            check = QCheckBox(curve.label)
-            check.setChecked(True)
-            check.setToolTip(f"Show the {curve.label.lower()} curve")
-            colour = theme.css(getattr(theme.THEME, curve.token))
-            check.setStyleSheet(  # the legend: each box in its curve's colour
-                f"QCheckBox {{ color: {colour}; }}"
-                f" QCheckBox::indicator:checked {{ background: {colour}; border-color: {colour}; }}"
-                f" QCheckBox:disabled {{ color: {theme.css(theme.THEME.disabled)}; }}"
-            )
-            check.toggled.connect(lambda on, n=curve.name: self.graph.set_curve_visible(n, on))
-            self.checks[curve.name] = check
-            bar.addWidget(check)
-        bar.addStretch(1)
+        bar.addWidget(self._record_button(window.auto_key_action))
+        for curve in graph_model.CURVES:  # the shown curves' names in their colours
+            label = QLabel(curve.label)
+            label.setStyleSheet(f"color: {theme.css(getattr(theme.THEME, curve.token))};")
+            label.setToolTip(f"The {curve.label.lower()} curve's colour")
+            self.legend[curve.name] = label
+            bar.addWidget(label)
+        self.shown_label = ElidedLabel(ALL_HINT)
+        self.shown_label.setProperty("role", "muted")
+        bar.addWidget(self.shown_label, 1)
         frame = QToolButton()
         frame.setIcon(icons.icon("zoom-in"))
         frame.setText("Frame all")
         frame.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        frame.setToolTip("Show every key of the curves shown (F)")
+        frame.setToolTip("Show every key of the curves shown (A)")
         frame.clicked.connect(self.graph.frame_all)
         self.frame_button = frame
         bar.addWidget(frame)
         self.panel_layout.addLayout(bar)
         self.panel_layout.addWidget(self.graph, 1)
-        window.selection.changed.connect(self._update_legend)
-        window.document.changed.connect(lambda *_: self._update_legend())
-        window.document.reset.connect(lambda *_: self._update_legend())
+        shortcut = QShortcut(QKeySequence("A"), self.outer)  # anywhere on the page (P7.3)
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(lambda: self.graph.frame_all())
+        self.frame_shortcut = shortcut
+        window.timeline.propsSelected.connect(self._update_props)
+        window.selection.changed.connect(self._update_props)
+        window.document.changed.connect(lambda *_: self._update_props())
+        window.document.reset.connect(lambda *_: self._update_props())
 
-    def _update_legend(self) -> None:
-        layer = self.graph.layer if self.graph is not None else None
-        keyable = {c.name for c in graph_model.curves_for(layer)} if layer is not None else set()
-        for name, check in self.checks.items():
-            check.setEnabled(name in keyable)
+    def _record_button(self, action) -> QToolButton:
+        """Record: Edit > Auto-key as a red-dot toggle, each following the other."""
+        button = QToolButton()
+        button.setCheckable(True)
+        button.setChecked(action.isChecked())
+        button.setIcon(icons.icon("record"))
+        button.setText("Record")
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        button.setToolTip(
+            "Record: moving, scaling, rotating or fading an object keys it at the playhead (Edit > Auto-key)"
+        )
+        button.toggled.connect(action.setChecked)
+        action.toggled.connect(button.setChecked)
+        self.record_button = button
+        return button
+
+    def _update_props(self) -> None:
+        """Show the curves of the properties chosen on the timeline, and say which they are."""
+        if self.graph is None:
+            return
+        layer, timeline = self.graph.layer, self.window.timeline
+        props = timeline.selected_props if layer is not None and timeline.prop_layer == layer.id else ()
+        self.graph.set_props(props)
+        shown = {curve.name for curve in self.graph.curves()}
+        for name, label in self.legend.items():
+            label.setVisible(name in shown)
+        if layer is None:
+            self.shown_label.setText("Select an object to see its keys")
+        elif props:
+            self.shown_label.setText(f"{', '.join(PROP_LABELS[p] for p in props)} - {CHOSEN_HINT}")
+        else:
+            self.shown_label.setText(ALL_HINT)
 
     def place(self, shared: Shared) -> None:
         if self.graph is None:
@@ -93,7 +128,7 @@ class AnimatePage(Page):
         self.top.setStretchFactor(1, 0)
         for index, stretch in enumerate((3, 3, 1)):
             self.outer.setStretchFactor(index, stretch)
-        self._update_legend()
+        self._update_props()
 
     def on_show(self) -> None:
         if not getattr(self, "_sized", False):  # first show: a large graph, the timeline's rows

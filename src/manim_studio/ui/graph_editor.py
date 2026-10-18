@@ -87,7 +87,7 @@ class GraphEditor(QWidget):
         self.selection = selection
         self.playhead = playhead
         self.edit_curve = curve_editor.edit_curve  # replaced in tests
-        self.visible: set[str] = {curve.name for curve in graph_model.CURVES}
+        self.props: tuple[str, ...] = ()  # the properties chosen on the timeline; none: all (P7.3)
         self.focus: str | None = None  # the curve with the value axis (the last one clicked)
         self.focus_prop: str | None = None  # the track of the key clicked here (None: the column)
         self._own_key: tuple[str, float] | None = None  # the key time this editor selected
@@ -115,15 +115,20 @@ class GraphEditor(QWidget):
         return next((layer for layer in self.document.project.layers if layer.id == layer_id), None)
 
     def curves(self) -> list[Curve]:
-        """The curves shown: those the layer may key and the legend leaves on."""
+        """The curves shown: those the layer may key, of the properties chosen on the timeline
+        (P7.3: its property rows), or all of them when none is chosen."""
         layer = self.layer
         if layer is None:
             return []
-        return [curve for curve in graph_model.curves_for(layer) if curve.name in self.visible]
+        return [c for c in graph_model.curves_for(layer) if not self.props or c.prop in self.props]
 
-    def set_curve_visible(self, name: str, visible: bool) -> None:
-        (self.visible.add if visible else self.visible.discard)(name)
-        if not visible and self.focus == name:
+    def set_props(self, props) -> None:
+        """Show the curves of ``props`` only (empty: every property the layer may key)."""
+        props = tuple(props)
+        if props == self.props:
+            return
+        self.props = props
+        if self.focus is not None and not any(c.name == self.focus for c in self.curves()):
             self.focus = None
         self.update()
 
@@ -221,7 +226,8 @@ class GraphEditor(QWidget):
         }
 
     def frame_all(self) -> None:
-        """F: the keys of the curves shown (or the scene) across the width; values 0..1."""
+        """F (A on the Animate page): the keys of the curves shown (or the scene) across the width;
+        values 0..1."""
         duration = self.document.project.canvas.duration
         t0, t1 = graph_model.frame_times(self.layer, self.curves(), duration)
         width = self.plot_rect().width()
