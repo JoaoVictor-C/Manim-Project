@@ -170,6 +170,18 @@ distinct code is written once at the top of the file (`build` renamed `_build_<n
 whose top-level names clash with another object's or Manim's, or code that fails, makes the
 export exact.
 
+### Freeze to shape
+
+**Edit > Freeze to Shape** (also **Freeze to Shape** in the Layers right-click menu and a
+**Freeze to shape** button in Properties) turns the selected object - a Python object, a shape,
+a Text, an equation, an SVG - into a **Shape**: the vector paths and colours it draws now, kept
+as data. It draws the same pixels and keeps its place, keys, clips and lifetime, but needs no
+code, no trust prompt and no LaTeX, so a finished project plays on a computer without them.
+There are no parameters to edit afterwards (Style still recolours it); one undo step turns it
+back. Objects that cannot be frozen (placeholders, groups, code layers, images, parts, objects
+with clips that need their old type) are refused with the reason in the status bar. (Added in
+P10.2, ADR 0052.)
+
 ## Code layers
 
 A **code layer** holds a whole Manim `Scene` for what the timeline cannot express (updaters,
