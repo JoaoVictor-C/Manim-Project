@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import math
 import random
+import shutil
 import time
 
 import manim as m
 import numpy as np
 import pytest
 from pydantic import ValidationError
+from tests.core.test_python_export import assert_matches_editor, rendered
 from tests.support import CANVAS, FRAMES, assert_frames_equal, render_in_order
 
 from manim_studio.core import adapter, edits, library, python_object, warm
@@ -401,3 +403,23 @@ def test_codes_that_would_replace_each_others_names_make_it_exact(trusted) -> No
     assert readable_problems(project) == ["b: its code defines 'mark', as a's does"]
     shadow = Project(layers=[Layer(id="a", spec=python("Circle = 3\n" + code("    return Square()")))])
     assert readable_problems(shadow) == ["a: its code defines 'Circle', a name Manim uses"]
+
+
+def test_nothing_here_needs_latex(trusted, monkeypatch, tmp_path) -> None:
+    """The user's other PC has no LaTeX: the starter, its fields and its export do not need it."""
+    monkeypatch.setenv("PATH", str(tmp_path))
+    assert shutil.which("latex") is None
+    project = exported()
+    evaluator = Evaluator(project)
+    for t in FRAMES:
+        evaluator.frame(t)
+    assert evaluator.build_errors() == {}
+    assert to_python(project, "Proof").readable
+
+
+@pytest.mark.slow
+def test_the_readable_export_renders_what_the_editor_shows(trusted, tmp_path) -> None:
+    project = exported()
+    export = to_python(project, "Proof")
+    assert export.readable
+    assert_matches_editor(project, rendered(export.code, "Proof", tmp_path))
