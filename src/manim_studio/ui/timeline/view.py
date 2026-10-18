@@ -809,18 +809,19 @@ class TimelineView(QGraphicsView):
     # -- scene -------------------------------------------------------------------
 
     def sync(self) -> None:
-        """Rebuild the scene from the current snapshot (cheap: B11)."""
-        scene = self.scene()
-        scene.clear()
+        """Rebuild the scene from the current snapshot (cheap: B11), in a new ``QGraphicsScene``:
+        clearing the same scene got slower with every rebuild, in proportion to every item it had
+        ever held (B68, inside PySide), so the old scene is dropped whole instead."""
         project = self.project
         if project is None:
+            self.scene().clear()
             return
         width = self.scale.x(max(project.canvas.duration, scene_length.content_end(project)))
         index = self.layer_index()
         rows = self.rows()
         layout = self.layout()
         height = layout.bottom + (1 + len(project.audio)) * ROW_HEIGHT
-        scene.setSceneRect(0, 0, width + 40, height)
+        scene = self._fresh_scene(QRectF(0, 0, width + 40, height))
         subtitle_top = layout.bottom
         for cue in project.subtitles:  # the Subtitles row (ADR 0035)
             rect = QRectF(
@@ -858,7 +859,7 @@ class TimelineView(QGraphicsView):
                 center = QPointF(self.scale.x(t), top + KEY_OFFSET)
                 scene.addItem(KeyItem(layer.id, t, props, center, selected))
             for i, prop in enumerate(layout.subs[row]):  # property rows (P7.3)
-                self._add_prop_row(layer, prop, top + ROW_HEIGHT + i * SUB_ROW_HEIGHT, width + 40, fps)
+                self._add_prop_row(layer, prop, top + ROW_HEIGHT + i * SUB_ROW_HEIGHT, fps)
         for i, clip in enumerate(project.audio):
             top = layout.bottom + (1 + i) * ROW_HEIGHT
             rect = QRectF(
@@ -874,12 +875,26 @@ class TimelineView(QGraphicsView):
         self.header.update()
         self.viewport().update()
 
-    def _add_prop_row(self, layer: Layer, prop: str, top: float, width: float, fps: int) -> None:
-        """A property row: its band and that property's keys."""
-        chosen = self.prop_layer == layer.id and prop in self.selected_props
-        brush = QBrush(SUB_CHOSEN if chosen else SUB_BAND)
-        band = self.scene().addRect(QRectF(0, top, width, SUB_ROW_HEIGHT), QPen(Qt.PenStyle.NoPen), brush)
-        band.setZValue(0)
+    def _fresh_scene(self, rect: QRectF) -> QGraphicsScene:
+        """An empty scene of ``rect`` in place of the current one, the scroll position kept. A
+        hidden timeline clears its scene instead: a scene set before the first layout would leave
+        its scroll bars stale for the fit that waits for the real width."""
+        old = self.scene()
+        if not self.isVisible():
+            old.clear()
+            old.setSceneRect(rect)
+            return old
+        h, v = self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        scene = QGraphicsScene(self)
+        scene.setSceneRect(rect)
+        self.setScene(scene)
+        self.horizontalScrollBar().setValue(h)
+        self.verticalScrollBar().setValue(v)
+        old.deleteLater()
+        return scene
+
+    def _add_prop_row(self, layer: Layer, prop: str, top: float, fps: int) -> None:
+        """A property row's keys (its band is drawn behind the items: ``drawBackground``)."""
         picked = self.selected_key is not None and self.selected_key[0] == layer.id
         picked = picked and self.selected_key_prop in (None, prop)
         for key in layer.tracks.get(prop, []):
@@ -912,6 +927,24 @@ class TimelineView(QGraphicsView):
         put, so the viewport is drawn again (the ruler was repeated down the rows)."""
         super().scrollContentsBy(dx, dy)
         self.viewport().update()
+
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
+        """The property rows' bands, only those in view: as scene items, a thousand full-width
+        rectangles made every rebuild's ``QGraphicsScene.clear`` superlinear (B68)."""
+        super().drawBackground(painter, rect)
+        if not self.expanded or self.project is None:
+            return
+        layout, rows = self.layout(), self.rows()
+        first = max(0, bisect_right(layout.tops, rect.top()) - 1)
+        for row in range(first, len(rows)):
+            top = layout.tops[row]
+            if top > rect.bottom():
+                break
+            chosen_row = self.prop_layer == rows[row].id
+            for i, prop in enumerate(layout.subs[row]):
+                band = SUB_CHOSEN if chosen_row and prop in self.selected_props else SUB_BAND
+                y = top + ROW_HEIGHT + i * SUB_ROW_HEIGHT
+                painter.fillRect(QRectF(rect.left(), y, rect.width(), SUB_ROW_HEIGHT), band)
 
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
         project = self.project
