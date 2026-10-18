@@ -392,6 +392,7 @@ LIBRARY_LABELS = {
     "SVGMobject": "SVG",
     "TracedPath": "Traced path",
     "DecimalNumber": "Number",
+    "RightTriangle": "Right triangle",
 }
 SIMULATION_CHECKPOINT = 30  # a simulation state is kept every this many steps (B46: replays are cheap)
 

@@ -106,7 +106,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   rendered ahead and the export (subtitles stay flat on the screen); the Python export writes a
   `ThreeDScene` with `set_camera_orientation`. While the camera is turned the canvas shows no
   outlines or handles and ignores clicks (they work in flat units): select in Layers, or reset it.
-- A **Right triangle** object (Add Object > Shapes): a base length and the acute angle, the right angle
+- A **Right triangle** object (Layers > Add > Shapes): a base length and the acute angle, the right angle
   marked, fillable and coloured like any shape, written out as plain shapes in the readable Python
   export (it was hand-built from lines in the Pythagoras project).
 - F in the canvas frames the selected objects as large as fit, and the whole frame when nothing is
