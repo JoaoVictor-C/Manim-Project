@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
         self.properties.code_status = lambda i: s.text if (s := self.code.status(i)) else None
         self.properties.code_failed = lambda i: (s := self.code.status(i)) is not None and s.state == "error"
         self.properties.retry_code = self.code.retry
+        self.properties.code_ends = lambda: self.evaluator.code_ends() if self.evaluator is not None else []
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.

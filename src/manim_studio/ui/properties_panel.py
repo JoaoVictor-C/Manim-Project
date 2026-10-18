@@ -38,6 +38,7 @@ from ..core.schema import (
     DIRECTIONS,
     GRAPH_PARAMS,
     RASTER_TYPES,
+    Canvas,
     ClipParam,
     Easing,
     Layer,
@@ -223,6 +224,7 @@ class PropertiesPanel(QWidget):
         self.others_selected = 0  # other selected objects besides the one shown (ADR 0043)
         self.marker_id: str | None = None  # a marker is shown (ADR 0037)
         self.scene_shown = False  # nothing selected: the scene's settings (P7.1)
+        self.code_ends: Callable[[], list[float]] = lambda: []  # rendered code animations, set by the window
         self.fit_button: QPushButton | None = None
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
@@ -331,7 +333,12 @@ class PropertiesPanel(QWidget):
                 edit = edits.Edit(new, "timing", frozenset())
             else:
                 edit = edits.set_canvas(
-                    project, **{name: "#000000" if value is None and name == "background" else value}
+                    project,
+                    **{
+                        name: Canvas.model_fields["background"].default
+                        if value is None and name == "background"
+                        else value
+                    },
                 )
             self.document.apply(edit, text)
         except (edits.EditError, ValidationError) as exc:
@@ -340,7 +347,10 @@ class PropertiesPanel(QWidget):
 
     def fit_length(self) -> None:
         """End the scene where its content ends (one undo step)."""
-        fitted = scene_length.fit_to_content(self.project)
+        fitted = scene_length.fit_to_content(self.project, self.code_ends())
+        if fitted is self.project:
+            self.message.emit("Nothing in the scene is timed yet: its length stays as it is.")
+            return
         self.document.apply(edits.Edit(fitted, "timing", frozenset()), "Fit Length to Content")
 
     def _refresh_scene(self, force: bool) -> None:
