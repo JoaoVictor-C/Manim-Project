@@ -777,3 +777,17 @@ emptied, not dropped); `renderer.time` is a sum of frame steps (rounded to the g
 jumping ease is sampled on the wrong side); a held wait draws `int(t / dt)` frames and a drawn
 one `ceil(t / dt)`, so waits are chosen to give both the same count. B44's exact case is now a
 turned layer with a clip (keys are readable): 1.26. -> ADR 0046.
+
+### B68 — The project camera · 2026-10-18
+`benchmarks/bench_camera.py` (P7.5): the showcase at 640x360, 12 times x 5 repeats, each frame
+drawn by the pre-P7.5 camera code, the new default camera and two turned cameras, interleaved.
+Two runs on battery (medians, ms): pre-P7.5 2D **6.80 / 4.28**, default **7.24 / 4.50** (the same
+`m.Camera`, built by the same arguments: the 5 % is the order in the loop and noise, p90 10.6 /
+10.1 against 12.3 / 10.2), phi 60 **11.1 / 7.2**, phi 60 theta -45 gamma 10 **11.4 / 6.4** - a
+turned camera costs about 50-70 % more per frame here (B65 measured 25 % for the 3D camera at the
+default angles; turned, more of the scene's points are projected and shaded paths are longer).
+The frames of the default camera are bit-identical to before (`tests/core/test_camera.py`). Found
+on the way: Manim's `ThreeDCamera` subtracts `frame_center` twice (a pan moved the picture twice as
+far and changed the angle: `StudioThreeDCamera`), and its rotation matrix is refreshed only at a
+capture (a code frame painted first used the old angles). -> ADR 0048.
+

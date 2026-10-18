@@ -58,7 +58,8 @@ def main() -> None:
                 render_frame(camera, frames)
                 results[name].append(time.perf_counter() - start)
     for name, values in results.items():
-        print(f"{name:32s} median {np.median(values) * 1000:5.2f} ms  p90 {np.percentile(values, 90) * 1000:5.2f} ms")
+        median, p90 = np.median(values) * 1000, np.percentile(values, 90) * 1000
+        print(f"{name:32s} median {median:5.2f} ms  p90 {p90:5.2f} ms")
 
 
 if __name__ == "__main__":
