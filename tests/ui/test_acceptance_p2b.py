@@ -78,6 +78,7 @@ def test_animate_retime_and_shape_a_move(window, qt_app) -> None:
 
     # 1. auto-key a move: at 2 s the circle is dragged from the centre to x = 3
     window.auto_key_action.setChecked(True)
+    window.properties.fields["lifetime.in"].commit(0.0)  # it has an entrance: auto-key animates
     window.seek(2.0)
     drag(qt_app, window.canvas, to_px.map(QPointF(0, 0)), to_px.map(QPointF(3, 0)))
     keys = window.project.layer(layer_id).tracks["position"]

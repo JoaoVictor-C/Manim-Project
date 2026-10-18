@@ -59,6 +59,10 @@ from .gizmo import (
 from .selection import Selection
 
 NUDGE_PX = 1.0
+AUTO_KEY_PLACED = (
+    "Auto-key: the object was placed. It animates once it has an entrance"
+    " (a clip, or Appears at) and you edit it later."
+)
 NUDGE_SHIFT_PX = 10.0
 ARROWS = {
     Qt.Key.Key_Left: (-1.0, 0.0),
@@ -597,6 +601,9 @@ class MoveTool(QObject):
     def _key_time(self, layer: Layer, prop: str) -> float | None:
         """None for base edits; else the playhead's frame, moving the playhead onto it."""
         if not layer.tracks.get(prop) and not self.auto_key():
+            return None
+        if not layer.tracks.get(prop) and edits.auto_key_places(self.project, layer.id, self.playhead()):
+            self.message.emit(AUTO_KEY_PLACED)  # nothing to animate yet: a base edit (P7.1)
             return None
         fps = self.project.canvas.fps
         t = self.playhead()

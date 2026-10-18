@@ -26,6 +26,17 @@ the whole timeline.
   t is within half a frame of s, one key. Further edits follow ADR 0016.
 - With auto-key off, untracked edits change the base value (ADR 0016).
 
+## Amendment 2026-10-18 (user report, P7.1)
+
+Auto-key was stressful on a new object: placing it at a later time created keys at its start
+and the playhead (it glided in from the middle), and an edit at its first frame created a
+one-key track that equals the base but switches the stopwatch rule on, so every later move
+became a key. Now `edits.auto_key_places`: **an edit with nothing to animate from changes the
+base** - at the object's first frame, and for an object with no clip, no keys and no Appears at
+(it is drawn from the start of the scene; it has no entrance yet). The status bar says so.
+Auto-key animates once the object has an entrance (a clip, keys or Appears at) and the
+playhead is past its start. The stopwatch (Keys) still keys anything, anywhere.
+
 ## Consequences
 
 - Posing an object at two times animates it, without touching the stopwatch.

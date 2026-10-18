@@ -558,6 +558,10 @@ All notable changes to this project are documented here. The format follows
   now reads "to_layer ... is missing" instead of crashing.
 
 ### Fixed
+- Auto-key no longer ties a new object's movement to a key at its start: placing an object that
+  has no entrance yet (no clip, keys or Appears at), or editing an object at its first frame,
+  changes its base, and the status bar says so; auto-key animates once the object has an entrance
+  and the playhead is past its start (ADR 0018 amended).
 - On a computer without LaTeX (MiKTeX or TeX Live), a formula no longer breaks the editor - the
   idle pass, drawing and selection all raised, and the canvas showed its last picture stretched
   (a squashed scene with stale objects). The formula is drawn as a placeholder and the status bar
