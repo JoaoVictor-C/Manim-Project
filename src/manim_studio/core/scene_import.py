@@ -110,6 +110,9 @@ FADE_SAFE = frozenset(
     }
 )
 # Clips whose frames depend on how the object is cut into curves and pieces, not only on its drawing.
+# Introducers whose Manim class changes its object when it is made (it hides the letters it will
+# reveal): the object is what the clip ends with.
+REVEALING = frozenset({"AddTextLetterByLetter"})
 STRUCTURAL = frozenset(
     {
         "Create",
@@ -751,10 +754,44 @@ class _Importer:
                     raise Unsupported(f"{self.atom_name(atom)} changes while it is animated", line)
                 self.end(layer, t)
             self.new_layer(atom, states, t, line, explicit=True)
+        self.reorder(t, [leaf for leaf, _ in pairs], drawn, line)
         self.constrain([leaf for leaf, _ in pairs], dict(self.visible))
 
     def constrain(self, leaves: list[str], layers: dict[int, _LayerBuild]) -> None:
         """Layers drawn together keep Manim's order (its z-index sort included)."""
+        for a, b in itertools.pairwise(self.sequence(leaves, layers)):
+            self.order.add((a.key, b.key))
+
+    def reaches(self, start: int, goal: int) -> bool:
+        """Is layer ``start`` known to be drawn below ``goal`` (through the orders seen so far)?"""
+        after: dict[int, list[int]] = {}
+        for a, b in self.order:
+            after.setdefault(a, []).append(b)
+        seen, todo = {start}, [start]
+        while todo:
+            for nxt in after.get(todo.pop(), []):
+                if nxt == goal:
+                    return True
+                if nxt not in seen:
+                    seen.add(nxt)
+                    todo.append(nxt)
+        return False
+
+    def reorder(self, t: float, leaves: list[str], drawn: dict[int, tuple], line) -> None:
+        """Between plays an object can be brought in front of others (added again; a Succession adds
+        its objects again): its layer ends and a new one, drawn in its new place, goes on."""
+        for _ in range(len(self.visible) + 1):
+            sequence = self.sequence(leaves, dict(self.visible))
+            moved = next((b for a, b in itertools.pairwise(sequence) if self.reaches(b.key, a.key)), None)
+            if moved is None:
+                return
+            if any(end > t + EPS for _, end in moved.busy):
+                raise Unsupported(f"{self.atom_name(moved.atom)} changes places while it is animated", line)
+            self.end(moved, t)
+            self.new_layer(moved.atom, drawn[moved.atom], t, line, explicit=True)
+
+    def sequence(self, leaves: list[str], layers: dict[int, _LayerBuild]) -> list[_LayerBuild]:
+        """The layers ``leaves`` belong to, in that order (each layer's pieces drawn together)."""
         sequence: list[_LayerBuild] = []
         for leaf in leaves:
             layer = layers.get(self.atom_of.get(leaf))
@@ -765,8 +802,7 @@ class _Importer:
                     f"pieces of {self.atom_name(layer.atom)} are drawn between pieces of another object"
                 )
             sequence.append(layer)
-        for a, b in itertools.pairwise(sequence):
-            self.order.add((a.key, b.key))
+        return sequence
 
     def check_lane(self, layer: _LayerBuild, begin: float, start: float, end: float, what: str, line) -> None:
         if layer.morph_out:
@@ -805,13 +841,19 @@ class _Importer:
         self.constrain(step["during"], playing)
         self.verify_after(step)
 
-    def layer_for(self, atom: int, states, t: float, introducer: bool, what: str, line) -> _LayerBuild:
+    def layer_for(
+        self, atom: int, states, t: float, introducer: bool, what: str, line, revealed=None
+    ) -> _LayerBuild:
+        """The layer an animation acts on. An introducer may change its object when it is made
+        (AddTextLetterByLetter hides the letters): the object is then what it reveals (``revealed``)."""
         layer = self.visible.get(atom)
         if layer is None:
             if not introducer:
                 raise Unsupported(f"{what} acts on {self.atom_name(atom)}, which is not on screen", line)
-            return self.new_layer(atom, tuple(states), t, line)
-        if not self.matches(layer, states):
+            return self.new_layer(atom, tuple(revealed or states), t, line)
+        if not self.matches(layer, states) and not (
+            introducer and revealed and self.matches(layer, revealed)
+        ):
             raise Unsupported(f"{self.atom_name(atom)} is not as its layer draws it when {what} begins", line)
         return layer
 
@@ -825,6 +867,9 @@ class _Importer:
                 "not be timed as in the whole",
                 line,
             )
+        finished: dict[int, list[str]] = {}
+        if kind in REVEALING and [x for x, _ in a["at_finish"]] == [x for x, _ in a["at_begin"]]:
+            finished = dict(self.split(a["at_finish"], line))
         total = len(a["at_begin"])
         lag = float(a.get("lag_ratio", 0.0))
         unit = a["duration"] / ((total - 1) * lag + 1) if total else a["duration"]
@@ -840,7 +885,7 @@ class _Importer:
             index += n
             if duration <= EPS:
                 raise Unsupported(f"{a['class']} takes no time", line)
-            layer = self.layer_for(atom, states, start, info.introducer, a["class"], line)
+            layer = self.layer_for(atom, states, start, info.introducer, a["class"], line, finished.get(atom))
             playing.setdefault(atom, layer)
             self.check_lane(layer, t0 + a["begin"], start, start + duration, a["class"], line)
             shift = None

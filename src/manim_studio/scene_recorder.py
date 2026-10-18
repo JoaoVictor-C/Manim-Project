@@ -73,7 +73,6 @@ KINDS: dict[str, str] = {
     "ApplyWave": "ApplyWave",
     "Circumscribe": "Circumscribe",
     "Flash": "Flash",
-    "FocusOn": "FocusOn",
     "Transform": "Transform",
     "ReplacementTransform": "Transform",
     "TransformFromCopy": "Transform",
@@ -82,6 +81,11 @@ KINDS: dict[str, str] = {
     "FadeTransform": "FadeTransform",
     "FadeTransformPieces": "FadeTransformPieces",
     "TransformMatchingShapes": "TransformMatchingShapes",
+}
+# Studio clips that play differently from Manim's own animation (ADR 0046): kept as code.
+DIFFERENT = {
+    "FocusOn": "the editor's spotlight closes on the object and stays put; Manim's moves from the "
+    "frame's centre with its updaters",
 }
 MORPHS = frozenset(
     {
@@ -738,6 +742,9 @@ class _Recorder:
         bound = _bind(cls, args, kwargs)
         if not known:
             problems.append(f"{name} is a custom animation: Manim Studio cannot redo what it does")
+            record["kind"] = None
+        elif name in DIFFERENT:
+            problems.append(f"{name}: {DIFFERENT[name]}")
             record["kind"] = None
         elif name in KINDS:
             record["kind"] = KINDS[name]

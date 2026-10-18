@@ -200,6 +200,66 @@ def test_code_that_changes_an_object_between_plays_starts_a_new_layer(tmp_path) 
     assert_frames_match(rec, result.project)
 
 
+def test_entrances_emphases_overlays_and_exits_play_as_in_manim(tmp_path) -> None:
+    rec, result = imported(
+        tmp_path,
+        """
+        s = Square(color=BLUE).shift(LEFT * 3)
+        c = Circle(color=RED, fill_opacity=0.5)
+        t = Text("abc").shift(UP * 2.5)
+        self.play(DrawBorderThenFill(s), GrowFromEdge(c, DOWN), AddTextLetterByLetter(t))
+        self.play(Circumscribe(s), Flash(c))
+        self.play(Wiggle(c), SpinInFromNothing(Star().shift(RIGHT * 3)))
+        self.play(Succession(Indicate(s), s.animate.shift(DOWN)))
+        self.play(ClockwiseTransform(c, Square(side_length=1).shift(RIGHT)))
+        self.play(Uncreate(s), Unwrite(t))
+        self.wait(0.5)
+        """,
+    )
+    assert result.converted, result.report
+    kinds = {c.kind for x in result.project.layers for c in x.clips}
+    assert {
+        "DrawBorderThenFill",
+        "GrowFromEdge",
+        "AddTextLetterByLetter",
+        "Circumscribe",
+        "Flash",
+        "Wiggle",
+    } <= kinds
+    squares = [x for x in result.project.layers if x.name == "s"]
+    assert len(squares) == 2  # the Succession adds the square again, in front: a new layer from then on
+    assert squares[1].lifetime.in_ == pytest.approx(5.0)
+    assert_frames_match(rec, result.project)
+
+
+def test_matching_and_fading_morphs_and_z_index_play_as_in_manim(tmp_path) -> None:
+    rec, result = imported(
+        tmp_path,
+        """
+        a = Text("one")
+        b = Text("noe").shift(DOWN)
+        self.add(a)
+        self.play(TransformMatchingShapes(a, b))
+        c = Circle().shift(UP * 2)
+        self.play(FadeTransform(b, c))
+        d = Square().set_z_index(-1)
+        self.add(d)
+        self.wait()
+        self.play(GrowFromCenter(Triangle().scale(2)))
+        self.wait()
+        """,
+    )
+    assert result.converted, result.report
+    triangle = next(x for x in result.project.layers if x.spec.type == "Triangle")
+    assert triangle.base.scale == pytest.approx(2.0)  # a built-in with its scale: GrowFromCenter suits it
+    assert_frames_match(rec, result.project)
+
+
+def test_a_clip_the_editor_plays_differently_keeps_the_scene_as_code(tmp_path) -> None:
+    _, result = imported(tmp_path, "t = Text('x')\nself.add(t)\nself.play(FocusOn(t))")
+    assert not result.converted and "FocusOn" in result.reasons[0]
+
+
 def test_objects_that_no_built_in_rebuilds_are_exact_shapes(tmp_path) -> None:
     rec, result = imported(
         tmp_path,
