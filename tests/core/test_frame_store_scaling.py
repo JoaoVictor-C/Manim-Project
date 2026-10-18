@@ -89,9 +89,16 @@ class Counting(list):
         return super().__getitem__(item)
 
 
+class CountingDict(dict):
+    def __contains__(self, key):
+        Counting.reads += 1
+        return super().__contains__(key)
+
+
 def full_store(frames: int = 20_000) -> FrameStore:
     store = FrameStore(total=frames * 2, budget=frames * 10)
     store._order = Counting()
+    store.frames = CountingDict()
     for i in range(frames):
         store.accept(0, 0, i, b"0123456789", playhead=0)
     return store
@@ -106,6 +113,8 @@ def test_accepting_into_a_full_store_does_not_scan_the_kept_frames(monkeypatch) 
     for i in range(30_000, 30_050):
         assert store.accept(0, 0, i, b"0123456789", playhead=i - 10)
     assert not scanned, "eviction measured the distance of kept frames one by one"
+    store.missing(30_040, 60)  # a full store also looks for its farthest frame to bound the ask
+    assert len(scanned) <= 2, "missing() measured the distance of kept frames one by one"
     assert len(store) == 20_000
 
 

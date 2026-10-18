@@ -125,6 +125,17 @@ def test_the_timeline_rows_and_header_use_the_same_snapshot_index(qt_app, scans)
     assert total(calls) == 0
 
 
+def test_painting_the_row_names_does_not_rescan_the_layers(qt_app, scans) -> None:
+    calls, reset = scans
+    view = timeline_for(long_project(30))
+    view.show()
+    view.header.grab()  # once, so Qt's own first-paint work is out of the count
+    reset()
+    view.header.grab()
+    assert calls["ancestors"] == 0
+    assert total(calls) == 0
+
+
 def test_the_index_follows_the_snapshot_not_a_stale_one(qt_app) -> None:
     view = timeline_for(long_project(2))
     before = [x.id for x in view.rows()]
