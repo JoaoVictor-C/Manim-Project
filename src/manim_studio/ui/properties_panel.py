@@ -39,6 +39,7 @@ from ..core.schema import (
     CODE_TYPES,
     DIRECTIONS,
     GRAPH_PARAMS,
+    GROUP_TYPES,
     PART_PARENT_TYPES,
     RASTER_TYPES,
     Canvas,
@@ -453,7 +454,9 @@ class PropertiesPanel(QWidget):
             self._part_style_section()
         else:
             self._object_section(layer)
-            if layer.spec.type not in RASTER_TYPES | CODE_TYPES:  # no style on images or code
+            if (
+                layer.spec.type not in RASTER_TYPES | CODE_TYPES | GROUP_TYPES
+            ):  # no style on images, code, groups
                 self._style_section()
             if layer.spec.type in PART_PARENT_TYPES:
                 self._colour_part_section(layer.id)

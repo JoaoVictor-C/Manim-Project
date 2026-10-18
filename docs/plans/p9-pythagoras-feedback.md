@@ -1,6 +1,6 @@
 # P9 - What the Pythagoras project asked for
 
-- **Status:** In progress (U1, U2, U3, U4 and U5 shipped; U6 groups next)
+- **Status:** Done (U1-U6 shipped); what each leaves out is in its slice
 - **Date:** 2026-10-18
 - **Decided in:** [decision session 44](../logs/decision-sessions.md) (Terza, `fast`, stopped at confidence 0.84)
 - **Why:** the user finished a real 30-second project (`Pythagoras.json`: 10 layers of text, 4 right triangles,
@@ -13,7 +13,7 @@
 | 3 | right triangles had to be built as a sample | no such object | **U1 done**: Right triangle object (`RightTriangle`, same params as the user's file) |
 | 4 | colour just a part of a text; many MathTex only to transform parts | part layers have no style | **U5 done**: part colour (ADR 0049): a part layer's `style`, a Text's `t2c` |
 | 5 | auto-key ties a new object's movement to a key at its start | a one-key track at the first frame, or keys at 0 and at the playhead, turned the stopwatch on | **U2 done**: ADR 0018 amended - nothing to animate yet means a base edit |
-| 6 | grouping; select several timelines/objects and move them together | no groups; selection of one clip at a time | **U4 done** (selection) and **U6** (Group, transform-only first) |
+| 6 | grouping; select several timelines/objects and move them together | no groups; selection of one clip at a time | **U4 done** (selection) and **U6 done**: groups (ADR 0050), transform-only: Edit > Group / Ungroup |
 
 ## Decisions and why (session 44)
 
@@ -41,5 +41,10 @@
   Manim's `t2c`.
 - **U6**: groups last, the riskiest for the evaluator's trees: transform-only (position, scale, rotation,
   opacity tracks), a collapsible row, no morph across the group boundary, exact export fallback.
+  *As built (ADR 0050):* a group is a root with `spec.type = "Group"` and its objects keep `parent_id`; it
+  is not a tree - each object is evaluated as a root and carried by the group's transform, so grouping
+  and group edits rebuild nothing. Ungroup bakes a constant group transform exactly (a keyed group asks to
+  bake its keys first). The timeline shows the group row with its objects indented (collapsing them is a
+  later step, with the timeline's own rewrite).
 - Order: U3 and U4 after P7.3 (the Animate rows rewrite the same timeline), U5 in parallel (evaluator and
   Properties only), U6 last.

@@ -12,7 +12,7 @@ edits, never changed in place) and drop it with the snapshot.
 
 from __future__ import annotations
 
-from .schema import Layer, Project, infer_lifetime
+from .schema import Layer, Project, group_span, infer_lifetime
 
 
 class LayerIndex:
@@ -79,6 +79,10 @@ class LayerIndex:
         if known is not None:
             return known
         layer = self.layer(layer_id)
+        if layer.is_group:  # the span of its children (ADR 0050)
+            spans = (infer_lifetime(c, self.morph_sources.get(c.id)) for c in self._kids.get(layer_id, ()))
+            self._lifetimes[layer_id] = group_span(layer, spans)
+            return self._lifetimes[layer_id]
         start, end = infer_lifetime(layer, self.morph_sources.get(layer_id))
         if layer.parent_id is not None:
             parent_start, parent_end = self.lifetime(layer.parent_id)

@@ -106,8 +106,8 @@ def _closure(project: Project, changed: set[str]) -> set[str]:
 
     def whole_object(layer_id: str) -> set[str]:
         root = by_id[layer_id]
-        while root.parent_id is not None:
-            root = by_id[root.parent_id]
+        while root.parent_id is not None and not by_id[root.parent_id].is_group:
+            root = by_id[root.parent_id]  # an object in a group is an object of its own (ADR 0050)
         if root.id not in objects:
             members, pending = {root.id}, [root.id]
             while pending:

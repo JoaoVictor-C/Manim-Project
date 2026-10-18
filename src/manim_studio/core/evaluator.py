@@ -34,6 +34,11 @@ layer's glyphs (the root's: all of them), and each layer draws the glyphs it
 owns through its transform composed with its ancestors'. A child object can
 morph: while it does, the hand-off draws instead of its glyphs.
 
+A group (ADR 0050) is not a tree: it draws nothing, and each of its children is
+evaluated exactly as a root object (its own build, clips, checkpoints), then
+carried by the group's transform as a child object is by its parent. Its
+lifetime is the span of its children's, unless set.
+
 Edits are applied with ``invalidate`` / ``apply`` and an edit kind (ADR 0008,
 ADR 0013): timing and transform edits keep every cache, clip and spec edits drop
 the affected layers' caches (a whole tree for a layer in one).
@@ -69,6 +74,7 @@ from .schema import (
     Project,
     Spec,
     Transform2D,
+    group_span,
     infer_lifetime,
 )
 
@@ -147,10 +153,15 @@ class Evaluator:
         self._layers: dict[str, Layer] = {layer.id: layer for layer in self.project.layers}
         # Tree questions answered from maps built once, not by a scan per layer (B66).
         self._ltree = LayerIndex(self.project)
-        # Roots evaluated as trees: with parts (ADR 0012) or child objects (ADR 0029).
+        # Roots evaluated as trees: with parts (ADR 0012) or child objects (ADR 0029). A group is
+        # not one (ADR 0050): each of its children is evaluated as a root, carried by the group.
+        self._groups = {layer.id for layer in self.project.layers if layer.is_group}
         self._trees_of = {
-            self._ltree.root_of(layer.id).id for layer in self.project.layers if layer.parent_id is not None
+            root.id
+            for layer in self.project.layers
+            if layer.parent_id is not None and not (root := self._ltree.root_of(layer.id)).is_group
         }
+        self._group_spans: dict[str, tuple[float, float]] = {}  # per snapshot: one pass per group
         for layer in self.project.layers:
             for clip in layer.clips:
                 if clip.to_layer:
@@ -159,7 +170,7 @@ class Evaluator:
             layer.id
             for layer in self.project.layers
             if layer.spec is not None
-            and layer.parent_id is None
+            and (layer.parent_id is None or layer.parent_id in self._groups)  # ADR 0050
             and (layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS)
         }
         self._signatures: dict[str, str] = {}  # what a traced layer is evaluated from, per project
@@ -238,6 +249,8 @@ class Evaluator:
         for tree in (old_tree, self._ltree):  # a layer in a tree affects the whole tree
             for layer_id in [i for i in affected if i in tree]:
                 root = tree.root_of(layer_id)
+                if root.is_group:  # its children are evaluated each on its own (ADR 0050)
+                    continue
                 affected |= {root.id} | {d.id for d in tree.descendants(root.id)}
         for cache in (self._checkpoints, self._active):
             for key in [k for k in cache if k[0] in affected]:
@@ -274,7 +287,7 @@ class Evaluator:
         missing plugin (ADR 0032)."""
         out = {}
         for layer in self.project.layers:
-            if layer.spec is None or layer.parent_id is not None:
+            if layer.spec is None or (layer.parent_id is not None and not self._grouped(layer)):
                 continue
             problem = adapter.build_problem(layer.spec, self._media_signature(layer))
             problem = problem or self._sim_errors.get(layer.id)  # a step failed later (ADR 0033)
@@ -348,6 +361,10 @@ class Evaluator:
         return self._object_at(self._ltree.root_of(layer_id), t)
 
     def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
+        if root.id in self._groups:  # its children, in stacking order, carried by it (ADR 0050)
+            if not self._alive(root, t):
+                return []
+            return [pair for child in self._ltree.children(root.id) for pair in self._object_at(child, t)]
         if root.id in self._trees_of:  # its parts or child objects too (ADR 0012, 0029)
             return self._tree_at(root, t)
         mob = self._layer_at(root, t)
@@ -356,12 +373,26 @@ class Evaluator:
     # -- lifetime --------------------------------------------------------------
 
     def lifetime(self, layer: Layer) -> tuple[float, float]:
-        morph_in = self._morph_into.get(layer.id)
-        start, end = infer_lifetime(layer, morph_in[1] if morph_in else None)
+        if layer.id in self._groups:  # the span of its children (ADR 0050), once per snapshot
+            if layer.id not in self._group_spans:
+                self._group_spans[layer.id] = group_span(
+                    layer, (self._own_lifetime(c) for c in self._ltree.children(layer.id))
+                )
+            return self._group_spans[layer.id]
+        start, end = self._own_lifetime(layer)
         if layer.parent_id is not None:  # clamped to the parent's (ADR 0012)
             parent_start, parent_end = self.lifetime(self._layers[layer.parent_id])
             start, end = max(start, parent_start), min(end, parent_end)
         return start, end
+
+    def _own_lifetime(self, layer: Layer) -> tuple[float, float]:
+        """The layer's lifetime before its parent's clamps it."""
+        morph_in = self._morph_into.get(layer.id)
+        return infer_lifetime(layer, morph_in[1] if morph_in else None)
+
+    def _grouped(self, layer: Layer) -> bool:
+        """In a group (ADR 0050): evaluated as a root, then carried by the group's transform."""
+        return layer.parent_id in self._groups
 
     # -- local state (clips) ---------------------------------------------------
 
@@ -369,7 +400,7 @@ class Evaluator:
         if layer.id in self._trees_of:
             self._tree(layer)  # builds the whole object
         if layer.id not in self._base:
-            if layer.is_child:  # a child object alone, built against its parent (a path, ADR 0025)
+            if layer.is_child and not self._grouped(layer):  # alone, built against its parent (ADR 0025)
                 parent = self._layers[layer.parent_id].spec
                 built = self._built(
                     layer.spec,
@@ -508,6 +539,16 @@ class Evaluator:
 
     def _traced_point(self, target: Layer, t: float, offset: np.ndarray) -> np.ndarray | None:
         """Where a trace of ``target`` is at ``t`` in world units, or None when it is not drawn."""
+        if target.id in self._groups:  # the centre of its children's box (ADR 0050)
+            points = [
+                sub.points[:, :2]
+                for _, mob in self._object_at(target, t)
+                for sub in mob.family_members_with_points()
+            ]
+            if not points:
+                return None
+            every = np.vstack(points)
+            return (every.min(axis=0) + every.max(axis=0)) / 2 + self._world_affine(target, t)[0] @ offset
         root = self._ltree.root_of(target.id)
         if root.id in self._trees_of:  # a part or child object, or an object that has them
             drawn = dict(self._tree_at(root, t)).get(target.id)
@@ -731,7 +772,9 @@ class Evaluator:
                 part = self._layers[member].part
                 groups.append((part.tex if part is not None else None, mob.copy()))
             return groups
-        if layer.is_child and not layer.is_part:  # a child object as its tree draws it (ADR 0029)
+        if (
+            layer.is_child and not layer.is_part and not self._grouped(layer)
+        ):  # as its tree draws it (ADR 0029)
             root = self._ltree.root_of(layer.id)
             members = self._tree_members_at(root, t, morphs=False)
             drawn = [mob.copy() for member, mob in members if member == layer.id]
@@ -741,11 +784,13 @@ class Evaluator:
 
     def _end_signature(self, layer: Layer, t: float):
         """What one end of a morph depends on besides edits that drop caches anyway."""
-        if layer.is_child and not layer.is_part:  # drawn by its tree: depends on all of it (ADR 0029)
+        if layer.is_child and not layer.is_part and not self._grouped(layer):  # drawn by its tree (ADR 0029)
             layer = self._ltree.root_of(layer.id)
         if layer.id not in self._trees_of:
             paths = self._path_sigs(layer, sum(1 for c in layer.clips if c.end <= t))  # ADR 0025
-            return self.transform_at(layer, t), paths
+            group = self._layers[layer.parent_id] if self._grouped(layer) else None  # ADR 0050
+            carried = self.transform_at(group, t) if group is not None else None
+            return self.transform_at(layer, t), carried, paths
         tree = self._tree(layer)
         finished = tuple((lay.id, c.id) for lay, c in self._tree_clips(layer, tree) if c.end <= t)
         members = tuple((member, self.transform_at(self._layers[member], t)) for member in tree.members)
@@ -756,18 +801,27 @@ class Evaluator:
     def _world_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
         """``p -> a p + b`` from a root's or child object's local units to world at ``t``."""
         a, b = _affine(self.transform_at(layer, t))
-        if layer.is_child and not layer.is_part:
+        if layer.is_child and not layer.is_part:  # a child object, or an object in a group (ADR 0050)
             pa, pb = _affine(self.transform_at(self._layers[layer.parent_id], t))
             a, b = pa @ a, pa @ b + pb
         return a, b
+
+    def _world_opacity(self, layer: Layer, t: float) -> float:
+        """A root's or child object's opacity at ``t``, multiplied by its parent's."""
+        opacity = self.transform_at(layer, t).opacity
+        if layer.is_child and not layer.is_part:
+            opacity *= self.transform_at(self._layers[layer.parent_id], t).opacity
+        return opacity
 
     def _path_signature(self, layer: Layer, clip: Clip) -> str:
         """What a path clip's run depends on: both layers' transforms at its start, the path's build
         (its file's signature too, for an SVG: ADR 0027)."""
         path = self._layers[clip.params["path"]]
         chain = [layer, path] + ([self._layers[path.parent_id]] if path.is_child else [])
-        transforms = [self.transform_at(x, clip.start).model_dump_json() for x in chain]
         builds = [f"{x.spec.model_dump_json()}@{self._media_signature(x)}" for x in chain[1:]]
+        if self._grouped(layer):  # the mover's group carries it (ADR 0050)
+            chain.append(self._layers[layer.parent_id])
+        transforms = [self.transform_at(x, clip.start).model_dump_json() for x in chain]
         return "|".join(transforms + builds)
 
     def _path_sigs(self, layer: Layer, count: int) -> tuple[str, ...]:
@@ -828,9 +882,8 @@ class Evaluator:
         crop = clip.crop(math.floor((t - start) * clip.fps + 1e-6))
         if crop is None:
             return None  # an empty frame: nothing drawn
-        tr = self.transform_at(layer, t)
-        a, b = _affine(tr)
-        return CodeFrame(crop, self.project.canvas, a, b, tr.opacity)
+        a, b = self._world_affine(layer, t)  # a group carries it too (ADR 0050)
+        return CodeFrame(crop, self.project.canvas, a, b, self._world_opacity(layer, t))
 
     # -- objects with parts (ADR 0012) -----------------------------------------
 
@@ -1148,11 +1201,14 @@ def _builds(project: Project, tree: LayerIndex) -> dict[str, object]:
     parent's spec (an axes edit re-plots its graphs)."""
     out: dict[str, object] = {}
     by_id = {layer.id: layer for layer in project.layers}
-    for root in tree.roots():
+    grouped = {x.id for x in project.layers if x.parent_id is not None and by_id[x.parent_id].is_group}
+    for root in [*tree.roots(), *(by_id[i] for i in grouped)]:  # an object in a group builds alone
+        if root.is_group:
+            continue  # draws nothing (ADR 0050)
         children = tuple(x.spec for x in tree.children(root.id) if not x.is_part)
         out[root.id] = (parts.build_spec(project, root.id, index=tree), children)
     for layer in project.layers:
-        if layer.is_child and not layer.is_part:
+        if layer.is_child and not layer.is_part and layer.id not in grouped:
             out[layer.id] = (
                 tree.layer(layer.parent_id).spec,
                 layer.spec,

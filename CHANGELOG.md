@@ -22,6 +22,14 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Groups (U6, ADR 0050, from the Pythagoras project): Edit > Group (Ctrl+G) puts the selected
+  objects in a group and Ungroup (Ctrl+Shift+G) takes them out, each looking as it did (a keyed
+  group asks to bake its keys first). A group draws nothing: its position, scale, rotation, anchor
+  and opacity - base and keys - carry its objects, which keep their own clips, keys and lifetime. A
+  click on one of its objects selects the group, moved, scaled and turned as one on the canvas; a
+  double-click enters it. Its lifetime is its objects' span unless set. Not yet: clips on a group,
+  nested groups, equations with parts or axes with graphs inside one. The readable Python export
+  falls back to the exact form for projects with groups. Files without groups are unchanged.
 - Timeline multi-selection (U4b, from the Pythagoras project: "move it all right 5 s"):
   Shift/Ctrl+click adds clips and key diamonds (or one property's keys) to the selection, a drag
   from empty space draws a rubber band (a click still picks the row), Ctrl+A selects every clip and
