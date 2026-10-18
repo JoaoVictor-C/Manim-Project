@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Freeze to shape** (P10.2, ADR 0052): Edit > Freeze to Shape (also the Layers right-click menu
+  and a button in Properties) turns an object - a Python object, a shape, a Text, an equation, an
+  SVG - into a **Shape**: the vector paths and colours it draws, kept as data. It draws exactly
+  the same pixels, keeps its place, keys, clips and lifetime, and needs no code, no trust prompt
+  and no LaTeX, so a finished project plays on a computer without them. One undo step turns it
+  back; there are no parameters to edit afterwards (Style still recolours it). Placeholders,
+  groups, code layers, images, parts and clips that need the old type are refused with the
+  reason. The readable Python export writes the data and a small helper.
 - Python object templates (P10): "New Python object" on the Code page has an arrow with a menu of
   starters - Right triangle, and **Matrix** (rows, columns and the entries as parameters, one LaTeX
   build; the code is the user's from the Pythagoras project). A Python object's build may now take

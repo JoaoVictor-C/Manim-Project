@@ -845,3 +845,23 @@ sampled every 2 ms above the RSS after imports (114 MB). The same script run aga
   time no open reader is behind (bounded memory, seconds at 15 minutes); `audio.mix` (the exact
   Python scene's wav) still builds the whole mix, once, in the render process. -> ADR 0034
   amendment.
+
+### B71 - P10.2: frozen objects against their sources · 2026-10-18
+`benchmarks/bench_shapes.py`: a Text, a MathTex and the two Python object templates frozen into
+shapes; the spec's JSON before and after, a build with Manim's disk cache warm (the source parses
+its LaTeX/text SVGs again; a Python object is built twice, its first-use determinism check)
+against building the shape from its data, an edit of another layer of the same project and a
+save + load; minimum of 20, two runs.
+
+| object | pieces / points | spec JSON | build (source -> shape) | edit elsewhere | save+load |
+|---|---|---|---|---|---|
+| Text "Hi ok" | 4 / 376 | 52 B -> 24.9 KB | 9.1-16.6 ms -> 0.65-1.8 ms | 0.14-0.32 ms | 0.4-0.7 ms |
+| MathTex `e^{i\pi}+1=0` | 7 / 488 | 63 B -> 31.9 KB | 7.5-17.1 ms -> 0.94-2.2 ms | 0.17-0.30 ms | 0.5-1.1 ms |
+| Matrix template, 3x3 | 13 / 816 | 1.4 KB -> 53.9 KB | 49-87 ms -> 2.0-3.9 ms | 0.33-0.54 ms | 1.0-1.2 ms |
+| Right-triangle template | 3 / 20 | 1.2 KB -> 1.0 KB | 2.2-3.1 ms -> 0.9-1.2 ms | 0.13-0.17 ms | 0.1-0.2 ms |
+
+- **Size:** floats at full precision are tens of KB per equation (a Text's glyphs keep a z of
+  ~1e-17, so they are stored as [x, y, z]); far below the 4 MB / 300 000-point limit, so no
+  rounding. -> ADR 0052.
+- **Pixels:** identical (`np.array_equal`) to the source in every frame tested
+  (`tests/core/test_shapes.py`).

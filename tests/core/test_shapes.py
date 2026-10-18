@@ -91,6 +91,7 @@ def sources(svg_path: str) -> dict[str, Spec]:
         "matrix": python(python_templates.MATRIX, {"rows": 2, "columns": 2, "values": "1,2;3,4"}),
         "svg": Spec(type="SVGMobject", params={"path": svg_path}),
         "gradient": python(GRADIENT),
+        "axes": Spec(type="Axes", params={"x_length": 6.0, "y_length": 4.0}),
     }
 
 
@@ -127,7 +128,7 @@ def assert_same_pixels(a: Project, b: Project, label: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["circle", "square", "text", "math", "triangle", "matrix", "svg", "gradient"]
+    "name", ["circle", "square", "text", "math", "triangle", "matrix", "svg", "gradient", "axes"]
 )
 def test_a_frozen_object_draws_the_same_pixels(name: str, svg_path: str) -> None:
     source = scene(sources(svg_path)[name], "Write" if name in ("text", "math", "matrix") else "Create")
