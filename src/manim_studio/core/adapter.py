@@ -693,46 +693,54 @@ def shape_data(mob: m.Mobject) -> dict[str, Any]:
     total = 0
     pieces = []
     for leaf in leaves:
-        if not isinstance(leaf, m.VMobject):
-            raise ValueError(f"it is not all vector paths (a {type(leaf).__name__})")
-        if leaf.get_background_image():
-            raise ValueError("it is painted with a background image")
-        points = np.asarray(leaf.points, dtype=float)
-        if not np.isfinite(points).all():
-            raise ValueError("it has points that are not finite numbers")
-        total += len(points)
+        total += len(leaf.points)
         if total > shape.MAX_POINTS:
             raise ValueError(shape.size_problem(total, 0))
-        piece: dict[str, Any] = {
-            "points": (points if points[:, 2].any() else points[:, :2]).tolist(),
-            "fill": _rgbas_data(leaf.get_fill_rgbas()),
-            "stroke": _rgbas_data(leaf.get_stroke_rgbas()),
-            "stroke_width": float(leaf.get_stroke_width()),
-        }
-        background = _rgbas_data(leaf.get_stroke_rgbas(background=True))
-        if background != _NO_BACKGROUND:
-            piece["background"] = background
-        if leaf.get_stroke_width(background=True):
-            piece["background_width"] = float(leaf.get_stroke_width(background=True))
-        direction = [float(v) for v in np.asarray(leaf.get_sheen_direction(), dtype=float)]
-        if tuple(direction) != _UL:
-            piece["sheen_direction"] = direction
-        if leaf.get_sheen_factor():
-            piece["sheen_factor"] = float(leaf.get_sheen_factor())
-        if leaf.joint_type is not m.LineJointType.AUTO:
-            piece["joint"] = leaf.joint_type.name
-        if leaf.cap_style is not m.CapStyleType.AUTO:
-            piece["cap"] = leaf.cap_style.name
-        if leaf.z_index:
-            piece["z_index"] = float(leaf.z_index)
-        if leaf.shade_in_3d:
-            piece["shade_in_3d"] = True
-        pieces.append(piece)
+        pieces.append(piece_data(leaf))
     data = {"version": shape.VERSION, "shapes": pieces}
     problem = shape.size_problem(total, len(json.dumps(data)))
     if problem is not None:
         raise ValueError(problem)
     return data
+
+
+def piece_data(leaf: m.Mobject) -> dict[str, Any]:
+    """One drawn piece of a shape (ADR 0052): ``leaf``'s own points (not its children's) and what
+    the Cairo renderer reads to draw it. The scene importer (ADR 0053) records leaves this way.
+
+    Raises ``ValueError`` (the reason, for the user) when it is not a plain vector path."""
+    if not isinstance(leaf, m.VMobject):
+        raise ValueError(f"it is not all vector paths (a {type(leaf).__name__})")
+    if leaf.get_background_image():
+        raise ValueError("it is painted with a background image")
+    points = np.asarray(leaf.points, dtype=float)
+    if not np.isfinite(points).all():
+        raise ValueError("it has points that are not finite numbers")
+    piece: dict[str, Any] = {
+        "points": (points if points[:, 2].any() else points[:, :2]).tolist(),
+        "fill": _rgbas_data(leaf.get_fill_rgbas()),
+        "stroke": _rgbas_data(leaf.get_stroke_rgbas()),
+        "stroke_width": float(leaf.get_stroke_width()),
+    }
+    background = _rgbas_data(leaf.get_stroke_rgbas(background=True))
+    if background != _NO_BACKGROUND:
+        piece["background"] = background
+    if leaf.get_stroke_width(background=True):
+        piece["background_width"] = float(leaf.get_stroke_width(background=True))
+    direction = [float(v) for v in np.asarray(leaf.get_sheen_direction(), dtype=float)]
+    if tuple(direction) != _UL:
+        piece["sheen_direction"] = direction
+    if leaf.get_sheen_factor():
+        piece["sheen_factor"] = float(leaf.get_sheen_factor())
+    if leaf.joint_type is not m.LineJointType.AUTO:
+        piece["joint"] = leaf.joint_type.name
+    if leaf.cap_style is not m.CapStyleType.AUTO:
+        piece["cap"] = leaf.cap_style.name
+    if leaf.z_index:
+        piece["z_index"] = float(leaf.z_index)
+    if leaf.shade_in_3d:
+        piece["shade_in_3d"] = True
+    return piece
 
 
 def _rgbas_data(rgbas: np.ndarray) -> list:
