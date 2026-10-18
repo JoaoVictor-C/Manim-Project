@@ -22,6 +22,14 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Groups (U6, ADR 0050, from the Pythagoras project): Edit > Group (Ctrl+G) puts the selected
+  objects in a group and Ungroup (Ctrl+Shift+G) takes them out, each looking as it did (a keyed
+  group asks to bake its keys first). A group draws nothing: its position, scale, rotation, anchor
+  and opacity - base and keys - carry its objects, which keep their own clips, keys and lifetime. A
+  click on one of its objects selects the group, moved, scaled and turned as one on the canvas; a
+  double-click enters it. Its lifetime is its objects' span unless set. Not yet: clips on a group,
+  nested groups, equations with parts or axes with graphs inside one. The readable Python export
+  falls back to the exact form for projects with groups. Files without groups are unchanged.
 - Colour part of a text (U5, ADR 0049, from the Pythagoras project): a MathTex/Tex part layer has
   Fill and Stroke colours; Properties of an equation has **Colour a part** (the TeX, which occurrence,
   Colour...) and Layers **Colour part...**, each one undo step that makes the part layer if needed.

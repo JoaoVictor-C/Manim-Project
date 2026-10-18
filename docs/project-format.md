@@ -30,7 +30,7 @@ times are seconds.
 | `id` | string | unique; referenced by `to_layer` |
 | `name` | string | display name |
 | `spec` | Spec | the Manim object; `null` on a part layer |
-| `parent_id` | string | child layers only: the object (or part) it belongs to — a part, or a child object such as a graph |
+| `parent_id` | string | child layers only: the object (or part) it belongs to — a part, a child object such as a graph, or an object in a group (ADR 0050) |
 | `part` | `{"tex": s, "occurrence": n}` | part layers only: the `n`-th match (from 0) of `tex` in the parent's text |
 | `base` | Transform2D | static transform when a track has no keyframes |
 | `lifetime` | `{"in": s, "out": s}` | optional; inferred from clips when absent (below) |
@@ -82,6 +82,24 @@ axes takes their graphs along.
 ```json
 { "id": "sin", "parent_id": "axes", "spec": { "type": "Graph",
   "params": { "expression": "sin(x)", "x_range": [-5, 5] }, "style": { "stroke": "#38bdf8" } } }
+```
+
+**Groups** (ADR 0050): a root layer with `"spec": { "type": "Group" }` draws
+nothing; the layers whose `parent_id` is the group are its objects, each with
+its own `spec`, clips, keys and lifetime, drawn in their list order where the
+group is stacked. The group's `base` and `tracks` (position, scale, rotation,
+anchor, opacity) apply after each object's own transform, opacities multiplied.
+Its lifetime is its own `lifetime` when set, else the span of its objects'
+lifetimes, and its objects are clamped to it. A group has no clips and no
+parent; its objects are whole plain objects (not parts, not objects on axes, not
+objects that have parts or objects on axes, not traced paths or connectors). A
+morph's two ends are in the same group or in none, and nothing morphs into a
+group or moves along one.
+
+```json
+{ "id": "group-1", "name": "Triangles", "spec": { "type": "Group" },
+  "base": { "position": [1.0, 0.0], "scale": 0.8 } },
+{ "id": "tri-a", "parent_id": "group-1", "spec": { "type": "RightTriangle" } }
 ```
 
 **Subtitles** (ADR 0035): `subtitles` is a list of cues (`id`, `start`, `end`,
@@ -268,6 +286,7 @@ dialog in the editor):
 - Morph clips must have `to_layer`; other clips must not. The target must exist,
   must not be the layer itself, and may be the target of only one morph.
 - Nothing may follow a morph on the same lane (the layer has handed off — ADR 0005).
+- Groups (ADR 0050): no clips, no parent, only whole plain objects inside; morphs stay inside one group.
 - Canvas sizes, fps, `frame_height` and `duration` are positive; `opacity` in `base` is in [0, 1].
 - Cubic-bezier `x1`, `x2` are in [0, 1] (y may overshoot).
 
