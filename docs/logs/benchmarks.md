@@ -638,3 +638,23 @@ check about **31 s**. -> ADR 0045.
 rebuilt) **1.3 ms** median, 3.2 ms worst; a tab switch **1.0 ms**; one frame of a hovered
 card **0.14 ms**. Drawing everything when the dialog opens is cheap enough that no
 background thread is needed. -> ADR 0044.
+
+### B64 — Readable export of keyframed layers rendered by Manim · 2026-10-17
+`benchmarks/bench_keyed_export.py` (G3a): the G3a test projects at 256x144, 10 fps - every
+kind of key (each ease, a curved path overshooting, an anchor with a turn past 180 degrees,
+opacity keys), keyed layers whose clips play while keys change (an overlay, a remover, a group,
+a morph, a keyed path), the committed euler example, and the 32 built-in presets on a square and
+a text - exported readable and rendered with `manim render`, 36 scenes and 1200 frames: worst
+per-frame mean difference from the editor **0.57** (keys), **1.19** (clips; h264 on thin red
+lines), **0.73** (euler), presets **1.17** (Focus: a soft translucent disc), keyed presets
+**0.14**; Pop in on a circle at 640x360, 30 fps (a 0.25 s clip ending between frames) **0.14**.
+Generation: 7-12 ms for a keyed project (first call 38 ms), 1.0 ms median per preset; keyed
+files are 160-290 lines, about 120 of them helpers. Rendering all 36 scenes in two `manim render
+-a` processes: **51 s** on battery. Found on the way: Manim adds whatever an animation plays on
+to the scene (so the object must stay out of it: `KeyedClip`); in a frame every animation
+interpolates, then mobject updaters run, then the frame is drawn (the drawing's dt updater sees
+the clip's state); Manim lists what it draws when a play begins (a replaced drawing must be
+emptied, not dropped); `renderer.time` is a sum of frame steps (rounded to the grid, else a
+jumping ease is sampled on the wrong side); a held wait draws `int(t / dt)` frames and a drawn
+one `ceil(t / dt)`, so waits are chosen to give both the same count. B44's exact case is now a
+turned layer with a clip (keys are readable): 1.26. -> ADR 0046.

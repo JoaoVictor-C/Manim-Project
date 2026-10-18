@@ -24,12 +24,13 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from tests.core.test_python_export import rich  # noqa: E402
+
 from manim_studio.core import adapter  # noqa: E402
 from manim_studio.core.evaluator import Evaluator  # noqa: E402
 from manim_studio.core.python_export import to_python  # noqa: E402
 from manim_studio.core.schema import Transform2D  # noqa: E402
 from manim_studio.render.cairo_export import frame_times, make_camera, render_frame  # noqa: E402
-from tests.core.test_python_export import rich  # noqa: E402
 
 
 def render(code: str, scene: str, folder: Path) -> tuple[list[np.ndarray], float]:

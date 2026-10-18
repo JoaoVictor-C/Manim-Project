@@ -111,6 +111,13 @@ def clips() -> Project:
         canvas=Canvas(**SMALL, duration=5.0),
         layers=[
             Layer(
+                id="ring",
+                name="Ring",
+                spec=Spec(type="Circle", params={"radius": 0.8}),
+                base=Transform2D(position=(0.0, 1.5)),
+                clips=[Clip(id="cr", kind="Create", start=1.8, duration=1.2)],
+            ),
+            Layer(  # second: the overlay of the layer above it is drawn over it, not under
                 id="panel",
                 name="Panel",
                 spec=Spec(
@@ -140,13 +147,6 @@ def clips() -> Project:
                     ],
                     "rotation": [Keyframe(t=1.5, value=0.0), Keyframe(t=4.5, value=200.0)],
                 },
-            ),
-            Layer(
-                id="ring",
-                name="Ring",
-                spec=Spec(type="Circle", params={"radius": 0.8}),
-                base=Transform2D(position=(0.0, 1.5)),
-                clips=[Clip(id="cr", kind="Create", start=1.8, duration=1.2)],
             ),
             Layer(
                 id="label",
@@ -249,7 +249,9 @@ def test_the_keys_are_written_as_data() -> None:
     assert "Succession(Wait(0.5), eq1_keyed.clip(Write(eq1, run_time=1.5)))" in code
     assert "self.play(eq1_keyed.clip(Indicate(eq1)), run_time=0.8)" in code
     assert "self.play(ReplacementTransform(eq1_keyed.still(4.4), eq2), run_time=1.2)" in code
-    assert "config.disable_caching = True" in code  # Manim's cache does not see the scene clock
+    assert "\nconfig.disable_caching = True" in code  # Manim's cache does not see the scene clock
+    moves = to_python(clips(), "Clips").code  # a keyed path is where its keys put it as the move starts
+    assert "MoveAlongPath(runner, Circle(radius=1.0).move_to(ORIGIN).shift([0.0, -2.0, 0.0])" in moves
     plain = to_python(Project(canvas=euler().canvas, layers=[euler().layers[0]]), "Plain").code
     assert "Keyed" not in plain and "disable_caching" not in plain
 
@@ -405,7 +407,7 @@ def test_the_drawing_is_the_frame_on_the_editor_grid() -> None:
 
 def test_a_keyed_clip_adds_removes_and_draws_overlays() -> None:
     ns, scene = helpers(), FakeScene()
-    square = ns["Square"]()
+    square = ns["Square"]().set_z_index(3)
     keyed = ns["Keyed"](scene, square)
     fade_in = keyed.clip(ns["FadeIn"](square))
     fade_in._setup_scene(scene)
@@ -415,6 +417,10 @@ def test_a_keyed_clip_adds_removes_and_draws_overlays() -> None:
     flash.begin()
     assert keyed.overlays == [flash.animation.mobject] and scene.added == [keyed]
     flash.interpolate(0.5)
+    assert {part.z_index for part in keyed.at(0.0).get_family()} == {3}  # at the layer's place
+    keyed.still(0.0)
+    assert scene.removed == [keyed]  # a morph's start takes the drawing's place in the scene
+    scene.removed.clear()
     flash.finish()
     flash.clean_up_from_scene(scene)
     assert keyed.overlays == [] and flash.mobject in scene.removed  # its stand-in, not the drawing
