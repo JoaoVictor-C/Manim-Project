@@ -884,12 +884,9 @@ class TimelineView(QGraphicsView):
             old.clear()
             old.setSceneRect(rect)
             return old
-        h, v = self.horizontalScrollBar().value(), self.verticalScrollBar().value()
         scene = QGraphicsScene(self)
-        scene.setSceneRect(rect)
+        scene.setSceneRect(rect)  # before it is shown: the scroll bars keep their place
         self.setScene(scene)
-        self.horizontalScrollBar().setValue(h)
-        self.verticalScrollBar().setValue(v)
         old.deleteLater()
         return scene
 

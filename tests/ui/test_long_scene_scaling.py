@@ -206,3 +206,18 @@ def test_a_clip_edit_invalidates_with_a_constant_number_of_scans(scans) -> None:
         evaluator.invalidate(edited, {"sq0"}, "clip")
         counts.append(total(calls))
     assert counts[0] == counts[1], counts
+
+
+def test_a_visible_timeline_rebuilds_into_a_new_scene_keeping_its_scroll(qt_app) -> None:
+    """Clearing one scene again and again got slower each time (B68): a rebuild starts a new one."""
+    view = timeline_for(long_project(10))
+    view.show()
+    qt_app.processEvents()
+    view.verticalScrollBar().setValue(200)
+    view.horizontalScrollBar().setValue(300)
+    before = view.scene()
+    view.sync()
+    assert view.scene() is not before
+    assert view.verticalScrollBar().value() == 200 and view.horizontalScrollBar().value() == 300
+    assert len(view.clip_items()) == sum(len(layer.clips) for layer in view.project.layers)
+    view.close()

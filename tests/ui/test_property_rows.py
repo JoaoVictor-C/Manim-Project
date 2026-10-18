@@ -354,6 +354,21 @@ def test_another_object_selected_elsewhere_drops_the_chosen_properties(view) -> 
     assert view.selected_props == () and view.prop_layer is None
 
 
+def test_property_rows_are_banded_and_the_chosen_one_stands_out(view, qt_app) -> None:
+    def colour(prop: str):
+        point = sub_point(view, 5.5, "a", prop).toPoint()  # nothing drawn there but the band
+        return view.viewport().grab().toImage().pixelColor(point)
+
+    from manim_studio.ui.timeline.view import BACKGROUND
+
+    view.set_expanded("a", True)
+    qt_app.processEvents()
+    assert colour("scale").rgb() != BACKGROUND.rgb()  # a band over the timeline's background
+    click_header(view, 60, sub_y(view, "a", "rotation"))
+    qt_app.processEvents()
+    assert colour("rotation") != colour("scale")
+
+
 def test_empty_space_in_a_sub_row_chooses_it_too(view) -> None:
     view.set_expanded("a", True)
     pos = sub_point(view, 5.0, "a", "opacity")
