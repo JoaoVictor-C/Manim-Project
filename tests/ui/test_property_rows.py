@@ -164,8 +164,12 @@ def test_alt_click_on_a_name_expands_it_too(view) -> None:
 
 
 def test_a_locked_child_has_an_opacity_row_only(view) -> None:
+    below = view.row_top("b")
     view.set_expanded("g", True)
     assert view.sub_rows("g") == ("opacity",)
+    assert view.row_top("b") == below + SUB_ROW_HEIGHT  # one property row only
+    with pytest.raises(ValueError):
+        view.prop_row_top("g", "position")
 
 
 def test_expanded_rows_are_dropped_with_the_project(view) -> None:
@@ -210,13 +214,13 @@ def test_dragging_a_sub_row_key_retimes_that_property_only(view, qt_app) -> None
 
 def test_a_sub_row_key_stops_before_its_own_neighbour_only(view, qt_app) -> None:
     view.set_expanded("a", True)
-    start = sub_point(view, 1.0, "a", "position")
-    end = QPointF(start.x() + view.scale.px_per_second * 4, start.y())
+    start = sub_point(view, 1.0, "a", "rotation")
+    end = QPointF(start.x() + view.scale.px_per_second * 2.5, start.y())
     press(view, start)
     move(view, end)
     release(view, end)
-    assert keys_of(view)["position"] == [pytest.approx(2.5 - 1 / FPS), 2.5]
-    assert keys_of(view)["rotation"] == [1.0, 3.0]
+    assert keys_of(view)["rotation"] == [pytest.approx(3.0 - 1 / FPS), 3.0]  # past position's 2.5 s key
+    assert keys_of(view)["position"] == [1.0, 2.5]
 
 
 def test_sub_row_keys_snap_like_every_drag(view, qt_app) -> None:

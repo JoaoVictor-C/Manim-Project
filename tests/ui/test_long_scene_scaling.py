@@ -120,13 +120,15 @@ def test_a_sync_with_every_row_expanded_stays_constant_in_scans(qt_app, scans) -
     for view in (small, big):
         for layer in view.project.layers:
             view.set_expanded(layer.id, True)
-    reset()
-    small.sync()
-    few = total(calls)
-    reset()
-    big.sync()
-    many = total(calls)
-    assert many == few and many <= 5
+    counts = []
+    for view in (small, big):  # a new snapshot: the rows and their property rows laid out again
+        edit = edits.set_canvas(view.project, duration=view.project.canvas.duration + 1)
+        reset()
+        view.document.apply(edit, "Scene length")  # the timeline syncs on the new snapshot
+        counts.append(total(calls))
+    few, many = counts
+    assert len(big.layout().subs[0]) == 4
+    assert many == few and many <= 10, counts
     reset()
     big.show()
     big.header.grab()
