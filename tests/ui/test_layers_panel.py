@@ -240,9 +240,12 @@ def test_an_orphaned_part_is_labelled(eq_panel) -> None:
 def test_the_context_menu_offers_parts_on_equations(eq_panel) -> None:
     eq_panel.select("eq")
     texts = [a.text() for a in eq_panel.context_menu("eq").actions() if a.text()]
-    assert texts == ["Add part...", "Split into terms", "Colour part...", "Delete"]
+    assert texts == ["Add part...", "Split into terms", "Colour part...", "Freeze to Shape", "Delete"]
     eq_panel.select("sq")
-    assert [a.text() for a in eq_panel.context_menu("sq").actions() if a.text()] == ["Delete"]
+    assert [a.text() for a in eq_panel.context_menu("sq").actions() if a.text()] == [
+        "Freeze to Shape",
+        "Delete",
+    ]
 
 
 def test_the_part_dialog_says_whether_a_part_resolves(eq_panel) -> None:

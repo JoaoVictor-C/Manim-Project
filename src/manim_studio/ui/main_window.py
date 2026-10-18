@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, library, parts, recovery, shift_timing, subtitles
+from ..core import adapter, audio, edits, library, parts, recovery, shape, shift_timing, subtitles
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
@@ -164,6 +164,8 @@ class MainWindow(QMainWindow):
         self.properties.code_failed = lambda i: (s := self.code.status(i)) is not None and s.state == "error"
         self.properties.retry_code = self.code.retry
         self.properties.edit_code = self.edit_code
+        self.properties.freeze = self.freeze_layer
+        self.layers.freeze = self.freeze_layer
         self.properties.code_ends = lambda: self.evaluator.code_ends() if self.evaluator is not None else []
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
@@ -272,6 +274,12 @@ class MainWindow(QMainWindow):
         self.ungroup_action.setToolTip("Take the selected group's objects out of it, each looking as it did")
         self.ungroup_action.triggered.connect(self.ungroup_selection)
         edit_menu.addActions([self.group_action, self.ungroup_action])
+        self.freeze_action = QAction("&Freeze to Shape", self)  # ADR 0052
+        self.freeze_action.setToolTip(
+            "Turn the selected object into plain vector data as drawn now: no code, no LaTeX"
+        )
+        self.freeze_action.triggered.connect(lambda: self.freeze_layer())
+        edit_menu.addAction(self.freeze_action)
         edit_menu.addSeparator()
         add_subtitle = QAction("Add &Subtitle", self)
         add_subtitle.setShortcut(QKeySequence("Ctrl+T"))
@@ -850,6 +858,36 @@ class MainWindow(QMainWindow):
         (group_id,) = {x.id for x in edit.project.layers} - {x.id for x in self.project.layers}
         self.document.apply(edit, "Group")
         self.selection.select_layer(group_id)
+
+    def freeze_layer(self, layer_id: str | None = None) -> bool:
+        """Edit > Freeze to Shape (ADR 0052): the object (default: the selected one) becomes plain
+        vector data as it is drawn now, one undo step. Says why in the status bar when it cannot."""
+        if not self._has_project or self.evaluator is None:
+            return False
+        layer_id = layer_id or self.selection.layer_id
+        if not layer_id:
+            self.statusBar().showMessage("Freeze to Shape: select an object", 6000)
+            return False
+        layer = self.project.layer(layer_id)
+        try:
+            problem = shape.freeze_problem(self.project, layer_id)
+            if problem is not None:
+                raise edits.EditError(problem)
+            drawn = self.evaluator.build_errors().get(layer_id)  # what this editor shows
+            if drawn is not None:
+                raise edits.EditError(
+                    f"it is drawn as a placeholder ({drawn}): only what is drawn can be frozen"
+                )
+            edit = edits.freeze_layer(self.project, layer_id, adapter.freeze_data(layer.spec))
+        except (edits.EditError, ValueError) as exc:
+            reason = str(exc).removeprefix(f"cannot freeze {layer_id!r}: ")
+            self.statusBar().showMessage(f"Freeze to Shape: {layer.label}: {reason}", 15000)
+            return False
+        self.document.apply(edit, "Freeze to shape")
+        self.statusBar().showMessage(
+            f"{layer.label} is a shape now: plain vector data (undo turns it back)", 8000
+        )
+        return True
 
     def ungroup_selection(self) -> None:
         """Edit > Ungroup: the selected group's objects (or the group of a selected object) out of it."""

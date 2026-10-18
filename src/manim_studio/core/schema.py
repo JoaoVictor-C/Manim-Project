@@ -35,6 +35,8 @@ RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds a
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 PYTHON_TYPES = frozenset({"Python"})  # an object built by the user's code: PARAMS + build(p) (ADR 0051)
+SHAPE_TYPE = "Shape"  # an object frozen into plain vector data: points and colours (ADR 0052)
+SHAPE_TYPES = frozenset({SHAPE_TYPE})
 TRACE_TYPES = frozenset({"TracedPath"})  # draws where another layer has been, frame by frame (ADR 0033)
 CONNECTOR_TYPES = frozenset(
     {"Connector"}
@@ -431,6 +433,12 @@ class Layer(BaseModel):
             from .python_object import spec_problem  # reads PARAMS without running the code
 
             problem = spec_problem(self.spec.params)
+            if problem:
+                raise ValueError(f"layer {self.id!r}: {problem}")
+        if self.spec is not None and self.spec.type in SHAPE_TYPES:
+            from .shape import spec_problem as shape_problem  # numpy, no Manim
+
+            problem = shape_problem(self.spec.params)
             if problem:
                 raise ValueError(f"layer {self.id!r}: {problem}")
         if self.spec is not None and self.spec.type == "Graph":

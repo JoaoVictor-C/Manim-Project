@@ -30,7 +30,7 @@ from manim.utils import rate_functions
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import parts, python_object, subtitles
+from . import parts, python_object, shape, subtitles
 from .code_cache import code_hash
 from .python_object import CodeProblem
 from .schema import (
@@ -44,6 +44,7 @@ from .schema import (
     NUMBER_TYPES,
     PYTHON_TYPES,
     RASTER_TYPES,
+    SHAPE_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
     Easing,
@@ -424,6 +425,8 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
     if spec.type in PYTHON_TYPES:  # the user's own code, once trusted (ADR 0051)
         built = _python_built(spec, signature)
         return (built if isinstance(built, m.Mobject) else _placeholder(2.0)).copy()
+    if spec.type in SHAPE_TYPES:  # frozen vector data (ADR 0052)
+        return _shape_cached(spec.model_dump_json()).copy()
     if spec.type not in MOBJECT_TYPES:
         return _placeholder(2.0).copy()  # build_problem says why
     if spec.type in TRACE_TYPES:
@@ -479,7 +482,7 @@ def media_signature(spec: Spec) -> str | None:
 
 def build_problem(spec: Spec, signature: str | None = None) -> str | None:
     """Why an object is drawn as a placeholder (a media file, a plugin, a missing plugin), or None."""
-    if spec.type in CODE_TYPES | GROUP_TYPES:
+    if spec.type in CODE_TYPES | GROUP_TYPES | SHAPE_TYPES:
         return None
     if spec.type in PYTHON_TYPES:
         problem = python_problem(spec, signature)
@@ -669,6 +672,127 @@ def forget_python_builds() -> None:
     """Drop cached Python object builds and determinism checks (tests)."""
     _python_cached.cache_clear()
     _PY_CHECKED.clear()
+
+
+# --- shapes: objects frozen into vector data (ADR 0052) -------------------------
+
+_UL = (-1.0, 1.0, 0.0)  # Manim's default sheen direction
+_NO_BACKGROUND = [0.0, 0.0, 0.0, 1.0]  # Manim's default background stroke: black, unseen at width 0
+
+
+def shape_data(mob: m.Mobject) -> dict[str, Any]:
+    """What ``mob`` draws as a shape's params (ADR 0052): every leaf with points, in
+    ``family_members_with_points()`` order, with its points and what the Cairo renderer reads to
+    draw it (colours, widths, background stroke, sheen, joints, caps). Floats are kept exactly.
+
+    Raises ``ValueError`` (the reason, for the user) when it is not plain vector paths or is too big.
+    """
+    leaves = mob.family_members_with_points()
+    if not leaves:
+        raise ValueError("it draws nothing")
+    total = 0
+    pieces = []
+    for leaf in leaves:
+        if not isinstance(leaf, m.VMobject):
+            raise ValueError(f"it is not all vector paths (a {type(leaf).__name__})")
+        if leaf.get_background_image():
+            raise ValueError("it is painted with a background image")
+        points = np.asarray(leaf.points, dtype=float)
+        if not np.isfinite(points).all():
+            raise ValueError("it has points that are not finite numbers")
+        total += len(points)
+        if total > shape.MAX_POINTS:
+            raise ValueError(shape.size_problem(total, 0))
+        piece: dict[str, Any] = {
+            "points": (points if points[:, 2].any() else points[:, :2]).tolist(),
+            "fill": _rgbas_data(leaf.get_fill_rgbas()),
+            "stroke": _rgbas_data(leaf.get_stroke_rgbas()),
+            "stroke_width": float(leaf.get_stroke_width()),
+        }
+        background = _rgbas_data(leaf.get_stroke_rgbas(background=True))
+        if background != _NO_BACKGROUND:
+            piece["background"] = background
+        if leaf.get_stroke_width(background=True):
+            piece["background_width"] = float(leaf.get_stroke_width(background=True))
+        direction = [float(v) for v in np.asarray(leaf.get_sheen_direction(), dtype=float)]
+        if tuple(direction) != _UL:
+            piece["sheen_direction"] = direction
+        if leaf.get_sheen_factor():
+            piece["sheen_factor"] = float(leaf.get_sheen_factor())
+        if leaf.joint_type is not m.LineJointType.AUTO:
+            piece["joint"] = leaf.joint_type.name
+        if leaf.cap_style is not m.CapStyleType.AUTO:
+            piece["cap"] = leaf.cap_style.name
+        if leaf.z_index:
+            piece["z_index"] = float(leaf.z_index)
+        if leaf.shade_in_3d:
+            piece["shade_in_3d"] = True
+        pieces.append(piece)
+    data = {"version": shape.VERSION, "shapes": pieces}
+    problem = shape.size_problem(total, len(json.dumps(data)))
+    if problem is not None:
+        raise ValueError(problem)
+    return data
+
+
+def _rgbas_data(rgbas: np.ndarray) -> list:
+    """One colour as ``[r, g, b, a]``; a gradient as the list of its stops."""
+    rows = np.asarray(rgbas, dtype=float).tolist()
+    return rows[0] if len(rows) == 1 else rows
+
+
+def shape_from_data(shapes):
+    """A frozen shape from Manim Studio (ADR 0052): one VMobject per piece, from its bezier points
+    and the colours and widths it was drawn with, in a VGroup."""
+    group = m.VGroup()
+    for data in shapes:
+        piece = m.VMobject()
+        points = np.array(data["points"], dtype=float)
+        if points.shape[1] == 2:  # stored flat: z is 0
+            points = np.hstack([points, np.zeros((len(points), 1))])
+        piece.set_points(points)
+        piece.fill_rgbas = np.array(data["fill"], dtype=float).reshape(-1, 4)
+        piece.stroke_rgbas = np.array(data["stroke"], dtype=float).reshape(-1, 4)
+        background = data.get("background", [0.0, 0.0, 0.0, 1.0])
+        piece.background_stroke_rgbas = np.array(background, dtype=float).reshape(-1, 4)
+        piece.stroke_width = data["stroke_width"]
+        piece.background_stroke_width = data.get("background_width", 0.0)
+        piece.sheen_direction = np.array(data.get("sheen_direction", [-1.0, 1.0, 0.0]), dtype=float)
+        piece.sheen_factor = data.get("sheen_factor", 0.0)
+        piece.joint_type = m.LineJointType[data.get("joint", "AUTO")]
+        piece.cap_style = m.CapStyleType[data.get("cap", "AUTO")]
+        piece.z_index = data.get("z_index", 0)
+        piece.shade_in_3d = data.get("shade_in_3d", False)
+        group.add(piece)
+    return group
+
+
+@lru_cache(maxsize=256)
+def _shape_cached(spec_json: str) -> m.Mobject:
+    spec = Spec.model_validate_json(spec_json)
+    mob = shape_from_data(spec.params["shapes"])
+    _apply_style(mob, spec.style)  # only what the user set: the frozen colours are the baseline
+    mob.move_to(m.ORIGIN)
+    return mob
+
+
+def freeze_data(spec: Spec, signature: str | None = None) -> dict[str, Any]:
+    """A shape's params for what ``spec`` draws now (ADR 0052): the built object with its style.
+
+    Raises ``ValueError`` with the reason when what is drawn is not the object - a placeholder
+    (a missing file, code not trusted, a failing build, no LaTeX) - or cannot be a shape."""
+    if spec.type in plugins.SIMULATIONS:
+        raise ValueError("a simulation is drawn step by step, not one object")
+    problem = build_problem(spec, signature)
+    if problem is not None:
+        raise ValueError(f"it is drawn as a placeholder ({problem}): only what is drawn can be frozen")
+    try:
+        mob = build_mobject(spec, signature)
+    except Exception as exc:  # e.g. no LaTeX on this computer
+        raise ValueError(
+            f"it cannot be built here ({build_failure(exc)}): only what is drawn can be frozen"
+        ) from exc
+    return shape_data(mob)
 
 
 # --- simulated layers (ADR 0033) ----------------------------------------------

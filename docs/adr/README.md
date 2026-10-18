@@ -80,3 +80,4 @@ need one.
 | [0049](0049-part-colour.md) | Part colour: a part layer's style, and a Text's t2c | Accepted |
 | [0050](0050-groups.md) | Groups: a root that draws nothing and carries its children | Accepted |
 | [0051](0051-python-objects.md) | Python objects: objects built by the user's own Manim code | Accepted |
+| [0052](0052-shape-objects-and-freezing.md) | Shape objects and freezing: an object kept as the vector data it draws | Accepted |
