@@ -17,6 +17,15 @@ All notable changes to this project are documented here. The format follows
   `always_redraw`, ValueTracker, cameras, custom animations) stays one code layer, and a report says
   what became what and why. The Code page has **Convert to layers** for a code layer, and
   `manim-studio import scene.py -o project.json` does the same from the command line.
+- **Equation steps** (P11.1, ADR 0054): Layers > Add > Equation steps... (or Animate > Equation
+  Steps...) turns a derivation typed one LaTeX equation per line into one MathTex per step: the
+  first is written in at the playhead, each morphs into the next (TransformMatchingTex when they
+  share terms, so those move to their new places; Transform when they share nothing), one step on
+  screen at a time, and the terms new in a step can be coloured. **Derive the next line** makes a
+  step from the previous one - add, subtract, multiply or divide both sides by a term, square,
+  square root, reciprocal, ln, exp, or substitute a value for a symbol - with the parentheses it
+  needs. Lines are checked as you type (LaTeX in the build worker); without LaTeX the steps are
+  still added, as placeholders. One undo step; the layers stay ordinary and editable.
 - **Freeze to shape** (P10.2, ADR 0052): Edit > Freeze to Shape (also the Layers right-click menu
   and a button in Properties) turns an object - a Python object, a shape, a Text, an equation, an
   SVG - into a **Shape**: the vector paths and colours it draws, kept as data. It draws exactly

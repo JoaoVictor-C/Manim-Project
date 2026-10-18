@@ -48,6 +48,40 @@ TeX where both equations have [parts](objects.md#parts-of-an-equation), and by s
 split the equations into terms when a symbol repeats. A part cannot be turned into something
 else; its equation can.
 
+### Equation steps
+
+To animate algebra one step at a time, choose **Layers > Add > Equation steps...** (or
+**Animate > Equation Steps...**) and type the steps, one LaTeX equation per line:
+
+```text
+A = L \times L
+L = a+b
+A = (a+b) \times (a+b)
+```
+
+Lines starting with `%` are comments. **Derive the next line** makes a step for you from the last
+line (or from the step selected in the preview): pick an operation, type its term and click
+**Add line**. The operations work on both sides of the equation's `=`: add, subtract, multiply or
+divide by a term, square, square root, reciprocal, natural log, exponential, and **Substitute**
+(type `L = a+b`: every `L` becomes `(a+b)`, with parentheses only where they are needed).
+
+The preview lists the steps and, between two steps, the morph they will get: a **matching
+morph** (TransformMatchingTex) moves the terms both share to their new places and fades the
+rest; a **replacement morph** (Transform) is used when they share nothing. Each line is checked
+as you type - a missing brace at once, LaTeX errors a moment later - and **Add steps** stays off
+while a line cannot be built. On a computer without LaTeX the dialog says so and the steps are
+still added, drawn as placeholders until LaTeX is installed.
+
+The options: **Start** (the playhead), **Step duration** (the first step's entrance and each
+morph), **Hold** (how long each step stays still), font size, how the first step enters (Write or
+FadeIn), the colour, **Colour new terms** (the terms new in a step get the highlight colour as
+coloured [parts](objects.md#parts-of-an-equation); in the next step they are plain again) and
+where the steps go. The dialog remembers them.
+
+**Add steps** adds one MathTex per step, named *Step 1*, *Step 2*..., with its clips, as one undo
+step, and selects them. They are ordinary objects: move them, change a step's text or a clip's
+timing and kind, recolour a part, as with objects you made by hand.
+
 ### Moving along a path
 
 **Add clip > Move > MoveAlongPath > *object***: the object travels along another object's

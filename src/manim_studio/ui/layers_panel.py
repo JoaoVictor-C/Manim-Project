@@ -53,6 +53,7 @@ from ..core.schema import (
 )
 from . import icons
 from .build_service import BuildService
+from .equation_steps_dialog import EquationStepsDialog, StepsRequest
 from .fields import pick_colour
 
 ID_ROLE = Qt.ItemDataRole.UserRole
@@ -169,6 +170,37 @@ def add_placed(project: Project, spec: Spec, t: float) -> edits.Edit:
     return edits.Edit(moved.project, *edits.classify(project, moved.project))
 
 
+def add_steps_placed(
+    project: Project, request: StepsRequest, t: float, measurable: Callable[[Spec], bool]
+) -> edits.Edit:
+    """``edits.add_equation_steps`` for the dialog's answer (P11): in a free spot when asked and
+    every step can be measured without a slow LaTeX build (``measurable``), else at the centre."""
+    specs = [
+        Spec(type="MathTex", params={"text": tex, "font_size": request.font_size}) for tex in request.steps
+    ]
+    position = (0.0, 0.0)
+    if request.free_spot and all(measurable(spec) for spec in specs):
+        boxes = [box for box in map(placement.drawn_box, specs) if box is not None]
+        if boxes:
+            size = (max(b[1][0] - b[0][0] for b in boxes), max(b[1][1] - b[0][1] for b in boxes))
+            half = (project.canvas.frame_width / 2, project.canvas.frame_height / 2)
+            frame = ((-half[0], -half[1]), half)
+            position = placement.place(placement.occupied(project, t), size, frame)
+    edit, _ = edits.add_equation_steps(
+        project,
+        request.steps,
+        start=request.start,
+        step_duration=request.step_duration,
+        hold=request.hold,
+        font_size=request.font_size,
+        colour=request.colour,
+        highlight_colour=request.highlight_colour,
+        position=position,
+        entrance=request.entrance,
+    )
+    return edit
+
+
 class LayersPanel(QWidget):
     layerSelected = Signal(str)  # layer id, or "" for none
     layersPicked = Signal(list, str)  # several layers (Ctrl/Shift+click) and the current one (ADR 0043)
@@ -184,6 +216,7 @@ class LayersPanel(QWidget):
         self.ask_part: Callable[[str], tuple[str, int] | None] = self._ask_part_dialog
         self.ask_colour: Callable[[str | None], str | None] = lambda current: pick_colour(self, current)
         self.ask_expression: Callable[[], str | None] = self._ask_expression_dialog  # Add graph (ADR 0024)
+        self.ask_steps: Callable[[float], StepsRequest | None] = self._ask_steps_dialog  # P11
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self.freeze: Callable[[str], None] = lambda layer_id: None  # set by the window (ADR 0052)
         self._known_ids: set[str] = set()
@@ -309,11 +342,18 @@ class LayersPanel(QWidget):
 
     def _library_menu(self) -> QMenu:
         menu = QMenu(self)
+        menu.setToolTipsVisible(True)
         for section, types in adapter.LIBRARY:
             menu.addSection(section)
             for type_name in types:
                 action = menu.addAction(adapter.LIBRARY_LABELS.get(type_name, type_name))
                 action.triggered.connect(partial(self.add_object, type_name))
+                if type_name == "MathTex":  # P11: a derivation, one MathTex per step
+                    self.equation_steps_action = menu.addAction("Equation steps...", self.add_equation_steps)
+                    self.equation_steps_action.setToolTip(
+                        "Type the steps of a derivation, one equation per line: one MathTex per step, "
+                        "morphing into the next"
+                    )
         self.library_menu = menu
         return menu
 
@@ -364,6 +404,7 @@ class LayersPanel(QWidget):
         index = LayerIndex(self.project)  # one pass, not one scan per layer (B66)
         roots = index.roots()
         orphans: dict[str, str] = {}
+        picked_many = False
         for root in roots:
             if index.children(root.id):
                 orphans.update(parts.resolve(self.project, root.id, index).orphans)
@@ -374,11 +415,15 @@ class LayersPanel(QWidget):
             self.list.expandAll()
             target = selected if selected in ids else None
             if self._select_new and new:
+                every = self._select_new == "all"  # all the new objects (equation steps, P11)
                 self._select_new = False
                 target = next(layer.id for layer in self.project.layers if layer.id in new)
-                chosen = []
+                chosen = [x.id for x in roots if x.id in new] if every else []
+                picked_many = len(chosen) > 1
             self.select(target, [i for i in chosen if i in ids])
-        if target != selected:
+        if picked_many:  # the new objects, all of them (the signals were blocked)
+            self.layersPicked.emit(self.selected_ids(), target)
+        elif target != selected:
             self.layerSelected.emit(target or "")
         self.update_buttons()
 
@@ -472,6 +517,36 @@ class LayersPanel(QWidget):
         self.trust_code(code)  # the editor's own template
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), "Add Python object")
+
+    def add_equation_steps(self) -> None:
+        """Add > Equation steps... (P11): ask for the steps, then add one MathTex per step with
+        the morphs between them as one undo step, and select them. On a computer without LaTeX
+        they are added at once (each draws a placeholder that says why) instead of waiting for
+        builds that cannot succeed."""
+        request = self.ask_steps(self.playhead())
+        if request is None:
+            return
+        builds = self.builds
+        op = partial(
+            add_steps_placed,
+            request=request,
+            t=self.playhead(),
+            measurable=lambda spec: not builds.client.available or builds.is_warm(spec),
+        )
+        self._select_new = "all"
+        text = "Add equation steps"
+        if adapter.latex_problem() is None:
+            if request.free_spot:  # the plain formulas are measured: warm them first (in order)
+                builds.prewarm([Spec(type="MathTex", params={"text": tex}) for tex in request.steps])
+            self._submit(op, text)
+            return
+        try:
+            self.document.apply(op(self.project), text)
+        except (edits.EditError, ValidationError) as exc:
+            self._select_new = False
+            self.message.emit(f"{text}: {exc}")
+            return
+        self.message.emit(f"{text}: {adapter.latex_problem()}; the steps show placeholders until it is")
 
     def add_part(self) -> None:
         """Ask for a part of the selected equation (or part) and add it."""
@@ -689,6 +764,10 @@ class LayersPanel(QWidget):
             self, "Add graph", "y = (a function of x, e.g. sin(x), x**2/10 - 1, exp(-x**2))", text="sin(x)"
         )
         return text if ok else None
+
+    def _ask_steps_dialog(self, start: float) -> StepsRequest | None:
+        dialog = EquationStepsDialog(start, self.builds, parent=self)
+        return dialog.request() if dialog.exec() == QDialog.DialogCode.Accepted else None
 
     def _ask_part_dialog(self, parent_id: str) -> tuple[str, int] | None:
         dialog = PartDialog(self.project, parent_id, self)

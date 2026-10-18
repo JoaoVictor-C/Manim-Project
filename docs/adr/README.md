@@ -82,3 +82,4 @@ need one.
 | [0051](0051-python-objects.md) | Python objects: objects built by the user's own Manim code | Accepted |
 | [0052](0052-shape-objects-and-freezing.md) | Shape objects and freezing: an object kept as the vector data it draws | Accepted |
 | [0053](0053-import-manim-scenes.md) | Importing a Manim scene: run it under a recorder, convert what can be redone exactly | Accepted |
+| [0054](0054-equation-steps.md) | Equation steps: typed lines become one MathTex per step and morphs between them | Accepted |

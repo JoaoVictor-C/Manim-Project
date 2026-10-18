@@ -50,12 +50,14 @@ class _Pending:
 class BuildService(QObject):
     pendingChanged = Signal()
     failed = Signal(str, str)  # undo text of the dropped edit, message
+    checked = Signal(str, bool, str)  # warm key, built, error: a reply to ``check`` (P11)
 
     def __init__(self, document: Document, client: WorkerClient, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.document = document
         self.client = client
         self._warmed: set[str] = set()
+        self._failed: dict[str, str] = {}  # keys the worker could not build, and why
         self._inflight: dict[str, int] = {}  # key -> request id
         self._keys: dict[int, str] = {}  # request id -> key
         self._next_id = 1
@@ -109,6 +111,20 @@ class BuildService(QObject):
         key = warm_key(spec)
         return key is None or key in self._warmed
 
+    def check(self, spec: Spec, ask: bool = True) -> tuple[bool, str] | None:
+        """Whether ``spec`` builds: ``(True, "")`` or ``(False, why)`` when known, else None.
+
+        With ``ask``, an unknown text object is sent to the worker, which warms it for the edit
+        that follows; ``checked`` reports the answer. Without a worker nothing is checked ahead."""
+        key = warm_key(spec)
+        if key is None or key in self._warmed:
+            return True, ""
+        if key in self._failed:
+            return False, self._failed[key]
+        if ask and self.client.available:
+            self._request({key})
+        return None
+
     # -- internals --------------------------------------------------------------
 
     def _cold(self, edit: edits.Edit) -> set[str]:
@@ -131,9 +147,11 @@ class BuildService(QObject):
         if ok:
             self._warmed.add(key)
         else:
+            self._failed[key] = error
             for pending in self._drop(lambda p: key in p.keys):
                 log.info("edit %r not applied: %s", pending.text, error)
                 self.failed.emit(pending.text, error)
+        self.checked.emit(key, ok, error)
         self._process()
 
     def _process(self) -> None:
