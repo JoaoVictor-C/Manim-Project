@@ -164,7 +164,8 @@ def renderer_frame(project: Project, view: PreviewView, index: int, renderer: Re
     renderer = renderer or Renderer(out)
     renderer.protocol = out
     renderer.apply({"project": json.loads(project.model_dump_json(by_alias=True)), "generation": 1})
-    renderer.apply({"view": view.to_json(), "view_id": 1})
+    if renderer.view is None:  # the view once: a camera change alone must rebuild the camera
+        renderer.apply({"view": view.to_json(), "view_id": 1})
     renderer.apply({"want": [index]})
     renderer.render_next()
     message = json.loads(out.getvalue().splitlines()[-1])

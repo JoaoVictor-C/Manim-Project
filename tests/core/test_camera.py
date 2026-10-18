@@ -20,7 +20,17 @@ from manim_studio.core import edits
 from manim_studio.core.evaluator import Evaluator
 from manim_studio.core.frame_cache import changed_layers, changed_spans
 from manim_studio.core.python_export import to_python
-from manim_studio.core.schema import Camera, Canvas, Clip, Cue, Layer, Project, Spec, Transform2D
+from manim_studio.core.schema import (
+    Camera,
+    Canvas,
+    Clip,
+    Cue,
+    Layer,
+    Project,
+    Spec,
+    SubtitleStyle,
+    Transform2D,
+)
 from manim_studio.render.cairo_export import export_video, frame_times, make_camera, render_frame
 from manim_studio.render.preview import PreviewView, StudioThreeDCamera, preview_camera, scene_camera
 
@@ -201,7 +211,8 @@ def test_the_default_camera_is_manims_2d_camera() -> None:
 
 
 def test_subtitled_frames_are_identical_with_the_overlay_apart() -> None:
-    project = scene()
+    """The subtitle over the square (its band covers it): drawn last, as before."""
+    project = scene().model_copy(update={"subtitle_style": SubtitleStyle(y=0.0, font_size=60.0)})
     evaluator = Evaluator(project)
     camera = make_camera(project.canvas)
     for t in (0.0, 0.15):
