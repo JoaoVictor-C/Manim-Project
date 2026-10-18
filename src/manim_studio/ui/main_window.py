@@ -337,6 +337,12 @@ class MainWindow(QMainWindow):
         self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
         self.half_action.toggled.connect(self._set_half_resolution)
         view_menu.addAction(self.half_action)
+        self.follow_action = QAction("&Follow Playhead", self, checkable=True, checked=True)
+        self.follow_action.setToolTip(
+            "The timeline scrolls to keep the playhead in view (also when you scrub or play)"
+        )
+        self.follow_action.toggled.connect(self._set_follow_playhead)
+        view_menu.addAction(self.follow_action)
         self.render_ahead_action = QAction("Render Ahead", self, checkable=True, checked=True)
         self.render_ahead_action.setToolTip("Render frames ahead of the playhead in another process")
         self.render_ahead_action.toggled.connect(self._set_render_ahead)
@@ -584,6 +590,7 @@ class MainWindow(QMainWindow):
         return (
             ("snap", self.snap_action, True),
             ("half_resolution", self.half_action, False),
+            ("follow_playhead", self.follow_action, True),
             ("render_ahead", self.render_ahead_action, True),
         )
 
@@ -1524,6 +1531,11 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(f"Preparing timeline... {len(missing)} checkpoints left")
         self.evaluator.compute_checkpoint(*missing[0])
+
+    def _set_follow_playhead(self, enabled: bool) -> None:
+        self.timeline.follow_playhead = enabled
+        if enabled and self.project is not None:
+            self.timeline.set_playhead(self.t)  # back to where the video is
 
     def _set_half_resolution(self, enabled: bool) -> None:
         self.canvas.half_resolution = enabled

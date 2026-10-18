@@ -660,3 +660,65 @@ def test_the_scene_rect_covers_content_past_the_end(view) -> None:
     view.document.apply(edits.update_clip(view.project, "a", "c2", start=5.5), "Clip")
     assert layer is not None
     assert view.scene().sceneRect().width() >= view.scale.x(6.5)
+
+
+# -- U3: the view follows the playhead ----------------------------------------------------------
+
+
+def zoomed_in(view: TimelineView) -> None:
+    view.scale = type(view.scale)(px_per_second=300.0)  # 6 s is 1800 px: wider than the 1000 px view
+    view.sync()
+
+
+def playhead_x(view: TimelineView) -> float:
+    return view._viewport_x(view.playhead)
+
+
+def test_the_view_follows_a_playhead_that_leaves_it(view) -> None:
+    zoomed_in(view)
+    view.horizontalScrollBar().setValue(0)
+    view.set_playhead(5.5)  # beyond the right edge
+    assert 0 <= playhead_x(view) <= view.viewport().width()
+    view.set_playhead(0.2)  # back before the left edge
+    assert 0 <= playhead_x(view) <= view.viewport().width()
+
+
+def test_a_playhead_already_in_view_does_not_move_the_view(view) -> None:
+    zoomed_in(view)
+    view.horizontalScrollBar().setValue(0)
+    view.set_playhead(1.0)
+    assert view.horizontalScrollBar().value() == 0
+
+
+def test_a_manual_scroll_snaps_back_on_the_next_move_while_following(view) -> None:
+    zoomed_in(view)
+    view.set_playhead(1.0)
+    view.horizontalScrollBar().setValue(view.horizontalScrollBar().maximum())  # scrolled away
+    assert not 0 <= playhead_x(view) <= view.viewport().width()
+    view.set_playhead(1.1)
+    assert 0 <= playhead_x(view) <= view.viewport().width()
+
+
+def test_with_following_off_the_view_stays_where_it_is(view) -> None:
+    zoomed_in(view)
+    view.follow_playhead = False
+    view.horizontalScrollBar().setValue(0)
+    view.set_playhead(5.5)
+    assert view.horizontalScrollBar().value() == 0
+
+
+def test_paging_puts_the_playhead_a_tenth_in_from_the_edge_it_left_by(view) -> None:
+    zoomed_in(view)
+    width = view.viewport().width()
+    view.horizontalScrollBar().setValue(0)
+    view.set_playhead(3.5)  # left by the right edge: now a tenth from the left
+    assert playhead_x(view) == pytest.approx(width * 0.1, abs=2)
+    view.set_playhead(2.9)  # left by the left edge: now a tenth from the right
+    assert playhead_x(view) == pytest.approx(width * 0.9, abs=2)
+
+
+def test_a_playhead_in_view_leaves_a_scrolled_view_alone(view) -> None:
+    zoomed_in(view)
+    view.horizontalScrollBar().setValue(400)
+    view.set_playhead(4.0)  # 1200 px in the scene, 800 px in view
+    assert view.horizontalScrollBar().value() == 400

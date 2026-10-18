@@ -354,6 +354,7 @@ class TimelineView(QGraphicsView):
         self._rows: list[Layer] = []
         self.scale = TimeScale(px_per_second=120.0)
         self.playhead = 0.0
+        self.follow_playhead = True  # the view stays on the playhead (U3); View > Follow Playhead
         self.selected: tuple[str, str] | None = None
         self.selected_key: tuple[str, float] | None = None
         self.selected_audio: str | None = None
@@ -522,7 +523,23 @@ class TimelineView(QGraphicsView):
 
     def set_playhead(self, t: float) -> None:
         self.playhead = t
+        if self.follow_playhead:
+            self._scroll_to_playhead()
         self.viewport().update()
+
+    def _scroll_to_playhead(self) -> None:
+        """Keep the playhead in view (U3): when it leaves, page the view so it sits a tenth in from
+        the edge it left by. A view scrolled away by hand comes back on the next playhead move."""
+        width = self.viewport().width()
+        if width <= 0:
+            return
+        x = self._viewport_x(t := self.playhead)
+        if 0 <= x <= width:
+            return
+        margin = width * 0.1
+        bar = self.horizontalScrollBar()
+        scene_x = self.scale.x(t)
+        bar.setValue(round(scene_x - (margin if x > width else width - margin)))
 
     # -- scene -------------------------------------------------------------------
 

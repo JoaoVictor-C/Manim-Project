@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- View > Follow Playhead (on by default, remembered; U3): the timeline scrolls to keep the playhead in
+  view when you scrub, step or play, and a view scrolled away by hand comes back on the next playhead
+  move; off, the view stays where you put it. (The timeline used to stay put while the video moved on.)
 - Edit > Shift Timing... (Ctrl+Shift+T, U4): moves what is selected - layers (clips, keys and their
   explicit Appears at / Disappears at together), a clip, keys, a sound, a subtitle or a marker - earlier
   or later by a typed number of seconds, in one undo step. A moved boundary clip carries an explicit
