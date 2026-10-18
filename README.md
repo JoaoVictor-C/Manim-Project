@@ -12,6 +12,18 @@ exporting from the editor work — enough to write an equation, move it, morph
 it into another, fade it out and export the video without touching code or
 JSON. See the [roadmap](docs/roadmap.md).
 
+## Install a release
+
+A release is a wheel (`manim_studio-<version>-py3-none-any.whl`); it needs Python 3.13,
+[uv](https://docs.astral.sh/uv/) and, for equations, a LaTeX distribution (MiKTeX on Windows):
+
+```bash
+uv tool install manim_studio-0.3.0-py3-none-any.whl
+```
+
+Then `manim-studio edit` opens the editor. What each version brings:
+[CHANGELOG.md](CHANGELOG.md) and [docs/releases/](docs/releases/).
+
 ## Quick start (Windows)
 
 Needs [uv](https://docs.astral.sh/uv/) and, for LaTeX equations, MiKTeX.
