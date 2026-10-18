@@ -79,3 +79,4 @@ need one.
 | [0048](0048-3d-capable-camera-fixed-for-2d.md) | 3D-capable project, camera fixed for 2D | Accepted |
 | [0049](0049-part-colour.md) | Part colour: a part layer's style, and a Text's t2c | Accepted |
 | [0050](0050-groups.md) | Groups: a root that draws nothing and carries its children | Accepted |
+| [0051](0051-python-objects.md) | Python objects: objects built by the user's own Manim code | Accepted |
