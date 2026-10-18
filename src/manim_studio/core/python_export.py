@@ -714,6 +714,12 @@ def _construct(spec) -> str:
             f"x_length={_num(axes('x_length'))}, y_length={_num(axes('y_length'))}, "
             f'axis_config={{"include_numbers": {numbers}}})'
         )
+    if spec.type == "RightTriangle":  # not a Manim class: an outline and the mark of its right angle
+        angle = float(spec.params.get("angle", 45.0))
+        side = float(spec.params.get("side_length", 3.0))
+        corner, end, top = (_vector(p) for p in adapter.right_triangle_points(angle, side))
+        a, b, c = (_vector(p) for p in adapter.right_triangle_mark(angle, side))
+        return f"VGroup(Polygon({corner}, {end}, {top}), Line({a}, {b}), Line({b}, {c})).move_to(ORIGIN)"
     params = adapter.number_kwargs(spec) if spec.type in NUMBER_TYPES else dict(spec.params)
     args = []
     if spec.type in TEXT_TYPES:

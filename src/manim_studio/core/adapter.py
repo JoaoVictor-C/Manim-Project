@@ -196,6 +196,9 @@ MOBJECT_TYPES: dict[str, type] = {
     for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | NUMBER_TYPES | {"Axes", "TracedPath"})
 }
 MOBJECT_TYPES["Connector"] = m.Line  # drawn frame by frame by the evaluator (ADR 0036)
+MOBJECT_TYPES["RightTriangle"] = (
+    m.VGroup
+)  # an outline and the mark of its right angle (_build_right_triangle)
 CHILD_ONLY_TYPES = AXES_OBJECTS  # built with their parent (build_child, ADR 0024, 0030)
 GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies are undersampled
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
@@ -247,6 +250,10 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     "Square": (Param("side_length", "float", 2.0, "Side length", **_SIZE),),
     "Rectangle": (Param("width", "float", 4.0, **_SIZE), Param("height", "float", 2.0, **_SIZE)),
     "Triangle": (),
+    "RightTriangle": (
+        Param("angle", "float", 45.0, "Acute angle (degrees)", minimum=15.0, maximum=75.0, step=1.0),
+        Param("side_length", "float", 3.0, "Base length", minimum=0.5, maximum=8.0, step=0.1),
+    ),
     "Star": (
         Param("n", "int", 5, "Points", minimum=3, maximum=24, step=1),
         Param("outer_radius", "float", 1.0, "Radius", **_SIZE),
@@ -350,7 +357,21 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
 # The object library (S2 plan): menu sections in order.
 # Plugins (ADR 0032) append their own sections: a list, changed in place.
 LIBRARY: list[tuple[str, tuple[str, ...]]] = [
-    ("Shapes", ("Circle", "Square", "Rectangle", "Triangle", "Star", "Dot", "Line", "Arrow", "Connector")),
+    (
+        "Shapes",
+        (
+            "Circle",
+            "Square",
+            "Rectangle",
+            "Triangle",
+            "RightTriangle",
+            "Star",
+            "Dot",
+            "Line",
+            "Arrow",
+            "Connector",
+        ),
+    ),
     ("Text", ("Text", "MathTex", "Tex", "DecimalNumber")),
     ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
@@ -739,7 +760,9 @@ def _build(spec: Spec) -> m.Mobject:
             x, y = params[param.name][:2]
             params[param.name] = (x, y, 0.0)  # documents are 2D
     spans = params.pop(parts.SPANS_PARAM, None)
-    if spec.type == "Axes":
+    if spec.type == "RightTriangle":
+        mob = _build_right_triangle(params)
+    elif spec.type == "Axes":
         mob = _build_axes(spec)
     elif spec.type in TEXT_TYPES:
         text = params.pop("text", "")
@@ -757,6 +780,28 @@ def _build(spec: Spec) -> m.Mobject:
     _apply_style(mob, spec.style)
     mob.move_to(m.ORIGIN)
     return mob
+
+
+def right_triangle_points(angle: float, side_length: float) -> list[tuple[float, float]]:
+    """The corner of the right angle, the end of the base, the top; the base runs along x and the
+    acute ``angle`` (degrees) is at the base's end. ``python_export`` writes the same points."""
+    height = side_length * math.tan(math.radians(angle))
+    return [(0.0, 0.0), (side_length, 0.0), (0.0, height)]
+
+
+def right_triangle_mark(angle: float, side_length: float) -> list[tuple[float, float]]:
+    """The little square in the right angle: the three points of its two inner sides."""
+    size = min(side_length, side_length * math.tan(math.radians(angle))) * 0.12
+    return [(size, 0.0), (size, size), (0.0, size)]
+
+
+def _build_right_triangle(params: dict) -> m.Mobject:
+    """A right triangle (filled outline) with its right angle marked, centred by the caller."""
+    angle = float(params.get("angle", 45.0))
+    side = float(params.get("side_length", 3.0))
+    corner, end, top = (np.array([x, y, 0.0]) for x, y in right_triangle_points(angle, side))
+    a, b, c = (np.array([x, y, 0.0]) for x, y in right_triangle_mark(angle, side))
+    return m.VGroup(m.Polygon(corner, end, top), m.Line(a, b), m.Line(b, c))
 
 
 def _axes_param(spec: Spec, name: str):
