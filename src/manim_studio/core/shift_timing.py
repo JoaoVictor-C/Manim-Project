@@ -43,10 +43,19 @@ class Selection:
         return not (self.layers or self.clips or self.keys or self.markers or self.audio or self.cues)
 
 
+def _whole_layers(project: Project, selection: Selection) -> list[str]:
+    """The layers that move whole: the selected ones, and what is inside a selected group."""
+    out = list(selection.layers)
+    for layer_id in selection.layers:
+        if project.layer(layer_id).is_group:
+            out += [x.id for x in project.layers if x.parent_id == layer_id]
+    return list(dict.fromkeys(out))
+
+
 def earliest(project: Project, selection: Selection) -> float:
     """The earliest time anything selected sits at (the limit for moving earlier)."""
     times: list[float] = []
-    for layer_id in selection.layers:
+    for layer_id in _whole_layers(project, selection):
         layer = project.layer(layer_id)
         times += [c.start for c in layer.clips]
         times += [k.t for track in layer.tracks.values() for k in track]
@@ -64,7 +73,7 @@ def earliest(project: Project, selection: Selection) -> float:
 def latest(project: Project, selection: Selection) -> float:
     """The latest time anything selected reaches (a drag's limit for moving later, U4b)."""
     times: list[float] = []
-    for layer_id in selection.layers:
+    for layer_id in _whole_layers(project, selection):
         layer = project.layer(layer_id)
         times += [c.end for c in layer.clips]
         times += [k.t for track in layer.tracks.values() for k in track]
@@ -91,7 +100,7 @@ def shift_timing(project: Project, selection: Selection, delta: float) -> Edit:
     def on_grid(t: float) -> float:  # keys and markers sit on frames
         return round((t + delta) * fps) / fps
 
-    whole = set(selection.layers)
+    whole = set(_whole_layers(project, selection))
     clips_of: dict[str, set[str]] = {}
     for layer_id, clip_id in selection.clips:
         clips_of.setdefault(layer_id, set()).add(clip_id)

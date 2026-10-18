@@ -263,3 +263,30 @@ def test_a_key_already_removed_by_a_wider_pick_is_not_an_error() -> None:
 def test_remove_items_refuses_nothing_selected() -> None:
     with pytest.raises(edits.EditError):
         remove_items(project(Layer(id="a", spec=SQUARE)), Selection())
+
+
+def a_group() -> Project:
+    group = Layer(id="g", spec=Spec(type="Group"), lifetime=Lifetime(in_=1.0, out=9.0))
+    kids = [
+        Layer(id="k1", parent_id="g", spec=SQUARE, clips=[clip("w", "Write", 1.0)], tracks=keys(2.0, 3.0)),
+        Layer(id="k2", parent_id="g", spec=SQUARE, clips=[clip("f", "FadeIn", 4.0)]),
+    ]
+    return project(group, *kids)
+
+
+def test_shifting_a_group_shifts_its_children_too() -> None:
+    """A group has no clips of its own: moving it moves what is inside (ADR 0050)."""
+    edit = shift_timing(a_group(), Selection(layers=("g",)), 2.0)
+    assert starts(edit.project, "k1") == [3.0] and starts(edit.project, "k2") == [6.0]
+    assert key_times(edit.project, "k1") == [4.0, 5.0]
+    life = edit.project.layer("g").lifetime
+    assert (life.in_, life.out) == (3.0, 11.0)
+
+
+def test_the_clamp_and_the_reach_see_a_groups_children() -> None:
+    from manim_studio.core.shift_timing import earliest, latest
+
+    sel = Selection(layers=("g",))
+    assert earliest(a_group(), sel) == 1.0 and latest(a_group(), sel) == 9.0
+    edit = shift_timing(a_group(), sel, -5.0)  # the group's Appears at (1.0) is the earliest: -1.0
+    assert starts(edit.project, "k1") == [0.0] and edit.project.layer("g").lifetime.in_ == 0.0
