@@ -536,6 +536,8 @@ class LayersPanel(QWidget):
         self._select_new = "all"
         text = "Add equation steps"
         if adapter.latex_problem() is None:
+            if request.free_spot:  # the plain formulas are measured: warm them first (in order)
+                builds.prewarm([Spec(type="MathTex", params={"text": tex}) for tex in request.steps])
             self._submit(op, text)
             return
         try:

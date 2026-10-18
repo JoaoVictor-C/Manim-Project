@@ -117,6 +117,14 @@ def test_each_line_is_checked_quickly_then_with_latex_through_the_worker(builds)
     assert dialog.status.text() == "2 steps, 1 morph." and ok_button(dialog).isEnabled()
 
 
+def test_ok_refuses_while_a_line_cannot_be_added(builds) -> None:
+    dialog = EquationStepsDialog(0.0, builds)
+    dialog.text.setPlainText("x = 1\n\\frac{x}{")
+    dialog.accept()  # Enter in a field, say
+    assert dialog.result() != EquationStepsDialog.DialogCode.Accepted
+    assert Preferences().option("steps/hold", -1.0) == -1.0  # nothing remembered either
+
+
 def test_without_a_worker_lines_are_built_when_the_steps_are_added(qt_app) -> None:
     service = BuildService(Document(Project(canvas=CANVAS)), FakeWorker(available=False))
     dialog = EquationStepsDialog(0.0, service)
@@ -217,6 +225,29 @@ def test_the_steps_wait_for_the_worker_then_are_one_undo_step_and_selected(panel
     assert [stack.text(i) for i in range(stack.count())] == ["Add equation steps"]
     stack.undo()
     assert [x.id for x in panel.project.layers] == ["dot"]
+
+
+@pytest.mark.latex
+def test_a_free_spot_is_below_what_is_there_once_the_steps_can_be_measured(qt_app) -> None:
+    square = Layer(id="sq", spec=Spec(type="Square", params={"side_length": 3}))
+    doc = Document(Project(canvas=CANVAS, layers=[square]))
+    worker = FakeWorker()
+    widget = LayersPanel(BuildService(doc, worker))
+    lines = PYTHAGORAS[:2]
+
+    def ask(start: float):
+        dialog = EquationStepsDialog(start, None)
+        dialog.text.setPlainText("\n".join(lines))
+        dialog.place.setCurrentText("Free spot")
+        return dialog.request()
+
+    widget.ask_steps = ask
+    widget.add_equation_steps()  # cold: nothing is measured in the UI thread
+    worker.reply_all()  # warm: the edit runs again and measures the steps
+    x, y = widget.project.roots()[1].base.position
+    assert x == 0.0 and y < -1.5  # below the square (its bottom is at -1.5)
+    assert {r.base.position for r in widget.project.roots()[1:]} == {(x, y)}
+    widget.close()
 
 
 def test_without_latex_the_steps_are_added_at_once_as_placeholders(panel, monkeypatch, tmp_path) -> None:
