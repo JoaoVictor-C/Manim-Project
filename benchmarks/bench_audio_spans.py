@@ -30,12 +30,12 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MANIM_STUDIO_AUDIO", "0")
 
-import numpy as np  # noqa: E402
+import numpy as np
 
-from manim_studio.core import audio, levels  # noqa: E402
-from manim_studio.core.schema import AudioClip, Canvas, Layer, Project, Spec  # noqa: E402
-from manim_studio.render.cairo_export import export_video  # noqa: E402
-from manim_studio.render.options import RenderOptions  # noqa: E402
+from manim_studio.core import audio, levels
+from manim_studio.core.schema import AudioClip, Canvas, Layer, Project, Spec
+from manim_studio.render.cairo_export import export_video
+from manim_studio.render.options import RenderOptions
 
 SPANS = hasattr(audio, "mix_span")
 
@@ -111,10 +111,10 @@ def write_tone(path: Path, seconds: float, rate: int = 44_100) -> None:
 def play(project: Project, t: float, seconds: float) -> tuple[float, float]:
     """What the player does to start at ``t`` and play ``seconds``: (ms to the first sound, ms in all)."""
     first = round(t * audio.RATE)
-    start = time.perf_counter()
     if SPANS:
         from manim_studio.ui.audio_player import MixDevice
-
+    start = time.perf_counter()
+    if SPANS:
         device = MixDevice(audio.source(project), first)
         ready = (time.perf_counter() - start) * 1000
         wanted = round(seconds * audio.RATE) * 4
@@ -135,8 +135,10 @@ def main() -> None:
     folder = Path(tempfile.mkdtemp(prefix="bench-audio-spans-"))
     tone = folder / "tone.wav"
     write_tone(tone, seconds)
-    print(f"B70 - {'spans' if SPANS else 'whole mix (before)'}: a {args.minutes:g}-minute 44.1 kHz mono tone, "
-          f"{tone.stat().st_size / 2**20:.0f} MB on disk; {audio.__file__}")
+    print(
+        f"B70 - {'spans' if SPANS else 'whole mix (before)'}: a {args.minutes:g}-minute 44.1 kHz mono tone, "
+        f"{tone.stat().st_size / 2**20:.0f} MB on disk; {audio.__file__}"
+    )
     canvas = Canvas(width_px=160, height_px=90, fps=10, duration=seconds)
     clip = AudioClip(id="tone", path=str(tone), duration=seconds - 1.0)
     project = Project(canvas=canvas, layers=[Layer(id="dot", spec=Spec(type="Dot"))], audio=[clip])
@@ -171,8 +173,14 @@ def main() -> None:
         began, done = open_project.background
         with Sampler() as sampler:
             done.wait()
-        rows.append(("  background waveform scan", (time.perf_counter() - began) * 1000, sampler.high - base,
-                     "off the GUI thread; until then a flat row"))
+        rows.append(
+            (
+                "  background waveform scan",
+                (time.perf_counter() - began) * 1000,
+                sampler.high - base,
+                "off the GUI thread; until then a flat row",
+            )
+        )
     times = {}
 
     def play_10s() -> str:

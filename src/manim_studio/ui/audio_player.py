@@ -2,7 +2,8 @@
 
 The mix from ``core.audio`` is handed to a ``QAudioSink`` from the playhead on,
 pulled in spans of a quarter second as the device asks for them (``MixDevice``,
-B70): no whole mix is made, and an edit is heard after its first span. The sink's processed time advances every ~10 ms and never drifts from what is
+B70): no whole mix is made, and an edit is heard after its first span. The sink's
+processed time advances every ~10 ms and never drifts from what is
 heard (B47), so frames follow it; until the device starts (~0.1 s, ~0.5 s for
 the first sound of a session) the clock stays at the start and the first frame
 holds. Without a device, or with ``MANIM_STUDIO_AUDIO=0`` (tests), there is no

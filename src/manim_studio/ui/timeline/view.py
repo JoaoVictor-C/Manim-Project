@@ -36,6 +36,7 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from bisect import bisect_right
 from dataclasses import dataclass, field
@@ -128,7 +129,8 @@ AUDIO_COLOR = theme.qcolor(theme.THEME.sound)
 CUE_COLOR = theme.qcolor(theme.THEME.cue)
 WAVE_COLOR = theme.qcolor(theme.THEME.wave)
 PEAKS_PER_SECOND = 100
-SYNC_PEAKS_SECONDS = 60.0  # a shorter sound's waveform is made at once (~0.1 s), a longer one in the background
+# a shorter sound's waveform is made at once (~0.1 s), a longer one in the background (B70)
+SYNC_PEAKS_SECONDS = 60.0
 LIFETIME_COLOR = theme.qcolor(theme.THEME.lifetime)
 PLAYHEAD_COLOR = theme.qcolor(theme.THEME.playhead)
 BACKGROUND = theme.qcolor(theme.THEME.track)
@@ -231,10 +233,8 @@ class _PeaksLoader(QObject):
         try:
             audio.scan(path)
         finally:
-            try:
+            with contextlib.suppress(RuntimeError):  # the timeline was closed meanwhile
                 self.ready.emit(path)
-            except RuntimeError:  # the timeline was closed meanwhile
-                pass
 
 
 class AudioItem(QGraphicsRectItem):

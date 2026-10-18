@@ -50,6 +50,7 @@ CHUNK = 61_440  # samples per decoded window (1.28 s, 480 KB): a whole number of
 PEAK_STEP = RATE // 100  # the scan's peaks: the loudest sample of each 1/100 s
 WINDOW_BYTES = 64 << 20  # decoded windows kept, all files together
 WARM_SECONDS = 3.0  # decoded and dropped before a sought window (the codec's state)
+TRUSTED_WARM_SECONDS = 0.1  # ... for PCM and FLAC, whose frames decode alone
 WARM_OUTPUT = 4096  # resampled and dropped before a sought window (the resampler's filter)
 READERS = 4  # open decoders kept positioned where they stopped
 SPAN = 12_000  # samples per span when a long stretch of the mix is made (0.25 s)
@@ -140,11 +141,11 @@ def _decode(path: str) -> np.ndarray | None:
 # -- decoding on demand -------------------------------------------------------------------------
 
 
-class _Unreadable(Exception):
+class _UnreadableError(Exception):
     """The file failed to decode: it is silent, as a file the whole decode could not read."""
 
 
-class _NoSeek(Exception):
+class _NoSeekError(Exception):
     """A seek did not land where its samples can be trusted: decode from the start instead."""
 
 
@@ -225,7 +226,7 @@ class _Reader:
             self._stream = self._container.streams.audio[0]
             self._frames = self._container.decode(self._stream)
         except (av.FFmpegError, IndexError, OSError) as exc:
-            raise _Unreadable(exc) from exc
+            raise _UnreadableError(exc) from exc
         self._resampler = av.AudioResampler(format="fltp", layout="stereo", rate=RATE)
         if seek and self.pos > 0:
             try:
@@ -240,7 +241,7 @@ class _Reader:
     def _seek(self, target: int) -> None:
         info = self._info
         if info.pts0 is None or info.time_base is None:
-            raise _NoSeek("no timestamps")
+            raise _NoSeekError("no timestamps")
         rate = info.rate
         common = gcd(rate, RATE)
         period_out, period_in = RATE // common, rate // common  # the resampler's phase repeats
@@ -248,7 +249,8 @@ class _Reader:
         if start_out <= 0:
             return  # close to the start: decode from it
         start_in = start_out // period_out * period_in
-        early = Fraction(start_in, rate) - Fraction(WARM_SECONDS)
+        warm = min(WARM_SECONDS, TRUSTED_WARM_SECONDS) if info.trusted else WARM_SECONDS
+        early = Fraction(start_in, rate) - Fraction(warm)
         if early <= 0:
             return
         self._container.seek(
@@ -259,8 +261,8 @@ class _Reader:
         for frame in self._frames:
             first = self._input_index(frame)
             if not warmed:
-                if first > start_in - rate * WARM_SECONDS / 2:
-                    raise _NoSeek(f"landed at input sample {first}, wanted before {start_in}")
+                if first > start_in - rate * warm / 2:
+                    raise _NoSeekError(f"landed at input sample {first}, wanted before {start_in}")
                 warmed = True
             self._next_input = first + frame.samples
             if first + frame.samples <= start_in:
@@ -277,15 +279,15 @@ class _Reader:
             COUNTS["seeks"] += 1
             self._resample(head)
             return
-        raise _NoSeek("nothing after the seek")
+        raise _NoSeekError("nothing after the seek")
 
     def _input_index(self, frame) -> int:
         info = self._info
         if frame.pts is None:
-            raise _NoSeek("a frame without a timestamp")
+            raise _NoSeekError("a frame without a timestamp")
         index = (frame.pts - info.pts0) * info.time_base * info.rate
         if index.denominator != 1 or (self._next_input is not None and index != self._next_input):
-            raise _NoSeek(f"frame at {float(index)}, expected {self._next_input}")
+            raise _NoSeekError(f"frame at {float(index)}, expected {self._next_input}")
         return int(index)
 
     def _resample(self, frame) -> None:
@@ -309,7 +311,7 @@ class _Reader:
             self._eof = True
             return
         except av.FFmpegError as exc:
-            raise _Unreadable(exc) from exc
+            raise _UnreadableError(exc) from exc
         if self.sought:
             self._next_input = self._input_index(frame) + frame.samples
         self._resample(frame)
@@ -321,10 +323,8 @@ class _Reader:
             while not self._eof and self._have + sum(p.shape[1] for p in self._pending) < target:
                 self._pump()
         except (av.FFmpegError, OSError) as exc:
-            raise _Unreadable(exc) from exc
-        data = (
-            np.concatenate(self._pending, axis=1) if self._pending else np.zeros((2, 0), np.float32)
-        )
+            raise _UnreadableError(exc) from exc
+        data = np.concatenate(self._pending, axis=1) if self._pending else np.zeros((2, 0), np.float32)
         lo = self.pos - self._have
         window = np.ascontiguousarray(data[:, lo : lo + CHUNK], dtype=np.float32)
         rest = data[:, lo + CHUNK :]
@@ -406,7 +406,7 @@ def _window(path: str, sig: str, k: int) -> np.ndarray | None:
             if reader is None:
                 try:
                     reader = _Reader(path, sig, info, k, seek=attempt)
-                except _NoSeek as why:
+                except _NoSeekError as why:
                     log.debug("no seek in %s: %s", path, why)
                     COUNTS["refused"] += 1
                     info.seekable = False
@@ -414,14 +414,14 @@ def _window(path: str, sig: str, k: int) -> np.ndarray | None:
             while reader.pos < k * CHUNK:
                 reader.read()
             window = reader.read()
-        except _NoSeek as why:
+        except _NoSeekError as why:
             log.debug("no seek in %s: %s", path, why)
             COUNTS["refused"] += 1
             info.seekable = False
             if reader is not None:
                 reader.close()
             continue
-        except _Unreadable as exc:
+        except _UnreadableError as exc:
             if reader is not None:
                 reader.close()
             _mark_unreadable(path, sig, exc)
@@ -484,7 +484,7 @@ def scan(path: str) -> Scan | None:
     if info is not None:
         try:
             found = _scan(path, sig, info)
-        except _Unreadable as exc:
+        except _UnreadableError as exc:
             _mark_unreadable(path, sig, exc)
     with _lock:
         _SCANS[key] = found
@@ -540,7 +540,7 @@ def _peaks(path: str, sig: str, per_second: int) -> np.ndarray:
     out, carry = [], np.zeros(0, np.float32)
     try:
         reader = _Reader(path, sig, info, 0, seek=False)
-    except _Unreadable:
+    except _UnreadableError:
         return np.zeros(0, np.float32)
     try:
         while True:
@@ -552,7 +552,7 @@ def _peaks(path: str, sig: str, per_second: int) -> np.ndarray:
             carry = loud[whole:]
             if window.shape[1] < CHUNK:
                 break
-    except _Unreadable:
+    except _UnreadableError:
         return np.zeros(0, np.float32)
     finally:
         reader.close()

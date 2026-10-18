@@ -168,7 +168,9 @@ def test_trusted_formats_seek_and_others_only_once_checked(files, short_warm_up)
     assert np.array_equal(audio.file_span(aac, deep, 10), whole[:, deep : deep + 10])
     assert audio.COUNTS["seeks"] == 3 and audio.COUNTS["mismatches"] == 1
     audio.forget_windows()
-    assert np.array_equal(audio.file_span(aac, deep + 3 * audio.CHUNK, 10), whole[:, deep + 3 * audio.CHUNK :][:, :10])
+    assert np.array_equal(
+        audio.file_span(aac, deep + 3 * audio.CHUNK, 10), whole[:, deep + 3 * audio.CHUNK :][:, :10]
+    )
     assert audio.COUNTS["seeks"] == 3 and audio.COUNTS["mismatches"] == 1  # the file is not sought again
 
 
@@ -351,7 +353,9 @@ def reference_track(tmp_path, samples: np.ndarray) -> np.ndarray:
 def test_the_exported_sound_is_the_one_exported_before_spans(files, tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(cairo_export, "AUDIO_SPAN", 7_000)  # many spans, none aligned to AAC's 1024
     clips = [
-        AudioClip(id="a", path=files["m44.wav"], start=0.3, offset=0.5, duration=1.6, gain=-3.0, fade_out=0.3),
+        AudioClip(
+            id="a", path=files["m44.wav"], start=0.3, offset=0.5, duration=1.6, gain=-3.0, fade_out=0.3
+        ),
         AudioClip(id="b", path=files["s48.wav"], start=1.1, duration=0.8, gain=6.0, fade_in=0.2),
     ]
     canvas = Canvas(width_px=160, height_px=90, fps=10, duration=2.0)
