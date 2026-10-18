@@ -139,6 +139,20 @@ def test_refusals_say_why_in_the_status_bar(window, qt_app) -> None:
     assert window.document.undo_stack.count() == 0
 
 
+def test_only_what_the_editor_draws_is_frozen(window, qt_app, monkeypatch) -> None:
+    """The code became runnable behind the editor's back (another window trusted it): until the
+    editor rebuilds it, it shows the placeholder, so that - not the code's object - is what it has."""
+    assert isinstance(dict(window.evaluator.frame_layers(0.5))["py"], m.DashedVMobject)
+    monkeypatch.setattr(python_object, "_trust_everything", True)
+    assert window.freeze_layer("py") is False
+    assert "placeholder" in status(window) and "code not trusted yet" in status(window)
+    window.reload_media()  # what Reload media / trusting in this window does: it is built now
+    qt_app.processEvents()
+    assert not isinstance(dict(window.evaluator.frame_layers(0.5))["py"], m.DashedVMobject)
+    assert window.freeze_layer("py") is True
+    assert window.project.layer("py").spec.type == "Shape"
+
+
 def test_the_layers_menu_and_the_edit_menu_freeze_too(window, qt_app) -> None:
     menu = window.layers.context_menu("dot")
     action = next(a for a in menu.actions() if a.text() == "Freeze to Shape")
