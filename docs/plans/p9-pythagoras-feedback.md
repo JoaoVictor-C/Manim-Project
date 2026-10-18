@@ -1,6 +1,6 @@
 # P9 - What the Pythagoras project asked for
 
-- **Status:** In progress (U1, U2 and U5 shipped; U3, U4 and U6 planned)
+- **Status:** In progress (U1, U2, U3 and U5 shipped; U4 has its Shift Timing edit, its timeline multi-selection and U6 groups are next)
 - **Date:** 2026-10-18
 - **Decided in:** [decision session 44](../logs/decision-sessions.md) (Terza, `fast`, stopped at confidence 0.84)
 - **Why:** the user finished a real 30-second project (`Pythagoras.json`: 10 layers of text, 4 right triangles,
