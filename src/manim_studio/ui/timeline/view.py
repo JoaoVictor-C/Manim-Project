@@ -532,6 +532,12 @@ class TimelineView(QGraphicsView):
 
     # -- painting ----------------------------------------------------------------
 
+    def scrollContentsBy(self, dx: int, dy: int) -> None:
+        """Scrolling copies the viewport's pixels, the ruler and the playhead with them; they stay
+        put, so the viewport is drawn again (the ruler was repeated down the rows)."""
+        super().scrollContentsBy(dx, dy)
+        self.viewport().update()
+
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
         project = self.project
         painter.save()

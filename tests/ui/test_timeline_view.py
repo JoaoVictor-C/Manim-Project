@@ -511,3 +511,22 @@ def test_a_fit_before_layout_waits_for_the_real_width(qt_app) -> None:
     qt_app.processEvents()
     assert v.scale.x(6.0) > v.viewport().width()
     v.close()
+
+
+def test_scrolling_redraws_the_whole_viewport(qt_app) -> None:
+    """The ruler and the playhead stay put while the rows scroll: a scroll that only copied the
+    pixels repeated the ruler down every row (the user's report, P7.1)."""
+    many = project().model_copy(
+        update={"layers": [Layer(id=f"l{i}", spec=Spec(type="Square")) for i in range(30)]}
+    )
+    v = TimelineView()
+    v.resize(600, 150)
+    v.set_document(Document(many))
+    v.show()
+    qt_app.processEvents()
+    updates = []
+    viewport = v.viewport()
+    viewport.update = lambda *args: updates.append(args)  # every call goes through the same wrapper
+    v.verticalScrollBar().setValue(v.verticalScrollBar().maximum())
+    assert () in updates  # the whole viewport, not only the strip uncovered by the scroll
+    v.close()
