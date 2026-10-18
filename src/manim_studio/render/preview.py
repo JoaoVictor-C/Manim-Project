@@ -83,6 +83,7 @@ def orient(three_d: m.ThreeDCamera, camera: Camera) -> None:
     three_d.set_phi(camera.phi * m.DEGREES)
     three_d.set_theta(camera.theta * m.DEGREES)
     three_d.set_gamma(camera.gamma * m.DEGREES)
+    three_d.reset_rotation_matrix()  # else used stale until the first capture (a code frame before it)
 
 
 def preview_camera(view: PreviewView, camera: Camera | None = None) -> m.Camera:
