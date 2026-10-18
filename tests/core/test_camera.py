@@ -36,10 +36,16 @@ def scene(camera: Camera | None = None) -> Project:
         layers=[
             Layer(
                 id="sq",
-                spec=Spec(type="Square", params={"side_length": 3.0}, style={"fill": "#3b82f6", "fill_opacity": 1}),
+                spec=Spec(
+                    type="Square", params={"side_length": 3.0}, style={"fill": "#3b82f6", "fill_opacity": 1}
+                ),
                 clips=[Clip(id="in", kind="FadeIn", start=0.0, duration=0.3)],
             ),
-            Layer(id="ring", spec=Spec(type="Circle", params={"radius": 2.5}), base=Transform2D(position=(1.0, 0.5))),
+            Layer(
+                id="ring",
+                spec=Spec(type="Circle", params={"radius": 2.5}),
+                base=Transform2D(position=(1.0, 0.5)),
+            ),
         ],
         subtitles=[Cue(id="cue", start=0.0, end=0.3, text="Hello")],
         **({"camera": camera} if camera is not None else {}),
@@ -122,7 +128,9 @@ def test_a_turned_camera_is_saved_and_read_back() -> None:
     assert Project.model_validate(data).camera == project.camera
 
 
-@pytest.mark.parametrize("bad", [{"phi": -1.0}, {"phi": 181.0}, {"theta": 200.0}, {"gamma": -181.0}, {"zoom": 2.0}])
+@pytest.mark.parametrize(
+    "bad", [{"phi": -1.0}, {"phi": 181.0}, {"theta": 200.0}, {"gamma": -181.0}, {"zoom": 2.0}]
+)
 def test_camera_ranges_are_validated(bad) -> None:
     with pytest.raises(ValidationError):
         Camera(**bad)
@@ -236,7 +244,9 @@ def test_a_pan_moves_a_tilted_picture_without_turning_it() -> None:
     view = PreviewView(320, 180, CANVAS.frame_width, CANVAS.frame_height, (0.0, 0.0), CANVAS.background)
     shift = round(320 / CANVAS.frame_width)  # one unit, in pixels: 20
     still = render_frame(preview_camera(view, TILTED), layers)
-    panned = render_frame(preview_camera(PreviewView(**{**view.to_json(), "centre": (1.0, 0.0)}), TILTED), layers)
+    panned = render_frame(
+        preview_camera(PreviewView(**{**view.to_json(), "centre": (1.0, 0.0)}), TILTED), layers
+    )
     assert np.abs(panned[:, : 320 - shift].astype(int) - still[:, shift:].astype(int)).mean() < 0.5
 
 
@@ -338,7 +348,9 @@ def test_the_exact_scene_uses_the_turned_camera() -> None:
 def test_readable_code_with_a_camera_renders_what_the_editor_shows(tmp_path) -> None:
     from tests.core.test_python_export import rendered
 
-    project = plain().model_copy(update={"camera": TILTED, "canvas": CANVAS.model_copy(update={"duration": 0.5})})
+    project = plain().model_copy(
+        update={"camera": TILTED, "canvas": CANVAS.model_copy(update={"duration": 0.5})}
+    )
     export = to_python(project, "Tilted")
     assert export.readable
     assert_matches_editor_turned(project, rendered(export.code, "Tilted", tmp_path))

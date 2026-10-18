@@ -224,6 +224,7 @@ class PropertiesPanel(QWidget):
         self.others_selected = 0  # other selected objects besides the one shown (ADR 0043)
         self.marker_id: str | None = None  # a marker is shown (ADR 0037)
         self.scene_shown = False  # nothing selected: the scene's settings (P7.1)
+        self._scene_tips: dict[str, str] = {}  # their fields' tooltips
         self.code_ends: Callable[[], list[float]] = lambda: []  # rendered code animations, set by the window
         self.fit_button: QPushButton | None = None
         self.fields: dict[str, Field] = {}
@@ -308,12 +309,12 @@ class PropertiesPanel(QWidget):
             ("Background", "canvas.background", ColorField(commit("background", "Background"))),
         ]
         self._section("Scene", rows)
-        self.fields["canvas.duration"].widget.setToolTip(
-            "How long the video is. Shorter than its content also stops it growing."
-        )
-        self.fields["canvas.grow_with_content"].widget.setToolTip(
-            "The scene gets longer by itself when something is placed past its end"
-        )
+        self._scene_tips = {  # re-applied after each refresh: set_value clears a field's tooltip
+            "canvas.duration": "How long the video is. Shorter than its content also stops it growing.",
+            "canvas.grow_with_content": (
+                "The scene gets longer by itself when something is placed past its end"
+            ),
+        }
         self.fit_button = QPushButton("Fit Length to Content")
         self.fit_button.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
         self.fit_button.clicked.connect(self.fit_length)
@@ -351,7 +352,7 @@ class PropertiesPanel(QWidget):
             "gamma": "Roll about the line of sight: 0 is the flat 2D view",
         }
         for name, tip in tips.items():
-            self.fields[f"camera.{name}"].widget.setToolTip(
+            self._scene_tips[f"camera.{name}"] = (
                 f"{tip}. Any other camera than the flat view hides the canvas handles."
             )
         self.camera_reset = QPushButton("Reset Camera")
@@ -408,6 +409,8 @@ class PropertiesPanel(QWidget):
             if not field.has_focus() or force:
                 owner, name = path.split(".", 1)
                 field.set_value(getattr(owners[owner], name))
+            if path in self._scene_tips:
+                field.widget.setToolTip(self._scene_tips[path])
 
     def show_layer(self, layer_id: str) -> None:
         if not layer_id or not _has(self.project, layer_id):

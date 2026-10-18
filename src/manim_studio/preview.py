@@ -103,9 +103,9 @@ class Renderer:
         if "view" in message:
             self.view_id = int(message["view_id"])
             self.view = PreviewView.from_json(message["view"])
-        if self.view is not None and self.project is not None:
-            if "view" in message or self.camera is None or self.project.camera != camera_before:
-                self.camera = preview_camera(self.view, self.project.camera)  # as the canvas (ADR 0048)
+        stale = "view" in message or self.camera is None or self.project.camera != camera_before
+        if self.view is not None and self.project is not None and stale:
+            self.camera = preview_camera(self.view, self.project.camera)  # as the canvas (ADR 0048)
         if "want" in message:
             self.want = [int(i) for i in message["want"]]
         if message.get("media") and self.evaluator is not None:

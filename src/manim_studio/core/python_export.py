@@ -813,7 +813,9 @@ def _num(value: float) -> str:
 
 def _camera_orientation(camera) -> str:
     """``set_camera_orientation`` with the angles as the editor applies them (``value * DEGREES``)."""
-    angles = ", ".join(f"{name}={_num(getattr(camera, name))} * DEGREES" for name in ("phi", "theta", "gamma"))
+    angles = ", ".join(
+        f"{name}={_num(getattr(camera, name))} * DEGREES" for name in ("phi", "theta", "gamma")
+    )
     return f"self.set_camera_orientation({angles})"
 
 

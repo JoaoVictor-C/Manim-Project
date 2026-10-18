@@ -94,6 +94,4 @@ def keep_in_frame(camera: m.Camera, overlay: Iterable[m.Mobject]) -> None:
     """What is drawn over the scene (burned-in subtitles, ADR 0035) stays flat on the screen when
     the camera is turned: Manim's fixed-in-frame mobjects. Nothing to do for the 2D camera."""
     if isinstance(camera, m.ThreeDCamera):
-        camera.fixed_in_frame_mobjects = {
-            member for mob in overlay for member in mob.get_family()
-        }
+        camera.fixed_in_frame_mobjects = {member for mob in overlay for member in mob.get_family()}

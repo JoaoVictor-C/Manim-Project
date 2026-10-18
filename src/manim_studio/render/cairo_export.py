@@ -17,7 +17,6 @@ from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import Camera, Canvas, Project
 from ..logging_config import get_logger
-from .preview import PreviewView, keep_in_frame, scene_camera
 from .options import (
     DEFAULT_CRF,
     RenderOptions,
@@ -26,6 +25,7 @@ from .options import (
     frame_window,
     window_cues,
 )
+from .preview import PreviewView, keep_in_frame, scene_camera
 
 log = get_logger(__name__)
 
