@@ -129,6 +129,17 @@ class Preferences:
         self._settings.setValue(f"view/{name}", bool(value))
         self._settings.sync()
 
+    # -- remembered options (a dialog's last choices) --------------------------------------------
+
+    def option(self, name: str, default):
+        """The last value saved under ``name`` (``options/<name>``), as the type of ``default``."""
+        value = self._settings.value(f"options/{name}", default, type=type(default))
+        return default if value is None else value
+
+    def set_option(self, name: str, value) -> None:
+        self._settings.setValue(f"options/{name}", value)
+        self._settings.sync()
+
     def _bytes(self, key: str) -> QByteArray | None:
         value = self._settings.value(key)
         if value is None:

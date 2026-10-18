@@ -718,14 +718,12 @@ def pieces(tex: str, nodes: list[Node] | None = None) -> tuple[list[Piece], list
 
 
 def _lcs(a: list[str], b: list[str]) -> list[tuple[int, int]]:
-    """Index pairs of a longest common subsequence of ``a`` and ``b`` (common ends first)."""
+    """Index pairs of a longest common subsequence of ``a`` and ``b``, matching each piece as
+    early as it can: in ``x = 1`` -> ``x + 1 = 1 + 1`` the new pieces are both ``+ 1``."""
     head = 0
     while head < len(a) and head < len(b) and a[head] == b[head]:
-        head += 1
-    tail = 0
-    while tail < len(a) - head and tail < len(b) - head and a[-1 - tail] == b[-1 - tail]:
-        tail += 1
-    mid_a, mid_b = a[head : len(a) - tail], b[head : len(b) - tail]
+        head += 1  # a common start is kept as it is (and spares the table)
+    mid_a, mid_b = a[head:], b[head:]
     n, m = len(mid_a), len(mid_b)
     table = [[0] * (m + 1) for _ in range(n + 1)]
     for i in range(n - 1, -1, -1):
@@ -742,7 +740,6 @@ def _lcs(a: list[str], b: list[str]) -> list[tuple[int, int]]:
             i += 1
         else:
             j += 1
-    pairs += [(len(a) - tail + k, len(b) - tail + k) for k in range(tail)]
     return pairs
 
 

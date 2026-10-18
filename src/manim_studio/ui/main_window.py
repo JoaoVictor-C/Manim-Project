@@ -339,6 +339,15 @@ class MainWindow(QMainWindow):
         save_template.setToolTip("The selected object with everything under it, as a template of your own")
         save_template.triggered.connect(self.save_template)
         animate_menu.addAction(save_template)
+        animate_menu.addSeparator()
+        steps_action = QAction("&Equation Steps...", self)  # P11 (ADR 0054)
+        steps_action.setToolTip(
+            "Type the steps of a derivation, one equation per line: "
+            "one MathTex per step, morphing into the next"
+        )
+        steps_action.triggered.connect(lambda: self._has_project and self.layers.add_equation_steps())
+        animate_menu.addAction(steps_action)
+        self.equation_steps_action = steps_action
         self._fill_templates_menu()
         view_menu = self.menuBar().addMenu("&View")
         pages_menu = view_menu.addMenu("&Pages")  # the workspace pages (ADR 0041)

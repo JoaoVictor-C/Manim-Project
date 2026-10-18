@@ -204,6 +204,8 @@ def test_new_pieces_are_runs_of_whole_terms_with_their_occurrence() -> None:
     assert [(n.tex, n.occurrence) for n in divided.new] == [("a", 1), ("a", 3)]
     powered = plan_transition("x = 5", "x^2 = 5")
     assert [n.tex for n in powered.new] == ["2"]  # not "^2": a part cannot start on ^
+    early = plan_transition("x = 1", "x + 1 = 1 + 1")  # each piece matches as early as it can
+    assert [(n.tex, n.occurrence) for n in early.new] == [("+ 1", 0), ("+ 1", 1)]
 
 
 def test_steps_sharing_nothing_are_a_replacement_and_unreadable_lines_too() -> None:
