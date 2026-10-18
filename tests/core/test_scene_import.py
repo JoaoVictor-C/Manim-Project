@@ -609,3 +609,31 @@ def test_an_imported_group_scene_renders_what_manim_renders(tmp_path) -> None:
     )
     assert result.converted, result.report
     assert_matches_editor(result.project, rendered(source, "Original", tmp_path))
+
+
+def test_the_export_tests_rich_project_imports_back_to_the_same_frames(tmp_path) -> None:
+    from tests.core.test_python_export import rich
+
+    project = rich()  # a cluster, a gap, a morph, a turned and faded square, eases the export helps with
+    project = project.model_copy(
+        update={
+            "layers": [x for x in project.layers if x.id != "dot"],  # MoveAlongPath is not imported (yet)
+            "canvas": project.canvas.model_copy(update={"width_px": 192, "height_px": 108}),
+        }
+    )
+    export = to_python(project, "Rich")
+    assert export.readable
+    path = tmp_path / "rich.py"
+    path.write_text(export.code, encoding="utf-8")
+    rec = record(export.code, str(path), "Rich", sample_fps=10)
+    result = import_scene(rec, export.code)
+    assert result.converted, result.report
+    title = next(x for x in result.project.layers if x.spec.type == "Text")
+    assert title.clips[0].ease.name == "ease_out_back"  # the export's clamped() helper read back
+    assert_frames_match(rec, result.project)
+    original, again = Evaluator(project), Evaluator(result.project)
+    camera = make_camera(project.canvas)
+    for t in (0.0, 0.7, 1.6, 2.3, 3.2, 3.9):
+        a = render_frame(camera, original.frame(t))[:, :, :3].astype(int)
+        b = render_frame(camera, again.frame(t))[:, :, :3].astype(int)
+        assert np.abs(a - b).mean() < 0.5, t

@@ -797,6 +797,17 @@ class _Recorder:
         problems = record["problems"]
         registered = {p.name: p for p in clip_params(kind)}
         params: dict[str, Any] = {}
+        pinned = False
+        if record["class"] == "Wiggle":  # the editor's Wiggle turns about the object's centre as it begins
+            import numpy as np
+
+            centre = np.asarray(target.get_center(), dtype=float)
+            pivots = [bound.get(k) for k in ("scale_about_point", "rotate_about_point")]
+            pinned = all(p is not None and np.allclose(np.asarray(p, dtype=float), centre) for p in pivots)
+            if pinned:
+                bound = {
+                    k: v for k, v in bound.items() if k not in ("scale_about_point", "rotate_about_point")
+                }
         for key, value in bound.items():
             if key in NOT_PARAMS or value is None:
                 continue
@@ -807,7 +818,7 @@ class _Recorder:
                 params[key] = converted
         if record["class"] in ("FadeIn", "FadeOut") and ("scale" in params or "target_position" in bound):
             record["leafwise"] = False
-        if record["class"] == "Wiggle" and len(target.family_members_with_points()) > 1:
+        if record["class"] == "Wiggle" and not pinned and len(target.family_members_with_points()) > 1:
             problems.append(
                 "Wiggle on several pieces turns each about a centre that moves as the others turn: "
                 "Manim Studio turns them about a fixed one"
