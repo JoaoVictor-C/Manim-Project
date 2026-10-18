@@ -33,7 +33,7 @@ Create a typical animation, save, close, reopen and export it:
 |---|---|---|---|
 | G1 | the walkthrough through real menu actions and input events (user actions counted, status messages, warnings, screenshots); `tests/ui/test_golden_path.py` (slow) | lead | the path runs end to end with the checks above |
 | G2 | friction found by G1, fixed | lead | the walkthrough's findings closed or listed |
-| G3a | readable Python export of keyframed layers: the keyed transform applied on top of each frame's clip state, as the editor does | agent (Opus) | every built-in preset on a square, and `examples/euler.json`, export readable; frames match the editor's |
+| G3a ✅ | readable Python export of keyframed layers: the keyed transform applied on top of each frame's clip state, as the editor does | agent (Opus) | every built-in preset on a square, and `examples/euler.json`, export readable; frames match the editor's - done: a `Keyed` helper draws keys as data, clips play through `KeyedClip` (ADR 0046, B64) |
 | G3b | readable export of objects on axes, equation parts, clips on turned or scaled objects | later | the four example projects export readable, or say exactly why not |
 | G4 | a 15-minute project benchmark: open, first deep seek, scrub, edit latency, timeline repaint, memory, autosave, export | agent (Sonnet), on mains power | the numbers logged; anything that grows badly fixed or planned |
 

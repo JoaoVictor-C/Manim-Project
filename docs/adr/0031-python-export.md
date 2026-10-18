@@ -19,7 +19,8 @@ objects, code layers, a few random-access patches).
   every layer fits the readable subset; otherwise as the exact scene, whose
   header says why.
 - **Readable subset:** objects without parts or child objects, no code layers,
-  no keyframes; layers with clips are not rotated or scaled (moving and fading
+  no keyframes (amended by [0046](0046-readable-export-of-keyframes.md): keyed
+  layers are readable, drawn by a `Keyed` helper); layers with clips are not rotated or scaled (moving and fading
   are fine); MoveAlongPath does not turn along its path; no object appears or
   disappears in the middle of overlapping clips; morph targets have no set
   lifetime; no missing media.
@@ -39,6 +40,7 @@ objects, code layers, a few random-access patches).
 - Readable files need only Manim; exact files need Manim Studio installed (and
   the code cache for code layers).
 - One keyframed layer makes the whole file exact; the header explains it.
+  (Superseded by ADR 0046: keys are written as data; only a few keyed cases stay exact.)
 
 ## Evidence
 

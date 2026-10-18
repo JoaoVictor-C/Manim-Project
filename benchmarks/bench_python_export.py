@@ -1,7 +1,8 @@
 """B43 — exported Python rendered by Manim vs the editor's frames.
 
 Writes the test suite's rich project (a cluster, a gap, a morph, a path, helper
-eases) as readable code and, with a keyframed layer added, as the exact scene;
+eases) as readable code and, with its ring turned (its Create acts before the
+turn), as the exact scene;
 renders both with ``manim render`` and reports the generation time and the
 largest per-frame mean difference from the editor's own frames (h264 noise is
 about 0.3-0.5 levels).
@@ -26,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 from manim_studio.core import adapter  # noqa: E402
 from manim_studio.core.evaluator import Evaluator  # noqa: E402
 from manim_studio.core.python_export import to_python  # noqa: E402
-from manim_studio.core.schema import Keyframe, Layer, Spec  # noqa: E402
+from manim_studio.core.schema import Transform2D  # noqa: E402
 from manim_studio.render.cairo_export import frame_times, make_camera, render_frame  # noqa: E402
 from tests.core.test_python_export import rich  # noqa: E402
 
@@ -48,10 +49,9 @@ def render(code: str, scene: str, folder: Path) -> tuple[list[np.ndarray], float
 def main() -> None:
     adapter.configure(ROOT / ".cache" / "manim")
     readable = rich()
-    keyed = readable.model_copy(update={"layers": [
-        *readable.layers,
-        Layer(id="k", spec=Spec(type="Dot"), tracks={"position": [Keyframe(t=0, value=(-3.0, 0.0)),
-                                                                  Keyframe(t=4, value=(3.0, 0.0))]}),
+    keyed = readable.model_copy(update={"layers": [  # keys are readable since G3a: turn a clipped layer
+        x.model_copy(update={"base": Transform2D(rotation=20.0, scale=0.8)}) if x.id == "ring" else x
+        for x in readable.layers
     ]})
     folder = Path(tempfile.mkdtemp(dir=ROOT / ".cache", prefix="bench-python-"))
     for project, scene in ((readable, "Readable"), (keyed, "Exact")):

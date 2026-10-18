@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Readable Python export of keyframed layers (G3a, ADR 0046): File > Export Python and
+  `manim-studio python` no longer fall back to the exact form because of keys. A keyed layer's keys
+  are written as data tables drawn by a small `Keyed` helper (the object as its clips leave it,
+  moved, scaled, turned and faded by the keys at each frame, as the editor draws it), its clips as
+  `self.play(layer_keyed.clip(...))`. Every built-in preset (Pop in, Spin, Bounce...) and
+  `examples/euler.json` now export readable and render as the editor shows them. A spotlight
+  (FocusOn) closes on its object as in the editor, and waits are counted in frames, so a clip
+  ending between frames no longer shifts the rest of the exported video. Still exact, with the
+  reason given: keyed connectors or connector ends, a keyed object moving along a path, a morph
+  into a keyed object or one starting during other animations.
 - Preferences, recent files and the first-run welcome (P6d.1, ADR 0044): the editor remembers
   how it was left in one ini file (`MANIM_STUDIO_SETTINGS`, default `manim-studio.ini` in the user
   configuration folder): File > Open Recent (ten files, newest first, missing ones dropped, Clear
