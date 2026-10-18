@@ -210,3 +210,18 @@ def test_render_ahead_can_be_turned_off(window, qt_app) -> None:
     assert fake.stopped and window.render_ahead is None and not window.canvas.from_cache
     window.render_ahead_action.setChecked(True)
     assert len(window.fakes) == 2 and window.fakes[1].sent_projects == 1
+
+
+def test_a_frame_rendered_again_after_an_edit_is_shown_not_the_one_before(window, qt_app) -> None:
+    """The decoded frame was kept by time alone: after an edit and a new render of the same
+    frame, the canvas went on showing the old picture (the user's "the key stopped working")."""
+    fake = window.fakes[0]
+    fake.deliver()
+    window.seek(2.5)
+    assert window.canvas.from_cache
+    window.selection.set("late")
+    window.properties.fields["params.side_length"].commit(3.0)
+    wait(qt_app, 0.3)
+    fake.deliver()
+    window.seek(2.5)
+    assert window.canvas.from_cache and np.array_equal(shown(window), live_pixels(window, 2.5))

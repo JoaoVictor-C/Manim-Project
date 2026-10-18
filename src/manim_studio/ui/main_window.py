@@ -18,8 +18,8 @@ import time
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -41,7 +41,7 @@ from ..core.frame_cache import frame_index, frame_time
 from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
-from ..logging_config import LOGGER_NAME, get_logger, setup_logging
+from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
 from . import arrange, icons, places, shortcuts_help, snap_guides, theme
 from .audio_player import make_audio_player
 from .autosave import Autosave
@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
         self.properties.code_status = lambda i: s.text if (s := self.code.status(i)) else None
         self.properties.code_failed = lambda i: (s := self.code.status(i)) is not None and s.state == "error"
         self.properties.retry_code = self.code.retry
+        self.properties.code_ends = lambda: self.evaluator.code_ends() if self.evaluator is not None else []
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.
@@ -175,6 +176,7 @@ class MainWindow(QMainWindow):
         self.layers.layerSelected.connect(self.selection.select_layer)
         self.layers.layersPicked.connect(lambda ids, current: self.selection.set_layers(ids, current))
         self.timeline.clipSelected.connect(self.selection.set)
+        self.timeline.layerPicked.connect(self._on_layer_picked)
         self.timeline.keySelected.connect(self.selection.set_key)
         self.timeline.audioSelected.connect(self.selection.set_audio)
         self.timeline.subtitleSelected.connect(self.selection.set_subtitle)
@@ -284,6 +286,14 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.auto_key_action)
         self.move_tool.auto_key = self.auto_key_action.isChecked
         self.properties.auto_key = self.auto_key_action.isChecked
+        edit_menu.addSeparator()  # the scene's settings (P7.1)
+        scene_settings = QAction("&Scene Settings...", self)
+        scene_settings.setToolTip("The video's length, size, frame rate and background, in Properties")
+        scene_settings.triggered.connect(self.show_scene_settings)
+        fit_length = QAction("&Fit Length to Content", self)
+        fit_length.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
+        fit_length.triggered.connect(lambda: self._has_project and self.properties.fit_length())
+        edit_menu.addActions([scene_settings, fit_length])
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
@@ -309,11 +319,13 @@ class MainWindow(QMainWindow):
             action.setToolTip(page.tooltip)
             action.triggered.connect(lambda _=False, n=name: self.show_page(n))
             pages_menu.addAction(action)
+        self.panel_toggles: dict[QWidget, QAction] = {}
         for title, panel in (("&Layers", self.layers), ("P&roperties", self.properties)):
             toggle = QAction(title, self, checkable=True, checked=True)
             toggle.setToolTip(f"Show or hide the {title.replace('&', '')} panel on every page")
             toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
             view_menu.addAction(toggle)
+            self.panel_toggles[panel] = toggle
         self.half_action = QAction("Half-resolution playback", self, checkable=True)
         self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
         self.half_action.toggled.connect(self._set_half_resolution)
@@ -396,6 +408,10 @@ class MainWindow(QMainWindow):
         plugins_action.setToolTip("Which plugins loaded, the object types they add, and which failed")
         plugins_action.triggered.connect(self.show_plugins)
         help_menu.addAction(plugins_action)
+        log_action = QAction("Open &Log Folder", self)
+        log_action.setToolTip("The editor's log: what to attach when reporting a problem")
+        log_action.triggered.connect(self.open_log_folder)
+        help_menu.addAction(log_action)
         play = QAction("Play / Pause", self)
         play.setShortcut(Qt.Key.Key_Space)
         play.triggered.connect(self.toggle_play)
@@ -692,9 +708,17 @@ class MainWindow(QMainWindow):
         """An edit, undo or redo changed the snapshot (ADR 0013, 0014)."""
         assert self.evaluator is not None
         before = self.evaluator.project
-        self.evaluator.apply(Edit(project, kind, layer_ids))
-        if self.render_ahead is not None:
-            self.render_ahead.changed(project)
+        length_only = project.canvas.model_copy(
+            update={"duration": before.canvas.duration, "grow_with_content": before.canvas.grow_with_content}
+        )
+        if length_only != before.canvas:
+            self._scene_changed(before, project)  # size, fps, background: start again (P7.1)
+        else:
+            self.evaluator.apply(Edit(project, kind, layer_ids))
+            if self.render_ahead is not None:
+                self.render_ahead.changed(project)
+            if project.canvas != before.canvas:
+                self._length_changed(project)  # frames do not depend on the length (P7.1)
         self.refresh()
         if kind in ("clip", "spec"):
             self.idle_timer.start()  # recompute dropped checkpoints while idle (ADR 0009)
@@ -708,6 +732,49 @@ class MainWindow(QMainWindow):
             if self.play_timer.isActive() and self._audio_signature != audio.mix_signature(project):
                 self._start_sound()  # hear the edit from where the playhead is
         self.code.sync(project)
+
+    def _scene_changed(self, before: Project, project: Project) -> None:
+        """The picture's settings changed: everything drawn starts again; the view stays where it
+        was when the frame's shape did not change."""
+        self.evaluator = Evaluator(project, self.code.cache)
+        shape = ("width_px", "height_px", "frame_height")
+        same_shape = all(getattr(before.canvas, f) == getattr(project.canvas, f) for f in shape)
+        view = self.canvas.view
+        self.canvas.set_scene(project.canvas, self.evaluator)
+        if same_shape:
+            self.canvas.view = view
+        if self.render_ahead is not None:
+            self.render_ahead.reset(project)
+        self._length_changed(project)
+        self.idle_timer.start()
+
+    def _length_changed(self, project: Project) -> None:
+        """The scene's length changed: the slider and the playhead follow."""
+        self.canvas.set_canvas(project.canvas)
+        self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
+        if self.t > project.canvas.duration:
+            self.seek(project.canvas.duration)
+
+    def open_log_folder(self) -> None:
+        folder = log_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _on_layer_picked(self, layer_id: str, extend: bool) -> None:
+        """A timeline row was clicked: select its object, as clicking it in the scene does (P7.1)."""
+        if extend:
+            self.selection.toggle_layer(layer_id)
+        else:
+            self.selection.set(layer_id)
+
+    def show_scene_settings(self) -> None:
+        """Nothing selected, so Properties shows the scene; its length is ready to type."""
+        if not self._has_project:
+            return
+        self.selection.clear()
+        self.panel_toggles[self.properties].setChecked(True)
+        self.properties.show_nothing()  # also when nothing was selected already
+        self.properties.fields["canvas.duration"].widget.setFocus()
 
     # -- media files (ADR 0027) ------------------------------------------------
 
@@ -1399,6 +1466,22 @@ class MainWindow(QMainWindow):
         self.refresh()
 
 
+def report_exceptions(window: MainWindow):
+    """An exception hook: Qt prints an exception raised in a slot or an event handler and goes
+    on, so it reached no log and nobody saw it (the user's broken session). It is logged with its
+    traceback and named in the status bar."""
+
+    def hook(kind, value, tb) -> None:
+        log.critical("unhandled exception", exc_info=(kind, value, tb))
+        try:
+            text = f"Internal error: {kind.__name__}: {value}"[:200]
+            window.statusBar().showMessage(f"{text} - details in the log (Help menu)", 20000)
+        except RuntimeError:  # the window is gone
+            pass
+
+    return hook
+
+
 def run(argv: list[str] | None = None) -> int:
     argv = sys.argv if argv is None else argv
     if not logging.getLogger(LOGGER_NAME).handlers:  # launched without the CLI
@@ -1408,6 +1491,7 @@ def run(argv: list[str] | None = None) -> int:
     theme.apply(app)  # the studio look (ADR 0040)
     adapter.configure(places.cache_folder())  # not under the folder it was started from (GP)
     window = MainWindow()
+    sys.excepthook = report_exceptions(window)
     window.show()
     if len(argv) > 1:
         window.load(Path(argv[1]))  # offers that file's recovery copies (ADR 0038)

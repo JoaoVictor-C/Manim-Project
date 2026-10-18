@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits, parts
+from ..core import adapter, edits, parts, scene_length
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
 from ..core.schema import (
@@ -38,6 +38,7 @@ from ..core.schema import (
     DIRECTIONS,
     GRAPH_PARAMS,
     RASTER_TYPES,
+    Canvas,
     ClipParam,
     Easing,
     Layer,
@@ -222,6 +223,9 @@ class PropertiesPanel(QWidget):
         self.subtitle_id: str | None = None  # a subtitle is shown (ADR 0035)
         self.others_selected = 0  # other selected objects besides the one shown (ADR 0043)
         self.marker_id: str | None = None  # a marker is shown (ADR 0037)
+        self.scene_shown = False  # nothing selected: the scene's settings (P7.1)
+        self.code_ends: Callable[[], list[float]] = lambda: []  # rendered code animations, set by the window
+        self.fit_button: QPushButton | None = None
         self.fields: dict[str, Field] = {}
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
@@ -267,10 +271,93 @@ class PropertiesPanel(QWidget):
     # -- selection ----------------------------------------------------------------
 
     def show_nothing(self) -> None:
+        """Nothing selected: the scene's settings (P7.1)."""
         self.layer_id = self.clip_id = self.key_time = self.audio_id = self.subtitle_id = None
         self.marker_id = None
         self._rebuild()
-        self.title.setText("Select a layer, a clip or a keyframe.")
+        self.scene_shown = True
+        generation = self._generation
+
+        def commit(name: str, text: str) -> Callable[[Any], None]:
+            def apply(value: Any) -> None:
+                if generation != self._generation:
+                    return
+                self.set_scene(name, value, text)
+
+            return apply
+
+        rows = [
+            (
+                "Length",
+                "canvas.duration",
+                FloatField(commit("duration", "Scene length"), 0.04, 36000.0, 1.0, 2, suffix=" s"),
+            ),
+            (
+                "",
+                "canvas.grow_with_content",
+                BoolField(commit("grow_with_content", "Grow with content"), "Grow with content"),
+            ),
+            (
+                "Size",
+                [
+                    ("canvas.width_px", IntField(commit("width_px", "Scene size"), 16, 7680)),
+                    ("canvas.height_px", IntField(commit("height_px", "Scene size"), 16, 4320)),
+                ],
+            ),
+            ("Frame rate", "canvas.fps", IntField(commit("fps", "Frame rate"), 1, 240)),
+            ("Background", "canvas.background", ColorField(commit("background", "Background"))),
+        ]
+        self._section("Scene", rows)
+        self.fields["canvas.duration"].widget.setToolTip(
+            "How long the video is. Shorter than its content also stops it growing."
+        )
+        self.fields["canvas.grow_with_content"].widget.setToolTip(
+            "The scene gets longer by itself when something is placed past its end"
+        )
+        self.fit_button = QPushButton("Fit Length to Content")
+        self.fit_button.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
+        self.fit_button.clicked.connect(self.fit_length)
+        self.body_layout.addWidget(self.fit_button)
+        self.body_layout.addStretch(1)
+        self.title.setText("<b>Scene</b> - select a layer, a clip or a keyframe to edit it.")
+        self._refresh_scene(True)
+
+    def set_scene(self, name: str, value: Any, text: str) -> None:
+        """Change one of the scene's settings (one undo step)."""
+        project = self.project
+        try:
+            if name == "duration":
+                new = scene_length.set_length(project, value)
+                if project.canvas.grow_with_content and not new.canvas.grow_with_content:
+                    self.message.emit("The scene is shorter than its content: it no longer grows by itself.")
+                edit = edits.Edit(new, "timing", frozenset())
+            else:
+                edit = edits.set_canvas(
+                    project,
+                    **{
+                        name: Canvas.model_fields["background"].default
+                        if value is None and name == "background"
+                        else value
+                    },
+                )
+            self.document.apply(edit, text)
+        except (edits.EditError, ValidationError) as exc:
+            self.message.emit(f"{text}: {_first_error(exc)}")
+        self._refresh_scene(True)
+
+    def fit_length(self) -> None:
+        """End the scene where its content ends (one undo step)."""
+        fitted = scene_length.fit_to_content(self.project, self.code_ends())
+        if fitted is self.project:
+            self.message.emit("Nothing in the scene is timed yet: its length stays as it is.")
+            return
+        self.document.apply(edits.Edit(fitted, "timing", frozenset()), "Fit Length to Content")
+
+    def _refresh_scene(self, force: bool) -> None:
+        canvas = self.project.canvas
+        for path, field in self.fields.items():
+            if not field.has_focus() or force:
+                field.set_value(getattr(canvas, path.split(".", 1)[1]))
 
     def show_layer(self, layer_id: str) -> None:
         if not layer_id or not _has(self.project, layer_id):
@@ -527,6 +614,8 @@ class PropertiesPanel(QWidget):
             self._refresh_marker(force)
             return
         if self.layer_id is None:
+            if self.scene_shown:
+                self._refresh_scene(force)
             return
         if not _has(self.project, self.layer_id):
             self.show_nothing()
@@ -577,7 +666,8 @@ class PropertiesPanel(QWidget):
 
     def _rebuild(self) -> None:
         self._generation += 1
-        self.code_label = self.retry_button = None
+        self.code_label = self.retry_button = self.fit_button = None
+        self.scene_shown = False
         self.fields.clear()
         self._getters.clear()
         self._keys.clear()

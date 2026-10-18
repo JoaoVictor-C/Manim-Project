@@ -28,6 +28,19 @@ def log_dir() -> Path:
     return Path.home() / ".local" / "state" / "manim-studio" / "logs"
 
 
+class _SharedRotatingFileHandler(RotatingFileHandler):
+    """Rotates like its parent, but a rotation Windows refuses (a second editor holds the file
+    open) stops rotating instead of failing every later record: the log then grew silent."""
+
+    def doRollover(self) -> None:  # noqa: N802 - the logging API's name
+        try:
+            super().doRollover()
+        except OSError:
+            self.maxBytes = 0  # no more rotations in this process; keep appending
+            if self.stream is None:
+                self.stream = self._open()
+
+
 def setup_logging(verbosity: int = 0, to_file: bool = True) -> Path | None:
     """Configure the ``manim_studio`` logger; returns the log file path, if any."""
     logger = logging.getLogger(LOGGER_NAME)
@@ -46,7 +59,7 @@ def setup_logging(verbosity: int = 0, to_file: bool = True) -> Path | None:
         try:
             directory.mkdir(parents=True, exist_ok=True)
             path = directory / "manim-studio.log"
-            handler = RotatingFileHandler(path, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+            handler = _SharedRotatingFileHandler(path, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
             handler.setLevel(logging.DEBUG)
             handler.setFormatter(logging.Formatter(_FORMAT))
             logger.addHandler(handler)

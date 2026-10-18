@@ -53,7 +53,9 @@ class RenderAhead(QObject):
         self._playhead = 0
         self._asked: set[int] = set()  # requested, not arrived
         self._failed: set[int] = set()  # the process could not render them: live until they change
-        self._decoded: tuple[int, int, QImage] | None = None  # (view, index, image): repaints without a seek
+        # (view, index, the kept bytes, image): repaints without a seek; the bytes themselves are
+        # compared, so a frame rendered again after an edit is decoded again (P7.1: a key "stopped working")
+        self._decoded: tuple[int, int, bytes, QImage] | None = None
         self._send_timer = QTimer(self)
         self._send_timer.setSingleShot(True)
         self._send_timer.setInterval(SEND_DELAY_MS)
@@ -141,14 +143,15 @@ class RenderAhead(QObject):
         if self._project is None or self._view is None or not on_grid(t, self._project.canvas.fps):
             return None
         index = frame_index(t, self._project.canvas.fps)
-        if self._decoded is not None and self._decoded[:2] == (self.store.view, index):
-            return self._decoded[2] if self.store.get(index) is not None else None
         data = self.store.get(index)
         if data is None:
             return None
+        decoded = self._decoded
+        if decoded is not None and decoded[:2] == (self.store.view, index) and decoded[2] is data:
+            return decoded[3]  # the same bytes (compared by identity: no copy of megabytes)
         width, height = self._view.pixel_width, self._view.pixel_height
         image = QImage(zlib.decompress(data), width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
-        self._decoded = (self.store.view, index, image)
+        self._decoded = (self.store.view, index, data, image)
         return image
 
     def _on_frame(self, view_id: int, generation: int, index: int, data: bytes, w: int, h: int) -> None:
