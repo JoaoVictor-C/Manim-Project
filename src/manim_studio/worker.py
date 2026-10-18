@@ -9,7 +9,9 @@ JSON object per line:
   ``{"id": 7, "ok": false, "error": "..."}``
 
 Building the spec here leaves Manim's SVG cache warm, so the editor's own build
-of the same object takes milliseconds (B18). Anything Manim or LaTeX prints goes
+of the same object takes milliseconds (B18). New code of a Python object (ADR 0051)
+is run here first: one stopped by its time limit is reported as a failure, so the
+edit bringing it is dropped instead of freezing the editor. Anything Manim or LaTeX prints goes
 to stderr: stdout carries only the protocol.
 """
 
@@ -34,25 +36,33 @@ def main(argv: list[str] | None = None) -> int:
     protocol = _claim_stdout()
 
     from .core import adapter  # imports Manim: the slow part of starting up
-    from .core.schema import Spec
     from .logging_config import setup_logging
 
     setup_logging(0, to_file=False)
     adapter.configure(args.cache_dir)
     _send(protocol, {"ready": True})
     for line in sys.stdin:
-        if not line.strip():
-            continue
-        request = json.loads(line)
-        started = time.perf_counter()
-        try:
-            adapter.build_mobject(Spec.model_validate(request["spec"]))
-        except Exception as exc:  # report every build failure; the editor decides what to show
-            _send(protocol, {"id": request["id"], "ok": False, "error": _summary(exc)})
-        else:
-            ms = (time.perf_counter() - started) * 1000
-            _send(protocol, {"id": request["id"], "ok": True, "ms": round(ms, 1)})
+        if line.strip():
+            _send(protocol, reply(json.loads(line)))
     return 0
+
+
+def reply(request: dict) -> dict:
+    """Build one request's spec; the answer to send back."""
+    from .core import adapter
+    from .core.schema import Spec
+
+    started = time.perf_counter()
+    try:
+        spec = Spec.model_validate(request["spec"])
+        adapter.build_mobject(spec)
+        stopped = adapter.python_timed_out(spec)  # an endless loop in new code (ADR 0051)
+    except Exception as exc:  # report every build failure; the editor decides what to show
+        return {"id": request["id"], "ok": False, "error": _summary(exc)}
+    if stopped:
+        return {"id": request["id"], "ok": False, "error": stopped}
+    ms = (time.perf_counter() - started) * 1000
+    return {"id": request["id"], "ok": True, "ms": round(ms, 1)}
 
 
 def _claim_stdout() -> IO[str]:

@@ -1,6 +1,7 @@
 """Which code may run on this computer (ADR 0019).
 
-A project file is data that can be shared; a code layer inside it is a program.
+A project file is data that can be shared; a code layer or a Python object (ADR 0051)
+inside it is a program.
 Opening a project must never run its code silently, so code runs only when its
 hash (``code_cache.code_hash``) is in the user's trusted store. Code the user
 applies in the editor is trusted; code that arrives in an opened file is asked
@@ -21,7 +22,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from .code_cache import code_hash
-from .schema import CODE_TYPES, Project
+from .schema import CODE_TYPES, PYTHON_TYPES, Project
 
 
 def default_path() -> Path:
@@ -34,11 +35,11 @@ def default_path() -> Path:
 
 
 def project_code(project: Project) -> dict[str, str]:
-    """layer id -> code, for every code layer of ``project``."""
+    """layer id -> code, for every code layer and Python object (ADR 0051) of ``project``."""
     return {
         layer.id: str(layer.spec.params.get("code", ""))
         for layer in project.layers
-        if layer.spec is not None and layer.spec.type in CODE_TYPES
+        if layer.spec is not None and layer.spec.type in CODE_TYPES | PYTHON_TYPES
     }
 
 
@@ -66,5 +67,5 @@ class TrustStore:
             os.replace(temp, self.path)
 
     def untrusted(self, project: Project) -> list[str]:
-        """Ids of the code layers whose code may not run."""
+        """Ids of the code layers and Python objects whose code may not run."""
         return [layer_id for layer_id, code in project_code(project).items() if not self.is_trusted(code)]

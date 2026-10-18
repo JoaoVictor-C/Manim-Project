@@ -44,7 +44,7 @@ log = get_logger(__name__)
 
 @dataclass
 class CodeStatus:
-    state: str  # "ready", "queued", "rendering", "error", "untrusted"
+    state: str  # "ready", "queued", "rendering", "error", "untrusted"; "built": a Python object
     frames: int = 0  # rendered so far (rendering) or in the cache (ready)
     error: str = ""
     line: int | None = None
@@ -53,6 +53,8 @@ class CodeStatus:
     def text(self) -> str:
         if self.state == "ready":
             return f"Ready - {self.frames} frames"
+        if self.state == "built":  # a Python object (ADR 0051)
+            return "Built - the object is on the canvas; its parameters are in Properties"
         if self.state == "queued":
             return "Waiting to render..."
         if self.state == "rendering":

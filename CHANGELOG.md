@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Python objects** (P10.1, ADR 0051): write Manim code - `PARAMS = {...}` and `def build(p)` -
+  and it becomes an object you move, style, key, animate, group and morph like any other. Code
+  page > **New Python object** starts from a right triangle; Run applies the code (errors show at
+  their line, the values of parameters that still exist are kept); each parameter is a field in
+  Properties (numbers with their limits, True/False, text, colours). The code runs only once
+  trusted (the code layers' prompt and store, `--trust-code`), is built twice on first use (it
+  must draw the same thing each time) and is stopped after 10 s (new code is tried in the build
+  worker first). The readable Python export writes the code once as `_build_<name>(...)`.
+
 ## [0.3.0] - unreleased
 
 Proposed, not yet released: a tag and any publication wait for the maintainer (ADR 0045). The

@@ -44,7 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument(
         "--trust-code",
         action="store_true",
-        help="render code layers that are not cached yet (runs the project's Python code; ADR 0019)",
+        help="run the project's Python code: code layers not cached yet and Python objects not in "
+        "the trusted store (ADR 0019, 0051)",
     )
     render.add_argument("--size", metavar="WxH", help="video size in pixels (default: the project's canvas)")
     render.add_argument("--fps", type=int, help="frames per second (default: the project's canvas)")
@@ -133,7 +134,12 @@ def _render(
         frame_window(sized.canvas, options)  # a bad range is refused before any code runs
     except OptionsError as exc:
         return _fail(str(exc))
+    if trust_code:  # Python objects run in this process (ADR 0051)
+        from .core import python_object
+
+        python_object.trust_everything()
     warnings = _render_code_layers(sized, trust_code, mode)  # at the size being exported (ADR 0042)
+    warnings += _untrusted_objects(sized)
     try:
         result = export_video(project, output, progress, options=options)
     except OSError as exc:
@@ -201,6 +207,20 @@ def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
             where = f" (line {error.line})" if error.line else ""
             warnings.append(f"code layer {layer.id!r} failed{where}: {error}")
     return warnings
+
+
+def _untrusted_objects(project) -> list[str]:
+    """Warnings for Python objects whose code may not run here (ADR 0051): they draw a placeholder."""
+    from .core import python_object
+    from .core.schema import PYTHON_TYPES
+
+    return [
+        f"Python object {layer.id!r} is drawn as a placeholder (pass --trust-code to run its code)"
+        for layer in project.layers
+        if layer.spec is not None
+        and layer.spec.type in PYTHON_TYPES
+        and not python_object.is_trusted(str(layer.spec.params.get("code", "")))
+    ]
 
 
 def _emit(message: dict) -> None:

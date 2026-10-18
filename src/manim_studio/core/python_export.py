@@ -10,18 +10,21 @@ never depends on either.
 
 from __future__ import annotations
 
+import ast
 import inspect
+import io
 import json
 import keyword
 import math
 import re
+import tokenize
 from dataclasses import dataclass, field
 
 import manim as m
 import numpy as np
 
 from .. import plugins
-from . import adapter, audio
+from . import adapter, audio, python_object
 from .evaluator import layer_transform
 from .schema import (
     CODE_TYPES,
@@ -29,6 +32,7 @@ from .schema import (
     DIRECTIONS,
     GROUPS_ONE_OBJECT,
     NUMBER_TYPES,
+    PYTHON_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
     Clip,
@@ -113,7 +117,9 @@ def readable_problems(project: Project) -> list[str]:
             out.append(f"{name(layer)}: turning along a path")
         if layer.id in morph_targets and (layer.lifetime.in_ is not None or layer.lifetime.out is not None):
             out.append(f"{name(layer)}: a morph target with its own lifetime")
-        if layer.spec.type in plugins.TYPES:
+        if layer.spec.type in PYTHON_TYPES:  # its code is written out as a function (ADR 0051)
+            out += [f"{name(layer)}: {why}" for why in _python_problems(layer)]
+        elif layer.spec.type in plugins.TYPES:
             out.append(f"{name(layer)}: a plugin object")
         elif layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS:
             out.append(f"{name(layer)}: a simulated layer")
@@ -121,6 +127,7 @@ def readable_problems(project: Project) -> list[str]:
             out += [f"{name(layer)}: {why}" for why in _connector_problems(project, layer)]
         elif adapter.build_problem(layer.spec) is not None:
             out.append(f"{name(layer)}: {adapter.build_problem(layer.spec)}")
+    out += _python_clashes(project)
     for clip in project.audio:  # Manim's add_sound places and gains a whole file (ADR 0034)
         label = clip.name or clip.id
         why = audio.problem(clip)
@@ -145,6 +152,71 @@ def readable_problems(project: Project) -> list[str]:
             if clip.kind == "Wiggle" and earlier and clip.start > start + EPS:
                 out.append(f"{name(layer)}: Wiggle after another clip of the same object in one group")
     return list(dict.fromkeys(out))
+
+
+def _python_problems(layer: Layer) -> list[str]:
+    """Why a Python object's code cannot be written out as it draws: it draws the placeholder
+    (an error; code not trusted yet is written out all the same - the file is the user's)."""
+    code = str(layer.spec.params.get("code", ""))
+    if not python_object.is_trusted(code):
+        problem = python_object.params_problem(code)  # what can be known without running it
+        return [str(problem)] if problem is not None else []
+    problem = adapter.build_problem(layer.spec)
+    return [problem] if problem is not None else []
+
+
+def _python_names(code: str) -> set[str]:
+    """The names a Python object's code defines at its top level, besides imports."""
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return set()
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif not isinstance(node, (ast.Import, ast.ImportFrom)):
+            names |= {
+                sub.id
+                for sub in ast.walk(node)
+                if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Store)
+            }
+    return names - {"PARAMS", "build"}  # renamed for each object
+
+
+def _python_clashes(project: Project) -> list[str]:
+    """Python objects whose code, written at the file's top level, would replace a name another
+    object's code or the generated file uses (``from manim import *``, the helpers)."""
+    out, seen = [], {}
+    codes = {}
+    for layer in project.layers:
+        if layer.spec is not None and layer.spec.type in PYTHON_TYPES:
+            codes.setdefault(str(layer.spec.params.get("code", "")), layer)
+    for code, layer in codes.items():
+        for name in sorted(_python_names(code)):
+            if name in RESERVED or name.startswith("_build_") or name.endswith("_PARAMS"):
+                out.append(f"{layer.name or layer.id}: its code defines {name!r}, a name Manim uses")
+            elif name in seen:
+                out.append(f"{layer.name or layer.id}: its code defines {name!r}, as {seen[name]}'s does")
+            else:
+                seen[name] = layer.name or layer.id
+    return out
+
+
+def _python_renamed(code: str, names: dict[str, str]) -> str:
+    """``code`` with its names ``names`` renamed (whole names, not attributes such as ``x.build``)."""
+    lines = code.splitlines(keepends=True)
+    changes = []
+    previous = None
+    for token in tokenize.generate_tokens(io.StringIO(code).readline):
+        dotted = previous is not None and previous.type == tokenize.OP and previous.string == "."
+        if token.type == tokenize.NAME and token.string in names and not dotted:
+            changes.append((token.start, token.end, names[token.string]))
+        if token.type not in (tokenize.NL, tokenize.COMMENT):
+            previous = token
+    for (row, col), (_, end), new in reversed(changes):
+        lines[row - 1] = lines[row - 1][:col] + new + lines[row - 1][end:]
+    return "".join(lines)
 
 
 def _keyed(layer: Layer) -> bool:
@@ -413,6 +485,10 @@ class _Readable:
         self.keyed = {layer.id for layer in project.layers if _drawn_by_keyed(project, layer)}
         self.drawings = _drawing_names(project, self.names, self.keyed)  # keyed layer -> its Keyed
         self.helpers: set[str] = set()
+        self.builders: dict[str, str] = {}  # Python object code -> the function its build became
+        for layer in project.layers:
+            if layer.spec is not None and layer.spec.type in PYTHON_TYPES:
+                self.builders.setdefault(str(layer.spec.params["code"]), f"_build_{self.names[layer.id]}")
 
     def code(self) -> str:
         body = [*self._sounds(), *self._objects(), "", *self._timeline()]
@@ -450,6 +526,11 @@ class _Readable:
             ]
         if "cubic_bezier" in self.helpers:
             lines += ["", *inspect.getsource(adapter.cubic_bezier).splitlines(), ""]
+        if self.builders:
+            lines[lines.index("from manim import *")] = (
+                "import math\n\nimport manim as m\nfrom manim import *"
+            )
+            lines += self._python_code()
         camera = self.project.camera
         if camera.is_default:
             lines += ["", f"class {self.scene_name}(Scene):", "    def construct(self):"]
@@ -478,7 +559,7 @@ class _Readable:
             if layer.spec.type in CONNECTOR_TYPES:  # after the objects it reads (ADR 0036)
                 connectors.append(f"{var} = {self._connector(layer, index)}")
                 continue
-            out.append(f"{var} = {_construct(layer.spec)}")
+            out.append(f"{var} = {self._construct(layer)}")
             out += [f"{var}.{call}" for call in _style_calls(adapter.text_style(layer.spec)[1])]
             out.append(f"{var}.move_to(ORIGIN)")
             if layer.id in self.keyed:  # its transform is drawn frame by frame, after its clips
@@ -488,6 +569,25 @@ class _Readable:
             out += [f"{var}.{call}" for call in _transform_calls(layer)]
             out.append(f"{var}.set_z_index({index})  # the layer order")
         return out + connectors
+
+    def _python_code(self) -> list[str]:
+        """Each Python object's code once (ADR 0051), as the user wrote it: ``build`` renamed to the
+        function the scene calls and ``PARAMS`` to its own name, so several objects live together."""
+        out = []
+        for code, builder in self.builders.items():
+            params = f"{builder.removeprefix('_build_').upper()}_PARAMS"
+            text = _python_renamed(code, {"build": builder, "PARAMS": params}).rstrip()
+            header = f"# A Python object from Manim Studio: build(p) is {builder}, PARAMS is {params}."
+            out += ["", header, *text.splitlines(), ""]
+        return out
+
+    def _construct(self, layer: Layer) -> str:
+        """The expression that builds the layer's object, centred by the caller as the editor does."""
+        if layer.spec.type in PYTHON_TYPES:  # its build function, with every parameter's value
+            code = str(layer.spec.params["code"])
+            values = python_object.call_values(code, dict(layer.spec.params.get("values") or {}))
+            return f"{self.builders[code]}({_literal(values)})"
+        return _construct(layer.spec)
 
     def _keyed(self, layer: Layer) -> str:
         """The layer's Keyed drawing: its keys as tables, its unkeyed transform as constants."""
@@ -775,6 +875,14 @@ def _transform_calls(layer: Layer, at: float | None = None) -> list[str]:
     if base.opacity != 1:
         out.append(f"fade({_num(1 - base.opacity)})")
     return out
+
+
+def _literal(values: dict) -> str:
+    """A Python object's parameter values as a dict literal: ``{"angle": 30.0, "show": True}``."""
+    cells = [
+        f"{json.dumps(k)}: {json.dumps(v) if isinstance(v, str) else repr(v)}" for k, v in values.items()
+    ]
+    return "{" + ", ".join(cells) + "}"
 
 
 def _vector(value) -> str:

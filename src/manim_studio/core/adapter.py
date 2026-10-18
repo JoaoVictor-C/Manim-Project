@@ -7,6 +7,7 @@ on Manim internals is meant to live here so a Manim upgrade touches one file.
 
 from __future__ import annotations
 
+import builtins
 import copy
 import json
 import math
@@ -29,7 +30,9 @@ from manim.utils import rate_functions
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import parts, subtitles
+from . import parts, python_object, subtitles
+from .code_cache import code_hash
+from .python_object import CodeProblem
 from .schema import (
     AXES_OBJECTS,
     CLIP_KIND_INFO,
@@ -39,6 +42,7 @@ from .schema import (
     GROUP_TYPES,
     MEDIA_TYPES,
     NUMBER_TYPES,
+    PYTHON_TYPES,
     RASTER_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
@@ -205,7 +209,8 @@ GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies a
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
 
 # graph: a sibling's id; layer: another layer's id (a traced path's target, ADR 0033)
-ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph", "layer"]
+# bool and colour: a Python object's parameters (ADR 0051)
+ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph", "layer", "bool", "colour"]
 
 
 @dataclass(frozen=True)
@@ -416,6 +421,9 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
         raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
     if spec.type in GROUP_TYPES:
         return m.VGroup()  # draws nothing: its children are drawn through it (ADR 0050)
+    if spec.type in PYTHON_TYPES:  # the user's own code, once trusted (ADR 0051)
+        built = _python_built(spec, signature)
+        return (built if isinstance(built, m.Mobject) else _placeholder(2.0)).copy()
     if spec.type not in MOBJECT_TYPES:
         return _placeholder(2.0).copy()  # build_problem says why
     if spec.type in TRACE_TYPES:
@@ -450,9 +458,15 @@ def build_failure(exc: Exception) -> str:
 MISSING = "missing"  # the signature of a file that cannot be found or read
 
 
+TRUSTED, UNTRUSTED = "trusted", "untrusted"  # the signature of a Python object (ADR 0051)
+
+
 def media_signature(spec: Spec) -> str | None:
     """What a media object's build depends on besides its spec: its file's modification
-    time and size (``MISSING`` when it cannot be stat-ed); ``None`` for other types."""
+    time and size (``MISSING`` when it cannot be stat-ed); for a Python object, whether its
+    code may run here (``TRUSTED`` / ``UNTRUSTED``, ADR 0051); ``None`` for other types."""
+    if spec.type in PYTHON_TYPES:
+        return TRUSTED if python_object.is_trusted(str(spec.params.get("code", ""))) else UNTRUSTED
     if spec.type not in MEDIA_TYPES:
         return None
     path = str(spec.params.get("path") or "")
@@ -467,6 +481,9 @@ def build_problem(spec: Spec, signature: str | None = None) -> str | None:
     """Why an object is drawn as a placeholder (a media file, a plugin, a missing plugin), or None."""
     if spec.type in CODE_TYPES | GROUP_TYPES:
         return None
+    if spec.type in PYTHON_TYPES:
+        problem = python_problem(spec, signature)
+        return None if problem is None else str(problem)
     if spec.type not in MOBJECT_TYPES and spec.type not in CHILD_ONLY_TYPES:
         return f"no installed plugin provides {spec.type}"
     if spec.type in plugins.TYPES:
@@ -539,6 +556,119 @@ def forget_plugin_builds() -> None:
     _plugin_cached.cache_clear()
     _CHECKED.clear()
     _simulation_cached_problem.cache_clear()
+
+
+# --- Python objects (ADR 0051) -------------------------------------------------
+
+_PY_CHECKED: set[str] = set()  # code (hashes) whose determinism was checked in this process
+_PY_GLOBALS: dict[str, Any] = {}  # what the code can name: `from manim import *`, m, np, math
+
+
+def python_params(spec: Spec) -> tuple[Param, ...]:
+    """A Python object's parameters as Properties fields (ADR 0051), read from its ``PARAMS``
+    without running the code; none while ``PARAMS`` cannot be read."""
+    code = str(spec.params.get("code", ""))
+    if python_object.params_problem(code) is not None:
+        return ()
+    out = []
+    for p in python_object.read_params(code):
+        if p.kind in ("float", "int"):
+            low = p.minimum if p.minimum is not None else -1e6
+            high = p.maximum if p.maximum is not None else 1e6
+            span = high - low if p.minimum is not None and p.maximum is not None else 10.0
+            step = 1.0 if p.kind == "int" else 10 ** math.floor(math.log10(span / 100)) if span > 0 else 0.1
+            out.append(Param(p.name, p.kind, p.default, minimum=low, maximum=high, step=max(step, 0.001)))
+        else:
+            out.append(Param(p.name, p.kind, p.default))
+    return tuple(out)
+
+
+def python_problem(spec: Spec, signature: str | None = None) -> CodeProblem | None:
+    """Why a Python object is drawn as the placeholder (its code is not trusted, cannot be read,
+    raises, runs too long, returns no VMobject or draws differently each time), or None."""
+    built = _python_built(spec, signature)
+    return built if isinstance(built, CodeProblem) else None
+
+
+def _python_built(spec: Spec, signature: str | None = None) -> m.Mobject | CodeProblem:
+    if (signature or media_signature(spec)) != TRUSTED:
+        return CodeProblem(python_object.NOT_TRUSTED)  # opening a file never runs its code (ADR 0019)
+    return _python_cached(spec.model_dump_json())
+
+
+@lru_cache(maxsize=256)
+def _python_cached(spec_json: str) -> m.Mobject | CodeProblem:
+    """A Python object built by its code, or why it cannot be. The first build of each code is
+    done twice: like a plugin, it must be a pure function of its parameters (ADR 0032)."""
+    spec = Spec.model_validate_json(spec_json)
+    code = str(spec.params.get("code", ""))
+    problem = python_object.params_problem(code)
+    if problem is not None:
+        return problem
+    values = python_object.call_values(code, dict(spec.params.get("values") or {}))
+    try:
+        with python_object.time_limit(python_object.TIME_LIMIT):
+            build = _python_function(code)
+            mob = build(dict(values))
+            if not isinstance(mob, m.VMobject):
+                return CodeProblem(
+                    f"build(p) must return a Manim VMobject (a shape, a text, a VGroup), "
+                    f"not {type(mob).__name__}"
+                )
+            key = code_hash(code)
+            if key not in _PY_CHECKED:
+                if not _same_drawing(mob, build(dict(values))):
+                    return CodeProblem(
+                        "build(p) draws differently each time: it must depend only on p "
+                        "(no random numbers without a seed, no clock)"
+                    )
+                _PY_CHECKED.add(key)
+    except python_object.TimeLimit as exc:
+        return CodeProblem(str(exc), _code_line(exc))
+    except (Exception, SystemExit) as exc:  # the user's code must never break a frame or the editor
+        log.info("Python object failed: %s", exc)
+        lines = [line for line in str(exc).splitlines() if line.strip()]
+        message = f"{type(exc).__name__}: {lines[0] if lines else ''}".rstrip(": ")[:300]
+        syntax = isinstance(exc, SyntaxError) and exc.filename == python_object.FILENAME
+        return CodeProblem(message, (exc.lineno if syntax else None) or _code_line(exc))
+    _apply_style(mob, spec.style)  # only what the user set (ADR 0051)
+    mob.move_to(m.ORIGIN)
+    return mob
+
+
+def _python_function(code: str) -> Callable[[dict[str, Any]], Any]:
+    """Run the code's top level in a fresh namespace and return its ``build``."""
+    if not _PY_GLOBALS:
+        exec("from manim import *", _PY_GLOBALS)  # the names the code may use
+        _PY_GLOBALS.update({"m": m, "np": np, "math": math, "__builtins__": builtins})
+    namespace = {**_PY_GLOBALS, "__name__": "studio_python_object"}
+    exec(compile(code, python_object.FILENAME, "exec"), namespace)  # trusted by the user (ADR 0019)
+    build = namespace.get("build")
+    if not callable(build):
+        raise NameError("the code must define build(p), returning the object")
+    return build
+
+
+def _code_line(exc: BaseException) -> int | None:
+    """The line of the user's code an exception came from (its innermost frame there)."""
+    line, tb = None, exc.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_code.co_filename == python_object.FILENAME:
+            line = tb.tb_lineno
+        tb = tb.tb_next
+    return line
+
+
+def python_timed_out(spec: Spec) -> str | None:
+    """The message when building ``spec`` (a Python object) was stopped by the time limit."""
+    problem = python_problem(spec) if spec.type in PYTHON_TYPES else None
+    return str(problem) if problem is not None and python_object.TIMED_OUT in problem.message else None
+
+
+def forget_python_builds() -> None:
+    """Drop cached Python object builds and determinism checks (tests)."""
+    _python_cached.cache_clear()
+    _PY_CHECKED.clear()
 
 
 # --- simulated layers (ADR 0033) ----------------------------------------------

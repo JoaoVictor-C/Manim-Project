@@ -154,7 +154,7 @@ that is missing or unreadable is silent.
 ```
 
 - `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`,
+  `Star`, `Text`, `MathTex`, `Tex`, `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`, `Python`,
   `Axes`, `TracedPath`, `Connector`; `Graph`, `Point`, `Area`, `RiemannRectangles`, `AxisLabels`,
   `GraphLabel` (only as children of `Axes`); any type an installed plugin
   provides (ADR 0032, 0033) - without the plugin it is drawn as a placeholder.
@@ -162,6 +162,22 @@ that is missing or unreadable is silent.
   (`from manim import *` and `numpy as np` are implied). It is rendered once
   into a frame cache, plays from the layer's start and holds its last frame;
   it has no clips. It runs only when trusted on this computer.
+- `Python` (ADR 0051) is an object built by the user's own Manim code:
+  `params.code` (at most 64 KB) and optional `params.values` (`{name: value}`). The code
+  defines at top level `PARAMS = {name: default}` - a float, an int, `True`/`False`, text,
+  or a colour (`"#rgb"`/`"#rrggbb"`); a number may be `(default, minimum, maximum)` - and
+  `def build(p)`, returning a Manim VMobject, where `p` is the defaults overridden by
+  `values`. `PARAMS` is read without running the code (`ast.literal_eval`). Each value
+  must be of its parameter's type and within its limits, and name a declared parameter
+  (code whose `PARAMS` cannot be read is accepted: the object shows its error). Like any
+  root object it can have clips, keys, a style (applied on top of the code's colours, only
+  what is set), be grouped and morph; it cannot have parts or children. Its code runs only
+  when trusted on this computer; otherwise, or when the code fails, it is the dashed
+  placeholder with the reason.
+
+  ```json
+  { "type": "Python", "params": { "code": "PARAMS = {\"side\": (3.0, 0.5, 8.0)}\n\ndef build(p):\n    return Square(side_length=p[\"side\"])\n", "values": { "side": 2.0 } } }
+  ```
 - `TracedPath` (ADR 0033) draws where another layer has been: `target` (a layer
   id: not a trace or a code layer), `offset` (`[x, y]` from the target's centre,
   in its units) and `dissipate` (seconds kept, 0 = all). It samples the target

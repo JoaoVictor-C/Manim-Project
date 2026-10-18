@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits, parts, scene_length
+from ..core import adapter, edits, parts, python_object, scene_length
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
 from ..core.schema import (
@@ -41,6 +41,7 @@ from ..core.schema import (
     GRAPH_PARAMS,
     GROUP_TYPES,
     PART_PARENT_TYPES,
+    PYTHON_TYPES,
     RASTER_TYPES,
     Canvas,
     ClipParam,
@@ -84,6 +85,31 @@ def set_param(project: Project, layer_id: str, name: str, value: Any) -> edits.E
     params = {k: v for k, v in spec.params.items() if k != name}
     if value is not None:
         params[name] = list(value) if isinstance(value, tuple) else value
+    return edits.update_layer(project, layer_id, spec=spec.model_copy(update={"params": params}))
+
+
+def set_python_value(project: Project, layer_id: str, name: str, value: Any) -> edits.Edit:
+    """Change one parameter of a Python object (ADR 0051); None goes back to its default."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    spec = project.layer(layer_id).spec
+    values = {k: v for k, v in (spec.params.get("values") or {}).items() if k != name}
+    if value is not None:
+        values[name] = value
+    params = {k: v for k, v in spec.params.items() if k != "values"}
+    if values:
+        params["values"] = values
+    return edits.update_layer(project, layer_id, spec=spec.model_copy(update={"params": params}))
+
+
+def set_python_code(project: Project, layer_id: str, code: str) -> edits.Edit:
+    """Give a Python object new code (ADR 0051), keeping the values of the parameters that are
+    still declared and still fit."""
+    if not _has(project, layer_id):
+        raise edits.EditError(f"no layer {layer_id!r}")
+    spec = project.layer(layer_id).spec
+    values = python_object.kept_values(code, spec.params.get("values") or {})
+    params = {"code": code, **({"values": values} if values else {})}
     return edits.update_layer(project, layer_id, spec=spec.model_copy(update={"params": params}))
 
 
@@ -267,6 +293,10 @@ class PropertiesPanel(QWidget):
         self.trust_code: Callable[[str], None] = lambda code: None
         self.code_label: QLabel | None = None
         self.retry_button: QPushButton | None = None
+        # Python objects (ADR 0051): open the code page on one (set by the window).
+        self.edit_code: Callable[[str], None] = lambda layer_id: None
+        self.python_label: QLabel | None = None
+        self._shown_params: tuple[Param, ...] | None = None  # a Python object's parameters shown
         # "Custom curve...": shows the curve editor; tests replace it (P2b)
         self.curve_dialog: Callable[[Easing | None], Easing | None] = lambda ease: edit_curve(self, ease)
 
@@ -721,6 +751,10 @@ class PropertiesPanel(QWidget):
         if self._shown_pieces is not None and _pieces(layer) != self._shown_pieces:
             self.show_layer(self.layer_id)  # a piece was coloured or uncoloured: other rows
             return
+        if self._shown_params is not None and adapter.python_params(layer.spec) != self._shown_params:
+            self.show_layer(self.layer_id)  # its code declares other parameters now
+            return
+        self._refresh_python_status(layer)
         self._update_title(layer)
         for path, field in self.fields.items():
             if field.has_focus() and not force:
@@ -758,6 +792,8 @@ class PropertiesPanel(QWidget):
         self.code_label = self.retry_button = self.fit_button = None
         self.part_tex = self.part_occurrence = self.part_colour_button = None
         self._shown_pieces = None
+        self._shown_params = None
+        self.python_label = None
         self.scene_shown = False
         self.fields.clear()
         self._getters.clear()
@@ -862,6 +898,9 @@ class PropertiesPanel(QWidget):
         return commit
 
     def _object_section(self, layer: Layer) -> None:
+        if layer.spec.type in PYTHON_TYPES:
+            self._python_section(layer)
+            return
         rows = []
         for param in adapter.MOBJECT_PARAMS.get(layer.spec.type, ()):
             path = f"params.{param.name}"
@@ -888,6 +927,52 @@ class PropertiesPanel(QWidget):
         self._section(layer.spec.type, rows)
         if layer.spec.type in CODE_TYPES:
             self._code_status_row(layer.id)
+
+    def _python_section(self, layer: Layer) -> None:
+        """A Python object (ADR 0051): a field per parameter its PARAMS declares, read without
+        running the code, then what its build says and a way to its code."""
+        params = adapter.python_params(layer.spec)
+        rows = []
+        for param in params:
+            path = f"values.{param.name}"
+
+            def getter(layer: Layer, p: Param = param) -> Any:
+                code = str(layer.spec.params.get("code", ""))
+                return python_object.call_values(code, layer.spec.params.get("values") or {}).get(p.name)
+
+            self._register(path, getter)
+            commit = self._op(path, partial(set_python_value, name=param.name), f"Change {param.name}")
+            rows.append((param.title, path, _param_field(param, commit)))
+        self._section("Python object", rows)
+        self._shown_params = params
+        box = QWidget()
+        line = QHBoxLayout(box)
+        line.setContentsMargins(0, 0, 0, 0)
+        self.python_label = QLabel()
+        self.python_label.setWordWrap(True)
+        self.python_label.setObjectName("pythonStatus")
+        edit = QPushButton("Edit code")
+        edit.setToolTip("Open its code on the Code page")
+        edit.clicked.connect(lambda: self.edit_code(layer.id))
+        line.addWidget(self.python_label, 1)
+        line.addWidget(edit)
+        self.body_layout.addWidget(box)
+        self._refresh_python_status(layer)
+
+    def _refresh_python_status(self, layer: Layer) -> None:
+        if self.python_label is None or layer.spec is None or layer.spec.type not in PYTHON_TYPES:
+            return
+        problem = adapter.build_problem(layer.spec)
+        if problem == python_object.NOT_TRUSTED:
+            text = "Not run: its code is not trusted on this computer. Apply it on the Code page to run it."
+        elif problem is not None:
+            text = f"Error: {problem}"
+        else:
+            text = "Built by its code." if self._shown_params else "Built by its code (no PARAMS)."
+        try:
+            self.python_label.setText(text)
+        except RuntimeError:  # the row was rebuilt meanwhile
+            self.python_label = None
 
     def _trusting(self, commit: Callable[[Any], None]) -> Callable[[Any], None]:
         """Code the user applies here is theirs: trust it, then apply it (ADR 0019)."""
@@ -1233,6 +1318,10 @@ def _param_field(param: Param, commit: Callable[[Any], None]) -> Field:
         return ChoiceField(commit, [(c.capitalize(), c) for c in param.choices])
     if param.kind == "point":
         return PointField(commit)
+    if param.kind == "bool":  # a Python object's True/False (ADR 0051)
+        return BoolField(commit)
+    if param.kind == "colour":
+        return ColorField(commit)
     if param.kind == "path":
         return PathField(commit, param.file_filter) if param.file_filter else PathField(commit)
     if param.name == "code":
