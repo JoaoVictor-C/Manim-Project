@@ -2,8 +2,9 @@
 
 A circle drawn on and a square indicated, built through the library and the
 timeline, exported with File > Export Python... (readable) and rendered with
-`manim render`; then a key is set on the square, the file is exported again
-(now the exact scene, saying why) and rendered too. Both videos match the
+`manim render`; then keys are set on the square and the file is exported
+again (still readable: the keys as data, G3a) and rendered; then the circle is
+turned, so the export is the exact scene, saying why. Every video matches the
 editor's frames.
 """
 
@@ -95,12 +96,22 @@ def test_export_python_both_ways_and_render_with_manim(window, qt_app, tmp_path)
     window.properties.fields["keys.position"].commit(True)  # a key at 0 s
     window.seek(2.5)
     window.properties.fields["base.position"].commit((-2.5, -1.0))  # a key at 2.5 s
-    exact = tmp_path / "keyed" / "shapes keyed.py"
+    keyed = tmp_path / "keyed" / "shapes keyed.py"
+    keyed.parent.mkdir()
+    window.ask_python_path = lambda start: str(keyed)
+    menu_action(window.menuBar(), "File", "Export Python...").trigger()
+    assert window.statusBar().currentMessage().endswith("readable Manim code")  # G3a: keys as data
+    assert "manim_studio" not in keyed.read_text(encoding="utf-8")
+    assert_matches_editor(window, manim_render(keyed, "ShapesKeyed"))
+
+    window.selection.set(circle)
+    window.properties.fields["base.rotation"].commit(30.0)  # its Create acts before the turn
+    exact = tmp_path / "turned" / "shapes turned.py"
     exact.parent.mkdir()
     window.ask_python_path = lambda start: str(exact)
     menu_action(window.menuBar(), "File", "Export Python...").trigger()
     assert (
         "exact scene" in window.statusBar().currentMessage()
-        and "keyframes" in window.statusBar().currentMessage()
+        and "turned or scaled" in window.statusBar().currentMessage()
     )
-    assert_matches_editor(window, manim_render(exact, "ShapesKeyed"))
+    assert_matches_editor(window, manim_render(exact, "ShapesTurned"))

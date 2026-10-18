@@ -14,6 +14,16 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Readable Python export of keyframed layers (G3a, ADR 0046): File > Export Python and
+  `manim-studio python` no longer fall back to the exact form because of keys. A keyed layer's keys
+  are written as data tables drawn by a small `Keyed` helper (the object as its clips leave it,
+  moved, scaled, turned and faded by the keys at each frame, as the editor draws it), its clips as
+  `self.play(layer_keyed.clip(...))`. Every built-in preset (Pop in, Spin, Bounce...) and
+  `examples/euler.json` now export readable and render as the editor shows them. A spotlight
+  (FocusOn) closes on its object as in the editor, and waits are counted in frames, so a clip
+  ending between frames no longer shifts the rest of the exported video. Still exact, with the
+  reason given: keyed connectors or connector ends, a keyed object moving along a path, a morph
+  into a keyed object or one starting during other animations.
 - The golden path (GP, decision session 42): a typical animation - a title, an equation and two
   shapes, presets, Arrange, save, close, reopen, export the video and the Python scene - walked
   through the real window the way a user does (`tests/ui/test_golden_path.py`, 40 actions or

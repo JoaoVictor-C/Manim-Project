@@ -149,7 +149,7 @@ def test_what_plain_code_cannot_express(tmp_path) -> None:
             layers = [x.model_copy(update=update) if x.id == layer_id else x for x in layers]
         return readable_problems(base.model_copy(update={"layers": layers}))
 
-    assert problems(ring={"tracks": {"opacity": [Keyframe(t=0, value=1.0)]}}) == ["Ring: keyframes"]
+    assert problems(ring={"tracks": {"opacity": [Keyframe(t=0, value=1.0)]}}) == []  # G3a: drawn by Keyed
     turned = problems(ring={"base": Transform2D(rotation=10.0)})
     assert turned == ["Ring: clips on a turned or scaled object animate before its transform"]
     run = Clip(
@@ -173,13 +173,19 @@ def test_an_exact_export_embeds_the_project_and_says_why() -> None:
         update={
             "layers": [
                 *rich().layers,
-                Layer(id="k", spec=Spec(type="Dot"), tracks={"opacity": [Keyframe(t=0, value=1.0)]}),
+                Layer(
+                    id="k",
+                    spec=Spec(type="Dot"),
+                    base=Transform2D(rotation=10.0),
+                    clips=[Clip(id="i", kind="Indicate", start=3.6, duration=0.3)],
+                ),
             ]
         }
     )
-    export = to_python(project, "Keyed", code_cache_dir="C:/cache/code")
-    assert not export.readable and export.problems == ["k: keyframes"]
-    assert "#   - k: keyframes" in export.code and "code_cache_dir = 'C:/cache/code'" in export.code
+    export = to_python(project, "Turned", code_cache_dir="C:/cache/code")
+    why = "k: clips on a turned or scaled object animate before its transform"
+    assert not export.readable and export.problems == [why]
+    assert f"#   - {why}" in export.code and "code_cache_dir = 'C:/cache/code'" in export.code
     compile(export.code, "<exact>", "exec")
     embedded = export.code.split("PROJECT = r'''")[1].split("'''")[0]
     assert Project.model_validate_json(embedded) == project
