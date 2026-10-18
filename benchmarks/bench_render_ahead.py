@@ -28,11 +28,11 @@ from PySide6.QtGui import QGuiApplication, QImage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from bench_preview import stress_project  # noqa: E402
+from bench_preview import stress_project
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.core.evaluator import Evaluator  # noqa: E402
-from manim_studio.core.schema import Clip, Layer, Spec, Transform2D  # noqa: E402
+from manim_studio.core import adapter
+from manim_studio.core.evaluator import Evaluator
+from manim_studio.core.schema import Clip, Layer, Spec, Transform2D
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = (1100, 620)

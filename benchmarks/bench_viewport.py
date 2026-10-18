@@ -27,11 +27,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from bench_preview import stress_project  # noqa: E402
+from bench_preview import stress_project
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.core.evaluator import Evaluator  # noqa: E402
-from manim_studio.render.cairo_export import render_frame  # noqa: E402
+from manim_studio.core import adapter
+from manim_studio.core.evaluator import Evaluator
+from manim_studio.render.cairo_export import render_frame
 
 
 def camera(width_px: int, height_px: int, frame_width: float, center=(0.0, 0.0)) -> m.Camera:
@@ -77,7 +77,9 @@ def main() -> None:
     # exactness: zoom 2 about (1, 0.5) vs the matching crop of a 2x render of the whole frame
     t = 1.0
     full = render_frame(camera(1612, 906, fw), [mob for _, mob in evaluator.frame_layers(t)])
-    zoomed = render_frame(camera(806, 453, fw / 2, center=(1.0, 0.5)), [mob for _, mob in evaluator.frame_layers(t)])
+    zoomed = render_frame(
+        camera(806, 453, fw / 2, center=(1.0, 0.5)), [mob for _, mob in evaluator.frame_layers(t)]
+    )
     px = 1612 / fw
     x0 = round(1612 / 2 + (1.0 - fw / 4) * px)
     y0 = round(906 / 2 - (0.5 + fw * 453 / 806 / 4) * px)

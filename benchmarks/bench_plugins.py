@@ -13,13 +13,13 @@ from pathlib import Path
 
 import manim as m
 
-PLUGIN = '''
+PLUGIN = """
 import manim as m
 
 def build(params):
     length = params.get("length", 2.0)
     return m.VGroup(m.Line(m.ORIGIN, m.DOWN * length), m.Dot(m.DOWN * length, radius=0.2))
-'''
+"""
 
 
 def main() -> None:
@@ -44,9 +44,11 @@ def main() -> None:
         for a, b in zip(first.family_members_with_points(), second.family_members_with_points(), strict=True)
     )
     check = (time.perf_counter() - start) * 1000
-    print(f"entry-point scan {scan:.1f} ms ({len(found)} found); plugin file {load:.1f} ms "
-          f"(Manim already imported); build {build:.2f} ms; determinism check +{check:.2f} ms (same={same}); "
-          f"{type(first).__name__}, vector={isinstance(first, m.VMobject)}")
+    print(
+        f"entry-point scan {scan:.1f} ms ({len(found)} found); plugin file {load:.1f} ms "
+        f"(Manim already imported); build {build:.2f} ms; determinism check +{check:.2f} ms (same={same}); "
+        f"{type(first).__name__}, vector={isinstance(first, m.VMobject)}"
+    )
 
 
 if __name__ == "__main__":

@@ -24,9 +24,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.render.cairo_export import make_camera, render_frame  # noqa: E402
-from support import CANVAS, FRAMES  # noqa: E402
+from manim_studio.core import adapter
+from manim_studio.render.cairo_export import make_camera, render_frame
+from support import CANVAS, FRAMES
 
 SMALL = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <rect x="5" y="5" width="40" height="40" fill="#f97316" stroke="#111827" stroke-width="2"/>
@@ -64,7 +64,9 @@ def scrub(mob: m.Mobject, cls) -> tuple[int, int]:
     worst = 0
     for i in random.Random(0).sample(range(len(FRAMES)), len(FRAMES)):
         scrubbed.interpolate(FRAMES[i])
-        worst = max(worst, int(np.abs(render_frame(camera, [scrubbed.mobject]).astype(int) - reference[i]).max()))
+        worst = max(
+            worst, int(np.abs(render_frame(camera, [scrubbed.mobject]).astype(int) - reference[i]).max())
+        )
     blank = render_frame(camera, [])
     visible = int(np.abs(reference[-1].astype(int) - blank.astype(int)).max())
     return worst, visible
@@ -80,8 +82,10 @@ def main() -> None:
         mob, cold = timed(path)
         _, again = timed(path)
         fills = {sub.get_fill_color().to_hex() for sub in mob.family_members_with_points()}
-        print(f"{path.name}: {len(mob.family_members_with_points())} paths, build {cold:.0f} ms (again {again:.0f} ms), "
-              f"{len(fills)} fill colours, height {mob.height:.2f}")
+        print(
+            f"{path.name}: {len(mob.family_members_with_points())} paths, build {cold:.0f} ms (again {again:.0f} ms), "
+            f"{len(fills)} fill colours, height {mob.height:.2f}"
+        )
     mob, _ = timed(small)
     for cls in (m.Create, m.DrawBorderThenFill, m.Write, m.FadeIn):
         worst, visible = scrub(mob, cls)
