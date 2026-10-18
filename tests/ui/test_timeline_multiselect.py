@@ -311,6 +311,7 @@ def test_a_group_drag_is_clamped_at_zero_for_all_of_it(view) -> None:
     drag(view, grab, QPointF(grab.x() - 600, grab.y()), ALT)  # far before 0 s
     assert starts(view, "a") == [0.0, 3.0]  # c1 stopped at 0: everything moved by -0.5
     assert starts(view, "b") == [0.5] and key_times(view, "a") == [1.5, 5.0]
+    assert view.picked_key_times() == {("a", 1.5, None)}  # the picks followed the clamped move
 
 
 def test_a_refused_group_drag_previews_nothing_and_says_why(view) -> None:
