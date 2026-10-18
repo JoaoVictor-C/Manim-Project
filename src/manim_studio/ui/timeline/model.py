@@ -24,7 +24,7 @@ from ...core.layer_index import LayerIndex
 from ...core.schema import Clip, Layer, Project
 
 SNAP_RADIUS_PX = 8.0
-MIN_PX_PER_SECOND = 10.0
+MIN_PX_PER_SECOND = 0.5  # a 15-minute scene fits 1600 px (P7.2), an hour 1800 px
 MAX_PX_PER_SECOND = 4000.0
 
 Edge = Literal["start", "end"]

@@ -580,7 +580,7 @@ class TimelineView(QGraphicsView):
             if x > width:
                 break
             painter.drawLine(QPointF(x, RULER_HEIGHT - 6), QPointF(x, RULER_HEIGHT))
-            painter.drawText(QPointF(x + 3, RULER_HEIGHT - 9), f"{t:g}s")
+            painter.drawText(QPointF(x + 3, RULER_HEIGHT - 9), _tick_label(t, step))
             t += step
 
     def _draw_markers(self, painter: QPainter, width: int, project: Project) -> None:
@@ -1326,8 +1326,16 @@ def _heard(peaks: np.ndarray, clip: AudioClip) -> np.ndarray:
 
 
 def _tick_step(px_per_second: float) -> float:
-    """A 'nice' ruler step leaving at least ~60 px between labels."""
-    for step in (0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60):
+    """A 'nice' ruler step leaving at least ~60 px between labels (minutes on a long scene)."""
+    for step in (0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300):
         if step * px_per_second >= 60:
             return step
-    return 120
+    return 600
+
+
+def _tick_label(t: float, step: float) -> str:
+    """Seconds on a short ruler, minutes:seconds once the steps are half a minute or more."""
+    if step < 30:
+        return f"{t:g}s"
+    minutes, seconds = divmod(round(t), 60)
+    return f"{minutes}:{seconds:02d}"
