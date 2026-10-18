@@ -34,6 +34,7 @@ TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached o
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
+PYTHON_TYPES = frozenset({"Python"})  # an object built by the user's code: PARAMS + build(p) (ADR 0051)
 TRACE_TYPES = frozenset({"TracedPath"})  # draws where another layer has been, frame by frame (ADR 0033)
 CONNECTOR_TYPES = frozenset(
     {"Connector"}
@@ -426,6 +427,12 @@ class Layer(BaseModel):
         for name, track in self.tracks.items():
             if name != "position" and any(key.curved for key in track):
                 raise ValueError(f"layer {self.id!r}: only position keys can have path tangents")
+        if self.spec is not None and self.spec.type in PYTHON_TYPES:
+            from .python_object import spec_problem  # reads PARAMS without running the code
+
+            problem = spec_problem(self.spec.params)
+            if problem:
+                raise ValueError(f"layer {self.id!r}: {problem}")
         if self.spec is not None and self.spec.type == "Graph":
             from .expressions import check  # numpy, no Manim
 

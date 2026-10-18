@@ -67,6 +67,7 @@ from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
     MEDIA_TYPES,
+    PYTHON_TYPES,
     TRACE_TYPES,
     Clip,
     Keyframe,
@@ -268,7 +269,8 @@ class Evaluator:
 
     def check_media(self) -> set[str]:
         """Re-read the media files on disk (ADR 0027): layers whose file changed since they
-        were built are rebuilt, like a spec edit. Returns their ids."""
+        were built are rebuilt, like a spec edit; so are Python objects whose code became
+        trusted since (ADR 0051). Returns their ids."""
         changed = {
             layer.id
             for layer in self.project.layers
@@ -314,8 +316,9 @@ class Evaluator:
 
     def _media_signature(self, layer: Layer) -> str | None:
         """The file signature this layer is drawn from (stat-ed once, then kept until
-        ``check_media`` or an edit of the layer); None for non-media layers."""
-        if layer.spec is None or layer.spec.type not in MEDIA_TYPES:  # parts have no spec
+        ``check_media`` or an edit of the layer); a Python object's trust (ADR 0051); None for
+        other layers."""
+        if layer.spec is None or layer.spec.type not in MEDIA_TYPES | PYTHON_TYPES:  # parts: no spec
             return None
         if layer.id not in self._media:
             self._media[layer.id] = adapter.media_signature(layer.spec)
