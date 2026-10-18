@@ -39,8 +39,10 @@ manim-studio edit
 
 With no project open, the viewer shows a welcome panel: **New**, **Open...**, **Open Example**
 and your recent files. **Open Example** (also **File > Open Example**) opens the showcase
-scene as an untitled copy you can change freely - a good way to look around. To open a file
-directly: `manim-studio edit path/to/project.json`.
+scene as an untitled copy you can change freely - a good way to look around. It reads
+`examples/showcase.json` from a clone of the repository; the release wheel does not include the
+examples, so there the button is hidden. To open a file directly:
+`manim-studio edit path/to/project.json`.
 
 ## Your first animation in five minutes
 
