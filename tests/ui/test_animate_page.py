@@ -1,6 +1,6 @@
 """The Animate page (P6b.2, decision session 35) through the real window: the graph editor of the
 selected layer's keys - selection shared with Properties and the timeline, drags in time and
-value as one undo step, Escape, Shift, double-click, Delete, eases, the view, the legend."""
+value as one undo step, Escape, Shift, double-click, Delete, eases, the view, the chosen properties."""
 
 from __future__ import annotations
 
@@ -125,22 +125,27 @@ def test_curves_of_the_selected_layer_and_a_locked_graph_offers_opacity_only(win
     g = graph(window)
     assert [c.name for c in g.curves()] == ["x", "y", "scale", "rotation", "opacity"]
     assert {p.curve for p in g.points()} == {"x", "y", "rotation"}
-    checks = window.pages.pages["animate"].checks
-    assert all(check.isEnabled() for check in checks.values())
+    assert not hasattr(window.pages.pages["animate"], "checks")  # no five-checkbox legend (P7.3)
     window.selection.select_layer("g")
     assert [c.name for c in g.curves()] == ["opacity"]
-    assert [name for name, check in checks.items() if check.isEnabled()] == ["opacity"]
     window.selection.select_layer(None)
     assert g.curves() == [] and g.points() == []
     g.grab()  # paints the empty state
 
 
-def test_the_legend_hides_a_curve(window) -> None:
-    g, checks = graph(window), window.pages.pages["animate"].checks
-    checks["rotation"].setChecked(False)
-    assert "rotation" not in {p.curve for p in g.points()} and "rotation" not in [c.name for c in g.curves()]
-    checks["rotation"].setChecked(True)
-    assert "rotation" in {p.curve for p in g.points()}
+def test_the_graph_shows_the_properties_chosen_on_the_timeline(window, qt_app) -> None:
+    """P7.3: the curves of the sub-rows chosen on the timeline only; the bar names them."""
+    g, page, timeline = graph(window), window.pages.pages["animate"], window.timeline
+    assert "All properties" in page.shown_label.text()
+    timeline.set_expanded("s", True)
+    timeline.pick_prop("s", "rotation")
+    assert [c.name for c in g.curves()] == ["rotation"] and {p.curve for p in g.points()} == {"rotation"}
+    assert "Rotation" in page.shown_label.text() and "Position" not in page.shown_label.text()
+    timeline.pick_prop("s", "position", extend=True)
+    assert [c.name for c in g.curves()] == ["x", "y", "rotation"]
+    g.grab()
+    window.selection.select_layer("g")  # another object: every curve it can key again
+    assert [c.name for c in g.curves()] == ["opacity"] and "All properties" in page.shown_label.text()
 
 
 def test_curve_colours_read_on_the_graph() -> None:

@@ -113,6 +113,28 @@ def test_a_timeline_sync_asks_the_project_a_constant_number_of_times(qt_app, sca
     assert many <= 5
 
 
+def test_a_sync_with_every_row_expanded_stays_constant_in_scans(qt_app, scans) -> None:
+    """Property sub-rows (P7.3) add rows per layer, never a scan per layer."""
+    calls, reset = scans
+    small, big = timeline_for(long_project(5)), timeline_for(long_project(40))
+    for view in (small, big):
+        for layer in view.project.layers:
+            view.set_expanded(layer.id, True)
+    reset()
+    small.sync()
+    few = total(calls)
+    reset()
+    big.sync()
+    many = total(calls)
+    assert many == few and many <= 5
+    reset()
+    big.show()
+    big.header.grab()
+    big.header.grab()
+    assert total(calls) == 0
+    big.close()
+
+
 def test_the_timeline_rows_and_header_use_the_same_snapshot_index(qt_app, scans) -> None:
     """Asking for rows, a row's index or the layer at a height must not rescan the layers."""
     calls, reset = scans
