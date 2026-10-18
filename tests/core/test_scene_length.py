@@ -72,8 +72,23 @@ def test_fit_to_content_trims_and_grows() -> None:
     assert scene_length.fit_to_content(long).canvas.duration == pytest.approx(6.0)
 
 
-def test_fit_to_content_keeps_at_least_one_frame() -> None:
-    assert scene_length.fit_to_content(Project(canvas=CANVAS)).canvas.duration == pytest.approx(0.1)
+def test_fit_to_content_leaves_an_untimed_scene_alone() -> None:
+    """Objects there from the start with no animation (their end on "auto"): nothing to fit to,
+    so the scene keeps its length instead of shrinking to one frame (the user's report)."""
+    assert scene_length.fit_to_content(Project(canvas=CANVAS)) == Project(canvas=CANVAS)
+    still = scene()
+    assert scene_length.fit_to_content(still) is still
+
+
+def test_an_object_that_appears_late_counts_from_when_it_appears() -> None:
+    late = scene(lifetime=Lifetime(in_=3.0))
+    assert scene_length.content_end(late) == pytest.approx(3.0)
+    assert scene_length.fit_to_content(late).canvas.duration == pytest.approx(3.0)
+
+
+def test_ends_only_the_window_knows_count_too() -> None:
+    """A code layer's rendered animation (its length is known once it is rendered)."""
+    assert scene_length.fit_to_content(scene(), [2.25]).canvas.duration == pytest.approx(2.3)
 
 
 def test_set_canvas_changes_the_length_without_touching_layers() -> None:

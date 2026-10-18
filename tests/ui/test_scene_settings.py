@@ -12,9 +12,9 @@ import pytest
 pytest.importorskip("PySide6")
 
 from manim_studio.core import edits, scene_length
+from manim_studio.core.schema import Clip, Layer, Project
 from manim_studio.ui.document import Document
 from manim_studio.ui.main_window import MainWindow
-from manim_studio.core.schema import Clip, Layer, Project
 from support import CANVAS, TEXT
 
 pytestmark = pytest.mark.ui
@@ -62,7 +62,10 @@ def test_an_edit_past_the_end_grows_the_scene_in_the_same_undo_step(qt_app) -> N
     before = doc.project
     end = before.canvas.duration
     doc.apply(edits.move_clip(before, "a", "i", end + 1.0), "Move clip")
-    assert doc.project.canvas.duration == pytest.approx(end + 1.3)  # the clip lasts 0.3 s
+    grown = doc.project.canvas.duration
+    fps = before.canvas.fps
+    assert end + 1.3 <= grown < end + 1.3 + 1 / fps  # the clip's end (it lasts 0.3 s), to a whole frame
+    assert grown * fps == pytest.approx(round(grown * fps))
     assert doc.undo_stack.count() == 1
     doc.undo_stack.undo()
     assert doc.project is before
@@ -162,3 +165,22 @@ def test_scene_settings_in_the_edit_menu_shows_the_length(window, qt_app) -> Non
     assert window.selection.layer_ids == () or not window.selection.layer_ids
     assert window.panel_toggles[window.properties].isChecked()
     assert window.properties.fields["canvas.duration"].has_focus()
+
+
+def test_fit_length_leaves_an_untimed_scene_and_says_so(qt_app, tmp_path) -> None:
+    """Only objects there from the start (their end on "auto"): the scene shrank to one frame
+    (the user's report); now it keeps its length and the status bar says why."""
+    from manim_studio.core.schema import Canvas, Spec
+
+    path = tmp_path / "still.json"
+    still = Project(canvas=Canvas(duration=6.0), layers=[Layer(id="c", spec=Spec(type="Circle"))])
+    path.write_text(still.model_dump_json(by_alias=True), encoding="utf-8")
+    win = MainWindow()
+    win.show()
+    win.load(path)
+    win.selection.clear()
+    win.properties.fit_button.click()
+    assert win.project.canvas.duration == 6.0
+    assert win.document.undo_stack.count() == 0
+    assert "Nothing in the scene is timed" in win.statusBar().currentMessage()
+    win.close()

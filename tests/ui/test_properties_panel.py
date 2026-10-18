@@ -275,7 +275,7 @@ def test_deleting_the_shown_clip_or_layer(panel) -> None:
     panel.document.apply(edits.remove_clip(panel.project, "ball", "i"), "Delete clip")
     assert panel.clip_id is None and panel.layer_id == "ball"
     panel.document.apply(edits.remove_layer(panel.project, "ball"), "Delete layer")
-    assert panel.layer_id is None and panel.fields == {}
+    assert panel.layer_id is None and panel.scene_shown  # nothing selected: the scene (P7.1)
 
 
 def test_widgets_of_a_previous_selection_cannot_commit(panel) -> None:

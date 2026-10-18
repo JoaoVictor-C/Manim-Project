@@ -782,6 +782,16 @@ class Evaluator:
     def code_key(self, layer: Layer) -> str:
         return code_key(self.project, layer)
 
+    def code_ends(self) -> list[float]:
+        """When each rendered code layer's animation ends (P7.1: Fit Length to Content)."""
+        ends = []
+        for layer in self.project.layers:
+            if layer.spec.type in CODE_TYPES:
+                clip = self.code_cache.open(self.code_key(layer))
+                if clip is not None:
+                    ends.append(self.lifetime(layer)[0] + clip.duration)
+        return ends
+
     def _code_at(self, layer: Layer, t: float, start: float) -> m.Mobject | None:
         """The cached frame at ``t`` (the last one held), or a placeholder before it is rendered."""
         clip = self.code_cache.open(self.code_key(layer))
