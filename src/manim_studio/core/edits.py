@@ -441,8 +441,12 @@ def freeze_layer(project: Project, layer_id: str, data: dict[str, Any]) -> Edit:
     if problem is not None:
         raise EditError(f"cannot freeze {layer_id!r}: {problem}")
     frozen = Spec(type=shape.SHAPE_TYPE, params=data)
+    layer = project.layer(layer_id)
+    fields: dict[str, Any] = {"spec": frozen}
+    if not layer.name and layer.label != layer.id:
+        fields["name"] = layer.label  # a text was named by its words: the shape keeps that name
     try:
-        return _replace_layer(project, layer_id, {"spec": frozen})
+        return _replace_layer(project, layer_id, fields)
     except ValidationError as exc:  # a rule elsewhere in the project needs the old type
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
         raise EditError(f"cannot freeze {layer_id!r}: {reason}") from None

@@ -208,6 +208,14 @@ def test_freezing_keeps_the_layer_and_bakes_its_style() -> None:
     assert edits.classify(project, edit.project)[0] == "spec"
 
 
+def test_a_text_named_by_its_words_keeps_that_name() -> None:
+    project = Project(
+        canvas=CANVAS, layers=[Layer(id="text-1", spec=TEXT), Layer(id="c", spec=Spec(type="Circle"))]
+    )
+    assert frozen(project, "text-1").layer("text-1").label == "Hi ok"
+    assert frozen(project, "c").layer("c").name == ""  # named by its id: nothing to keep
+
+
 def test_the_style_applies_on_top_only_when_set_and_themes_recolour_it() -> None:
     project = frozen(scene(styled_circle()))
     spec = project.layer("a").spec
