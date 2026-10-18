@@ -145,9 +145,14 @@ def window_cues(cues: list[Cue], t0: float, t1: float) -> list[Cue]:
     return out
 
 
+def audio_bounds(first: int, last: int, fps: int) -> tuple[int, int]:
+    """The samples of the mix under frames ``[first, last)``."""
+    return round(first / fps * audio.RATE), round(last / fps * audio.RATE)
+
+
 def audio_window(samples: np.ndarray, first: int, last: int, fps: int) -> np.ndarray:
     """The part of the mix under frames ``[first, last)``, padded with silence to the video's length."""
-    start, stop = round(first / fps * audio.RATE), round(last / fps * audio.RATE)
+    start, stop = audio_bounds(first, last, fps)
     cut = samples[:, start:stop]
     missing = (stop - start) - cut.shape[1]
     if missing > 0:

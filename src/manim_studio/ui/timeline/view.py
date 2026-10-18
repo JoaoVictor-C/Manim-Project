@@ -36,13 +36,15 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 
 from __future__ import annotations
 
+import contextlib
+import threading
 from bisect import bisect_right
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 from pydantic import ValidationError
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -127,6 +129,8 @@ AUDIO_COLOR = theme.qcolor(theme.THEME.sound)
 CUE_COLOR = theme.qcolor(theme.THEME.cue)
 WAVE_COLOR = theme.qcolor(theme.THEME.wave)
 PEAKS_PER_SECOND = 100
+# a shorter sound's waveform is made at once (~0.1 s), a longer one in the background (B70)
+SYNC_PEAKS_SECONDS = 60.0
 LIFETIME_COLOR = theme.qcolor(theme.THEME.lifetime)
 PLAYHEAD_COLOR = theme.qcolor(theme.THEME.playhead)
 BACKGROUND = theme.qcolor(theme.THEME.track)
@@ -208,6 +212,29 @@ class BandItem(QGraphicsRectItem):
         self.setPen(QPen(SELECTED_EDGE, 1) if selected else QPen(Qt.PenStyle.NoPen))
         self.setBrush(QBrush(LIFETIME_COLOR))
         self.setZValue(1)
+
+
+class _PeaksLoader(QObject):
+    """Scans long sounds for their waveforms on a background thread (B70): the first sync of a
+    15-minute sound no longer decodes it on the GUI thread; its row is flat until ``ready``."""
+
+    ready = Signal(str)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.busy: set[str] = set()  # paths being scanned; the view takes them out when ready
+
+    def request(self, path: str) -> None:
+        if path not in self.busy:
+            self.busy.add(path)
+            threading.Thread(target=self._scan, args=(path,), daemon=True).start()
+
+    def _scan(self, path: str) -> None:
+        try:
+            audio.scan(path)
+        finally:
+            with contextlib.suppress(RuntimeError):  # the timeline was closed meanwhile
+                self.ready.emit(path)
 
 
 class AudioItem(QGraphicsRectItem):
@@ -572,6 +599,8 @@ class TimelineView(QGraphicsView):
         )
         self._pending: tuple[float, bool] | None = None  # (scene x, snapping)
         self._apply_scheduled = False
+        self._peaks_loader = _PeaksLoader(self)
+        self._peaks_loader.ready.connect(self._on_peaks_ready)  # queued: a bound method of the view
 
     # -- document ----------------------------------------------------------------
 
@@ -1248,7 +1277,7 @@ class TimelineView(QGraphicsView):
                 max(2.0, self.scale.x(clip.end) - self.scale.x(clip.start)),
                 ROW_HEIGHT - 2 * CLIP_MARGIN,
             )
-            peaks = audio.peaks(clip.path, PEAKS_PER_SECOND)
+            peaks = self._peaks(clip.path)
             first = round(clip.offset * PEAKS_PER_SECOND)
             shown = peaks[first : first + round(clip.duration * PEAKS_PER_SECOND)]
             scene.addItem(AudioItem(clip, rect, _heard(shown, clip), clip.id == self.selected_audio))
@@ -1258,6 +1287,22 @@ class TimelineView(QGraphicsView):
             self.picked_keys = {k for k in self.picked_keys if k[:2] in found_keys}
         self.header.update()
         self.viewport().update()
+
+    def _on_peaks_ready(self, path: str) -> None:
+        self._peaks_loader.busy.discard(path)
+        self.sync()
+
+    def _peaks(self, path: str) -> np.ndarray:
+        """A sound's waveform peaks: at once for a short or scanned file; a long one is scanned in
+        the background and shows a flat row until then (B70)."""
+        ready = audio.peaks_ready(path, PEAKS_PER_SECOND)
+        if ready is not None:
+            return ready
+        length = audio.probe(path)
+        if length is None or length <= SYNC_PEAKS_SECONDS:
+            return audio.peaks(path, PEAKS_PER_SECOND)
+        self._peaks_loader.request(path)
+        return np.zeros(0, np.float32)
 
     def _fresh_scene(self, rect: QRectF) -> QGraphicsScene:
         """An empty scene of ``rect`` in place of the current one, the scroll position kept. A
