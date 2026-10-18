@@ -1,9 +1,10 @@
 """Equation steps, the pure part (P11, ADR 0054): reading the lines, deriving the next line by an
-operation on both sides, and planning the morph between two steps. No LaTeX runs here; the
-results are built by Manim in ``test_equation_steps_build.py``."""
+operation on both sides, and planning the morph between two steps. Only the last check runs
+LaTeX: every derived line must be something Manim builds."""
 
 from __future__ import annotations
 
+import manim as m
 import pytest
 
 from manim_studio.core import parts
@@ -143,6 +144,13 @@ DERIVED = [  # (line, operation, term, the derived line)
 @pytest.mark.parametrize(("line", "operation", "term", "expected"), DERIVED)
 def test_each_operation_derives_the_next_line(line, operation, term, expected) -> None:
     assert derive(line, operation, term) == expected
+
+
+@pytest.mark.latex
+@pytest.mark.parametrize("derived", sorted({expected for *_, expected in DERIVED}))
+def test_every_derived_line_builds_in_manim(derived) -> None:
+    built = m.MathTex(derived)  # raises when LaTeX refuses it (one compile each, then cached)
+    assert built.family_members_with_points()
 
 
 def test_every_operation_is_listed_with_a_label() -> None:

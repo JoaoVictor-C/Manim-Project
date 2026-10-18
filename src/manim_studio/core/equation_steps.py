@@ -771,14 +771,10 @@ def plan_transition(a: str, b: str) -> Transition:
     for start, end in new_runs:
         tex = b[start:end]
         occurrence = parts.count(b, tex, 0, start)
-        if parts.find(b, tex, occurrence) != start:
+        if parts.find(b, tex, occurrence) != start:  # the key would find another place
             skipped.append((tex, "it overlaps another match of the same text"))
             continue
-        span = parts.check_span(b, start, end)
-        if isinstance(span, str):
-            skipped.append((tex, span))
-            continue
-        new.append(NewPiece(tex, occurrence, start, end))
+        new.append(NewPiece(tex, occurrence, start, end))  # parts.resolve decides if it can be marked
     return Transition(kind, shared, tuple(new), gone, tuple(skipped))
 
 

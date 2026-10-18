@@ -21,6 +21,7 @@ wrong. This module has no Qt dependency (coding standards rule 1).
 
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from collections.abc import Iterable
@@ -30,7 +31,7 @@ from typing import Any, Literal
 import numpy as np
 from pydantic import ValidationError
 
-from . import motion_paths, parts, shape
+from . import equation_steps, motion_paths, parts, shape
 from .schema import (
     CAMERA_FIELDS,
     GROUP_TYPE,
@@ -49,6 +50,7 @@ from .schema import (
     Transform2D,
     clip_params,
     infer_lifetime,
+    is_colour,
 )
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
@@ -476,6 +478,129 @@ def add_clip(
         params=params or {},
     )
     return _replace_layer(project, layer_id, {"clips": [*layer.clips, clip]})
+
+
+ENTRANCES = ("Write", "FadeIn")  # how the first equation step appears (P11)
+
+
+def add_equation_steps(
+    project: Project,
+    steps: Iterable[str],
+    *,
+    start: float = 0.0,
+    step_duration: float = 1.0,
+    hold: float = 1.0,
+    font_size: float | None = None,
+    colour: str | None = None,
+    highlight_colour: str | None = None,
+    position: tuple[float, float] = (0.0, 0.0),
+    name: str = "Step",
+    entrance: str = "Write",
+) -> tuple[Edit, equation_steps.StepsReport]:
+    """One MathTex layer per step, morphing from each to the next (P11, ADR 0054), in one edit.
+
+    The first step enters with ``entrance`` at ``start``; every animation runs ``step_duration``
+    and is followed by ``hold`` seconds of stillness. Step k morphs into step k+1 (``to_layer``)
+    with the kind ``equation_steps.plan_transition`` picks, so each step is visible only between
+    the morph that brings it and the morph that turns it into the next (lifetimes are inferred,
+    ADR 0005); the last one stays. With ``highlight_colour``, the pieces new in a step are part
+    layers in that colour (ADR 0049) - the next step's copies are plain again; pieces the parts
+    cannot isolate are skipped and reported. All steps sit at ``position``; the scene grows to
+    hold the last step for ``hold`` seconds when it grows with its content."""
+    steps = [str(s).strip() for s in steps]
+    if not steps:
+        raise EditError("type at least one equation")
+    if len(steps) > equation_steps.MAX_STEPS:
+        raise EditError(f"{len(steps)} steps: at most {equation_steps.MAX_STEPS}")
+    if any(not s for s in steps):
+        raise EditError("a step is empty")
+    if not step_duration > 0 or not hold >= 0 or not start >= 0:
+        raise EditError("start and hold must be 0 or more, and the step duration more than 0")
+    if entrance not in ENTRANCES:
+        raise EditError(f"the first step enters with {' or '.join(ENTRANCES)}, not {entrance!r}")
+    for what, value in (("colour", colour), ("highlight colour", highlight_colour)):
+        if value is not None and not is_colour(value):
+            raise EditError(f"the {what} must be like #ff0000, not {value!r}")
+    if font_size is not None and not 4 <= font_size <= 400:
+        raise EditError("the font size must be from 4 to 400")
+    params: dict[str, Any] = {}
+    if font_size is not None and font_size != 48:
+        params["font_size"] = float(font_size)
+    style = {"fill": colour} if colour and colour.lower() != equation_steps.BASE_COLOUR.lower() else {}
+    taken = {layer.id for layer in project.layers} | {clip.id for clip in project.audio}
+    taken |= {cue.id for cue in project.subtitles} | {marker.id for marker in project.markers}
+    ids = []
+    for _ in steps:
+        ids.append(_free_id("MathTex", taken))
+        taken.add(ids[-1])
+    plans = [equation_steps.plan_transition(a, b) for a, b in itertools.pairwise(steps)]
+    cycle = step_duration + hold
+    added: list[Layer] = []
+    highlighted: list[tuple[int, str, int]] = []
+    skipped: list[tuple[int, str, str]] = []
+    for index, (layer_id, tex) in enumerate(zip(ids, steps, strict=True)):
+        clips = []
+        if index == 0:
+            clips.append(
+                Clip(id=_free_id(entrance, set()), kind=entrance, start=start, duration=step_duration)
+            )
+        if index < len(steps) - 1:
+            kind = plans[index].kind
+            clips.append(
+                Clip(
+                    id=_free_id(kind, {c.id for c in clips}),
+                    kind=kind,
+                    start=start + (index + 1) * cycle,
+                    duration=step_duration,
+                    to_layer=ids[index + 1],
+                )
+            )
+        root = Layer(
+            id=layer_id,
+            name=f"{name} {index + 1}" if name else "",
+            spec=Spec(type="MathTex", params={"text": tex, **params}, style=style),
+            base=Transform2D(position=position),
+            clips=clips,
+        )
+        added.append(root)
+        plan = plans[index - 1] if index > 0 else None
+        if plan is None or highlight_colour is None or plan.kind != equation_steps.MATCHING:
+            continue
+        skipped += [(index + 1, tex_, why) for tex_, why in plan.skipped if tex_]
+        candidates = []
+        for piece in plan.new:
+            part_id = _free_id("part", taken)
+            taken.add(part_id)
+            key = PartKey(tex=piece.tex, occurrence=piece.occurrence)
+            candidates.append(
+                Layer(id=part_id, parent_id=layer_id, part=key, style={"fill": highlight_colour})
+            )
+        alone = root.model_copy(update={"clips": []})  # its morph's target is not made yet
+        resolution = parts.resolve(Project(layers=[alone, *candidates]), layer_id)
+        for part in candidates:
+            if part.id in resolution.orphans:
+                skipped.append((index + 1, part.part.tex, resolution.orphans[part.id]))
+                continue
+            added.append(part)
+            highlighted.append((index + 1, part.part.tex, part.part.occurrence))
+    end = start + len(steps) * step_duration + (len(steps) - 1) * hold
+    canvas = project.canvas
+    if canvas.grow_with_content and canvas.duration < end + hold - 1e-9:
+        frames = math.ceil((end + hold) * canvas.fps - 1e-9)
+        canvas = canvas.model_copy(update={"duration": frames / canvas.fps})
+    try:
+        new = _rebuilt(project, layers=[*project.layers, *added], canvas=canvas)
+    except ValidationError as error:
+        message = str(error.errors()[0]["msg"]).removeprefix("Value error, ")
+        raise EditError(f"cannot add equation steps: {message}") from None
+    report = equation_steps.StepsReport(
+        layer_ids=tuple(ids),
+        transitions=tuple(plan.kind for plan in plans),
+        highlighted=tuple(highlighted),
+        skipped=tuple(skipped),
+        end=end,
+    )
+    return Edit(new, *classify(project, new)), report
 
 
 def remove_clip(project: Project, layer_id: str, clip_id: str) -> Edit:
