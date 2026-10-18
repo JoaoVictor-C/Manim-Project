@@ -14,6 +14,12 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Edit > Shift Timing... (Ctrl+Shift+T, U4): moves what is selected - layers (clips, keys and their
+  explicit Appears at / Disappears at together), a clip, keys, a sound, a subtitle or a marker - earlier
+  or later by a typed number of seconds, in one undo step. A moved boundary clip carries an explicit
+  Appears at / Disappears at that matched it, so a moved preset no longer needs its start time copied
+  into Appears at; a delta that would pass 0 s is clamped for the whole selection, an overlap refuses
+  the move, and a move that leaves an object's lifetime cutting its own animation says so.
 - A camera (P7.5, ADR 0048, decision session 43): the project is 3D-capable with the camera fixed
   for 2D. Properties, with nothing selected, has a **Camera** group (Tilt, Turn, Roll - Manim's phi,
   theta, gamma - and Reset Camera). The default is today's flat view: it is not saved (files load and
