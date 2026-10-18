@@ -29,7 +29,7 @@
 - **U5**: a `style` on part layers (fill/stroke) applied in the evaluator's per-frame member output (on the
   copy, so no cache key changes); a clip's own colour wins while it plays. *As built (ADR 0049):* the
   colour goes on a copy of the build, the tree's state before any clip (no cache key changes), since
-  colouring after the states made Indicate jump from the part's colour to white at its start and back
+  colouring after the states would make Indicate jump from the part's colour to white at its start and back
   at its end; this way it goes red -> yellow -> red, as `set_color` does in Manim. Text pieces use
   Manim's `t2c`.
 - **U6**: groups last, the riskiest for the evaluator's trees: transform-only (position, scale, rotation,

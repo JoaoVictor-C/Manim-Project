@@ -18,7 +18,7 @@ output, on a copy, so no cache key changes, with a clip's own colour winning whi
 were compared on Indicate over a red part:
 
 - **after the states, per frame**, skipping glyphs under a clip that changes colour: Indicate starts
-  from the build's white, so the part jumps red -> white when the clip starts and white -> red when it
+  from the build's white (its working copy is a copy of the uncoloured state), so the part would jump red -> white when the clip starts and white -> red when it
   ends;
 - **before the clips**, on the tree's first state: Indicate goes red -> yellow -> red, exactly as
   `eq[0][3:5].set_color(RED)` before `self.play(Indicate(...))` does in Manim.
