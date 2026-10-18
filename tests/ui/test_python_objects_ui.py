@@ -197,7 +197,9 @@ def test_an_untrusted_project_shows_the_placeholder_until_trusted(qt_app, tmp_pa
 def test_trusting_on_open_builds_it(qt_app, tmp_path) -> None:
     code = unique(STARTER)
     path = write(tmp_path, [Layer(id="tri", spec=Spec(type="Python", params={"code": code}))])
-    win = open_window(qt_app, path, answer="run")
+    win = MainWindow()
+    win.ask_trust = lambda names: "run"
+    win.load(path)  # checked at once: no event (an application activation reloads media too)
     try:
         assert not isinstance(drawn(win, "tri"), m.DashedVMobject)
         assert win.evaluator.build_errors() == {}
