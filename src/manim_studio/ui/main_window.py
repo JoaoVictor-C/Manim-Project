@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, library, parts, recovery, subtitles
+from ..core import adapter, audio, edits, library, parts, recovery, shift_timing, subtitles
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
@@ -293,7 +293,14 @@ class MainWindow(QMainWindow):
         fit_length = QAction("&Fit Length to Content", self)
         fit_length.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
         fit_length.triggered.connect(lambda: self._has_project and self.properties.fit_length())
-        edit_menu.addActions([scene_settings, fit_length])
+        shift_action = QAction("Shift &Timing...", self)
+        shift_action.setToolTip(
+            "Move the selected layers, clip, keys, sound, subtitle or marker earlier or later"
+        )
+        shift_action.setShortcut(QKeySequence("Ctrl+Shift+T"))
+        shift_action.triggered.connect(self.shift_selection)
+        self.ask_shift = self._ask_shift_dialog  # tests and other front-ends answer here
+        edit_menu.addActions([scene_settings, fit_length, shift_action])
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
@@ -772,6 +779,57 @@ class MainWindow(QMainWindow):
             self.selection.toggle_layer(layer_id)
         else:
             self.selection.set(layer_id)
+
+    def _ask_shift_dialog(self) -> float | None:
+        delta, ok = QInputDialog.getDouble(
+            self, "Shift Timing", "Move by (seconds; negative is earlier):", 1.0, -3600.0, 3600.0, 3
+        )
+        return delta if ok else None
+
+    def _selected_timing(self) -> shift_timing.Selection | None:
+        """What is selected, as the timing edit wants it (None: nothing)."""
+        sel = self.selection
+        if sel.audio_id is not None:
+            return shift_timing.Selection(audio=(sel.audio_id,))
+        if sel.subtitle_id is not None:
+            return shift_timing.Selection(cues=(sel.subtitle_id,))
+        if sel.marker_id is not None:
+            return shift_timing.Selection(markers=(sel.marker_id,))
+        if sel.layer_id and sel.clip_id:
+            return shift_timing.Selection(clips=((sel.layer_id, sel.clip_id),))
+        if sel.layer_id and sel.key_time is not None:
+            return shift_timing.Selection(keys=((sel.layer_id, sel.key_time, None),))
+        if sel.layer_ids:
+            return shift_timing.Selection(layers=sel.layer_ids)
+        return None
+
+    def shift_selection(self) -> None:
+        """Edit > Shift Timing: move what is selected by a typed delta (U4), in one undo step."""
+        if not self._has_project:
+            return
+        chosen = self._selected_timing()
+        if chosen is None:
+            self.statusBar().showMessage(
+                "Shift timing: select a layer, a clip, keys, a sound, a subtitle or a marker", 6000
+            )
+            return
+        delta = self.ask_shift()
+        if delta is None or delta == 0:
+            return
+        before = self.project
+        try:
+            edit = shift_timing.shift_timing(before, chosen, delta)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Shift timing: {exc}", 10000)
+            return
+        if edit.project == before:
+            self.statusBar().showMessage("Shift timing: nothing moved (it is at the start already)", 6000)
+            return
+        self.document.apply(edit, "Shift timing")
+        old = set(shift_timing.timing_warnings(before))
+        new = [w for w in shift_timing.timing_warnings(edit.project) if w not in old]
+        if new:
+            self.statusBar().showMessage(f"Shift timing: {new[0]}", 15000)
 
     def show_scene_settings(self) -> None:
         """Nothing selected, so Properties shows the scene; its length is ready to type."""
