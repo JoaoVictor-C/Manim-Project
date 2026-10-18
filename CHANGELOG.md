@@ -14,6 +14,13 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Colour part of a text (U5, ADR 0049, from the Pythagoras project): a MathTex/Tex part layer has
+  Fill and Stroke colours; Properties of an equation has **Colour a part** (the TeX, which occurrence,
+  Colour...) and Layers **Colour part...**, each one undo step that makes the part layer if needed.
+  The colour is applied before the clips, as `set_color` in Manim: Indicate goes from the part's
+  colour to its own and back. A `Text` colours pieces with Manim's own `t2c` (Properties lists them),
+  written as plain `Text(..., t2c={...})` by the readable Python export. Files without colours save
+  as before.
 - A camera (P7.5, ADR 0048, decision session 43): the project is 3D-capable with the camera fixed
   for 2D. Properties, with nothing selected, has a **Camera** group (Tilt, Turn, Roll - Manim's phi,
   theta, gamma - and Reset Camera). The default is today's flat view: it is not saved (files load and
