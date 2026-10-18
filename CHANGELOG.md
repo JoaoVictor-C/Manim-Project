@@ -22,6 +22,16 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- Timeline multi-selection (U4b, from the Pythagoras project: "move it all right 5 s"):
+  Shift/Ctrl+click adds clips and key diamonds (or one property's keys) to the selection, a drag
+  from empty space draws a rubber band (a click still picks the row), Ctrl+A selects every clip and
+  key, and the status bar counts them ("3 clips, 2 keys selected"). Dragging any selected item moves
+  them all by its snapped delta (Alt: no snapping) in one undo step, never below 0 s; a move the
+  file refuses (clips overlapping) previews nothing and says why, and a lifetime the move cuts is
+  warned about. Delete removes them all in one step, Escape keeps only the one Properties shows,
+  Edit > Shift Timing moves them. With objects selected (the Layers panel or Shift/Ctrl on row
+  names), dragging a selected row's lifetime band moves those objects whole - clips, keys, Appears
+  at and Disappears at - in one undo step. Fixed on the way: keys one delta apart were moved twice.
 - Colour part of a text (U5, ADR 0049, from the Pythagoras project): a MathTex/Tex part layer has
   Fill and Stroke colours; Properties of an equation has **Colour a part** (the TeX, which occurrence,
   Colour...) and Layers **Colour part...**, each one undo step that makes the part layer if needed.

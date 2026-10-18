@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication
 
 from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Lifetime, Project, Spec
 from manim_studio.ui.document import Document
-from manim_studio.ui.timeline.view import KEY_OFFSET, ROW_HEIGHT, TimelineView
+from manim_studio.ui.timeline.view import KEY_OFFSET, ROW_HEIGHT, SUB_ROW_HEIGHT, TimelineView
 
 pytestmark = pytest.mark.ui
 FPS = 30
@@ -188,6 +188,36 @@ def test_escape_clears_the_multi_selection_down_to_the_primary(view) -> None:
     key(view, (Qt.Key.Key_Escape, NO))
     assert view.picked_clips == set() and view.picked_key_times() == {("a", 2.0, None)}
     assert not view.clip_item("a", "c1").selected
+
+
+def prop_key_point(view, t: float, layer_id: str, prop: str) -> QPointF:
+    y = view.prop_row_top(layer_id, prop) + SUB_ROW_HEIGHT / 2
+    return QPointF(view.mapFromScene(QPointF(view.scale.x(t), y)))
+
+
+def test_a_property_rows_key_is_picked_alone_and_moves_with_the_rest(view) -> None:
+    view.set_expanded("a", True)
+    click(view, at(view, 1.0, "a"))
+    click(view, prop_key_point(view, 5.0, "a", "scale"), CTRL)
+    assert view.picked_key_times() == {("a", 5.0, "scale")}
+    shown = [k for k in view.key_items() if k.prop == "scale" and k.t == 5.0]
+    assert [k.selected for k in shown] == [True]
+    drag(view, at(view, 1.0, "a"), at(view, 2.0, "a"), ALT)
+    assert starts(view, "a") == [1.5, 3.0] and key_times(view, "a") == [2.0, 6.0]
+    click(view, prop_key_point(view, 6.0, "a", "scale"), CTRL)  # out again
+    assert view.picked_key_times() == set()
+
+
+def test_escape_drops_a_rubber_band_being_drawn(view) -> None:
+    click(view, at(view, 3.5, "a"))
+    start = at(view, 0.2, "b", 2)
+    press(view, start)
+    move(view, QPointF(start.x() + 150, start.y() + 10))
+    assert ("b", "w") in view.picked_clips
+    key(view, (Qt.Key.Key_Escape, NO))
+    assert view.rubber is None and view.picked_clips == {("a", "c2")}
+    release(view, QPointF(start.x() + 150, start.y() + 10))
+    assert view.picked_clips == {("a", "c2")}
 
 
 # -- the rubber band -------------------------------------------------------------------------
