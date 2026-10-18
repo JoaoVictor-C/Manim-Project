@@ -865,3 +865,19 @@ save + load; minimum of 20, two runs.
   rounding. -> ADR 0052.
 - **Pixels:** identical (`np.array_equal`) to the source in every frame tested
   (`tests/core/test_shapes.py`).
+
+### B72 - P10.3: importing a Manim scene · 2026-10-18
+`benchmarks/bench_scene_import.py`: a 27-second scene (a Write, a LaggedStart of five Creates, ten
+moves and Indicates, an arrange and scale of the group, five Transforms, a FadeIn, five Rotates,
+FadeOuts, an Unwrite; 21 steps, 12 layers); minimum of 3, two runs, this PC (Manim's text cache warm).
+
+| measure | time |
+|---|---|
+| whole `manim-studio import` command (new process, Manim imported, recorder process, import, write) | 2.91-2.93 s |
+| recording, in a process with Manim imported (the scene played once, nothing drawn) | 201-211 ms |
+| import of the recording (pure) | 15-16 ms |
+| recording JSON | 291 KB (102 distinct pieces) |
+
+- Nothing is drawn: each `play` advances once to its end, so the recording costs about as much as
+  building the scene's objects. The editor warms the recorder process while the file is chosen, so
+  an import from the menu waits about the recording. -> ADR 0053.

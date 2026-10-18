@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Import Manim scene** (P10.3, ADR 0053): File > Import Manim Scene... turns a Manim scene file
+  into layers and clips you can edit: the file runs once, in another process, after a one-time
+  question, and its objects go on top of the project from 0 s as one undo step - built-in objects
+  (Circle, Square, Text, MathTex...) when they rebuild it exactly, else exact Shapes; Create, FadeIn,
+  Write, Indicate, Transform and the other Studio animations as clips; `.animate` moves, scales,
+  fades and `Rotate` as keyframes; groups split into their members when those are animated on their
+  own. Every frame is Manim's own: a scene with anything that cannot be redone exactly (updaters,
+  `always_redraw`, ValueTracker, cameras, custom animations) stays one code layer, and a report says
+  what became what and why. The Code page has **Convert to layers** for a code layer, and
+  `manim-studio import scene.py -o project.json` does the same from the command line.
 - **Freeze to shape** (P10.2, ADR 0052): Edit > Freeze to Shape (also the Layers right-click menu
   and a button in Properties) turns an object - a Python object, a shape, a Text, an equation, an
   SVG - into a **Shape**: the vector paths and colours it draws, kept as data. It draws exactly
