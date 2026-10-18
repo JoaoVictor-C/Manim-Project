@@ -399,9 +399,9 @@ class Layer(BaseModel):
             raise ValueError(f"layer {self.id!r}: only part layers have a style (an object has spec.style)")
         if self.style and (problem := _style_problem(self.style)):
             raise ValueError(f"layer {self.id!r}: {problem}")
-        if self.spec is not None and self.spec.type == "Text" and "t2c" in self.spec.params:
-            if problem := _t2c_problem(self.spec.params["t2c"]):
-                raise ValueError(f"layer {self.id!r}: {problem}")
+        text = self.spec is not None and self.spec.type == "Text" and "t2c" in self.spec.params
+        if text and (problem := _t2c_problem(self.spec.params["t2c"])):
+            raise ValueError(f"layer {self.id!r}: {problem}")
         if self.locked:
             _check_locked(self)
         for name, track in self.tracks.items():

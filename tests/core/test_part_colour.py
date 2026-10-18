@@ -175,3 +175,53 @@ def test_an_orphaned_coloured_part_colours_nothing() -> None:
     retyped = edits.update_layer(p, "eq", spec=other)
     evaluator = Evaluator(retyped.project)
     assert_renders(evaluator, 0.5, [adapter.build_mobject(other)])
+
+
+# -- Text: Manim's own t2c -----------------------------------------------------------------------
+
+WORDS = Spec(type="Text", params={"text": "Hi ok"})  # tests.support.TEXT: warm
+
+
+def text_project(spec: Spec) -> Project:
+    return Project(canvas=CANVAS, layers=[Layer(id="t", spec=spec)])
+
+
+def with_t2c(t2c: dict, **style) -> Spec:
+    return Spec(type="Text", params={**WORDS.params, "t2c": t2c}, style=style)
+
+
+def fills(mob: m.Mobject) -> list[str]:
+    return [leaf.get_fill_color().to_hex().lower() for leaf in mob.family_members_with_points()]
+
+
+def test_t2c_is_checked_and_set_text_colour_adds_recolours_and_removes() -> None:
+    with pytest.raises(ValidationError, match="must be like #ff0000"):
+        text_project(with_t2c({"ok": "red"}))
+    with pytest.raises(ValidationError, match="cannot be empty"):
+        text_project(with_t2c({"": RED}))
+    p = text_project(WORDS)
+    one = edits.set_text_colour(p, "t", "ok", RED)
+    assert one.project.layer("t").spec.params["t2c"] == {"ok": RED} and one.kind == "spec"
+    two = edits.set_text_colour(one.project, "t", "Hi", GREEN)
+    recoloured = edits.set_text_colour(two.project, "t", "ok", GREEN)
+    assert list(recoloured.project.layer("t").spec.params["t2c"].items()) == [("ok", GREEN), ("Hi", GREEN)]
+    gone = edits.set_text_colour(edits.set_text_colour(two.project, "t", "ok", None).project, "t", "Hi", None)
+    assert "t2c" not in gone.project.layer("t").spec.params  # the plain Text again
+    with pytest.raises(edits.EditError, match="not a Text"):
+        edits.set_text_colour(project(), "eq", "a", RED)
+
+
+def test_a_text_piece_has_its_colour_and_the_build_is_cached_by_it() -> None:
+    camera = make_camera(CANVAS)
+    plain = render_frame(camera, [adapter.build_mobject(WORDS)])
+    red = render_frame(camera, [adapter.build_mobject(with_t2c({"ok": RED}))])
+    green = render_frame(camera, [adapter.build_mobject(with_t2c({"ok": GREEN}))])
+    assert max_diff(plain, red) > TOLERANCE and max_diff(red, green) > TOLERANCE
+    hits = adapter._build_cached.cache_info().hits
+    again = render_frame(camera, [adapter.build_mobject(with_t2c({"ok": RED}))])
+    assert adapter._build_cached.cache_info().hits == hits + 1 and max_diff(again, red) == 0
+    assert fills(adapter.build_mobject(with_t2c({"ok": RED})))[2:] == [RED, RED]  # "Hiok": Manim drops spaces
+
+
+def test_a_text_fill_does_not_paint_over_its_coloured_pieces() -> None:
+    assert fills(adapter.build_mobject(with_t2c({"ok": RED}, fill=GREEN))) == [GREEN, GREEN, RED, RED]
