@@ -33,6 +33,7 @@ from .schema import (
     GROUPS_ONE_OBJECT,
     NUMBER_TYPES,
     PYTHON_TYPES,
+    SHAPE_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
     Clip,
@@ -46,7 +47,15 @@ from .schema import (
 EPS = 1e-9
 STAR: dict = {}
 exec("from manim import *", STAR)  # what a generated file can name without a prefix
-HELPERS = {"clamped", "cubic_bezier", "Keyed", "KeyedClip", "multiply_opacity", "curve_point"}
+HELPERS = {
+    "clamped",
+    "cubic_bezier",
+    "Keyed",
+    "KeyedClip",
+    "multiply_opacity",
+    "curve_point",
+    "shape_from_data",
+}
 RESERVED = set(STAR) | set(dir(__builtins__)) | {"self", "np", "math"} | HELPERS
 
 
@@ -194,7 +203,7 @@ def _python_clashes(project: Project) -> list[str]:
             codes.setdefault(str(layer.spec.params.get("code", "")), layer)
     for code, layer in codes.items():
         for name in sorted(_python_names(code)):
-            if name in RESERVED or name.startswith("_build_") or name.endswith("_PARAMS"):
+            if name in RESERVED or name.startswith("_build_") or name.endswith(("_PARAMS", "_SHAPES")):
                 out.append(f"{layer.name or layer.id}: its code defines {name!r}, a name Manim uses")
             elif name in seen:
                 out.append(f"{layer.name or layer.id}: its code defines {name!r}, as {seen[name]}'s does")
@@ -489,6 +498,11 @@ class _Readable:
         for layer in project.layers:
             if layer.spec is not None and layer.spec.type in PYTHON_TYPES:
                 self.builders.setdefault(str(layer.spec.params["code"]), f"_build_{self.names[layer.id]}")
+        self.shapes: dict[str, str] = {  # frozen layer -> the name of its data table (ADR 0052)
+            layer.id: f"{self.names[layer.id].upper()}_SHAPES"
+            for layer in project.layers
+            if layer.spec is not None and layer.spec.type in SHAPE_TYPES
+        }
 
     def code(self) -> str:
         body = [*self._sounds(), *self._objects(), "", *self._timeline()]
@@ -526,11 +540,16 @@ class _Readable:
             ]
         if "cubic_bezier" in self.helpers:
             lines += ["", *inspect.getsource(adapter.cubic_bezier).splitlines(), ""]
-        if self.builders:
+        imports = (["import math"] if self.builders else []) + (["import numpy as np"] if self.shapes else [])
+        if imports:
             lines[lines.index("from manim import *")] = (
-                "import math\n\nimport manim as m\nfrom manim import *"
+                "\n".join(imports) + "\n\nimport manim as m\nfrom manim import *"
             )
+        if self.builders:
             lines += self._python_code()
+        if self.shapes:
+            lines += ["", *inspect.getsource(adapter.shape_from_data).splitlines(), ""]
+            lines += self._shape_tables()
         camera = self.project.camera
         if camera.is_default:
             lines += ["", f"class {self.scene_name}(Scene):", "    def construct(self):"]
@@ -581,8 +600,21 @@ class _Readable:
             out += ["", header, *text.splitlines(), ""]
         return out
 
+    def _shape_tables(self) -> list[str]:
+        """Each frozen layer's data (ADR 0052) as a literal list, one drawn piece per line: its
+        bezier points and the colours and widths it is drawn with (floats exactly as stored)."""
+        out = []
+        for layer_id, table in self.shapes.items():
+            layer = self.project.layer(layer_id)
+            out += ["", f"{table} = [  # {layer.name or layer.id}, frozen: one drawn piece per line"]
+            out += [f"    {piece!r}," for piece in layer.spec.params["shapes"]]
+            out += ["]", ""]
+        return out
+
     def _construct(self, layer: Layer) -> str:
         """The expression that builds the layer's object, centred by the caller as the editor does."""
+        if layer.spec.type in SHAPE_TYPES:  # its data table, rebuilt by the helper
+            return f"shape_from_data({self.shapes[layer.id]})"
         if layer.spec.type in PYTHON_TYPES:  # its build function, with every parameter's value
             code = str(layer.spec.params["code"])
             values = python_object.call_values(code, dict(layer.spec.params.get("values") or {}))

@@ -30,7 +30,7 @@ from typing import Any, Literal
 import numpy as np
 from pydantic import ValidationError
 
-from . import motion_paths, parts
+from . import motion_paths, parts, shape
 from .schema import (
     CAMERA_FIELDS,
     GROUP_TYPE,
@@ -421,6 +421,31 @@ def set_text_colour(project: Project, layer_id: str, piece: str, colour: str | N
     if t2c:
         params["t2c"] = t2c
     return _replace_layer(project, layer_id, {"spec": layer.spec.model_copy(update={"params": params})})
+
+
+def freeze_layer(project: Project, layer_id: str, data: dict[str, Any]) -> Edit:
+    """Turn an object into a shape of what it draws (ADR 0052): plain vector data that needs no
+    code, no trust and no LaTeX. ``data`` is ``adapter.freeze_data`` of the layer's spec - what
+    it draws, with its style - computed by the caller, which knows whether it is drawn here.
+
+    The layer keeps its id, name, transform, keys, lifetime, clips and group; its style is in the
+    data, so the shape's own style is empty (a theme or the Style section recolours it later).
+    Raises ``EditError`` with the reason when the layer cannot be frozen (``shape.freeze_problem``)
+    or the data is not a shape's."""
+
+    _layer(project, layer_id)
+    problem = shape.freeze_problem(project, layer_id)
+    if problem is not None:
+        raise EditError(f"cannot freeze {layer_id!r}: {problem}")
+    problem = shape.spec_problem(data)
+    if problem is not None:
+        raise EditError(f"cannot freeze {layer_id!r}: {problem}")
+    frozen = Spec(type=shape.SHAPE_TYPE, params=data)
+    try:
+        return _replace_layer(project, layer_id, {"spec": frozen})
+    except ValidationError as exc:  # a rule elsewhere in the project needs the old type
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise EditError(f"cannot freeze {layer_id!r}: {reason}") from None
 
 
 def add_clip(

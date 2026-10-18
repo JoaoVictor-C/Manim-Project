@@ -113,7 +113,7 @@ def register(object_type: ObjectType | Simulation) -> None:
     if not object_type.name.isidentifier():
         raise ValueError(f"{object_type.name!r} is not a valid type name")
     taken = object_type.name in adapter.MOBJECT_PARAMS or object_type.name in TYPES | SIMULATIONS
-    built_in = adapter.CHILD_ONLY_TYPES | adapter.PYTHON_TYPES | adapter.GROUP_TYPES
+    built_in = adapter.CHILD_ONLY_TYPES | adapter.PYTHON_TYPES | adapter.GROUP_TYPES | adapter.SHAPE_TYPES
     if taken or object_type.name in built_in:
         raise ValueError(f"the type name {object_type.name!r} is already taken")
     if isinstance(object_type, Simulation):
