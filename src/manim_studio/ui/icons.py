@@ -48,7 +48,12 @@ NAMES: dict[str, str] = {
     "example": "sparkle",
     # the Code page (P6b.3)
     "revert": "arrow-counter-clockwise",
+    # the Animate page (P7.3)
+    "record": "record-fill",
 }
+
+# icons drawn in another theme colour than the text: Record's red dot
+TINTS: dict[str, str] = {"record": "danger"}
 
 
 @cache
@@ -57,9 +62,10 @@ def icon(name: str) -> QIcon:
     import qtawesome as qta  # the icon fonts load here, once
 
     colours = theme.THEME
+    ink = theme.qcolor(getattr(colours, TINTS.get(name, "text")))
     return qta.icon(
         f"ph.{NAMES[name]}",
-        color=theme.qcolor(colours.text),
+        color=ink,
         color_disabled=theme.qcolor(colours.disabled),
-        color_active=theme.qcolor(colours.text),
+        color_active=ink,
     )
