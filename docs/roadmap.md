@@ -80,4 +80,4 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 - **GP** — [plan](plans/golden-path.md): the golden path - create, save, reopen and export a typical animation, excellently; readable Python export; 10+ minute scenes
 - **P7** — [plan](plans/p7-studio-workflow.md): studio workflow - scene length, row selection, code layer management, Animate like After Effects and Unity, scaling for long scenes, 3D preparation (P7.1 and P7.3-P7.5 done; P7.2 mostly done)
 - ✅ **P9** — [plan](plans/p9-pythagoras-feedback.md): what the Pythagoras project asked for - auto-key and right triangles, timeline follow lock, multi-select and shift timing, part colour, groups (U1-U6 done)
-- **P10** — [plan](plans/p10-code-to-objects.md): from code to objects - Python objects built by the user's Manim code (P10.1 done, ADR 0051), templates
+- **P10** — [plan](plans/p10-code-to-objects.md): from code to objects - Python objects built by the user's Manim code (P10.1 done, ADR 0051), templates P10.3 import a whole Manim scene as layers and clips: done, ADR 0053.

@@ -182,6 +182,37 @@ back. Objects that cannot be frozen (placeholders, groups, code layers, images, 
 with clips that need their old type) are refused with the reason in the status bar. (Added in
 P10.2, ADR 0052.)
 
+## Import a Manim scene
+
+Already have a Manim Community scene in a `.py` file? **File > Import Manim Scene...** turns it
+into layers and clips you can edit like anything built in the editor. The editor asks which
+scene to use when the file has several, and asks once, per file text, before it runs the Python in
+it ("This runs the Python in ... on your computer").
+
+- **How it works:** the file runs once, in a separate process, under a recorder: Manim plays the
+  scene as usual but nothing is drawn or written, and the recorder notes every object that was
+  added or removed, every animation with its start, duration and ease, and every wait. The result
+  is added on top of your layers from 0 s, as one undo step ("Import Manim scene"), and selected.
+- **Objects:** a circle, square, rectangle, triangle, star, dot, line, arrow, text or equation
+  becomes the matching object with its parameters, but only when rebuilding it gives the same
+  points and colours. Anything else (an arc, an SVG, axes, a `VGroup` animated as a whole) becomes
+  an exact [Shape](#freeze-to-shape). A `VGroup` whose members are animated separately becomes one
+  layer per member.
+- **Animations:** `Create`, `Write`, `FadeIn`, `FadeOut`, `Indicate`, `Circumscribe`, `Flash` and
+  the others the timeline has become clips; `Transform`, `ReplacementTransform` and the like become
+  morphs; `.animate` that only moves, scales evenly, fades or turns becomes keyframes.
+- **When it cannot be redone exactly** - updaters, `always_redraw`, `ValueTracker`, camera scenes,
+  custom animation classes, or an `.animate` that does something else - the whole scene stays one
+  [code layer](#code-layers) so the frames stay right, and a report says which feature and which
+  line caused it. (Mixing converted objects with code is not done yet.)
+- **From a code layer:** the Code page's **Convert to layers** does the same for a code layer you
+  already have, replacing it in one undo step; it refuses, and shows the report, when the scene
+  has to stay code.
+- **From the command line:** `manim-studio import scene.py [--scene Name] -o project.json` writes
+  the project and prints the report.
+- **Equations:** running a scene that has equations needs LaTeX, and imported equations need it to
+  be drawn; [Freeze to shape](#freeze-to-shape) removes that need.
+
 ## Code layers
 
 A **code layer** holds a whole Manim `Scene` for what the timeline cannot express (updaters,
