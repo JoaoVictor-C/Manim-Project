@@ -102,6 +102,16 @@ sounds, cues and markers.
 "markers": [{ "id": "marker-1", "t": 2.0, "name": "Formula", "colour": "#f59e0b" }]
 ```
 
+**Camera** (ADR 0048): `camera` is the view the scene is drawn from: `phi`
+(0-180), `theta` and `gamma` (-180-180), Manim's `ThreeDCamera` angles in
+degrees. The default - `phi` 0, `theta` -90, `gamma` 0, the flat 2D view - is
+not saved; a file without `camera` has the default. Everything still lies on the
+z = 0 plane: another camera shows the flat scene from that angle.
+
+```json
+"camera": { "phi": 60.0, "theta": -90.0, "gamma": 0.0 }
+```
+
 **Audio** (ADR 0034): a project may have a list of sounds, saved only when it is
 not empty. Each plays `duration` seconds of its file from `offset` (the trimmed
 start), beginning at `start` on the timeline, with a `gain` in dB and linear

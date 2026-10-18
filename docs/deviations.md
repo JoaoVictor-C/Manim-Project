@@ -64,3 +64,10 @@ The editor and the export agree.
   Videos written by `manim render` (including exported Python scenes) start
   their AAC track 1024 samples late: the encoder's priming is not trimmed. The
   editor's export aligns the sound to the sample (B47, ADR 0034).
+- **A turned camera pans the picture, not the point it turns about.** Manim's
+  `ThreeDCamera` subtracts `frame_center` before turning the points and again
+  when it maps them to pixels, so moving its centre moves the picture twice as
+  far and changes the angle. The canvas's pan (ADR 0023) under a turned camera
+  (ADR 0048) uses `StudioThreeDCamera`, which turns the scene about its origin
+  and only shifts the picture; at the centre (0, 0) - every export - it is
+  Manim's camera exactly.
