@@ -517,3 +517,67 @@ def test_the_recording_is_not_changed_by_importing() -> None:
     before = copy.deepcopy(rec)
     import_scene(rec, "")
     assert rec == before
+
+
+# -- against a real `manim render` of the original scene (slow) ----------------------------------------------
+
+REAL = "config.pixel_width = 320\nconfig.pixel_height = 180\nconfig.frame_rate = 10\n"
+
+
+def real_import(tmp_path: Path, construct: str) -> tuple[str, scene_import.ImportResult]:
+    source = (
+        "from manim import *\n"
+        + REAL
+        + "\n\nclass Original(Scene):\n    def construct(self):\n"
+        + textwrap.indent(textwrap.dedent(construct), " " * 8)
+    )
+    path = tmp_path / "original.py"
+    path.write_text(source, encoding="utf-8")
+    return source, import_scene(record(source, str(path), "Original"), source)
+
+
+@pytest.mark.slow
+def test_an_imported_scene_renders_what_manim_renders(tmp_path) -> None:
+    from tests.core.test_python_export import assert_matches_editor, rendered
+
+    source, result = real_import(
+        tmp_path,
+        """
+        circle = Circle(radius=1.5, color=BLUE)
+        square = Square(side_length=2).shift(RIGHT * 3)
+        title = Text("Hi", font_size=60).to_edge(UP)
+        self.play(Create(circle))
+        self.play(FadeIn(square, shift=UP), Write(title))
+        self.wait(0.5)
+        self.play(circle.animate.shift(LEFT * 2).scale(0.5))
+        self.play(Transform(square, Star(color=YELLOW).shift(RIGHT * 3)))
+        self.play(Indicate(title))
+        self.play(FadeOut(circle))
+        self.wait()
+        """,
+    )
+    assert result.converted, result.report
+    assert_matches_editor(result.project, rendered(source, "Original", tmp_path))
+
+
+@pytest.mark.slow
+def test_an_imported_group_scene_renders_what_manim_renders(tmp_path) -> None:
+    from tests.core.test_python_export import assert_matches_editor, rendered
+
+    source, result = real_import(
+        tmp_path,
+        """
+        a = Square(side_length=1).shift(LEFT * 2)
+        b = Circle(radius=0.5)
+        c = Triangle().shift(RIGHT * 2)
+        g = VGroup(a, b, c)
+        self.play(Create(g))
+        self.play(g.animate.shift(DOWN).scale(0.8))
+        self.play(Rotate(a, PI / 4), b.animate.shift(UP))
+        self.play(TransformFromCopy(a, Dot(UP * 2, color=RED)), FadeOut(c, shift=RIGHT))
+        self.play(a.animate.fade(0.6))
+        self.wait(0.5)
+        """,
+    )
+    assert result.converted, result.report
+    assert_matches_editor(result.project, rendered(source, "Original", tmp_path))
