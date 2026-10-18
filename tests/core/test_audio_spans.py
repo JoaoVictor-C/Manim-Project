@@ -145,6 +145,7 @@ def test_a_region_decoded_on_demand_is_that_region_of_the_whole_decode(files, na
     rng = random.Random(name)
     spans = [(0, 10), (audio.CHUNK - 5, 10), (whole.shape[1] - 100, 500), (whole.shape[1] + 7, 3)]
     spans += [(rng.randrange(whole.shape[1]), rng.randrange(1, 3 * audio.CHUNK)) for _ in range(10)]
+    spans += [(k * audio.CHUNK, 300) for k in range(1, 7)]  # a sought window's first samples
     for start, count in spans:
         audio.forget_windows()  # every span decoded afresh, not from a window kept by the last
         got = audio.file_span(path, start, count)
@@ -262,6 +263,12 @@ def test_the_envelope_of_a_span_equals_the_whole_clips_far_into_a_long_fade() ->
     for lo in (0, n_in - 3, 2**24 - 7, 2**24 + 1001, length - 5000):
         hi = min(length, lo + 4000)
         assert np.array_equal(audio.envelope(clip, lo, hi), whole[lo:hi]), lo
+    clip = AudioClip(id="a", path="x.wav", duration=380.0, fade_in=370.0)  # a fade-in as long
+    n_in = round(clip.fade_in * RATE)
+    whole = np.full(length, 1.0, np.float32)
+    whole[:n_in] *= (np.arange(n_in, dtype=np.float32) + 0.5) / n_in
+    for lo in (2**24 - 7, 2**24 + 1001, n_in - 2000):
+        assert np.array_equal(audio.envelope(clip, lo, lo + 4000), whole[lo : lo + 4000]), lo
 
 
 def test_the_level_window_is_a_span_of_the_mix(files) -> None:
@@ -298,8 +305,10 @@ def reference_peaks(path: str, per_second: int) -> np.ndarray:
 
 @pytest.mark.parametrize("per_second", [100, 10, 7, 1])
 def test_peaks_are_streamed_and_equal_the_whole_decodes(files, per_second) -> None:
-    for name in ("m44.wav", "s44.mp3"):
-        assert np.array_equal(audio.peaks(files[name], per_second), reference_peaks(files[name], per_second))
+    odd = files["m44.wav"].replace("m44.wav", "odd.wav")  # a length that is no whole number of peaks
+    write_pcm(odd, 44_100, 1, 2.3456)
+    for path in (files["m44.wav"], files["s44.mp3"], odd):
+        assert np.array_equal(audio.peaks(path, per_second), reference_peaks(path, per_second))
     assert not audio._DECODED
 
 

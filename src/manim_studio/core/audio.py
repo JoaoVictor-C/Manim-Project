@@ -632,7 +632,7 @@ def mix_span(project: Project, start: int, count: int) -> np.ndarray:
         if first >= total:
             continue
         length = round(clip.duration * RATE)
-        a, b = max(start, first), min(end, first + min(length, total - first))
+        a, b = max(start, first), min(end, first + length)  # end <= total: cut at the scene's end
         if a < b:
             out[:, a - start : b - start] += _clip_span(clip, a - first, b - first, length)
     np.clip(out, -1.0, 1.0, out=out)
