@@ -726,3 +726,35 @@ Manim's `Camera` and by `ThreeDCamera` at phi = 0, theta = -90 degrees, 640x360.
 difference **0** on every frame (the frames are drawn: 15 939 lit pixels mid-scene); tilting the
 3D camera 60 degrees changes the picture (mean difference 5.9). Time per frame: 2D **6.2-7.1 ms**,
 3D **7.8-8.7 ms** (about 25 % more). -> P7.5, decision session 43.
+
+### B66 - P7.2: the long scene made linear · 2026-10-17
+`benchmarks/bench_long_scene.py --model-only` and `--quick`, before (master at B65) and after, on a
+machine that was sharing its CPU with other jobs (single runs scatter by 2-3x: one quiet run
+gave timeline sync 14.5 ms at 295 layers, the next three 54-170), so the table is the **minimum of 15
+repeats** of a probe (`.cache/p7-2/micro.py`) that rebuilds the index on every sync, plus the bench's own
+numbers where they were stable.
+- **Cause (B64's profile):** `Project.children / morph_sources / layer / root_of / ancestors` each scan every
+  layer; the timeline, the Layers panel and `Evaluator.invalidate` asked once per layer. Fix: `core/layer_index.py`,
+  one pass per snapshot (id, children and morph maps, memoised lifetimes), used by `TimelineView` (cached per
+  snapshot, rows included), `LayersPanel.sync`, `parts.resolve/build_spec`, and the evaluator (`_index`,
+  `invalidate`, `_builds`, its tree walks). Tests count the scans (constant against 8x the layers).
+- **Timeline sync (min of 15):** 120 s / 300 s / 900 s (40 / 97 / 295 layers): 1.6 / 19.2 / **99** ms before,
+  4.4 / 12.2 / **48** ms after - what is left is Qt (3250 `ClipItem`s and `QGraphicsScene.clear` take 75 % of a
+  profiled sync at 295 layers) and grows 0.11 -> 0.13 -> 0.16 ms per layer. Bench: 124.8 -> 14.5 ms (the one quiet
+  run), a layer moved in the real window 263 -> 44.5 ms (quiet) / 113-195 ms (loaded), 80 -> 50 ms at 300 s.
+- **`Evaluator.invalidate` ("clip"/"spec"):** 0.3 / 2.9 / **32.7** ms -> 0.1 / 0.4 / **1.1** ms; an easing change
+  end to end 48.4 -> 3.5-7.7 ms at 900 s; `update_layer`+`apply`+frame for a move 6.2 -> 2.4 ms.
+- **Fit Timeline:** `MIN_PX_PER_SECOND` 10 -> 0.5; a 15-minute scene fits 1600 px at 1.7 px/s; the ruler labels a
+  minute (`15:30`) from 30-second steps up.
+- **Render-ahead (15 000 kept frames):** accept into a full store **9.43 -> 0.01 ms**, `missing(60)`
+  **9.11 -> 0.01 ms** (a sorted index of the kept frames: the farthest frame is the one behind the playhead,
+  kept runs are jumped by bisection). The bytes counted are the stored payload's `len`.
+- **Evaluator memory (item 4) - the premise did not hold.** Eight visited slides cost +43 MB RSS, but the
+  evaluator's own caches (`_base`, `_checkpoints`, `_active`, `_proxies`) hold about 1.6 MB of arrays and clearing
+  them returned 0 MB: the mobjects are shared with the adapter's `lru_cache`s (`_build_cached`, `_subtitle_cached`,
+  ... each `maxsize=256`), and **clearing those returned 29.7 MB**. So the growth is already bounded by
+  the LRU sizes (about 0.3 MB per cached build): no 470 MB at 60 slides, roughly 100-200 MB at saturation; capping
+  the evaluator's dicts would save ~3 MB. Left as is; lowering the adapter's `maxsize` is a speed/memory choice.
+- **Audio memory (item 5):** not done - it changes the stored samples that the bit-identical level and export
+  tests compare against (needs a decision on int16 storage and a span mix).
+
