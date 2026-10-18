@@ -266,6 +266,14 @@ class PathField(Field):
         self.edit.setText("" if value is None else str(value))
 
 
+def pick_colour(parent: QWidget | None, current: str | None = None) -> str | None:
+    """Ask for a colour (``#rrggbb``), starting from ``current``; None when cancelled."""
+    white = QColor(255, 255, 255)  # content: Manim's default fill, not a theme colour
+    start = QColor(current) if current else white
+    color = QColorDialog.getColor(start, parent, "Choose colour")
+    return color.name() if color.isValid() else None
+
+
 class ColorField(Field):
     """A colour button (``#rrggbb``) with a reset to "default" (None)."""
 
@@ -284,11 +292,9 @@ class ColorField(Field):
         self.widget = widget
 
     def _pick(self) -> None:
-        white = QColor(255, 255, 255)  # content: Manim's default fill, not a theme colour
-        start = QColor(self._shown) if self._shown else white
-        color = QColorDialog.getColor(start, self.widget, "Choose colour")
-        if color.isValid():
-            self.commit(color.name())
+        colour = pick_colour(self.widget, self._shown)
+        if colour is not None:
+            self.commit(colour)
 
     def _show(self, value: Any) -> None:
         self.button.setText(value or "Default")
