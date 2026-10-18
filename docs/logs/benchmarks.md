@@ -777,3 +777,18 @@ emptied, not dropped); `renderer.time` is a sum of frame steps (rounded to the g
 jumping ease is sampled on the wrong side); a held wait draws `int(t / dt)` frames and a drawn
 one `ceil(t / dt)`, so waits are chosen to give both the same count. B44's exact case is now a
 turned layer with a clip (keys are readable): 1.26. -> ADR 0046.
+
+### B68 - P7.3: the timeline with every property row expanded · 2026-10-18
+`benchmarks/bench_property_rows.py`: the explainer-like projects of the scaling tests (nine layers a
+slide) at 45 / 99 / 297 layers, every object with a two-key opacity fade, `TimelineView.sync` on a new
+snapshot plus deleting what it replaced, minimum of 15, offscreen.
+- **First version:** collapsed 2.5 / 12.5 / 19.6 ms, every row expanded 18.9 / 44.2 / **731** ms - not
+  linear. A profile put 90 % in `QGraphicsScene.clear`: the property row bands (a full-width rectangle
+  item per row, 1188 at 297 layers) and, after they went, a clear that took longer on every rebuild of
+  the same scene (3.5 -> 19 ms over 15 rebuilds of 1221 items; a fresh scene with as many items clears in
+  3 ms) - inside PySide, not the BSP index (NoIndex changed nothing), not the view's updates, not GC.
+- **Fix:** the bands are painted in `drawBackground` for the rows in view; a visible timeline rebuilds
+  into a new `QGraphicsScene` (scene rect set first, so the scroll position stays) and drops the old one.
+- **After:** collapsed 1.8 / 3.4 / 9.4-15.7 ms, every row expanded **2.4 / 5.4 / 18.8** ms (about 0.06 ms
+  per layer); the header paints in 1.7 ms (rows in view only). Scans of the project per sync stay
+  constant with every row expanded (`test_long_scene_scaling`). -> ADR 0047.

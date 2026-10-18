@@ -75,3 +75,4 @@ need one.
 | [0044](0044-preferences-help-presets-browser.md) | Preferences, help and the presets browser | Accepted |
 | [0045](0045-releases.md) | Releases: a wheel, a release check, nothing published by itself | Accepted |
 | [0046](0046-readable-export-of-keyframes.md) | Readable Python export of keyframed layers | Accepted |
+| [0047](0047-property-rows-and-graph-for-selection.md) | Property rows on the timeline; the graph shows the chosen properties | Accepted |
