@@ -26,7 +26,7 @@ from pathlib import Path
 
 import manim as m
 
-from .core import audio
+from .core import audio, python_object
 from .core.code_cache import CodeCache
 from .core.code_frame import CodeFrame
 from .core.evaluator import Evaluator
@@ -35,7 +35,10 @@ from .render.preview import StudioThreeDCamera, keep_in_frame, orient
 
 
 def configure(project_json: str) -> Project:
-    """Set Manim's output to the project's canvas: pixel size, frame rate, frame, background."""
+    """Set Manim's output to the project's canvas: pixel size, frame rate, frame, background.
+
+    The file is Python the user runs: its Python objects' code runs too (ADR 0051)."""
+    python_object.trust_everything()
     project = Project.model_validate_json(project_json)
     canvas = project.canvas
     m.config.pixel_width, m.config.pixel_height = canvas.width_px, canvas.height_px

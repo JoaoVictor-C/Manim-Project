@@ -27,6 +27,7 @@ from .schema import (
     CLIP_KIND_INFO,
     CONNECTOR_TYPES,
     NUMBER_TYPES,
+    PYTHON_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
     Easing,
@@ -346,6 +347,7 @@ _TEXTS = TEXT_TYPES | NUMBER_TYPES | {"AxisLabels", "GraphLabel"}
 _LINES = {"Graph"} | CONNECTOR_TYPES | TRACE_TYPES  # drawn in the accent colour
 _MARKS = {"Point", "Area", "RiemannRectangles"}  # filled shapes on axes, in the accent
 _SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "RightTriangle", "Star", "Dot", "Line", "Arrow"}
+_SHAPES |= PYTHON_TYPES  # coloured like a shape; its Style can be reset to the code's colours (ADR 0051)
 
 
 def themed_style(type_name: str, style: dict[str, Any], theme: Theme) -> dict[str, Any] | None:

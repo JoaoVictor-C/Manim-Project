@@ -8,6 +8,10 @@ would build is warm, so the editor's own build is a cache hit.
 A *warm key* identifies a disk-cache entry: the spec's type and params minus
 the params measured not to change the entry (B19). Unmeasured params are part
 of the key, so a new param errs on the side of waiting, never of freezing.
+
+A Python object's new code (ADR 0051) is built first by the worker too - with its parameters'
+defaults, so its key is the code alone: an endless loop then stops the worker, which is killed
+and restarted, not the editor; the edit is dropped with the reason. Only trusted code is sent.
 """
 
 from __future__ import annotations
@@ -15,8 +19,9 @@ from __future__ import annotations
 import json
 
 from .. import plugins
+from . import python_object
 from .parts import build_spec
-from .schema import NUMBER_TYPES, TEXT_TYPES, Project, Spec
+from .schema import NUMBER_TYPES, PYTHON_TYPES, TEXT_TYPES, Project, Spec
 
 LABELS = {"AxisLabels": ("x_label", "y_label"), "GraphLabel": ("label",)}  # TeX on axes (ADR 0030)
 
@@ -25,6 +30,11 @@ CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entr
 
 def warm_key(spec: Spec) -> str | None:
     """The disk-cache identity of a text-bearing spec, or None if it builds fast."""
+    if spec.type in PYTHON_TYPES:  # new code is run in the worker first (ADR 0051)
+        code = str(spec.params.get("code", ""))
+        if not python_object.is_trusted(code):
+            return None  # never run there: the editor shows the placeholder
+        return json.dumps({"type": spec.type, "params": {"code": code}}, sort_keys=True)
     if spec.type in NUMBER_TYPES:  # every glyph a count can show (ADR 0036)
         return json.dumps({"type": spec.type, "params": number_glyphs(spec)}, sort_keys=True)
     numbered_axes = spec.type == "Axes" and spec.params.get("numbers") == "yes"  # LaTeX digits (B37)

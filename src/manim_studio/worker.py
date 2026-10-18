@@ -9,7 +9,9 @@ JSON object per line:
   ``{"id": 7, "ok": false, "error": "..."}``
 
 Building the spec here leaves Manim's SVG cache warm, so the editor's own build
-of the same object takes milliseconds (B18). Anything Manim or LaTeX prints goes
+of the same object takes milliseconds (B18). New code of a Python object (ADR 0051)
+is run here first: one stopped by its time limit is reported as a failure, so the
+edit bringing it is dropped instead of freezing the editor. Anything Manim or LaTeX prints goes
 to stderr: stdout carries only the protocol.
 """
 
@@ -46,10 +48,15 @@ def main(argv: list[str] | None = None) -> int:
         request = json.loads(line)
         started = time.perf_counter()
         try:
-            adapter.build_mobject(Spec.model_validate(request["spec"]))
+            spec = Spec.model_validate(request["spec"])
+            adapter.build_mobject(spec)
+            stopped = adapter.python_timed_out(spec)  # an endless loop in new code (ADR 0051)
         except Exception as exc:  # report every build failure; the editor decides what to show
             _send(protocol, {"id": request["id"], "ok": False, "error": _summary(exc)})
         else:
+            if stopped:
+                _send(protocol, {"id": request["id"], "ok": False, "error": stopped})
+                continue
             ms = (time.perf_counter() - started) * 1000
             _send(protocol, {"id": request["id"], "ok": True, "ms": round(ms, 1)})
     return 0
