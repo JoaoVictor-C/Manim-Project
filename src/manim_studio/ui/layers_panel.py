@@ -35,9 +35,9 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import adapter, edits, parts, placement, python_object
-from ..core.python_object import PYTHON_TYPE
 from ..core.expressions import check as check_expression
 from ..core.layer_index import LayerIndex
+from ..core.python_object import PYTHON_TYPE
 from ..core.schema import (
     CHILD_TYPES,
     CODE_TYPES,

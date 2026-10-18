@@ -149,7 +149,9 @@ def test_every_parameter_type_gets_its_field(qt_app, tmp_path) -> None:
         'PARAMS = {"r": 1.0, "n": (3, 1, 9), "show": True, "label": "x", "colour": "#ff0000"}\n'
         "def build(p):\n    return Circle(radius=p['r'])\n"
     )
-    win = open_window(qt_app, write(tmp_path, [Layer(id="obj", spec=Spec(type="Python", params={"code": code}))]))
+    win = open_window(
+        qt_app, write(tmp_path, [Layer(id="obj", spec=Spec(type="Python", params={"code": code}))])
+    )
     try:
         win.selection.select_layer("obj")
         qt_app.processEvents()
@@ -168,7 +170,9 @@ def test_every_parameter_type_gets_its_field(qt_app, tmp_path) -> None:
 
 def test_an_untrusted_project_shows_the_placeholder_until_trusted(qt_app, tmp_path) -> None:
     code = unique(STARTER)
-    path = write(tmp_path, [Layer(id="tri", name="Triangle", spec=Spec(type="Python", params={"code": code}))])
+    path = write(
+        tmp_path, [Layer(id="tri", name="Triangle", spec=Spec(type="Python", params={"code": code}))]
+    )
     asked = []
     win = MainWindow()
     win.ask_trust = lambda names: asked.append(names) or "skip"

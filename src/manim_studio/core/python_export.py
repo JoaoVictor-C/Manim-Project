@@ -527,7 +527,9 @@ class _Readable:
         if "cubic_bezier" in self.helpers:
             lines += ["", *inspect.getsource(adapter.cubic_bezier).splitlines(), ""]
         if self.builders:
-            lines[lines.index("from manim import *")] = "import math\n\nimport manim as m\nfrom manim import *"
+            lines[lines.index("from manim import *")] = (
+                "import math\n\nimport manim as m\nfrom manim import *"
+            )
             lines += self._python_code()
         camera = self.project.camera
         if camera.is_default:
@@ -877,7 +879,9 @@ def _transform_calls(layer: Layer, at: float | None = None) -> list[str]:
 
 def _literal(values: dict) -> str:
     """A Python object's parameter values as a dict literal: ``{"angle": 30.0, "show": True}``."""
-    cells = [f"{json.dumps(k)}: {json.dumps(v) if isinstance(v, str) else repr(v)}" for k, v in values.items()]
+    cells = [
+        f"{json.dumps(k)}: {json.dumps(v) if isinstance(v, str) else repr(v)}" for k, v in values.items()
+    ]
     return "{" + ", ".join(cells) + "}"
 
 

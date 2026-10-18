@@ -61,7 +61,8 @@ def hand_built(angle: float = 30.0, side: float = 3.0) -> m.VMobject:
     size = 0.12 * min(side, height)
     triangle = m.Polygon(m.ORIGIN, m.RIGHT * side, m.UP * height)
     mark = m.VGroup(
-        m.Line(m.RIGHT * size, m.RIGHT * size + m.UP * size), m.Line(m.RIGHT * size + m.UP * size, m.UP * size)
+        m.Line(m.RIGHT * size, m.RIGHT * size + m.UP * size),
+        m.Line(m.RIGHT * size + m.UP * size, m.UP * size),
     )
     return m.VGroup(triangle, mark).move_to(m.ORIGIN)
 
@@ -119,7 +120,9 @@ def test_params_that_cannot_be_read_say_why_and_where(source: str, line: int, me
 
 
 def test_values_must_fit_the_declared_parameters() -> None:
-    source = code("    return Circle()", 'PARAMS = {"r": (1.0, 0.5, 3.0), "n": 2, "on": True, "c": "#ff0000"}')
+    source = code(
+        "    return Circle()", 'PARAMS = {"r": (1.0, 0.5, 3.0), "n": 2, "on": True, "c": "#ff0000"}'
+    )
     Layer(id="a", spec=python(source, {"r": 2.0, "n": 5, "on": False, "c": "#00ff00"}))  # fine
     for values, message in (
         ({"r": 9.0}, "from 0.5 to 3"),
@@ -211,7 +214,9 @@ def test_an_endless_loop_is_stopped_by_the_time_limit(trusted, monkeypatch) -> N
     assert problem.message.startswith("building took longer than 0.3 s")
     assert adapter.python_timed_out(python(code("    while True:\n        x = 1"))) == str(problem)
     # an endless loop calling Manim, that catches every Exception, is stopped too
-    caught = code("    while True:\n        try:\n            Circle()\n        except Exception:\n            pass")
+    caught = code(
+        "    while True:\n        try:\n            Circle()\n        except Exception:\n            pass"
+    )
     assert adapter.python_problem(python(caught)).message.startswith("building took longer than")
 
 
@@ -263,7 +268,12 @@ def test_children_are_refused() -> None:
     with pytest.raises(ValidationError, match="parts are only supported on MathTex and Tex"):
         Project(layers=[root, Layer(id="p", parent_id="t", part=PartKey(tex="a"))])
     with pytest.raises(ValidationError, match="cannot be a child of Python"):
-        Project(layers=[root, Layer(id="g", parent_id="t", spec=Spec(type="Graph", params={"expression": "sin(x)"}))])
+        Project(
+            layers=[
+                root,
+                Layer(id="g", parent_id="t", spec=Spec(type="Graph", params={"expression": "sin(x)"})),
+            ]
+        )
 
 
 # -- an object like any other --------------------------------------------------------------------------

@@ -100,7 +100,7 @@ class PyParam:
         return None
 
 
-class CodeProblem(ValueError):
+class CodeProblem(ValueError):  # noqa: N818 - a problem shown to the user, not a crash
     """Something wrong with a Python object's code, at ``line`` (1-based) when known."""
 
     def __init__(self, message: str, line: int | None = None) -> None:
@@ -162,7 +162,7 @@ def _read(code: str) -> tuple[tuple[PyParam, ...], CodeProblem | None]:
     except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
         return (), CodeProblem(
             "PARAMS must be written with plain values only (numbers, text, True/False, colours "
-            "like \"#ff0000\"): it is read without running the code",
+            'like "#ff0000"): it is read without running the code',
             node.lineno,
         )
     if not isinstance(value, dict):
@@ -185,7 +185,9 @@ def _param(name: Any, default: Any) -> PyParam:
         raise ValueError(f"PARAMS: {name!r} is not a valid parameter name (use letters, digits and _)")
     if isinstance(default, tuple):
         if len(default) != 3 or not all(_is_number(v) for v in default):
-            raise ValueError(f"PARAMS[{name!r}]: limits are written (default, minimum, maximum), with numbers")
+            raise ValueError(
+                f"PARAMS[{name!r}]: limits are written (default, minimum, maximum), with numbers"
+            )
         value, low, high = default
         if not low <= value <= high:
             raise ValueError(f"PARAMS[{name!r}]: the default {value!r} is not from {low!r} to {high!r}")
@@ -301,7 +303,7 @@ def is_trusted(code: str) -> bool:
 # -- a time limit ------------------------------------------------------------------------------------
 
 
-class TimeLimit(BaseException):  # noqa: N818 - not an Exception: user code's `except Exception` passes it on
+class TimeLimit(BaseException):
     """A build ran longer than its time limit."""
 
 
