@@ -1,4 +1,33 @@
+# Text is stored with LF and checked out with LF on every platform (also on Windows, whatever
+# core.autocrlf says), so tools that write CRLF there only cause a "CRLF will be replaced by LF"
+# warning and no diff once the file is staged.
 * text=auto eol=lf
-*.png binary
-*.mp4 binary
 *.svg text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: never converted or diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.ico binary
+*.webp binary
+*.mp4 binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.flac binary
+*.m4a binary
+*.aac binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary
+*.whl binary
