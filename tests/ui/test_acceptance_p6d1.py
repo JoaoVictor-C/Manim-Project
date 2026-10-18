@@ -48,6 +48,8 @@ def test_quit_and_start_again_everything_as_left(qt_app, tmp_path, monkeypatch) 
     first.pages.pages["animate"].top.setSizes([700, 400])
     first.snap_action.setChecked(False)
     first.half_action.setChecked(True)
+    first.follow_action.setChecked(False)
+    assert not first.timeline.follow_playhead
     qt_app.processEvents()
     kept_right = first.pages.pages["animate"].top.sizes()[1]
     first.close()
@@ -58,6 +60,7 @@ def test_quit_and_start_again_everything_as_left(qt_app, tmp_path, monkeypatch) 
         assert second.welcome.isVisible() and second.page == "compose"
         assert [b.text() for b in second.welcome.recent_links] == ["outro.json", "intro.json"]
         assert not second.snap_action.isChecked() and second.half_action.isChecked()
+        assert not second.follow_action.isChecked() and not second.timeline.follow_playhead
         second.welcome.recent_links[1].click()
         assert second.path == intro.resolve() and not second.welcome.isVisible()
         assert second.page == "animate"
@@ -73,6 +76,7 @@ def test_quit_and_start_again_everything_as_left(qt_app, tmp_path, monkeypatch) 
         assert third.welcome.isVisible() and third.welcome.recent_links == []
         assert third.snap_action.isChecked() and not third.half_action.isChecked()
         assert third.render_ahead_action.isChecked()
+        assert third.follow_action.isChecked() and third.timeline.follow_playhead
         third.load(intro)
         assert third.page == "compose"
     finally:

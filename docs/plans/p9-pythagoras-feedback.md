@@ -8,7 +8,7 @@
 
 | # | the user's note | what was found | slice |
 |---|---|---|---|
-| 1 | scrolling the timeline moves the view but not the shown frame unless playing; add a lock | the view and the playhead are independent | **U3** *Follow playhead* toggle (view only; the wheel does not scrub) |
+| 1 | scrolling the timeline moves the view but not the shown frame unless playing; add a lock | the view and the playhead are independent | **U3 done**: View > Follow Playhead (view only; the wheel does not scrub) |
 | 2 | moving keys/clips by hand; moving a preset means copying its start time into Appears at | Appears at is explicit, so it does not follow the clips | **U4** *Shift timing* with the boundary clip carrying Appears at / Disappears at (**done**: `core/shift_timing.py`, Edit > Shift Timing...); timeline multi-selection (after P7.3) |
 | 3 | right triangles had to be built as a sample | no such object | **U1 done**: Right triangle object (`RightTriangle`, same params as the user's file) |
 | 4 | colour just a part of a text; many MathTex only to transform parts | part layers have no style | **U5** part colour (MathTex parts first; Text parts after) |
