@@ -209,7 +209,8 @@ GRAPH_SAMPLES = 400  # B37: plenty for smooth functions; very high frequencies a
 GRAPH_BISECTIONS = 30  # where a run leaves the y range or the domain, to 1e-9 of the x span
 
 # graph: a sibling's id; layer: another layer's id (a traced path's target, ADR 0033)
-ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph", "layer"]
+# bool and colour: a Python object's parameters (ADR 0051)
+ParamKind = Literal["float", "int", "text", "choice", "point", "path", "graph", "layer", "bool", "colour"]
 
 
 @dataclass(frozen=True)
@@ -561,6 +562,25 @@ def forget_plugin_builds() -> None:
 
 _PY_CHECKED: set[str] = set()  # code (hashes) whose determinism was checked in this process
 _PY_GLOBALS: dict[str, Any] = {}  # what the code can name: `from manim import *`, m, np, math
+
+
+def python_params(spec: Spec) -> tuple[Param, ...]:
+    """A Python object's parameters as Properties fields (ADR 0051), read from its ``PARAMS``
+    without running the code; none while ``PARAMS`` cannot be read."""
+    code = str(spec.params.get("code", ""))
+    if python_object.params_problem(code) is not None:
+        return ()
+    out = []
+    for p in python_object.read_params(code):
+        if p.kind in ("float", "int"):
+            low = p.minimum if p.minimum is not None else -1e6
+            high = p.maximum if p.maximum is not None else 1e6
+            span = high - low if p.minimum is not None and p.maximum is not None else 10.0
+            step = 1.0 if p.kind == "int" else 10 ** math.floor(math.log10(span / 100)) if span > 0 else 0.1
+            out.append(Param(p.name, p.kind, p.default, minimum=low, maximum=high, step=max(step, 0.001)))
+        else:
+            out.append(Param(p.name, p.kind, p.default))
+    return tuple(out)
 
 
 def python_problem(spec: Spec, signature: str | None = None) -> CodeProblem | None:

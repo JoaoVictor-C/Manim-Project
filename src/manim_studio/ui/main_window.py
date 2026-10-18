@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
         self.properties.code_status = lambda i: s.text if (s := self.code.status(i)) else None
         self.properties.code_failed = lambda i: (s := self.code.status(i)) is not None and s.state == "error"
         self.properties.retry_code = self.code.retry
+        self.properties.edit_code = self.edit_code
         self.properties.code_ends = lambda: self.evaluator.code_ends() if self.evaluator is not None else []
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
@@ -718,11 +719,19 @@ class MainWindow(QMainWindow):
             names = [project.layer(i).name or i for i in untrusted]
             if self.ask_trust(names) == "run":
                 self.code.trust_layers(project, untrusted)
+                self.reload_media()  # Python objects drawn as placeholders are built now (ADR 0051)
             else:
                 self.statusBar().showMessage(
-                    "Code layers were not run: they show a placeholder. Edit their code to run it.", 15000
+                    "Code layers and Python objects were not run: they show a placeholder. "
+                    "Apply their code on the Code page to run it.",
+                    15000,
                 )
         self._restore_last_page()  # the first project of this run (ADR 0044)
+
+    def edit_code(self, layer_id: str) -> None:
+        """Show a layer's code on the Code page (a Python object's Edit code, ADR 0051)."""
+        self.selection.select_layer(layer_id)
+        self.show_page("code")
 
     def ask_trust(self, names: list[str]) -> str:
         """``"run"`` or ``"skip"``: may this project's code run on this computer?"""

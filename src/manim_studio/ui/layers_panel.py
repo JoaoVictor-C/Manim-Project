@@ -34,7 +34,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits, parts, placement
+from ..core import adapter, edits, parts, placement, python_object
+from ..core.python_object import PYTHON_TYPE
 from ..core.expressions import check as check_expression
 from ..core.layer_index import LayerIndex
 from ..core.schema import (
@@ -460,6 +461,13 @@ class LayersPanel(QWidget):
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), f"Add {type_name}")
+
+    def add_python_object(self) -> None:
+        """A Python object with the starter code (ADR 0051): made on the Code page, not the library."""
+        spec = Spec(type=PYTHON_TYPE, params={"code": python_object.STARTER})
+        self.trust_code(python_object.STARTER)  # the editor's own starter
+        self._select_new = True
+        self._submit(partial(add_placed, spec=spec, t=self.playhead()), "Add Python object")
 
     def add_part(self) -> None:
         """Ask for a part of the selected equation (or part) and add it."""

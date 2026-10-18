@@ -16,6 +16,9 @@ render output | the viewer. The model, settled in decision session 36:
   and shows the project's code (as one step of the editor's own undo).
 * **Errors** from the code renderer show under the editor with their line number; clicking
   moves the cursor to that line (kept inside the text) and tints it.
+* **Python objects** (ADR 0051) are listed with the code layers: "New Python object" adds one
+  with a starter (a right triangle) and opens it here; Run applies its code (keeping the values
+  of parameters that still exist) and the object is rebuilt; its build error shows at its line.
 """
 
 from __future__ import annotations
@@ -39,15 +42,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import edits
-from ...core.schema import CODE_TYPES
+from ...core import adapter, edits, python_object
+from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from .. import icons, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
 from ..code_editor import CodeEditor
-from ..properties_panel import set_param
+from ..code_render import CodeStatus
+from ..properties_panel import _first_error, set_param, set_python_code
 from . import Page, Shared
 
-HINT = "Select a code layer, or add one with New code layer."
+HINT = "Select a code layer or a Python object, or add one with New code layer or New Python object."
 
 
 class ErrorLine(QLabel):
@@ -89,7 +93,10 @@ class CodePage(Page):
     name = "code"
     title = "Code"
     icon = "code-page"
-    tooltip = "Write and run code layers: an editor with highlighting, errors at their line (Shift+3)"
+    tooltip = (
+        "Write and run code layers and Python objects: an editor with highlighting, errors at their "
+        "line (Shift+3)"
+    )
 
     def build(self) -> QWidget:
         window = self.window
@@ -102,13 +109,15 @@ class CodePage(Page):
         self._signature: tuple | None = None
         self._selection_connected = False
         self._sized = False
+        self._failed: tuple[str, str, str] | None = None  # (layer, text, why) of an apply refused
 
         self.split = QSplitter(Qt.Orientation.Horizontal)
         self.split.setChildrenCollapsible(False)
 
         left = QWidget()
         column = QVBoxLayout(left)
-        heading = QLabel("Code layers")
+        heading = QLabel("Code layers and Python objects")
+        heading.setWordWrap(True)
         heading.setProperty("role", "section")
         self.list = QListWidget()
         self.list.setObjectName("codeLayers")
@@ -121,11 +130,17 @@ class CodePage(Page):
         self.new_button = QPushButton(icons.icon("add"), "New code layer")
         self.new_button.setToolTip("Add a code layer with a starter scene")
         self.new_button.clicked.connect(self.new_layer)
+        self.new_python_button = QPushButton(icons.icon("add"), "New Python object")
+        self.new_python_button.setToolTip(
+            "Add an object built by your own Manim code (PARAMS + build(p)), starting from a right "
+            "triangle; its parameters become fields in Properties"
+        )
+        self.new_python_button.clicked.connect(self.new_python_object)
         self.rename_button = QPushButton("Rename")
-        self.rename_button.setToolTip("Rename the chosen code layer (F2, or double-click it)")
+        self.rename_button.setToolTip("Rename the chosen layer (F2, or double-click it)")
         self.rename_button.clicked.connect(self.rename_layer)
         self.delete_button = QPushButton(icons.icon("delete"), "Delete")
-        self.delete_button.setToolTip("Delete the chosen code layer (Delete); Ctrl+Z brings it back")
+        self.delete_button.setToolTip("Delete the chosen layer (Delete); Ctrl+Z brings it back")
         self.delete_button.clicked.connect(self.delete_layer)
         for keys, slot in (
             (QKeySequence(Qt.Key.Key_F2), self.rename_layer),
@@ -141,6 +156,7 @@ class CodePage(Page):
         column.addWidget(self.list, 1)
         column.addLayout(manage)
         column.addWidget(self.new_button)
+        column.addWidget(self.new_python_button)
         # Hooks for tests and other front-ends: a new name, or None (cancelled).
         self.ask_name = self._ask_name_dialog
 
@@ -157,6 +173,7 @@ class CodePage(Page):
         self.revert_button.clicked.connect(self.revert)
         self.run_button = QPushButton(icons.icon("play"), "Run")
         self.run_button.setToolTip("Apply the code to the layer and run it (Ctrl+Enter)")
+        window.builds.failed.connect(self._on_build_failed)
         self.run_button.clicked.connect(self.run)
         bar.addWidget(self.title_label)
         bar.addWidget(self.dirty_label)
@@ -229,7 +246,25 @@ class CodePage(Page):
         project = self.window.project
         if project is None:
             return []
-        return [x for x in project.layers if x.spec is not None and x.spec.type in CODE_TYPES]
+        return [x for x in project.layers if x.spec is not None and x.spec.type in CODE_TYPES | PYTHON_TYPES]
+
+    def _is_python(self, layer_id: str | None) -> bool:
+        layer = next((x for x in self._layers() if x.id == layer_id), None)
+        return layer is not None and layer.spec.type in PYTHON_TYPES
+
+    def status(self, layer_id: str | None) -> CodeStatus | None:
+        """A code layer's render status, or a Python object's build status (ADR 0051)."""
+        if layer_id is None:
+            return None
+        if self._is_python(layer_id):
+            spec = self.window.project.layer(layer_id).spec
+            problem = adapter.python_problem(spec)
+            if problem is None:
+                return CodeStatus("built")
+            if problem.message == python_object.NOT_TRUSTED:
+                return CodeStatus("untrusted")
+            return CodeStatus("error", error=problem.message, line=problem.line)
+        return self.window.code.status(layer_id)
 
     def _code_of(self, layer_id: str | None) -> str | None:
         """The applied code of a code layer (None: no such code layer)."""
@@ -390,14 +425,25 @@ class CodePage(Page):
             return
         text = self.editor.text()
         self.window.trust.trust([text])  # code the user applies here is theirs (ADR 0019)
+        python = self._is_python(layer_id)
         if text != self._code_of(layer_id):
+            if python:  # its values are kept for the parameters still declared (ADR 0051)
+                op, label = partial(set_python_code, layer_id=layer_id, code=text), "Apply code"
+            else:
+                op, label = partial(set_param, layer_id=layer_id, name="code", value=text), "Run code"
+            self._failed = None
             try:
-                self.window.builds.submit(
-                    partial(set_param, layer_id=layer_id, name="code", value=text), "Run code"
-                )
+                self.window.builds.submit(op, label)
             except (edits.EditError, ValidationError) as error:
-                self.window.statusBar().showMessage(f"Run code: {error}", 10000)
+                message = _first_error(error)
+                self._failed = (layer_id, text, message)
+                self.window.statusBar().showMessage(f"{label}: {message}", 10000)
+                self._refresh_output()
             return  # the change reaches _on_changed, which marks the editor clean
+        if python:  # unchanged text: now trusted, so built (it showed the placeholder before)
+            self.window.reload_media()
+            self._after_change()
+            return
         status = self.window.code.status(layer_id)
         self.window.code.trust_layers(project, [layer_id])
         if status is not None and status.state == "error":
@@ -464,6 +510,21 @@ class CodePage(Page):
             return
         self.window.layers.add_object("Code")  # selects it; the page follows the selection
 
+    def new_python_object(self) -> None:
+        """Add a Python object with the starter code (ADR 0051); the page shows it."""
+        if self.window.project is None:
+            self.window.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        self.window.layers.add_python_object()  # selects it; the page follows the selection
+        if self.window.page != self.name:
+            self.window.show_page(self.name)
+
+    def _on_build_failed(self, text: str, message: str) -> None:
+        """An apply the build worker refused (new code that ran too long, ADR 0051)."""
+        if text == "Apply code" and self.layer_id is not None:
+            self._failed = (self.layer_id, self.editor.text(), message)
+            self._refresh_output()
+
     def go_to_error(self) -> None:
         """Move the cursor to the line the render error points at."""
         if self.error_label.line:
@@ -489,11 +550,18 @@ class CodePage(Page):
     def _refresh_output(self) -> None:
         """The render state under the editor, and the error line tinted in the editor."""
         colours = theme.THEME
-        status = self.window.code.status(self.layer_id) if self.layer_id else None
+        status = self.status(self.layer_id)
         dirty = self.is_dirty()
         line = None
         self.error_label.hide()
-        if self.layer_id is None:
+        failed = self._failed
+        if failed is not None and (failed[0], failed[1]) != (self.layer_id, self.editor.text()):
+            failed = self._failed = None  # another layer or other text: that refusal is old
+        if failed is not None:  # the code was not applied: why (ADR 0051)
+            text, colour = "Not applied", colours.error_text
+            self.error_label.show_error(failed[2], None)
+            self.error_label.show()
+        elif self.layer_id is None:
             text, colour = "", colours.muted
         elif status is None:
             text, colour = "Not rendered yet", colours.muted
@@ -515,9 +583,7 @@ class CodePage(Page):
     def _refresh_list(self, force: bool = False) -> None:
         layers = self._layers()
         dirty = self.dirty_layers()
-        failed = {
-            x.id for x in layers if (s := self.window.code.status(x.id)) is not None and s.state == "error"
-        }
+        failed = {x.id for x in layers if (s := self.status(x.id)) is not None and s.state == "error"}
         signature = tuple((x.id, x.name or x.id, x.id in dirty, x.id in failed) for x in layers)
         if signature != self._signature or force:
             self._signature = signature
