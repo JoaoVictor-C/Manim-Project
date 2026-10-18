@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
 
 from ...core import adapter, audio, edits, subtitles
 from ...core.evaluator import layer_transform
+from ...core.layer_index import LayerIndex
 from ...core.schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
@@ -80,7 +81,6 @@ from .model import (
     snap_candidates,
     snapped,
 )
-from .model import rows as row_layers
 
 log = get_logger(__name__)
 
@@ -241,12 +241,13 @@ class LayerHeader(QWidget):
         painter.setPen(TEXT_COLOR)
         scroll = self._view.verticalScrollBar().value()
         rows = self._view.rows()
+        index = self._view.layer_index()
         for row, layer in enumerate(rows):
             y = RULER_HEIGHT + row * ROW_HEIGHT - scroll
             if y + ROW_HEIGHT < RULER_HEIGHT:
                 continue
             text = layer.label
-            indent = INDENT_PX * depth(project, layer)
+            indent = INDENT_PX * depth(project, layer, index)
             if indent:
                 text = "\u21b3 " + text
             rect = QRectF(8 + indent, y, HEADER_WIDTH - 12 - indent, ROW_HEIGHT)
@@ -323,6 +324,8 @@ class TimelineView(QGraphicsView):
         self.verticalScrollBar().valueChanged.connect(self.header.update)
 
         self.document: Document | None = None
+        self._index: LayerIndex | None = None
+        self._rows: list[Layer] = []
         self.scale = TimeScale(px_per_second=120.0)
         self.playhead = 0.0
         self.selected: tuple[str, str] | None = None
@@ -430,9 +433,23 @@ class TimelineView(QGraphicsView):
         )
         return self.project.audio[row] if 0 <= row < len(self.project.audio) else None
 
+    def layer_index(self) -> LayerIndex:
+        """The current snapshot's tree maps, built once per snapshot (snapshots are replaced by
+        edits, never changed in place) instead of one scan per layer and row (B66)."""
+        project = self.project
+        if project is None:
+            raise ValueError("no document")
+        if self._index is None or self._index.project is not project:
+            self._index = LayerIndex(project)
+            self._rows = self._index.rows()
+        return self._index
+
     def rows(self) -> list[Layer]:
         """Layers in row order: the front-most object first, each followed by its parts."""
-        return row_layers(self.project) if self.project is not None else []
+        if self.project is None:
+            return []
+        self.layer_index()
+        return self._rows
 
     def row_of(self, layer_id: str) -> int:
         return [layer.id for layer in self.rows()].index(layer_id)
@@ -461,7 +478,9 @@ class TimelineView(QGraphicsView):
         width = self.scale.x(project.canvas.duration)
         height = RULER_HEIGHT + (len(project.layers) + 1 + len(project.audio)) * ROW_HEIGHT
         scene.setSceneRect(0, 0, width + 40, height)
-        subtitle_top = RULER_HEIGHT + len(self.rows()) * ROW_HEIGHT
+        index = self.layer_index()
+        rows = self.rows()
+        subtitle_top = RULER_HEIGHT + len(rows) * ROW_HEIGHT
         for cue in project.subtitles:  # the Subtitles row (ADR 0035)
             rect = QRectF(
                 self.scale.x(cue.start),
@@ -470,10 +489,10 @@ class TimelineView(QGraphicsView):
                 ROW_HEIGHT - 2 * CLIP_MARGIN,
             )
             scene.addItem(CueItem(cue, rect, cue.id == self.selected_cue))
-        first_audio_row = len(self.rows()) + 1
-        for row, layer in enumerate(self.rows()):
+        first_audio_row = len(rows) + 1
+        for row, layer in enumerate(rows):
             top = RULER_HEIGHT + row * ROW_HEIGHT
-            start, end = project.lifetime(layer.id)
+            start, end = index.lifetime(layer.id)
             end = min(end, project.canvas.duration)
             if end > start:
                 band = scene.addRect(
@@ -567,7 +586,7 @@ class TimelineView(QGraphicsView):
             if x > width:
                 break
             painter.drawLine(QPointF(x, RULER_HEIGHT - 6), QPointF(x, RULER_HEIGHT))
-            painter.drawText(QPointF(x + 3, RULER_HEIGHT - 9), f"{t:g}s")
+            painter.drawText(QPointF(x + 3, RULER_HEIGHT - 9), _tick_label(t, step))
             t += step
 
     def _draw_markers(self, painter: QPainter, width: int, project: Project) -> None:
@@ -1313,8 +1332,16 @@ def _heard(peaks: np.ndarray, clip: AudioClip) -> np.ndarray:
 
 
 def _tick_step(px_per_second: float) -> float:
-    """A 'nice' ruler step leaving at least ~60 px between labels."""
-    for step in (0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60):
+    """A 'nice' ruler step leaving at least ~60 px between labels (minutes on a long scene)."""
+    for step in (0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300):
         if step * px_per_second >= 60:
             return step
-    return 120
+    return 600
+
+
+def _tick_label(t: float, step: float) -> str:
+    """Seconds on a short ruler, minutes:seconds once the steps are half a minute or more."""
+    if step < 30:
+        return f"{t:g}s"
+    minutes, seconds = divmod(round(t), 60)
+    return f"{minutes}:{seconds:02d}"

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import difflib
 import math
+from bisect import bisect_left, insort
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
@@ -174,6 +175,11 @@ class FrameStore:
     ``generation`` counts invalidations; a frame rendered from the project as it
     was at generation g is accepted only for a frame whose time has not changed
     since (its last invalidation <= g) and only for the current view.
+
+    The kept indices are also held sorted (``_order``), so a full store finds the frame farthest
+    ahead of the playhead - the one just before it, circularly - and skips runs of kept frames in
+    ``missing`` by bisection, both O(log n) instead of a scan of every kept frame (B66: 7.4 and
+    6.2 ms per call at 15 000 frames).
     """
 
     budget: int = BUDGET
@@ -184,6 +190,7 @@ class FrameStore:
     _changed_at: dict[int, int] = field(default_factory=dict)
     _all_changed_at: int = 0
     nbytes: int = 0
+    _order: list[int] = field(default_factory=list)  # the keys of ``frames``, sorted
 
     def get(self, index: int) -> bytes | None:
         return self.frames.get(index)
@@ -195,23 +202,33 @@ class FrameStore:
         """A new framing: no kept frame is valid. Frames carry their view, so the generation
         stays (frames rendered from the current project for the new view are fine)."""
         self.view = view
+        self._clear()
+
+    def _clear(self) -> None:
         self.frames.clear()
+        self._order.clear()
         self.nbytes = 0
 
     def invalidate_all(self) -> None:
         self.generation += 1
         self._all_changed_at = self.generation
         self._changed_at.clear()
-        self.frames.clear()
-        self.nbytes = 0
+        self._clear()
 
     def invalidate(self, indices: Iterable[int]) -> None:
         self.generation += 1
         for index in indices:
             self._changed_at[index] = self.generation
-            data = self.frames.pop(index, None)
-            if data is not None:
-                self.nbytes -= len(data)
+            self._drop(index)
+
+    def _drop(self, index: int) -> bool:
+        data = self.frames.pop(index, None)
+        if data is None:
+            return False
+        self.nbytes -= len(data)
+        position = bisect_left(self._order, index)
+        del self._order[position]
+        return True
 
     def accept(self, view: int, generation: int, index: int, data: bytes, playhead: int = 0) -> bool:
         """Keep a rendered frame if it is still what that index shows; evict to fit the budget."""
@@ -220,12 +237,31 @@ class FrameStore:
         old = self.frames.get(index)
         if old is not None:
             self.nbytes -= len(old)
+        else:
+            insort(self._order, index)
         self.frames[index] = data
         self.nbytes += len(data)
         while self.nbytes > self.budget and len(self.frames) > 1:  # farthest ahead of the playhead first
-            far = max((i for i in self.frames if i != index), key=lambda i: self._ahead(i, playhead))
-            self.nbytes -= len(self.frames.pop(far))
+            self._drop(self._farthest(playhead, skip=index))
         return index in self.frames
+
+    def _plain(self, playhead: int) -> bool:
+        """Whether every distance is a plain modulo of ``total`` (always, but for a store whose
+        total was set below a kept index: those keep the exhaustive rules)."""
+        return playhead < self.total and self._order[-1] < self.total
+
+    def _farthest(self, playhead: int, skip: int) -> int:
+        """The kept frame farthest ahead of ``playhead`` other than ``skip`` (wrapping: playback
+        loops back to 0). Farthest ahead = the nearest kept index behind the playhead."""
+        if not self._plain(playhead):
+            return max((i for i in self.frames if i != skip), key=lambda i: self._ahead(i, playhead))
+        order = self._order
+        position = bisect_left(order, playhead) - 1  # walk back from the playhead, circularly
+        for step in range(2):  # at most one kept index is skipped
+            candidate = order[(position - step) % len(order)]
+            if candidate != skip:
+                return candidate
+        raise AssertionError("two or more frames are kept")
 
     def _ahead(self, index: int, playhead: int) -> int:
         """How far ``index`` plays after ``playhead`` (wrapping: playback loops back to 0)."""
@@ -239,7 +275,44 @@ class FrameStore:
         """
         horizon = self.total
         if self.nbytes >= self.budget * 0.95 and self.frames:
-            horizon = max(self._ahead(i, start) for i in self.frames)
+            if self._plain(start):
+                horizon = self._ahead(self._farthest(start, skip=-1), start)
+            else:
+                horizon = max(self._ahead(i, start) for i in self.frames)
+        if self.frames and not self._plain(start):
+            return self._missing_scan(start, count, horizon)
+        out: list[int] = []
+        first = start % self.total
+        # offsets 0..horizon-1 from ``first``: the stretch up to the end, then the one from 0
+        stretch = min(horizon, self.total - first)
+        self._gaps(first, first + stretch, count, out)
+        if len(out) < count and horizon > stretch:
+            self._gaps(0, horizon - stretch, count, out)
+        return out
+
+    def _gaps(self, lo: int, hi: int, count: int, out: list[int]) -> None:
+        """Append the indices in [lo, hi) not kept, until ``out`` has ``count``; kept runs are
+        jumped over by bisection."""
+        order = self._order
+        position = bisect_left(order, lo)
+        index = lo
+        while index < hi and len(out) < count:
+            if position < len(order) and order[position] == index:
+                run = order[position] - position  # constant along a run of consecutive indices
+                low, high = position, len(order)  # the last position still in the run
+                while low + 1 < high:
+                    middle = (low + high) // 2
+                    if order[middle] - middle == run:
+                        low = middle
+                    else:
+                        high = middle
+                index = order[low] + 1
+                position = low + 1
+            else:
+                out.append(index)
+                index += 1
+
+    def _missing_scan(self, start: int, count: int, horizon: int) -> list[int]:
         out = []
         for offset in range(horizon):
             index = (start + offset) % self.total

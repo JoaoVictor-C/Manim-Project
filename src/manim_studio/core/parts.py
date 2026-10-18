@@ -21,6 +21,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from .layer_index import LayerIndex
 from .schema import Layer, Project, Spec
 
 SPANS_PARAM = "part_spans"  # build parameter holding [[start, end, braced], ...] (adapter)
@@ -113,14 +114,17 @@ def check_span(text: str, start: int, end: int) -> Span | str:
     return Span(start, end)
 
 
-def resolve(project: Project, root_id: str) -> Resolution:
-    """Resolve every part under ``root_id`` (parents before children, siblings in list order)."""
-    root = project.layer(root_id)
+def resolve(project: Project, root_id: str, index: LayerIndex | None = None) -> Resolution:
+    """Resolve every part under ``root_id`` (parents before children, siblings in list order).
+
+    ``index`` is the project's ``LayerIndex`` when many roots are resolved in a row (B66)."""
+    tree = index or project
+    root = tree.layer(root_id)
     text = str(root.spec.params.get("text", "")) if root.spec else ""
     spans: dict[str, Span] = {}
     orphans: dict[str, str] = {}
     whole = Span(0, len(text))
-    for layer in project.descendants(root_id):
+    for layer in tree.descendants(root_id):
         if not layer.is_part:
             continue  # a child object (ADR 0024) owns no glyphs
         parent_span = whole if layer.parent_id == root_id else spans.get(layer.parent_id)
@@ -131,7 +135,7 @@ def resolve(project: Project, root_id: str) -> Resolution:
         if not isinstance(result, Span):
             orphans[layer.id] = result
             continue
-        ancestors = {a.id for a in project.ancestors(layer.id)}
+        ancestors = {a.id for a in tree.ancestors(layer.id)}
         # Only a part's ancestors may share its glyphs: anything else would draw them twice.
         clash = next((o for o, s in spans.items() if o not in ancestors and s.overlaps(result)), None)
         if clash is not None:
@@ -154,12 +158,15 @@ def _resolve_one(text: str, layer: Layer, parent: Span) -> Span | str:
     return check_span(text, start, start + len(key.tex))
 
 
-def build_spec(project: Project, root_id: str, resolution: Resolution | None = None) -> Spec:
+def build_spec(
+    project: Project, root_id: str, resolution: Resolution | None = None, index: LayerIndex | None = None
+) -> Spec:
     """The spec the root is built from: its own, plus its parts' marker spans if any."""
-    root = project.layer(root_id)
-    if not any(child.is_part for child in project.children(root_id)):
+    tree = index or project
+    root = tree.layer(root_id)
+    if not any(child.is_part for child in tree.children(root_id)):
         return root.spec  # no parts (a graph on axes is a child object, ADR 0024)
-    resolution = resolution or resolve(project, root_id)
+    resolution = resolution or resolve(project, root_id, index)
     if not resolution.order:
         return root.spec
     return root.spec.model_copy(
