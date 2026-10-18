@@ -35,11 +35,13 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import adapter, audio, edits, library, parts, recovery, shape, shift_timing, subtitles
+from ..core.code_cache import code_hash
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
 from ..core.python_export import PythonExport, class_name, to_python
-from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
+from ..core.scene_import import import_scene, scene_classes
+from ..core.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
 from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
 from . import arrange, icons, places, shortcuts_help, snap_guides, theme
@@ -66,6 +68,7 @@ from .presets_browser import PresetsBrowser
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
 from .render_ahead import RenderAhead
+from .scene_import import ImportReport, SceneImporter
 from .selection import Selection
 from .shortcuts_help import ShortcutsDialog
 from .timeline.view import TimelineView
@@ -113,6 +116,12 @@ class MainWindow(QMainWindow):
         # Code layers render in separate processes, only if trusted (ADR 0019).
         self.trust = TrustStore()
         self.code = make_code_renderer(adapter.cache_dir(), self.trust, self)
+        # Manim scenes are imported by recording them in another process (P10.3, ADR 0053).
+        self.scene_importer = SceneImporter(adapter.cache_dir(), parent=self)
+        self.scene_importer.finished.connect(self._on_scene_recorded)
+        self.scene_importer.failed.connect(self._on_scene_failed)
+        self._scene_job: dict | None = None  # what the running import is for
+        self.import_report: ImportReport | None = None
 
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)
@@ -225,6 +234,13 @@ class MainWindow(QMainWindow):
                 "Render the whole video with Manim to an MP4 file",
             ),
             ("Export &Python...", QKeySequence(), self.export_python, "Write the scene as a Manim script"),
+            (
+                "Import &Manim Scene...",
+                QKeySequence(),
+                self.import_manim_scene,
+                "Turn a Manim scene (.py) into layers and clips you can edit: its code runs once, in "
+                "another process",
+            ),
             ("Import &Audio...", QKeySequence(), self.import_audio, "Add a sound at the playhead"),
             (
                 "Import &Subtitles...",
@@ -1059,6 +1075,7 @@ class MainWindow(QMainWindow):
             self.export_dialog.close()
         self.builds.client.stop()
         self.code.stop()
+        self.scene_importer.stop()
         if self.render_ahead is not None:
             self.render_ahead.stop()
         super().closeEvent(event)
@@ -1372,6 +1389,168 @@ class MainWindow(QMainWindow):
         return name
 
     # -- sounds (ADR 0034) -------------------------------------------------------
+
+    # -- importing Manim scenes (P10.3, ADR 0053) ----------------------------------------------
+
+    def import_manim_scene(self) -> None:
+        """File > Import Manim Scene...: a scene file's objects as layers and clips on top of the
+        others, from 0 s (the scene's own timeline), one undo step; or one code layer when the scene
+        cannot be reproduced exactly. The file's code runs once, in another process, after asking."""
+        if self.project is None:
+            self.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        if self.scene_importer.busy:
+            self.statusBar().showMessage("A scene is being imported already", 5000)
+            return
+        self.scene_importer.warm()  # Manim is imported while the file is chosen
+        name = self.ask_scene_path()
+        if not name:
+            return
+        path = Path(name)
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            self.statusBar().showMessage(f"Cannot read {path.name}: {exc}", 10000)
+            return
+        scenes = scene_classes(source)
+        if not scenes:
+            self.statusBar().showMessage(f"{path.name} defines no Scene class to import", 10000)
+            return
+        scene = scenes[0] if len(scenes) == 1 else self.ask_scene_name(path.name, scenes)
+        if not scene:
+            return
+        if not self.trust.is_trusted(source):  # running a file's code is asked once (ADR 0019)
+            if self.ask_run_scene(path.name) != "run":
+                self.statusBar().showMessage(f"Not imported: {path.name} was not run", 6000)
+                return
+            self.trust.trust([source])
+        self._start_scene_import(path, scene, source, path.name, prelude=False, replace=None, offset=0.0)
+
+    def convert_code_layer(self, layer_id: str) -> bool:
+        """The Code page's Convert to Layers: a code layer's scene as layers and clips in its place,
+        from its start, one undo step; refused (with the report) when it must stay code."""
+        if self.project is None or self.scene_importer.busy:
+            return False
+        layer = self.project.layer(layer_id)
+        if layer.spec is None or layer.spec.type not in CODE_TYPES:
+            self.statusBar().showMessage("Convert to Layers: choose a code layer", 6000)
+            return False
+        code = str(layer.spec.params.get("code", ""))
+        scenes = scene_classes(code)
+        if len(scenes) != 1:
+            self.statusBar().showMessage(
+                f"Convert to Layers: {layer.label} needs exactly one Scene class", 8000
+            )
+            return False
+        if not self.trust.is_trusted(code):
+            if self.ask_run_scene(layer.label) != "run":
+                return False
+            self.trust.trust([code])
+        folder = adapter.cache_dir() / "imports"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{code_hash(code)[:16]}.py"
+        path.write_text(code, encoding="utf-8")
+        start = self.evaluator.lifetime(layer)[0] if self.evaluator is not None else 0.0
+        self._start_scene_import(
+            path, scenes[0], code, layer.label, prelude=True, replace=layer_id, offset=start
+        )
+        return True
+
+    def _start_scene_import(
+        self,
+        path: Path,
+        scene: str,
+        source: str,
+        label: str,
+        *,
+        prelude: bool,
+        replace: str | None,
+        offset: float,
+    ) -> None:
+        self._scene_job = {"source": source, "label": label, "replace": replace, "offset": offset}
+        self.statusBar().showMessage(f"Importing {label}: playing {scene} once...")
+        self.scene_importer.start(path, scene, prelude)
+
+    def _on_scene_recorded(self, recording: dict) -> None:
+        job, self._scene_job = self._scene_job, None
+        if job is None or self.project is None:
+            return
+        verb = "Convert to Layers" if job["replace"] else "Import Manim Scene"
+        try:
+            result = import_scene(recording, job["source"])
+        except ValueError as exc:  # it cannot even be one code layer
+            self.statusBar().showMessage(f"{verb}: {exc}", 15000)
+            return
+        if job["replace"] is not None:
+            if not result.converted:
+                self.show_import_report(f"{job['label']} stays a code layer", result.report)
+                self.statusBar().showMessage(
+                    f"{verb}: {job['label']} stays a code layer - {result.reasons[0]}", 15000
+                )
+                return
+            if job["replace"] not in {x.id for x in self.project.layers}:
+                self.statusBar().showMessage(f"{verb}: the code layer was deleted meanwhile", 8000)
+                return
+        else:  # a scene kept as code: the user agreed to run it
+            self.trust.trust(
+                [str(x.spec.params["code"]) for x in result.project.layers if x.spec.type in CODE_TYPES]
+            )
+        try:
+            edit, ids = edits.insert_scene(self.project, result.project, job["offset"], job["replace"])
+        except (edits.EditError, ValueError) as exc:
+            self.statusBar().showMessage(f"{verb}: {exc}", 15000)
+            return
+        self.document.apply(edit, "Convert to layers" if job["replace"] else "Import Manim scene")
+        self.selection.set_layers(ids)
+        lines = list(result.report)
+        if result.project.subtitles and self.project.subtitle_style.burn_in:
+            lines.append(
+                "This project burns subtitles into the video; Manim only wrote them as an .srt file."
+            )
+        if abs(result.project.canvas.frame_height - self.project.canvas.frame_height) > 1e-9:
+            lines.append(
+                f"The scene's frame is {result.project.canvas.frame_height:g} units high, this project's "
+                f"{self.project.canvas.frame_height:g}: positions are kept in units."
+            )
+        self.show_import_report(recording.get("scene", "Scene"), lines)
+        self.statusBar().showMessage(result.report[0], 15000)
+
+    def _on_scene_failed(self, message: str) -> None:
+        job, self._scene_job = self._scene_job, None
+        verb = "Convert to Layers" if job and job["replace"] else "Import Manim Scene"
+        self.statusBar().showMessage(f"{verb}: {message}", 20000)
+
+    def ask_scene_path(self) -> str:
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Import Manim Scene", str(self.default_folder()), "Python (*.py);;All files (*)"
+        )
+        return name
+
+    def ask_scene_name(self, file: str, scenes: list[str]) -> str | None:
+        name, ok = QInputDialog.getItem(
+            self, "Import Manim Scene", f"{file} has several scenes. Import:", scenes, 0, False
+        )
+        return name if ok else None
+
+    def ask_run_scene(self, name: str) -> str:
+        """``"run"`` or ``"skip"``: may this scene's Python run on this computer (ADR 0019)?"""
+        answer = QMessageBox.question(
+            self,
+            "Run this scene's code?",
+            f"Importing runs the Python in {name} on your computer, once, in another process.\n\n"
+            "Only run it if you trust where it came from. Run it?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return "run" if answer == QMessageBox.StandardButton.Yes else "skip"
+
+    def show_import_report(self, title: str, lines: list[str]) -> ImportReport:
+        """What the import made of the scene, in a window that stays open beside the editor."""
+        if self.import_report is not None:
+            self.import_report.close()
+        self.import_report = ImportReport(f"Imported: {title}", lines, self)
+        self.import_report.show()
+        return self.import_report
 
     def import_audio(self) -> None:
         """File > Import Audio...: a sound at the playhead, playing the whole file (ADR 0034)."""

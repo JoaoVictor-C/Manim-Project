@@ -184,7 +184,15 @@ class CodePage(Page):
         bar.addWidget(self.title_label)
         bar.addWidget(self.dirty_label)
         bar.addStretch(1)
+        self.convert_button = QPushButton("Convert to layers")
+        self.convert_button.setObjectName("convertToLayers")
+        self.convert_button.setToolTip(
+            "Turn this code layer's scene into layers and clips you can edit, in its place (ADR 0053); "
+            "a scene with updaters, cameras or custom animations stays code and the report says why"
+        )
+        self.convert_button.clicked.connect(self.convert)
         bar.addWidget(self.revert_button)
+        bar.addWidget(self.convert_button)
         bar.addWidget(self.run_button)
         self.notice = QLabel(
             "The layer's code changed in the project (undo, redo or Properties) while you were editing. "
@@ -455,6 +463,12 @@ class CodePage(Page):
         if status is not None and status.state == "error":
             self.window.code.retry(layer_id)
 
+    def convert(self) -> None:
+        """Convert to layers (P10.3, ADR 0053): the window records the scene in another process and
+        replaces the layer by its objects, or says why it stays code."""
+        if self.layer_id is not None and not self._is_python(self.layer_id) and not self.is_dirty():
+            self.window.convert_code_layer(self.layer_id)
+
     def revert(self) -> None:
         """Drop the unapplied text: show the layer's code again."""
         code = self._code_of(self.layer_id)
@@ -550,6 +564,9 @@ class CodePage(Page):
         self.dirty_label.setVisible(dirty)
         self.notice.setVisible(self._moved)  # _moved is false while clean
         self.run_button.setEnabled(self.layer_id is not None)
+        self.convert_button.setEnabled(
+            self.layer_id is not None and not dirty and not self._is_python(self.layer_id)
+        )
         self.revert_button.setEnabled(dirty)
         self._refresh_list()
         self._refresh_output()
