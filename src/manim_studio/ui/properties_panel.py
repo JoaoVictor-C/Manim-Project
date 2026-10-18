@@ -224,6 +224,7 @@ class PropertiesPanel(QWidget):
         self.others_selected = 0  # other selected objects besides the one shown (ADR 0043)
         self.marker_id: str | None = None  # a marker is shown (ADR 0037)
         self.scene_shown = False  # nothing selected: the scene's settings (P7.1)
+        self._scene_tips: dict[str, str] = {}  # their fields' tooltips
         self.code_ends: Callable[[], list[float]] = lambda: []  # rendered code animations, set by the window
         self.fit_button: QPushButton | None = None
         self.fields: dict[str, Field] = {}
@@ -308,18 +309,67 @@ class PropertiesPanel(QWidget):
             ("Background", "canvas.background", ColorField(commit("background", "Background"))),
         ]
         self._section("Scene", rows)
-        self.fields["canvas.duration"].widget.setToolTip(
-            "How long the video is. Shorter than its content also stops it growing."
-        )
-        self.fields["canvas.grow_with_content"].widget.setToolTip(
-            "The scene gets longer by itself when something is placed past its end"
-        )
+        self._scene_tips = {  # re-applied after each refresh: set_value clears a field's tooltip
+            "canvas.duration": "How long the video is. Shorter than its content also stops it growing.",
+            "canvas.grow_with_content": (
+                "The scene gets longer by itself when something is placed past its end"
+            ),
+        }
         self.fit_button = QPushButton("Fit Length to Content")
         self.fit_button.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
         self.fit_button.clicked.connect(self.fit_length)
         self.body_layout.addWidget(self.fit_button)
+        self._camera_section(generation)
         self.body_layout.addStretch(1)
         self.title.setText("<b>Scene</b> - select a layer, a clip or a keyframe to edit it.")
+        self._refresh_scene(True)
+
+    def _camera_section(self, generation: int) -> None:
+        """The camera (ADR 0048): the flat 2D view by default; any other angle shows the flat scene
+        tilted, turned or rolled, and the canvas has no handles until it is reset."""
+
+        def commit(name: str) -> Callable[[Any], None]:
+            def apply(value: Any) -> None:
+                if generation == self._generation and value is not None:
+                    self.set_camera(name, value)
+
+            return apply
+
+        def angle(name: str, low: float, high: float) -> FloatField:
+            return FloatField(commit(name), low, high, 5.0, 1, suffix=" deg")
+
+        self._section(
+            "Camera",
+            [
+                ("Tilt (phi)", "camera.phi", angle("phi", 0.0, 180.0)),
+                ("Turn (theta)", "camera.theta", angle("theta", -180.0, 180.0)),
+                ("Roll (gamma)", "camera.gamma", angle("gamma", -180.0, 180.0)),
+            ],
+        )
+        tips = {
+            "phi": "Tilt off straight-on: 0 is the flat 2D view, 90 looks along the scene's plane",
+            "theta": "Turn about the scene's centre: -90 is the flat 2D view",
+            "gamma": "Roll about the line of sight: 0 is the flat 2D view",
+        }
+        for name, tip in tips.items():
+            self._scene_tips[f"camera.{name}"] = (
+                f"{tip}. Any other camera than the flat view hides the canvas handles."
+            )
+        self.camera_reset = QPushButton("Reset Camera")
+        self.camera_reset.setToolTip("Back to the flat 2D view (handles and clicking objects return)")
+        self.camera_reset.clicked.connect(self.reset_camera)
+        self.body_layout.addWidget(self.camera_reset)
+
+    def set_camera(self, name: str, value: float) -> None:
+        """Change one of the camera's angles (one undo step)."""
+        try:
+            self.document.apply(edits.set_camera(self.project, **{name: value}), "Camera")
+        except edits.EditError as exc:
+            self.message.emit(f"Camera: {exc}")
+        self._refresh_scene(True)
+
+    def reset_camera(self) -> None:
+        self.document.apply(edits.reset_camera(self.project), "Reset Camera")
         self._refresh_scene(True)
 
     def set_scene(self, name: str, value: Any, text: str) -> None:
@@ -354,10 +404,13 @@ class PropertiesPanel(QWidget):
         self.document.apply(edits.Edit(fitted, "timing", frozenset()), "Fit Length to Content")
 
     def _refresh_scene(self, force: bool) -> None:
-        canvas = self.project.canvas
+        owners = {"canvas": self.project.canvas, "camera": self.project.camera}
         for path, field in self.fields.items():
             if not field.has_focus() or force:
-                field.set_value(getattr(canvas, path.split(".", 1)[1]))
+                owner, name = path.split(".", 1)
+                field.set_value(getattr(owners[owner], name))
+            if path in self._scene_tips:
+                field.widget.setToolTip(self._scene_tips[path])
 
     def show_layer(self, layer_id: str) -> None:
         if not layer_id or not _has(self.project, layer_id):

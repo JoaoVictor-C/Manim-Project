@@ -475,6 +475,28 @@ class SubtitleStyle(BaseModel):
     max_width: PositiveFloat = 12.5  # scene units; longer lines wrap, then shrink to fit
 
 
+CAMERA_FIELDS = ("phi", "theta", "gamma")
+
+
+class Camera(BaseModel):
+    """The view the scene is drawn from (ADR 0048): Manim's ``ThreeDCamera`` angles, in degrees.
+
+    The default is today's flat 2D view (Manim's own default orientation). While the camera is
+    the default, frames are drawn by the 2D camera exactly as before; any other camera draws the
+    same flat scene (everything lies on the z = 0 plane) seen from that angle.
+    """
+
+    phi: float = Field(default=0.0, ge=0, le=180)  # tilt off the z axis: 0 looks straight down it
+    theta: float = Field(default=-90.0, ge=-180, le=180)  # turn about the z axis
+    gamma: float = Field(default=0.0, ge=-180, le=180)  # roll about the line of sight
+
+    model_config = {"extra": "forbid"}
+
+    @property
+    def is_default(self) -> bool:
+        return (self.phi, self.theta, self.gamma) == (0.0, -90.0, 0.0)
+
+
 class Project(BaseModel):
     schema_version: int = SCHEMA_VERSION
     canvas: Canvas = Field(default_factory=Canvas)
@@ -483,6 +505,7 @@ class Project(BaseModel):
     subtitles: list[Cue] = Field(default_factory=list)  # one lane, in time order (ADR 0035)
     subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
     markers: list[Marker] = Field(default_factory=list)  # in time order, one per frame (ADR 0037)
+    camera: Camera = Field(default_factory=Camera)  # the default is the flat 2D view (ADR 0048)
 
     @model_serializer(mode="wrap")
     def _omit_unused(self, handler):
@@ -495,6 +518,8 @@ class Project(BaseModel):
             data.pop("subtitle_style", None)
         if not self.markers:
             data.pop("markers", None)
+        if self.camera.is_default:
+            data.pop("camera", None)  # files without a camera save as before (ADR 0048)
         return data
 
     @model_validator(mode="after")

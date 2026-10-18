@@ -22,7 +22,7 @@ pytest.importorskip("PySide6")
 
 from manim_studio.core import adapter
 from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec
+from manim_studio.core.schema import Camera, Canvas, Clip, Layer, Project, Spec
 from manim_studio.render.cairo_export import render_frame
 from manim_studio.render.preview import PreviewView, preview_camera
 from manim_studio.ui.preview_client import MAX_FAILED_STARTS, PreviewProcess
@@ -79,7 +79,7 @@ def frames(qt_app):
 
 
 def live(proj: Project, view: PreviewView, index: int) -> np.ndarray:
-    return render_frame(preview_camera(view), Evaluator(proj).frame(index / proj.canvas.fps))
+    return render_frame(preview_camera(view, proj.camera), Evaluator(proj).frame(index / proj.canvas.fps))
 
 
 def test_its_frames_are_the_canvas_frames(qt_app, frames) -> None:
@@ -134,3 +134,19 @@ def test_it_gives_up_when_it_keeps_dying(qt_app, tmp_path) -> None:
         wait_for(qt_app, lambda: not process.available, timeout=20)
     finally:
         process.stop()
+
+
+def test_it_draws_a_turned_camera_and_follows_it(qt_app, frames) -> None:
+    """P7.5 (ADR 0048): the process builds the project's camera, and a new one on a camera edit."""
+    process, got = frames
+    turned = project().model_copy(update={"camera": Camera(phi=60.0, theta=-60.0)})
+    process.send_project(turned, 1)
+    process.send_view(1, VIEW)
+    process.want([5])
+    wait_for(qt_app, lambda: (1, 1, 5) in got)
+    assert np.array_equal(got[(1, 1, 5)], live(turned, VIEW, 5))
+    assert not np.array_equal(got[(1, 1, 5)], live(project(), VIEW, 5))
+    process.send_project(project(), 2)  # back to the flat view, the same framing
+    process.want([5])
+    wait_for(qt_app, lambda: (1, 2, 5) in got)
+    assert np.array_equal(got[(1, 2, 5)], live(project(), VIEW, 5))

@@ -1,6 +1,6 @@
 # P7 — Studio workflow
 
-- **Status:** In progress (P7.1 and P7.2 items 1-3 done)
+- **Status:** In progress (P7.1, P7.4, P7.5 and P7.2 items 1-3 done)
 - **Date:** 2026-10-17
 - **Decided in:** [decision session 43](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** B64 (the 15-minute scene) and B65 (the 3D camera at the default view) in
@@ -18,7 +18,7 @@
 | P7.2 (items 1-3 done, B66; evaluator cache cap found unnecessary, audio memory open) | B64's scaling problems: the quadratic timeline rebuild and `Evaluator.invalidate` indexed (first), audio memory and mixing per span, render-ahead eviction in O(log n), a capped evaluator cache, a lower Fit Timeline zoom | agent (Sonnet) | B64 re-run: linear rebuild, a layer move in a 300-layer window well under 50 ms, a 15-minute sound under 200 MB |
 | P7.3 | **Animate** like After Effects and Unity: each object's timeline row expands into one sub-row per property (value at the playhead, a key diamond to add or remove a key there, keys dragged in their sub-row on the one time axis), Curves only for the selected sub-rows instead of five overlaid ranges, a Record button (Auto-key) and A to frame all keys | agent (Opus), after P7.2's timeline part | the page explains itself: add, move, ease and delete keys on one property without the graph |
 | ✅ P7.4 | from Unity: F frames the selection in the canvas (the whole frame when none); Shift+F stays Fit Timeline (P6d.4), so the two are not swapped | lead | |
-| P7.5 | **3D preparation**: an ADR ("always 3D-capable, camera fixed for 2D"), a camera in the project (default = today's view), Manim's ThreeDCamera only when the camera differs from the default, a test that default-camera frames stay bit-identical | lead or agent | the showcase renders identically; a tilted camera renders a 3D view |
+| ✅ P7.5 (ADR 0048, B68) | **3D preparation**: an ADR ("always 3D-capable, camera fixed for 2D"), a camera in the project (default = today's view), Manim's ThreeDCamera only when the camera differs from the default, a test that default-camera frames stay bit-identical | lead or agent | the showcase renders identically; a tilted camera renders a 3D view |
 
 ## Decisions and why
 

@@ -31,6 +31,7 @@ from .core.code_cache import CodeCache
 from .core.code_frame import CodeFrame
 from .core.evaluator import Evaluator
 from .core.schema import Project
+from .render.preview import StudioThreeDCamera, keep_in_frame, orient
 
 
 def configure(project_json: str) -> Project:
@@ -73,8 +74,16 @@ class StudioScene(m.Scene):
     project_json: str = ""
     code_cache_dir: str | None = None  # where the editor kept the code layers' frames
 
+    def __init__(self, *args, **kwargs) -> None:
+        camera = Project.model_validate_json(self.project_json).camera if self.project_json else None
+        if camera is not None and not camera.is_default:  # the editor's turned camera (ADR 0048)
+            kwargs.setdefault("camera_class", StudioThreeDCamera)
+        super().__init__(*args, **kwargs)
+
     def setup(self) -> None:
         teach_code_frames(self.renderer.camera)
+        if isinstance(self.renderer.camera, m.ThreeDCamera):
+            orient(self.renderer.camera, Project.model_validate_json(self.project_json).camera)
 
     def construct(self) -> None:
         project = Project.model_validate_json(self.project_json)
@@ -83,7 +92,10 @@ class StudioScene(m.Scene):
         holder = m.Group()
 
         def show(group: m.Group, dt: float) -> None:  # dt: a time-based updater (B43)
-            group.submobjects = list(evaluator.frame(self.renderer.time))
+            t = self.renderer.time
+            overlay = evaluator.overlay(t)  # burned-in subtitles stay flat on the screen (ADR 0048)
+            keep_in_frame(self.renderer.camera, overlay)
+            group.submobjects = [*(mob for _, mob in evaluator.frame_layers(t)), *overlay]
 
         holder.add_updater(show)
         self.add(holder)

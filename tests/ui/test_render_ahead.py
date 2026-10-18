@@ -66,9 +66,10 @@ class FakePreview(QObject):
         """Render the wanted frames as the real process would (optionally from an older project)."""
         project = project or self.project
         generation = self.generation if generation is None else generation
-        evaluator, camera = Evaluator(project), preview_camera(self.view)
+        evaluator, camera = Evaluator(project), preview_camera(self.view, project.camera)
         for index in list(self.wanted)[:count]:
-            pixels = render_frame(camera, evaluator.frame(index / project.canvas.fps))
+            t = index / project.canvas.fps
+            pixels = render_frame(camera, [mob for _, mob in evaluator.frame_layers(t)], evaluator.overlay(t))
             h, w = pixels.shape[:2]
             self.frame.emit(self.view_id, generation, index, zlib.compress(pixels.tobytes(), 1), w, h)
 
@@ -107,7 +108,7 @@ def window(qt_app, tmp_path, monkeypatch):
 
 def live_pixels(window, t: float) -> np.ndarray:
     view = window.canvas.preview_view()
-    return render_frame(preview_camera(view), window.evaluator.frame(t))
+    return render_frame(preview_camera(view, window.project.camera), window.evaluator.frame(t))
 
 
 def shown(window) -> np.ndarray:

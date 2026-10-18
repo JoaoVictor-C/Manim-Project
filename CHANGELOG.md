@@ -14,6 +14,14 @@ All notable changes to this project are documented here. The format follows
   Fit Timeline fits a 15-minute scene (zoom floor 0.5 px/s, minute labels on the ruler).
 
 ### Added
+- A camera (P7.5, ADR 0048, decision session 43): the project is 3D-capable with the camera fixed
+  for 2D. Properties, with nothing selected, has a **Camera** group (Tilt, Turn, Roll - Manim's phi,
+  theta, gamma - and Reset Camera). The default is today's flat view: it is not saved (files load and
+  save as before) and frames are drawn by the 2D camera bit for bit as before, no slower. Any other
+  camera draws the flat scene from that angle with Manim's `ThreeDCamera`, in the canvas, the frames
+  rendered ahead and the export (subtitles stay flat on the screen); the Python export writes a
+  `ThreeDScene` with `set_camera_orientation`. While the camera is turned the canvas shows no
+  outlines or handles and ignores clicks (they work in flat units): select in Layers, or reset it.
 - A **Right triangle** object (Add Object > Shapes): a base length and the acute angle, the right angle
   marked, fillable and coloured like any shape, written out as plain shapes in the readable Python
   export (it was hand-built from lines in the Pythagoras project).

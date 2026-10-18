@@ -75,3 +75,4 @@ need one.
 | [0044](0044-preferences-help-presets-browser.md) | Preferences, help and the presets browser | Accepted |
 | [0045](0045-releases.md) | Releases: a wheel, a release check, nothing published by itself | Accepted |
 | [0046](0046-readable-export-of-keyframes.md) | Readable Python export of keyframed layers | Accepted |
+| [0048](0048-3d-capable-camera-fixed-for-2d.md) | 3D-capable project, camera fixed for 2D | Accepted |
