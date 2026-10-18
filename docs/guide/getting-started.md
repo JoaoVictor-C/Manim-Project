@@ -69,7 +69,8 @@ directly: `manim-studio edit path/to/project.json`.
    gets its own row with a waveform. **Edit > Add Subtitle** (`Ctrl+T`) adds a subtitle at the
    playhead; type it in Properties.
 7. **Save.** **File > Save** (`Ctrl+S`). A project is one `.json` file; images, SVGs and
-   sounds stay where they are on disk and are referenced by path.
+   sounds stay where they are on disk and are referenced by their full path, so moving them
+   breaks the link.
 8. **Export the video.** **File > Export Video...** (`Ctrl+E`) renders an MP4 in the
    background, with the sound and burned-in subtitles. For size, frame rate, range, quality
    and a queue of several renders, use the **Deliver** page (`Shift+5`).
