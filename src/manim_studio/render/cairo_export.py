@@ -21,13 +21,15 @@ from .options import (
     DEFAULT_CRF,
     RenderOptions,
     apply_options,
-    audio_window,
+    audio_bounds,
     frame_window,
     window_cues,
 )
 from .preview import PreviewView, keep_in_frame, scene_camera
 
 log = get_logger(__name__)
+
+AUDIO_SPAN = 10 * audio.RATE  # the mix is encoded 10 s at a time (B70)
 
 
 def make_camera(canvas: Canvas, camera: Camera | None = None) -> m.Camera:
@@ -183,17 +185,26 @@ def _encode(
                 progress(i + 1, len(times))
         container.mux(stream.encode())
         if sound is not None:  # the project's mix, from the first frame's time (ADR 0034, B47)
-            mix = audio.mix(project)  # it depends on the sounds and the duration, not on size or fps
+            # it depends on the sounds and the duration, not on size or fps; streamed in spans (B70)
             if first > 0 or first + len(times) < round(canvas.duration * canvas.fps):
-                mix = audio_window(mix, first, first + len(times), canvas.fps)
-            _encode_audio(container, sound, mix)
+                start, stop = audio_bounds(first, first + len(times), canvas.fps)
+            else:
+                start, stop = 0, round(canvas.duration * audio.RATE)
+            _encode_audio(container, sound, audio.mix_chunks(project, start, stop, AUDIO_SPAN))
 
 
-def _encode_audio(container, stream, samples: np.ndarray) -> None:
+def _encode_audio(container, stream, samples: np.ndarray | Iterable[np.ndarray]) -> None:
+    """Encode the sound, given whole or in consecutive pieces: the pieces are frames with
+    consecutive timestamps, which the encoder cuts into its own frames as it cut the whole."""
     resampler = av.AudioResampler(format=stream.codec_context.format.name, layout="stereo", rate=audio.RATE)
-    frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(samples), format="fltp", layout="stereo")
-    frame.sample_rate = audio.RATE
-    frame.pts = 0
-    for resampled in [*resampler.resample(frame), *resampler.resample(None)]:
+    pts = 0
+    for piece in [samples] if isinstance(samples, np.ndarray) else samples:
+        frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(piece), format="fltp", layout="stereo")
+        frame.sample_rate = audio.RATE
+        frame.pts = pts
+        pts += piece.shape[1]
+        for resampled in resampler.resample(frame):
+            container.mux(stream.encode(resampled))
+    for resampled in resampler.resample(None):
         container.mux(stream.encode(resampled))
     container.mux(stream.encode())

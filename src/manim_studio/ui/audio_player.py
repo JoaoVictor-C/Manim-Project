@@ -1,7 +1,9 @@
 """Plays the project's sound (P4d, ADR 0034); the time it has played is the playback clock.
 
-The mix from ``core.audio`` is handed to a ``QAudioSink`` from the playhead on.
-The sink's processed time advances every ~10 ms and never drifts from what is
+The mix from ``core.audio`` is handed to a ``QAudioSink`` from the playhead on,
+pulled in spans of a quarter second as the device asks for them (``MixDevice``,
+B70): no whole mix is made, and an edit is heard after its first span. The sink's
+processed time advances every ~10 ms and never drifts from what is
 heard (B47), so frames follow it; until the device starts (~0.1 s, ~0.5 s for
 the first sound of a session) the clock stays at the start and the first frame
 holds. Without a device, or with ``MANIM_STUDIO_AUDIO=0`` (tests), there is no
@@ -13,7 +15,7 @@ from __future__ import annotations
 import os
 
 import numpy as np
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QObject
+from PySide6.QtCore import QIODevice, QObject
 
 from ..core import audio
 from ..logging_config import get_logger
@@ -21,11 +23,60 @@ from ..logging_config import get_logger
 log = get_logger(__name__)
 
 
+class _ArraySource:
+    """A whole mix already in memory, read like ``audio.MixSource``."""
+
+    def __init__(self, samples: np.ndarray) -> None:
+        self.samples = samples
+        self.length = samples.shape[1]
+
+    def span(self, start: int, count: int) -> np.ndarray:
+        return self.samples[:, start : start + count]
+
+
+class MixDevice(QIODevice):
+    """The mix as 16-bit PCM from a sample on, made a span at a time when it is read: the bytes are
+    those of ``audio.to_int16`` of the whole mix from that sample."""
+
+    SPAN = audio.SPAN  # samples made at a time (0.25 s)
+
+    def __init__(self, source, first: int, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._source = source
+        self._pos = min(max(first, 0), source.length)
+        self._pending = b""
+        self._fill(1)  # the first span is ready before the device starts
+        self.open(QIODevice.OpenModeFlag.ReadOnly | QIODevice.OpenModeFlag.Unbuffered)
+
+    def _fill(self, size: int) -> None:
+        while len(self._pending) < size and self._pos < self._source.length:
+            n = min(self.SPAN, self._source.length - self._pos)
+            self._pending += audio.to_int16(self._source.span(self._pos, n))
+            self._pos += n
+
+    def isSequential(self) -> bool:
+        return True
+
+    def bytesAvailable(self) -> int:
+        return len(self._pending) + 4 * (self._source.length - self._pos) + super().bytesAvailable()
+
+    def atEnd(self) -> bool:
+        return not self._pending and self._pos >= self._source.length
+
+    def readData(self, maxlen: int) -> bytes:
+        self._fill(maxlen)
+        out, self._pending = self._pending[:maxlen], self._pending[maxlen:]
+        return out
+
+    def writeData(self, data) -> int:
+        return -1
+
+
 class AudioPlayer(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._sink = None
-        self._buffer: QBuffer | None = None
+        self._buffer: MixDevice | None = None
         self._start = 0.0
 
     @staticmethod
@@ -38,8 +89,9 @@ class AudioPlayer(QObject):
             return False
         return not QMediaDevices.defaultAudioOutput().isNull()
 
-    def play(self, samples: np.ndarray, t: float) -> None:
-        """Play ``samples`` (the project's mix) from ``t`` seconds."""
+    def play(self, samples, t: float) -> None:
+        """Play ``samples`` (the project's mix: an ``audio.MixSource`` or a whole array) from ``t``
+        seconds."""
         from PySide6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices
 
         self.stop()
@@ -47,9 +99,8 @@ class AudioPlayer(QObject):
         fmt.setSampleRate(audio.RATE)
         fmt.setChannelCount(2)
         fmt.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-        self._buffer = QBuffer(self)
-        self._buffer.setData(QByteArray(audio.to_int16(samples[:, round(t * audio.RATE) :])))
-        self._buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+        source = _ArraySource(samples) if isinstance(samples, np.ndarray) else samples
+        self._buffer = MixDevice(source, round(t * audio.RATE), self)
         self._sink = QAudioSink(QMediaDevices.defaultAudioOutput(), fmt, self)
         self._sink.start(self._buffer)
         self._start = t

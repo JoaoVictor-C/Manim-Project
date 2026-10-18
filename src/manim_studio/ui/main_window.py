@@ -1551,7 +1551,7 @@ class MainWindow(QMainWindow):
             self.audio_player.stop()
         self._audio_signature = None
         if project is not None and project.audio and self.audio_player is not None:
-            self.audio_player.play(audio.mix(project), self.t)
+            self.audio_player.play(audio.source(project), self.t)  # read in spans (B70)
             self._audio_signature = audio.mix_signature(project)
         self._play_origin = (time.perf_counter(), self.t)
 
