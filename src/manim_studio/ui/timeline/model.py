@@ -192,6 +192,32 @@ def _nearest_candidate(t: float, candidates: list[float], scale: TimeScale) -> f
     return None
 
 
+def group_delta(
+    anchors: list[float],
+    raw_delta: float,
+    *,
+    fps: int,
+    scale: TimeScale,
+    candidates: Iterable[float] = (),
+    snapping: bool = True,
+) -> float:
+    """The delta of a selection dragged by one of its items (U4b). ``anchors`` are the dragged
+    item's times (a clip's start and end, a key's time, a lifetime band's ends): any may snap and
+    the smaller shift wins, as for one clip; otherwise the first lands on a frame."""
+    first = anchors[0]
+    delta = quantize(first + raw_delta, fps) - first
+    if snapping:
+        candidates = list(candidates)
+        options = [
+            hit - a
+            for a in anchors
+            if (hit := _nearest_candidate(a + raw_delta, candidates, scale)) is not None
+        ]
+        if options:
+            delta = min(options, key=lambda d: abs(d - raw_delta))
+    return delta
+
+
 def drag_move(
     layer: Layer,
     clip_id: str,

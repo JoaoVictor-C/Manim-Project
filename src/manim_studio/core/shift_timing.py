@@ -61,6 +61,24 @@ def earliest(project: Project, selection: Selection) -> float:
     return min(times, default=0.0)
 
 
+def latest(project: Project, selection: Selection) -> float:
+    """The latest time anything selected reaches (a drag's limit for moving later, U4b)."""
+    times: list[float] = []
+    for layer_id in selection.layers:
+        layer = project.layer(layer_id)
+        times += [c.end for c in layer.clips]
+        times += [k.t for track in layer.tracks.values() for k in track]
+        if layer.lifetime.out is not None:
+            times.append(layer.lifetime.out)
+    for layer_id, clip_id in selection.clips:
+        times += [c.end for c in project.layer(layer_id).clips if c.id == clip_id]
+    times += [t for _, t, _ in selection.keys]
+    times += [m.t for m in project.markers if m.id in selection.markers]
+    times += [a.end for a in project.audio if a.id in selection.audio]
+    times += [c.end for c in project.subtitles if c.id in selection.cues]
+    return max(times, default=0.0)
+
+
 def shift_timing(project: Project, selection: Selection, delta: float) -> Edit:
     """Move everything in ``selection`` by ``delta`` seconds (see the module's rules)."""
     if selection.empty:

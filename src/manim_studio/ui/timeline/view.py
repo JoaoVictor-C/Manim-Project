@@ -27,6 +27,11 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
   playhead, a diamond that adds or removes that property's key there, and that
   property's keys - dragged, deleted and eased alone. A click on a property's name
   chooses it for the graph (Shift/Ctrl add); expanded rows are editor state.
+* multi-selection (U4b): Shift/Ctrl+click toggles clips and keys into the picks, a drag from
+  empty space draws a rubber band that picks what it touches, Ctrl+A picks every clip and key;
+  dragging any picked item moves them all by one snapped delta (``shift_timing``, one undo
+  step), Delete removes them all, Escape drops back to the primary one (the one Properties
+  shows). The lifetime band of selected rows drags those layers whole. Editor state only.
 """
 
 from __future__ import annotations
@@ -38,7 +43,7 @@ from pathlib import Path
 import numpy as np
 from pydantic import ValidationError
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QFileDialog,
     QGraphicsPolygonItem,
@@ -51,7 +56,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, audio, edits, scene_length, subtitles
+from ...core import adapter, audio, edits, scene_length, shift_timing, subtitles
 from ...core.evaluator import layer_transform
 from ...core.layer_index import LayerIndex
 from ...core.schema import (
@@ -81,6 +86,7 @@ from .model import (
     drag_move,
     drag_trim,
     fit_scale,
+    group_delta,
     key_times,
     obstacles,
     place_new_clip,
@@ -142,6 +148,9 @@ SUB_BAND = QColor(RULER_BACKGROUND)  # behind a property row (P7.3)
 SUB_BAND.setAlpha(110)
 SUB_CHOSEN = theme.qcolor(theme.THEME.accent)  # behind a property row chosen for the graph
 SUB_CHOSEN.setAlpha(70)
+RUBBER_FILL = QColor(SELECTED_EDGE)  # the rubber band being drawn (U4b)
+RUBBER_FILL.setAlpha(40)
+RUBBER_PX = 4  # a press on empty space moved further than this draws a rubber band
 
 
 def _number(value: float) -> str:
@@ -188,6 +197,17 @@ class ClipItem(QGraphicsRectItem):
         if rect.width() > 24:
             painter.setPen(BAR_TEXT)
             painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.kind)
+
+
+class BandItem(QGraphicsRectItem):
+    """A layer's lifetime band, behind its clips; a selected row's band drags the layer (U4b)."""
+
+    def __init__(self, layer_id: str, rect: QRectF, selected: bool) -> None:
+        super().__init__(rect)
+        self.layer_id = layer_id
+        self.setPen(QPen(SELECTED_EDGE, 1) if selected else QPen(Qt.PenStyle.NoPen))
+        self.setBrush(QBrush(LIFETIME_COLOR))
+        self.setZValue(1)
 
 
 class AudioItem(QGraphicsRectItem):
@@ -435,6 +455,44 @@ class _AudioDrag:
     clip: AudioClip
 
 
+KeyPick = tuple  # (layer id, frame, property or None: every key there) - a picked key (U4b)
+
+
+@dataclass
+class _GroupDrag:
+    """The picks (or whole selected layers) dragged by one of them (U4b)."""
+
+    press_x: float
+    base: Project
+    anchors: list[float]  # the dragged item's times, which snap
+    clips: frozenset  # picked at press
+    keys: frozenset  # KeyPicks at press
+    primary_key: tuple[str, float, str | None] | None  # the primary key at press: it follows
+    layers: tuple[str, ...] = ()  # whole layers (their band dragged)
+    row: str | None = None  # the band's row: a click without moving picks it
+    extend: bool = False
+    refused: str | None = None  # the last reason shown, said once
+
+
+@dataclass
+class _EmptyPress:
+    """A press on empty row space: a click picks the row, a drag draws a rubber band (U4b)."""
+
+    pos: QPointF  # viewport
+    origin: QPointF  # scene
+    extend: bool
+    clips: set  # the picks before the band (Shift/Ctrl adds to them)
+    keys: set
+    primary: tuple  # (selected, selected_key, selected_key_prop) before the band
+    banding: bool = False
+
+    @property
+    def layer(self) -> str | None:
+        """The primary item's object before the band."""
+        item = self.primary[0] or self.primary[1]
+        return item[0] if item else None
+
+
 @dataclass
 class _Drag:
     layer_id: str
@@ -490,6 +548,14 @@ class TimelineView(QGraphicsView):
         self.selected_audio: str | None = None
         self.selected_cue: str | None = None
         self.selected_marker: str | None = None
+        # the multi-selection (U4b): editor state, never saved; the primary item (selected or
+        # selected_key, the one Properties shows) is always one of the picks
+        self.picked_clips: set[tuple[str, str]] = set()
+        self.picked_keys: set[KeyPick] = set()
+        self.picked_rows: tuple[str, ...] = ()  # the selected layers (their bands drag them whole)
+        self.rubber: QRectF | None = None  # the rubber band being drawn, scene coordinates
+        self._empty_press: _EmptyPress | None = None
+        self._group_drag: _GroupDrag | None = None
         self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
         # Fills an "Apply preset" menu for a row and a time (ADR 0039); set by the window.
         self.preset_menu = None
@@ -531,6 +597,8 @@ class TimelineView(QGraphicsView):
         self._marker_drag = None
         self._drag = None
         self._key_drag = None
+        self._group_drag = self._empty_press = self.rubber = None
+        self.picked_clips, self.picked_keys, self.picked_rows = set(), set(), ()
         self.expanded.clear()
         self._layout = None
         self._fit_header()
@@ -555,7 +623,11 @@ class TimelineView(QGraphicsView):
         self.sync()
 
     def set_selected(self, layer_id: str | None, clip_id: str | None, key_time: float | None = None) -> None:
-        """Highlight a clip or a key time chosen elsewhere (the shared selection), or none."""
+        """Highlight a clip or a key time chosen elsewhere (the shared selection), or none. One of
+        the picks (the window echoing the primary) keeps the multi-selection; anything else
+        replaces it (``sync``)."""
+        if self._group_drag is not None:  # moved keys leave the shared selection mid-drag
+            return
         selected = (layer_id, clip_id) if layer_id and clip_id else None
         selected_key = (layer_id, key_time) if layer_id and key_time is not None else None
         self._layer_id = layer_id
@@ -568,6 +640,25 @@ class TimelineView(QGraphicsView):
         if (selected, selected_key) != (self.selected, self.selected_key) or dropped:
             self.selected, self.selected_key = selected, selected_key
             self.sync()
+
+    def set_selected_layers(self, layer_ids) -> None:
+        """The selected layers (the shared selection's ``layer_ids``): with no clip or key picked,
+        their lifetime bands drag them whole (U4b)."""
+        ids = tuple(layer_ids)
+        if ids != self.picked_rows:
+            self.picked_rows = ids
+            self.sync()
+
+    def rows_draggable(self) -> set[str]:
+        """The layers whose band drags them: the selected rows, while no clip or key is picked."""
+        if (
+            self.selected is not None
+            or self.selected_key is not None
+            or self.picked_clips
+            or self.picked_keys
+        ):
+            return set()
+        return set(self.picked_rows)
 
     def set_selected_subtitle(self, cue_id: str | None) -> None:
         if cue_id != self.selected_cue:
@@ -776,6 +867,274 @@ class TimelineView(QGraphicsView):
         self.layerPicked.emit(layer_id, extend)
         self.sync()
 
+    # -- the multi-selection (U4b) ---------------------------------------------------------
+
+    def _follow_primary(self, fps: int) -> set[tuple[str, int]]:
+        """Keep the primary item among the picks: a primary that is not one of them (a plain
+        click, or chosen elsewhere) replaces them, none clears them. Returns the picked keys'
+        (layer, frame) lookups for drawing."""
+        frames = {(layer_id, frame) for layer_id, frame, _ in self.picked_keys}
+        if self.selected is not None:
+            if self.selected not in self.picked_clips:
+                self.picked_clips, self.picked_keys, frames = {self.selected}, set(), set()
+        elif self.selected_key is not None:
+            layer_id, frame = self.selected_key[0], round(self.selected_key[1] * fps)
+            if (layer_id, frame) not in frames:
+                self.picked_clips, frames = set(), {(layer_id, frame)}
+                self.picked_keys = {(layer_id, frame, self.selected_key_prop)}
+        else:
+            self.picked_clips, self.picked_keys, frames = set(), set(), set()
+        return frames
+
+    def picked_key_times(self) -> set[tuple[str, float, str | None]]:
+        """The picked keys as (layer, time, property or None)."""
+        fps = self.project.canvas.fps
+        return {(layer_id, frame / fps, prop) for layer_id, frame, prop in self.picked_keys}
+
+    def picked_count(self) -> int:
+        return len(self.picked_clips) + len(self.picked_keys)
+
+    def _say_count(self) -> None:
+        """'3 clips, 2 keys selected' in the status bar, for two picks or more."""
+        clips, keys = len(self.picked_clips), len(self.picked_keys)
+        if clips + keys < 2:
+            return
+        parts = [f"{n} {word}{'s' if n != 1 else ''}" for n, word in ((clips, "clip"), (keys, "key")) if n]
+        self.message.emit(", ".join(parts) + " selected")
+
+    def _key_pick(self, key: KeyItem) -> KeyPick:
+        return (key.layer_id, round(key.t * self.project.canvas.fps), key.prop)
+
+    def _make_primary(self, clip: tuple[str, str] | None = None, key: KeyPick | None = None) -> None:
+        """Make one of the picks the primary item and tell the shared selection (Properties shows
+        it); with neither, the primary goes and the object stays selected."""
+        fps = self.project.canvas.fps
+        if clip is not None:
+            self.selected, self.selected_key, self.selected_key_prop = clip, None, None
+            self.sync()
+            self.clipSelected.emit(*clip)
+        elif key is not None:
+            layer_id, frame, prop = key
+            self.selected, self.selected_key, self.selected_key_prop = None, (layer_id, frame / fps), prop
+            self.sync()
+            self.keySelected.emit(layer_id, frame / fps)
+        else:
+            layer_id = (
+                self.selected[0] if self.selected else self.selected_key[0] if self.selected_key else None
+            )
+            self.selected = self.selected_key = self.selected_key_prop = None
+            self.sync()
+            if layer_id is not None:
+                self.layerPicked.emit(layer_id, False)
+
+    def _another_primary(self) -> None:
+        """The primary was taken out: another pick takes its place (or none)."""
+        if self.picked_clips:
+            self._make_primary(clip=min(self.picked_clips))
+        elif self.picked_keys:
+            self._make_primary(key=min(self.picked_keys, key=lambda k: (k[0], k[1], k[2] or "")))
+        else:
+            self._make_primary()
+
+    def toggle_clip_pick(self, layer_id: str, clip_id: str) -> None:
+        """Shift/Ctrl+click on a clip: add it to the picks (it becomes the primary) or take it out."""
+        clip = (layer_id, clip_id)
+        if clip in self.picked_clips:
+            self.picked_clips.discard(clip)
+            if self.selected == clip:
+                self._another_primary()
+            else:
+                self.sync()
+        else:
+            self.picked_clips.add(clip)
+            self._make_primary(clip=clip)
+        self._say_count()
+
+    def toggle_key_pick(self, pick: KeyPick) -> None:
+        """Shift/Ctrl+click on a key diamond (or a property's key): add it or take it out."""
+        layer_id, frame, _prop = pick
+        covering = {(layer_id, frame, None), pick} & self.picked_keys
+        if covering:
+            self.picked_keys -= covering
+            fps = self.project.canvas.fps
+            primary = self.selected_key
+            if primary is not None and (primary[0], round(primary[1] * fps)) == (layer_id, frame):
+                if not any(k[:2] == (layer_id, frame) for k in self.picked_keys):
+                    self._another_primary()
+                else:
+                    self.sync()
+            else:
+                self.sync()
+        else:
+            self.picked_keys.add(pick)
+            self._make_primary(key=pick)
+        self._say_count()
+
+    def select_all_items(self) -> None:
+        """Ctrl+A: pick every clip and key diamond."""
+        project = self.project
+        if project is None:
+            return
+        fps = project.canvas.fps
+        self.picked_clips = {(layer.id, c.id) for layer in project.layers for c in layer.clips}
+        self.picked_keys = {
+            (layer.id, round(t * fps), None) for layer in project.layers for t, _ in key_times(layer, fps)
+        }
+        frames = {(layer_id, frame) for layer_id, frame, _ in self.picked_keys}
+        if self.selected in self.picked_clips or (
+            self.selected_key is not None
+            and (self.selected_key[0], round(self.selected_key[1] * fps)) in frames
+        ):
+            self.sync()
+        elif self.picked_clips or self.picked_keys:
+            self._another_primary()
+        self._say_count()
+
+    def collapse_picks(self) -> None:
+        """Escape: drop the multi-selection down to the primary item."""
+        if self.picked_count() < 2:
+            return
+        fps = self.project.canvas.fps
+        if self.selected is not None:
+            self.picked_clips, self.picked_keys = {self.selected}, set()
+        elif self.selected_key is not None:
+            layer_id, frame = self.selected_key[0], round(self.selected_key[1] * fps)
+            self.picked_clips = set()
+            self.picked_keys = {k for k in self.picked_keys if k[:2] == (layer_id, frame)}
+        self.sync()
+
+    def timing_selection(self, clips=None, keys=None, layers: tuple[str, ...] = ()) -> shift_timing.Selection:
+        """The picks as the timing edits want them: a property's key under a picked diamond (every
+        key at that time) is not listed twice; several properties at one time share one entry."""
+        clips = self.picked_clips if clips is None else clips
+        keys = self.picked_keys if keys is None else keys
+        fps = self.project.canvas.fps
+        whole = {(layer_id, frame) for layer_id, frame, prop in keys if prop is None}
+        props: dict[tuple[str, int], set[str]] = {}
+        for layer_id, frame, prop in keys:
+            if prop is not None and (layer_id, frame) not in whole:
+                props.setdefault((layer_id, frame), set()).add(prop)
+        picks = [(layer_id, frame / fps, None) for layer_id, frame in sorted(whole)]
+        picks += [(layer_id, frame / fps, tuple(sorted(p))) for (layer_id, frame), p in sorted(props.items())]
+        return shift_timing.Selection(layers=tuple(layers), clips=tuple(sorted(clips)), keys=tuple(picks))
+
+    def delete_picks(self) -> None:
+        """Delete every picked clip and key in one undo step."""
+        before = self.project
+        selection = self.timing_selection()
+        self._apply(lambda p: shift_timing.remove_items(p, selection), "Delete selection")
+        if self.project is not before:
+            self._make_primary()
+
+    def _band_hit(self, pos: QPointF) -> BandItem | None:
+        """The lifetime band of a draggable (selected) row under the cursor, if any."""
+        draggable = self.rows_draggable()
+        if not draggable:
+            return None
+        return next(
+            (i for i in self.items(pos.toPoint()) if isinstance(i, BandItem) and i.layer_id in draggable),
+            None,
+        )
+
+    def _begin_group_drag(
+        self,
+        pos: QPointF,
+        anchors: list[float],
+        layers: tuple[str, ...] = (),
+        row: str | None = None,
+        extend=False,
+    ) -> None:
+        primary_key = None
+        if self.selected_key is not None:
+            primary_key = (self.selected_key[0], self.selected_key[1], self.selected_key_prop)
+        self._group_drag = _GroupDrag(
+            self.mapToScene(pos.toPoint()).x(),
+            self.project,
+            anchors,
+            frozenset(self.picked_clips),
+            frozenset(self.picked_keys),
+            primary_key,
+            layers,
+            row,
+            extend,
+        )
+        self.document.begin_preview()
+
+    def _update_rubber(self, viewport_pos: QPointF) -> None:
+        """Grow the rubber band to the cursor and pick every clip and key diamond it touches."""
+        press = self._empty_press
+        current = self.mapToScene(viewport_pos.toPoint())
+        self.rubber = QRectF(press.origin, QPointF(current)).normalized()
+        clips = set(press.clips) if press.extend else set()
+        keys = set(press.keys) if press.extend else set()
+        fps = self.project.canvas.fps
+        for item in self.scene().items(self.rubber):
+            if isinstance(item, ClipItem):
+                clips.add((item.layer_id, item.clip_id))
+            elif isinstance(item, KeyItem):
+                keys.add((item.layer_id, round(item.t * fps), item.prop))
+        if (clips, keys) != (self.picked_clips, self.picked_keys):
+            self.picked_clips, self.picked_keys = clips, keys
+            frames = {k[:2] for k in keys}
+            primary_ok = self.selected in clips or (
+                self.selected_key is not None
+                and (self.selected_key[0], round(self.selected_key[1] * fps)) in frames
+            )
+            if not primary_ok:  # the band's first find stands in until the release names it
+                self.selected = min(clips) if clips else None
+                self.selected_key, self.selected_key_prop = None, None
+                if self.selected is None and keys:
+                    layer_id, frame, prop = min(keys, key=lambda k: (k[0], k[1], k[2] or ""))
+                    self.selected_key, self.selected_key_prop = (layer_id, frame / fps), prop
+            self.sync()
+        self.viewport().update()
+
+    def _click_empty(self, press: _EmptyPress) -> None:
+        """A click on empty space: a property row chooses that property (P7.3), a row its object
+        (P7.1); Shift/Ctrl add."""
+        prop_row = self.prop_row_at(press.pos.y())
+        if prop_row is not None:
+            self.pick_prop(prop_row[0].id, prop_row[1], press.extend)
+            return
+        layer = self.layer_at(press.pos.y())
+        if layer is not None:
+            self.pick_layer(layer.id, press.extend)
+
+    def _finish_group_drag(self) -> None:
+        """Drop the picks (or the layers) dragged: one undo step; a lifetime the move cut is
+        warned about. A click without moving picks the clicked item (or the band's row) alone."""
+        self.apply_pending()
+        drag, self._group_drag = self._group_drag, None
+        moved = self.project is not drag.base
+        self.document.commit_preview("Move layers" if drag.layers else "Move selection")
+        if not moved:
+            if drag.row is not None:
+                self.pick_layer(drag.row, drag.extend)
+            else:
+                self.collapse_picks()
+            return
+        old = set(shift_timing.timing_warnings(drag.base))
+        new = [w for w in shift_timing.timing_warnings(self.project) if w not in old]
+        if self.selected_key is not None:  # the moved primary key: the shared selection follows it
+            self.keySelected.emit(*self.selected_key)
+        if new:
+            self.message.emit(f"{'Move layers' if drag.layers else 'Move selection'}: {new[0]}")
+
+    def _finish_rubber(self, before: str | None) -> None:
+        """The band is released: the shared selection learns the primary item (none found: the
+        item picked before goes, its object stays selected)."""
+        self.rubber = None
+        if self.selected is not None:
+            self._make_primary(clip=self.selected)
+        elif self.selected_key is not None:
+            layer_id, t = self.selected_key
+            self._make_primary(key=(layer_id, round(t * self.project.canvas.fps), self.selected_key_prop))
+        else:
+            self.sync()
+            if before is not None:  # the object of the item picked before the band
+                self.layerPicked.emit(before, False)
+        self._say_count()
+
     def select_audio_row(self, audio_id: str) -> None:
         self.selected = self.selected_key = self.selected_cue = self.selected_marker = None
         self.selected_audio = audio_id
@@ -834,6 +1193,11 @@ class TimelineView(QGraphicsView):
             self.scene().clear()
             return
         width = self.scale.x(max(project.canvas.duration, scene_length.content_end(project)))
+        fps = project.canvas.fps
+        key_frames = self._follow_primary(fps)
+        found_clips: set[tuple[str, str]] = set()  # picks still there (an undo can take them away)
+        found_keys: set[tuple[str, int]] = set()
+        draggable = self.rows_draggable()
         index = self.layer_index()
         rows = self.rows()
         layout = self.layout()
@@ -848,20 +1212,15 @@ class TimelineView(QGraphicsView):
                 ROW_HEIGHT - 2 * CLIP_MARGIN,
             )
             scene.addItem(CueItem(cue, rect, cue.id == self.selected_cue))
-        fps = project.canvas.fps
         for row, layer in enumerate(rows):
             top = layout.tops[row]
             start, end = index.lifetime(layer.id)
             end = min(end, project.canvas.duration)
             if end > start:
-                band = scene.addRect(
-                    QRectF(
-                        self.scale.x(start), top + 2, self.scale.x(end) - self.scale.x(start), ROW_HEIGHT - 4
-                    ),
-                    QPen(Qt.PenStyle.NoPen),
-                    QBrush(LIFETIME_COLOR),
+                band = QRectF(
+                    self.scale.x(start), top + 2, self.scale.x(end) - self.scale.x(start), ROW_HEIGHT - 4
                 )
-                band.setZValue(1)
+                scene.addItem(BandItem(layer.id, band, layer.id in draggable))
             for clip in layer.clips:
                 rect = QRectF(
                     self.scale.x(clip.start),
@@ -869,10 +1228,14 @@ class TimelineView(QGraphicsView):
                     max(2.0, self.scale.x(clip.end) - self.scale.x(clip.start)),
                     ROW_HEIGHT - 2 * CLIP_MARGIN,
                 )
-                scene.addItem(ClipItem(layer.id, clip, rect, self.selected == (layer.id, clip.id)))
-            for t, props in key_times(layer, project.canvas.fps):
-                selected = self.selected_key is not None and self.selected_key[0] == layer.id
-                selected = selected and abs(self.selected_key[1] - t) < 0.5 / project.canvas.fps
+                selected = (layer.id, clip.id) in self.picked_clips
+                if selected:
+                    found_clips.add((layer.id, clip.id))
+                scene.addItem(ClipItem(layer.id, clip, rect, selected))
+            for t, props in key_times(layer, fps):
+                selected = (layer.id, round(t * fps)) in key_frames
+                if selected:
+                    found_keys.add((layer.id, round(t * fps)))
                 center = QPointF(self.scale.x(t), top + KEY_OFFSET)
                 scene.addItem(KeyItem(layer.id, t, props, center, selected))
             for i, prop in enumerate(layout.subs[row]):  # property rows (P7.3)
@@ -889,6 +1252,10 @@ class TimelineView(QGraphicsView):
             first = round(clip.offset * PEAKS_PER_SECOND)
             shown = peaks[first : first + round(clip.duration * PEAKS_PER_SECOND)]
             scene.addItem(AudioItem(clip, rect, _heard(shown, clip), clip.id == self.selected_audio))
+        if len(found_clips) != len(self.picked_clips):
+            self.picked_clips = found_clips
+        if len(found_keys) != len(key_frames):
+            self.picked_keys = {k for k in self.picked_keys if k[:2] in found_keys}
         self.header.update()
         self.viewport().update()
 
@@ -909,10 +1276,10 @@ class TimelineView(QGraphicsView):
 
     def _add_prop_row(self, layer: Layer, prop: str, top: float, fps: int) -> None:
         """A property row's keys (its band is drawn behind the items: ``drawBackground``)."""
-        picked = self.selected_key is not None and self.selected_key[0] == layer.id
-        picked = picked and self.selected_key_prop in (None, prop)
+        picks = self.picked_keys
         for key in layer.tracks.get(prop, []):
-            selected = picked and abs(self.selected_key[1] - key.t) < 0.5 / fps
+            frame = round(key.t * fps)
+            selected = (layer.id, frame, None) in picks or (layer.id, frame, prop) in picks
             center = QPointF(self.scale.x(key.t), top + SUB_ROW_HEIGHT / 2)
             self.scene().addItem(PropKeyItem(layer.id, key.t, prop, center, selected))
 
@@ -985,6 +1352,11 @@ class TimelineView(QGraphicsView):
             x = self._viewport_x(self.playhead)
             painter.setPen(QPen(PLAYHEAD_COLOR, 2))
             painter.drawLine(QPointF(x, 0), QPointF(x, self.viewport().height()))
+            if self.rubber is not None:  # the rubber band being drawn (U4b)
+                painter.setPen(QPen(SELECTED_EDGE, 1, Qt.PenStyle.DashLine))
+                painter.setBrush(RUBBER_FILL)
+                painter.drawRect(self.mapFromScene(self.rubber).boundingRect())
+                painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.restore()
 
     def _draw_ticks(self, painter: QPainter, width: int, duration: float) -> None:
@@ -1097,7 +1469,21 @@ class TimelineView(QGraphicsView):
             self._scrubbing = True
             self._scrub(pos.x())
             return
+        extend = bool(
+            event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
+        )
+        many = self.picked_count() > 1
         key = self._key_hit(pos)
+        if key is not None and extend:  # add it to the picks, or take it out (U4b)
+            self.toggle_key_pick(self._key_pick(key))
+            return
+        if key is not None and many:
+            layer_id, frame, prop = self._key_pick(key)
+            picked = {(layer_id, frame, None), (layer_id, frame, prop)} & self.picked_keys
+            if picked:  # drag every pick by this key
+                self._make_primary(key=(layer_id, frame, prop))
+                self._begin_group_drag(pos, [key.t])
+                return
         if key is not None:
             self.selected, self.selected_key = None, (key.layer_id, key.t)
             self.selected_key_prop = key.prop
@@ -1134,20 +1520,30 @@ class TimelineView(QGraphicsView):
             return
         item, edge = self._hit(pos)
         if item is None:
-            prop_row = self.prop_row_at(pos.y())
-            if prop_row is not None:  # empty space on a property row chooses it (P7.3)
-                extend = Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier
-                self.pick_prop(prop_row[0].id, prop_row[1], bool(event.modifiers() & extend))
+            band = self._band_hit(pos)
+            if band is not None:  # a selected row's band: move those layers whole (U4b)
+                start, end = self.layer_index().lifetime(band.layer_id)
+                end = min(end, self.project.canvas.duration)
+                rows = tuple(i for i in self.picked_rows if i in self.rows_draggable())
+                self._begin_group_drag(pos, [start, end], layers=rows, row=band.layer_id, extend=extend)
                 return
-            layer = self.layer_at(pos.y())
-            if layer is not None:  # empty space on a row selects its object (P7.1)
-                self.pick_layer(
-                    layer.id,
-                    bool(
-                        event.modifiers()
-                        & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
-                    ),
-                )
+            # empty space: a click picks the row on release (P7.1, P7.3), a drag a rubber band
+            self._empty_press = _EmptyPress(
+                pos,
+                QPointF(self.mapToScene(pos.toPoint())),
+                extend,
+                set(self.picked_clips),
+                set(self.picked_keys),
+                (self.selected, self.selected_key, self.selected_key_prop),
+            )
+            return
+        if extend:  # add the clip to the picks, or take it out (U4b)
+            self.toggle_clip_pick(item.layer_id, item.clip_id)
+            return
+        if many and (item.layer_id, item.clip_id) in self.picked_clips:  # drag every pick by it
+            self._make_primary(clip=(item.layer_id, item.clip_id))
+            clip = next(c for c in self.project.layer(item.layer_id).clips if c.id == item.clip_id)
+            self._begin_group_drag(pos, [clip.start, clip.end])
             return
         self.selected_key = None
         self.selected_audio = self.selected_cue = None
@@ -1167,8 +1563,16 @@ class TimelineView(QGraphicsView):
         if self._end_drag is not None:
             self._apply_end_drag(pos.x())
             return
+        press = self._empty_press
+        if press is not None:  # past a few pixels, a press on empty space draws a rubber band
+            if not press.banding and (pos - press.pos).manhattanLength() > RUBBER_PX:
+                press.banding = True
+            if press.banding:
+                self._update_rubber(pos)
+            return
         if (
             self._drag is None
+            and self._group_drag is None
             and self._key_drag is None
             and self._audio_drag is None
             and self._cue_drag is None
@@ -1190,7 +1594,17 @@ class TimelineView(QGraphicsView):
             self._end_drag = None
             self.document.commit_preview("Scene length")
             return
+        press, self._empty_press = self._empty_press, None
+        if press is not None:
+            if press.banding:
+                self._finish_rubber(press.layer)
+            else:  # a click on empty space: pick that property row or row
+                self._click_empty(press)
+            return
         self._set_guide(None)
+        if self._group_drag is not None:
+            self._finish_group_drag()
+            return
         if self._marker_drag is not None:
             self.apply_pending()
             self._marker_drag = None
@@ -1228,8 +1642,32 @@ class TimelineView(QGraphicsView):
         self.document.commit_preview(f"{verb} clip")
 
     def keyPressEvent(self, event) -> None:
-        drags = (self._drag, self._key_drag, self._audio_drag, self._cue_drag, self._marker_drag)
+        drags = (
+            self._drag,
+            self._key_drag,
+            self._audio_drag,
+            self._cue_drag,
+            self._marker_drag,
+            self._group_drag,
+        )
         dragging = any(drag is not None for drag in drags)
+        if event.key() == Qt.Key.Key_Escape and self._empty_press is not None:  # drop the band
+            press, self._empty_press, self.rubber = self._empty_press, None, None
+            self.picked_clips, self.picked_keys = press.clips, press.keys
+            self.selected, self.selected_key, self.selected_key_prop = press.primary
+            self.sync()
+            return
+        if event.key() == Qt.Key.Key_Escape and self._group_drag is not None:
+            group, self._group_drag = self._group_drag, None
+            self.picked_clips, self.picked_keys = set(group.clips), set(group.keys)
+            if group.primary_key is not None:
+                self.selected_key, self.selected_key_prop = group.primary_key[:2], group.primary_key[2]
+        if event.key() == Qt.Key.Key_Escape and not dragging and self.picked_count() > 1:
+            self.collapse_picks()
+            return
+        if event.matches(QKeySequence.StandardKey.SelectAll) and not dragging:
+            self.select_all_items()
+            return
         if event.key() == Qt.Key.Key_Escape and dragging:
             self._drag = None
             self._key_drag = None
@@ -1242,6 +1680,9 @@ class TimelineView(QGraphicsView):
             return
         deleting = event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
         if deleting and not dragging:
+            if self.picked_count() > 1:  # every pick, one undo step (U4b)
+                self.delete_picks()
+                return
             if self.selected_marker:
                 self.delete_marker(self.selected_marker)
                 return
@@ -1269,7 +1710,8 @@ class TimelineView(QGraphicsView):
 
     def context_menu(self, pos: QPointF) -> QMenu | None:
         """The right-click menu for a viewport position (built separately so it can be tested)."""
-        if self.project is None or self._drag is not None or self._key_drag is not None:
+        busy = (self._drag, self._key_drag, self._group_drag, self._empty_press)
+        if self.project is None or any(state is not None for state in busy):
             return None
         menu = QMenu(self)
         if pos.y() < RULER_HEIGHT:  # the ruler: markers (ADR 0037)
@@ -1641,8 +2083,16 @@ class TimelineView(QGraphicsView):
             item, edge = self._hit(pos, AudioItem)
         if item is None and pos.y() >= RULER_HEIGHT:
             item, edge = self._hit(pos, CueItem)
-        if item is None:
+        if item is None and pos.y() >= RULER_HEIGHT and self._band_hit(pos) is not None:
+            self.viewport().setCursor(Qt.CursorShape.SizeAllCursor)  # moves the layers (U4b)
+        elif item is None:
             self.viewport().unsetCursor()
+        elif (
+            isinstance(item, ClipItem)
+            and self.picked_count() > 1
+            and (item.layer_id, item.clip_id) in self.picked_clips
+        ):
+            self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)  # moves every pick, no trim
         elif edge is not None:
             self.viewport().setCursor(Qt.CursorShape.SizeHorCursor)
         else:
@@ -1659,6 +2109,9 @@ class TimelineView(QGraphicsView):
     def apply_pending(self) -> None:
         """Preview the latest drag position (coalesced: earlier ones are dropped)."""
         self._apply_scheduled = False
+        if self._group_drag is not None and self._pending is not None:
+            self._apply_group_drag()
+            return
         if self._marker_drag is not None and self._pending is not None:
             self._apply_marker_drag()
             return
@@ -1698,6 +2151,48 @@ class TimelineView(QGraphicsView):
             start, end = drag_trim(layer, drag.clip_id, drag.mode, edge_t, **common)
             edit = edits.trim_clip(base, drag.layer_id, drag.clip_id, start=start, end=end)
             self._guide_for(common["candidates"], snapping, start if drag.mode == "start" else end)
+        self.document.preview(edit)
+
+    def _apply_group_drag(self) -> None:
+        """Move the picks (or whole layers) by the dragged item's snapped delta, in one
+        ``shift_timing`` edit: never below 0 s for any of it, not past what the timeline reaches
+        (the scene grows on the drop); an edit the schema refuses previews nothing, and says why."""
+        scene_x, snapping = self._pending
+        self._pending = None
+        drag, base = self._group_drag, self._group_drag.base
+        fps = base.canvas.fps
+        selection = self.timing_selection(drag.clips, drag.keys, drag.layers)
+        exclude = [("clip", layer_id, clip_id) for layer_id, clip_id in selection.clips]
+        exclude += [("key", layer_id, t) for layer_id, t, _ in selection.keys]
+        for layer_id in drag.layers:
+            layer = base.layer(layer_id)
+            exclude += [("clip", layer_id, c.id) for c in layer.clips]
+            exclude += [("key", layer_id, t) for t, _ in key_times(layer, fps)]
+        candidates = snap_candidates(base, self.playhead, exclude=exclude)
+        raw = self.scale.seconds(scene_x - drag.press_x)
+        delta = group_delta(
+            drag.anchors, raw, fps=fps, scale=self.scale, candidates=candidates, snapping=snapping
+        )
+        delta = max(delta, -shift_timing.earliest(base, selection))
+        room = self.reach() - shift_timing.latest(base, selection)
+        if delta > room:
+            delta = max(room, 0.0)
+        try:
+            edit = shift_timing.shift_timing(base, selection, delta)
+        except edits.EditError as exc:
+            delta, edit = 0.0, edits.Edit(base, "timing", frozenset())
+            text = f"{'Move layers' if drag.layers else 'Move selection'}: {exc}"
+            if text != drag.refused:
+                drag.refused = text
+                self.message.emit(text)
+        else:
+            drag.refused = None
+        # the picked keys follow, on the frame grid (as shift_timing places them)
+        self.picked_keys = {(lay, round((f / fps + delta) * fps), p) for lay, f, p in drag.keys}
+        if drag.primary_key is not None:
+            layer_id, t, prop = drag.primary_key
+            self.selected_key, self.selected_key_prop = (layer_id, round((t + delta) * fps) / fps), prop
+        self._guide_for(candidates, snapping, *(a + delta for a in drag.anchors))
         self.document.preview(edit)
 
     def _apply_marker_drag(self) -> None:

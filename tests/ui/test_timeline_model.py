@@ -421,3 +421,27 @@ def test_the_ruler_ticks_stay_apart_and_label_minutes_on_a_long_scene() -> None:
     assert _tick_label(90.0, 30) == "1:30"
     assert _tick_label(600.0, 60) == "10:00"
     assert _tick_label(930.0, 30) == "15:30"
+
+
+# -- a dragged selection (U4b) -------------------------------------------------------------
+
+
+def test_a_dragged_selection_snaps_by_the_nearer_edge_of_the_dragged_clip() -> None:
+    from manim_studio.ui.timeline.model import group_delta
+
+    # a clip at 1..2 dragged by 1.95 s: its end (3.95) is 0.05 from 4.0, its start (2.95) 0.15 from 3.1
+    delta = group_delta([1.0, 2.0], 1.95, fps=FPS, scale=SCALE, candidates=[3.1, 4.0])
+    assert delta == pytest.approx(2.0)
+    delta = group_delta([1.0, 2.0], 2.07, fps=FPS, scale=SCALE, candidates=[3.1, 4.0])
+    assert delta == pytest.approx(2.1)  # now the start is nearer (3.07 vs 3.1)
+
+
+def test_a_dragged_selection_lands_on_frames_without_a_snap_or_with_alt() -> None:
+    from manim_studio.ui.timeline.model import group_delta
+
+    delta = group_delta([1.0], 0.512, fps=FPS, scale=SCALE, candidates=[1.5])
+    assert delta == pytest.approx(0.5)  # snapped to 1.5
+    delta = group_delta([1.0], 0.512, fps=FPS, scale=SCALE, candidates=[1.5], snapping=False)
+    assert delta == pytest.approx(round(1.512 * FPS) / FPS - 1.0)
+    delta = group_delta([1.0], 2.512, fps=FPS, scale=SCALE, candidates=[1.5])
+    assert delta == pytest.approx(round(3.512 * FPS) / FPS - 1.0)  # nothing near: the frame grid
