@@ -71,6 +71,10 @@ def _send(stream: IO[str], message: dict) -> None:
 
 def _summary(exc: Exception) -> str:
     """One short message: LaTeX's own error lines when there is a log, else the exception."""
+    if isinstance(exc, FileNotFoundError):  # no LaTeX on this computer says so
+        from .core import adapter
+
+        return adapter.build_failure(exc)
     message = str(exc)
     log_file = re.search(r"log file: (\S+\.log)", message)
     if log_file:

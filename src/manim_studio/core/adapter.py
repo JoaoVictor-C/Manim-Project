@@ -330,6 +330,16 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
     return _build_cached(spec.model_dump_json()).copy()
 
 
+def build_failure(exc: Exception) -> str:
+    """Why an object could not be built, in one line: a computer without LaTeX says so (Windows
+    reports only "file not found" when the compiler cannot be started)."""
+    compiler = m.config["tex_template"].tex_compiler
+    if isinstance(exc, FileNotFoundError) and shutil.which(compiler) is None:
+        return f"LaTeX is not installed ({compiler} was not found): install MiKTeX or TeX Live"
+    lines = [line for line in str(exc).splitlines() if line.strip()]
+    return f"{type(exc).__name__}: {lines[0] if lines else ''}"[:200]
+
+
 MISSING = "missing"  # the signature of a file that cannot be found or read
 
 

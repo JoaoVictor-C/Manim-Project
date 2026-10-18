@@ -19,7 +19,6 @@ from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
-from ..core import adapter
 from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
 from ..core.schema import CONNECTOR_TYPES, Canvas
@@ -188,9 +187,17 @@ class CanvasWidget(QWidget):
                 for layer_id in self._others()
             ]
         else:
-            layers = self._evaluator.frame_layers(t)
-            overlay = self._evaluator.overlay(t)  # subtitles, never hit-tested (ADR 0035)
-            pixels = render_frame(self._camera, [*(mob for _, mob in layers), *overlay])
+            try:
+                layers = self._evaluator.frame_layers(t)
+                overlay = self._evaluator.overlay(t)  # subtitles, never hit-tested (ADR 0035)
+                pixels = render_frame(self._camera, [*(mob for _, mob in layers), *overlay])
+            except Exception:
+                # Never the last picture stretched to a new size: it looked like a squashed
+                # scene with stale objects (the user's report). The exception is reported.
+                self._image = self.outline = None
+                self.other_outlines = []
+                self.update()
+                raise
             self.outline = self._outline(layers, t)  # built now: the mobjects are shared buffers
             self.other_outlines = [(i, self._path_of(i, layers)) for i in self._others()]
             height, width = pixels.shape[:2]
@@ -255,7 +262,7 @@ class CanvasWidget(QWidget):
         if key not in self._rest:
             if len(self._rest) > 32:
                 self._rest.clear()
-            family = adapter.build_mobject(spec).family_members_with_points()
+            family = self._evaluator.built(spec).family_members_with_points()
             self._rest[key] = (
                 np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((0, 2))
             )

@@ -185,3 +185,73 @@ def test_the_start_hint_goes_once_a_project_is_open(qt_app, tmp_path) -> None:
     finally:
         win.document.undo_stack.setClean()
         win.close()
+
+
+@pytest.mark.ui
+def test_an_exception_in_a_slot_is_logged_and_named_in_the_status_bar(window, caplog) -> None:
+    """Qt only printed it (nobody saw it, no log): the user's session broke without a trace."""
+    import logging
+
+    from manim_studio.ui.main_window import report_exceptions
+
+    hook = report_exceptions(window)
+    try:
+        raise ValueError("bad LaTeX")
+    except ValueError as caught:
+        exc = caught
+        with caplog.at_level(logging.CRITICAL, logger="manim_studio"):
+            logging.getLogger("manim_studio").propagate = True
+            try:
+                hook(type(exc), exc, exc.__traceback__)
+            finally:
+                logging.getLogger("manim_studio").propagate = False
+    assert "ValueError: bad LaTeX" in window.statusBar().currentMessage()
+    assert any(r.exc_info and r.exc_info[1] is exc for r in caplog.records)
+
+
+@pytest.mark.ui
+def test_a_frame_that_fails_to_draw_leaves_no_stale_picture(window, monkeypatch) -> None:
+    """The last picture was kept and stretched to the canvas's new size: a squashed scene with
+    stale objects. Now the canvas is empty and the exception goes on to the hook."""
+    window.seek(1.0)
+    assert window.canvas._image is not None
+
+    def broken(t):
+        raise RuntimeError("cannot draw")
+
+    monkeypatch.setattr(window.evaluator, "frame_layers", broken)
+    with pytest.raises(RuntimeError):
+        window.canvas.render_at(1.5)
+    assert window.canvas._image is None and window.canvas.outline is None
+
+
+@pytest.mark.ui
+def test_without_latex_the_editor_keeps_working(qt_app, tmp_path, monkeypatch) -> None:
+    """The user's other PC: no LaTeX, so every MathTex build raised - in the idle pass, the
+    canvas and selection - and the editor seemed broken. Now it shows a placeholder and says why."""
+    import uuid
+
+    from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec
+
+    monkeypatch.setenv("PATH", str(tmp_path))  # no latex on PATH
+    text = rf"x^2 + \text{{{uuid.uuid4().hex[:8]}}}"
+    path = tmp_path / "tex.json"
+    eq = Layer(
+        id="eq",
+        spec=Spec(type="MathTex", params={"text": text}),
+        clips=[Clip(id="w", kind="Write", start=0.0, duration=1.0)],
+    )
+    project = Project(canvas=Canvas(duration=3.0), layers=[eq, Layer(id="c", spec=Spec(type="Circle"))])
+    path.write_text(project.model_dump_json(by_alias=True), encoding="utf-8")
+    win = MainWindow()
+    win.show()
+    win.load(path)
+    for t in (0.5, 2.0):
+        win.seek(t)
+    while win.evaluator.missing_checkpoints():
+        win._on_idle()
+    win.selection.set("eq")
+    win.seek(2.5)
+    assert win.canvas._image is not None and win.canvas.outline is not None
+    assert "LaTeX is not installed" in win.statusBar().currentMessage()
+    win.close()

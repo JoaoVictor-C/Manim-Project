@@ -18,8 +18,8 @@ import time
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -41,7 +41,7 @@ from ..core.frame_cache import frame_index, frame_time
 from ..core.python_export import PythonExport, class_name, to_python
 from ..core.schema import MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
-from ..logging_config import LOGGER_NAME, get_logger, setup_logging
+from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
 from . import arrange, icons, places, shortcuts_help, snap_guides, theme
 from .audio_player import make_audio_player
 from .autosave import Autosave
@@ -407,6 +407,10 @@ class MainWindow(QMainWindow):
         plugins_action.setToolTip("Which plugins loaded, the object types they add, and which failed")
         plugins_action.triggered.connect(self.show_plugins)
         help_menu.addAction(plugins_action)
+        log_action = QAction("Open &Log Folder", self)
+        log_action.setToolTip("The editor's log: what to attach when reporting a problem")
+        log_action.triggered.connect(self.open_log_folder)
+        help_menu.addAction(log_action)
         play = QAction("Play / Pause", self)
         play.setShortcut(Qt.Key.Key_Space)
         play.triggered.connect(self.toggle_play)
@@ -749,6 +753,11 @@ class MainWindow(QMainWindow):
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
         if self.t > project.canvas.duration:
             self.seek(project.canvas.duration)
+
+    def open_log_folder(self) -> None:
+        folder = log_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def show_scene_settings(self) -> None:
         """Nothing selected, so Properties shows the scene; its length is ready to type."""
@@ -1449,6 +1458,22 @@ class MainWindow(QMainWindow):
         self.refresh()
 
 
+def report_exceptions(window: MainWindow):
+    """An exception hook: Qt prints an exception raised in a slot or an event handler and goes
+    on, so it reached no log and nobody saw it (the user's broken session). It is logged with its
+    traceback and named in the status bar."""
+
+    def hook(kind, value, tb) -> None:
+        log.critical("unhandled exception", exc_info=(kind, value, tb))
+        try:
+            text = f"Internal error: {kind.__name__}: {value}"[:200]
+            window.statusBar().showMessage(f"{text} - details in the log (Help menu)", 20000)
+        except RuntimeError:  # the window is gone
+            pass
+
+    return hook
+
+
 def run(argv: list[str] | None = None) -> int:
     argv = sys.argv if argv is None else argv
     if not logging.getLogger(LOGGER_NAME).handlers:  # launched without the CLI
@@ -1458,6 +1483,7 @@ def run(argv: list[str] | None = None) -> int:
     theme.apply(app)  # the studio look (ADR 0040)
     adapter.configure(places.cache_folder())  # not under the folder it was started from (GP)
     window = MainWindow()
+    sys.excepthook = report_exceptions(window)
     window.show()
     if len(argv) > 1:
         window.load(Path(argv[1]))  # offers that file's recovery copies (ADR 0038)

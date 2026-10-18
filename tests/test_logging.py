@@ -75,3 +75,28 @@ def test_unwritable_log_dir_does_not_raise(monkeypatch, tmp_path) -> None:
 def test_get_logger_namespaces() -> None:
     assert get_logger("x").name == "manim_studio.x"
     assert get_logger("manim_studio.core").name == "manim_studio.core"
+
+
+def test_a_refused_rotation_keeps_the_log_writing(monkeypatch, tmp_path) -> None:
+    """Windows refuses to rename a log another editor holds open: every later record failed and
+    the log went silent (the user's session left no trace). Now it stops rotating instead."""
+    import os
+
+    monkeypatch.setenv("MANIM_STUDIO_LOG_DIR", str(tmp_path))
+    path = setup_logging(verbosity=0)
+    handler = next(h for h in logging.getLogger(LOGGER_NAME).handlers if isinstance(h, logging.FileHandler))
+    handler.maxBytes = 200
+
+    def refuse(*_args, **_kwargs):
+        raise PermissionError("the file is used by another process")
+
+    monkeypatch.setattr(os, "rename", refuse)
+    monkeypatch.setattr(os, "replace", refuse, raising=False)
+    errors = []
+    monkeypatch.setattr(handler, "handleError", lambda record: errors.append(record))
+    log = get_logger("tests")
+    for i in range(20):
+        log.debug("record %d with enough text to pass the size limit", i)
+    handler.flush()
+    assert errors == []
+    assert "record 19" in path.read_text(encoding="utf-8")
