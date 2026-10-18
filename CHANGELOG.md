@@ -545,6 +545,19 @@ All notable changes to this project are documented here. The format follows
   now reads "to_layer ... is missing" instead of crashing.
 
 ### Fixed
+- On a computer without LaTeX (MiKTeX or TeX Live), a formula no longer breaks the editor - the
+  idle pass, drawing and selection all raised, and the canvas showed its last picture stretched
+  (a squashed scene with stale objects). The formula is drawn as a placeholder and the status bar
+  says "LaTeX is not installed".
+- Problems leave evidence: an exception in the interface is logged with its traceback and named
+  in the status bar, the log no longer goes silent when a second editor holds it open, and Help >
+  Open Log Folder.
+- The editor, its build worker and the render-ahead process no longer read a text or LaTeX file
+  another one is still writing: one at a time writes Manim's cache (a lock file in it).
+- After an edit, a frame rendered ahead again is shown instead of the picture from before it (an
+  edited key seemed to stop working).
+- Scrolling the timeline no longer repeats the ruler down the rows.
+- Fit Length to Content no longer shrinks a scene with nothing timed to one frame (P7.1).
 - A MoveAlongPath clip on an equation with parts crashed ("needs a target"); objects
   with parts or child objects can now travel along a path (P3g).
 - The timeline drew nothing after a MoveAlongPath clip: motion clips had no

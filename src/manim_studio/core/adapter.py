@@ -12,7 +12,11 @@ import json
 import math
 import os
 import shutil
+import sys
+import threading
+import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -100,8 +104,87 @@ def _tex_to_svg_file(expression, environment=None, tex_template=None):
     return _manim_tex_to_svg_file(expression, environment, tex_template)
 
 
-_tex_files.tex_to_svg_file = _tex_to_svg_file
-_tex_mobject.tex_to_svg_file = _tex_to_svg_file
+# --- patch: one process at a time writes Manim's text and LaTeX cache -------------------------
+#
+# The editor, its build worker and the render-ahead process share the cache. Manim writes a file
+# when it does not exist yet, so two of them building the same text at once could read it while
+# the other was writing it (seen: FileNotFoundError on a texts/*.svg in the render-ahead process).
+# Writing and checking take a lock file in the cache folder; a process that cannot get it within
+# LOCK_TIMEOUT (a first MiKTeX run installing packages) goes on unlocked rather than hang.
+
+LOCK_TIMEOUT = 120.0
+_held = threading.local()
+
+
+@contextmanager
+def cache_lock(timeout: float = LOCK_TIMEOUT):
+    """Hold the cache's lock file (re-entrant within a thread)."""
+    if getattr(_held, "depth", 0):
+        _held.depth += 1
+        try:
+            yield
+        finally:
+            _held.depth -= 1
+        return
+    folder = cache_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / ".build.lock", "a+b") as file:
+        locked = _lock(file, timeout)
+        if not locked:
+            log.warning("cache lock busy for %.0f s: building without it", timeout)
+        _held.depth = 1
+        try:
+            yield
+        finally:
+            _held.depth = 0
+            if locked:
+                _unlock(file)
+
+
+def _lock(file, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+
+                file.seek(0)
+                msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.02)
+
+
+def _unlock(file) -> None:
+    if sys.platform == "win32":
+        import msvcrt
+
+        file.seek(0)
+        msvcrt.locking(file.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(file.fileno(), fcntl.LOCK_UN)
+
+
+def _locked(function):
+    def wrapper(*args, **kwargs):
+        with cache_lock():
+            return function(*args, **kwargs)
+
+    wrapper.__wrapped__ = function
+    return wrapper
+
+
+_tex_files.tex_to_svg_file = _tex_mobject.tex_to_svg_file = _locked(_tex_to_svg_file)
+m.Text._text2svg = _locked(m.Text._text2svg)
+m.MarkupText._text2svg = _locked(m.MarkupText._text2svg)
 
 
 # --- mobjects ---------------------------------------------------------------
