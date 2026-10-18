@@ -54,13 +54,23 @@ class CodeFrame(m.Mobject):
         pixels = self.crop.pixels
         h, w = pixels.shape[:2]
         surface = cairo.ImageSurface.create_for_data(memoryview(pixels), cairo.FORMAT_ARGB32, w, h, 4 * w)
+        to_world, offset = self.to_world, self.offset
+        if isinstance(camera, m.ThreeDCamera):  # a turned camera (ADR 0048): the crop as it is seen,
+            # through three corners, as Manim draws an image (an affine map: no perspective inside it)
+            corners = np.array([[*self.world(u, v), 0.0] for u, v in ((0, 0), (w, 0), (0, h))])
+            seen = camera.project_points(corners)[:, :2]
+            to_world = np.column_stack([(seen[1] - seen[0]) / w, (seen[2] - seen[0]) / h])
+            offset = seen[0]
+            if abs(np.linalg.det(to_world)) < 1e-12:  # seen edge on: nothing to paint
+                surface.finish()
+                return
         # world -> camera pixels
         sx = camera.pixel_width / camera.frame_width
         sy = -camera.pixel_height / camera.frame_height
         cx, cy = camera.frame_center[:2]
         to_px = np.array([[sx, 0.0], [0.0, sy]])
-        linear = to_px @ self.to_world
-        shift = to_px @ (self.offset - np.array([cx, cy])) + np.array(
+        linear = to_px @ to_world
+        shift = to_px @ (offset - np.array([cx, cy])) + np.array(
             [camera.pixel_width / 2, camera.pixel_height / 2]
         )
         ctx = camera.get_cairo_context(camera.pixel_array)

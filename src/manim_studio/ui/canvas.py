@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QWidget
 
 from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
-from ..core.schema import CONNECTOR_TYPES, Canvas
+from ..core.schema import CONNECTOR_TYPES, Camera, Canvas
 from ..render.cairo_export import render_frame
 from ..render.preview import PreviewView, preview_camera
 from ..render.qt_paths import vmobject_path
@@ -39,6 +39,7 @@ GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
 PARAM_HANDLE_PX = 9.0  # parameter handles: round, drawn size (ADR 0043)
 CLEAR_OF_MIDDLE_PX = 14.0  # parameter handles nearer an object's middle or pivot than this are hidden
 WHEEL_PAN_PX = 48.0  # one wheel notch
+TURNED_NOTICE = "Camera turned: no handles or clicking objects here. Reset it in Properties > Camera."
 
 
 @dataclass
@@ -66,6 +67,7 @@ class CanvasWidget(QWidget):
         self._evaluator: Evaluator | None = None
         self._camera: m.Camera | None = None
         self._camera_view: PreviewView | None = None
+        self._camera_angles: Camera | None = None  # the project camera self._camera was built for
         self._image: QImage | None = None
         self.half_resolution = False
         self.last_render_ms = 0.0
@@ -159,6 +161,9 @@ class CanvasWidget(QWidget):
         """Show the selected objects as large as fit (Unity's F); with nothing selected, Fit."""
         if self._canvas is None or self._evaluator is None:
             return
+        if self.camera_turned:  # flat bounds would frame the wrong place (ADR 0048)
+            self.fit()
+            return
         ids = [self.selected_layer, *self.other_layers] if self.selected_layer else []
         points = []
         for layer_id in dict.fromkeys(i for i in ids if i):
@@ -196,11 +201,20 @@ class CanvasWidget(QWidget):
             return
         self._t = t
         view = self.preview_view()
-        if self._camera is None or replace(view, centre=(0, 0)) != replace(self._camera_view, centre=(0, 0)):
-            self._camera = preview_camera(view)
+        seen_from = self._evaluator.project.camera  # the project's camera (ADR 0048)
+        if (
+            self._camera is None
+            or replace(view, centre=(0, 0)) != replace(self._camera_view, centre=(0, 0))
+            or seen_from != self._camera_angles
+        ):
+            self._camera = preview_camera(view, seen_from)
+            self._camera_angles = seen_from
         elif view.centre != self._camera_view.centre:  # a pan: same camera, moved
             self._camera.frame_center = np.array([view.centre[0], view.centre[1], 0.0])
         self._camera_view = view
+        if self.camera_turned:  # outlines and handles are flat: they would be drawn in the wrong place
+            self._render_turned(t, view)
+            return
         start = time.perf_counter()
         cached = None
         if self.render_ahead is not None:
@@ -218,7 +232,7 @@ class CanvasWidget(QWidget):
             try:
                 layers = self._evaluator.frame_layers(t)
                 overlay = self._evaluator.overlay(t)  # subtitles, never hit-tested (ADR 0035)
-                pixels = render_frame(self._camera, [*(mob for _, mob in layers), *overlay])
+                pixels = render_frame(self._camera, [mob for _, mob in layers], overlay)
             except Exception:
                 # Never the last picture stretched to a new size: it looked like a squashed
                 # scene with stale objects (the user's report). The exception is reported.
@@ -232,6 +246,36 @@ class CanvasWidget(QWidget):
             self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.motion = self._motion(t)
         self.param_handles = self._param_handles(t)
+        self.last_render_ms = (time.perf_counter() - start) * 1000
+        self.update()
+
+    @property
+    def camera_turned(self) -> bool:
+        """The project's camera is not the flat 2D view (ADR 0048): the picture is seen from an angle,
+        so outlines, handles and clicking objects (all in flat scene units) are off until it is reset."""
+        return self._evaluator is not None and not self._evaluator.project.camera.is_default
+
+    def _render_turned(self, t: float, view: PreviewView) -> None:
+        """The frame seen by a turned camera, with no outline, handle or motion path over it."""
+        start = time.perf_counter()
+        self.outline, self.other_outlines, self.motion, self.param_handles = None, [], None, []
+        cached = None
+        if self.render_ahead is not None:
+            self.render_ahead.set_view(view)
+            cached = self.render_ahead.image(t)
+        self.from_cache = cached is not None
+        if cached is not None:
+            self._image = cached
+        else:
+            try:
+                layers = [mob for _, mob in self._evaluator.frame_layers(t)]
+                pixels = render_frame(self._camera, layers, self._evaluator.overlay(t))
+            except Exception:
+                self._image = None
+                self.update()
+                raise
+            height, width = pixels.shape[:2]
+            self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.last_render_ms = (time.perf_counter() - start) * 1000
         self.update()
 
@@ -372,7 +416,19 @@ class CanvasWidget(QWidget):
                 pos, text = self.readout
                 painter.setPen(BADGE_TEXT)
                 painter.drawText(pos + QPointF(14, -10), text)
+            if self.camera_turned:
+                self._paint_turned_notice(painter)
         painter.end()
+
+    def _paint_turned_notice(self, painter: QPainter) -> None:
+        """Why there are no handles: the camera is turned (ADR 0048)."""
+        painter.save()
+        metrics = painter.fontMetrics()
+        box = QRectF(8, 8, metrics.horizontalAdvance(TURNED_NOTICE) + 16, metrics.height() + 8)
+        painter.fillRect(box, BADGE)
+        painter.setPen(BADGE_TEXT)
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, TURNED_NOTICE)
+        painter.restore()
 
     def _paint_others(self, painter: QPainter) -> None:
         """The other selected objects: their outline and box, no handles (ADR 0043)."""
@@ -530,14 +586,19 @@ class CanvasWidget(QWidget):
             if not self._dragging():
                 self._pan_from = QPointF(event.position())  # middle-drag pans
             return
-        if self.tool is None or self._canvas is None or event.button() != Qt.MouseButton.LeftButton:
+        if not self._tool_input() or event.button() != Qt.MouseButton.LeftButton:
             super().mousePressEvent(event)
             return
         self.setFocus()
         self.tool.press(event.position(), event.modifiers())
 
+    def _tool_input(self) -> bool:
+        """Mouse input goes to the tool: not while the camera is turned (ADR 0048), when what the
+        tool hit-tests and drags - flat scene units - is not where the picture shows it."""
+        return self.tool is not None and self._canvas is not None and not self.camera_turned
+
     def mouseDoubleClickEvent(self, event) -> None:
-        if self.tool is None or self._canvas is None or event.button() != Qt.MouseButton.LeftButton:
+        if not self._tool_input() or event.button() != Qt.MouseButton.LeftButton:
             super().mouseDoubleClickEvent(event)
             return
         self.tool.double_click(event.position(), event.modifiers())
@@ -548,14 +609,14 @@ class CanvasWidget(QWidget):
             self._pan_from = QPointF(event.position())
             self.pan(delta.x(), delta.y())
             return
-        if self.tool is not None and self._canvas is not None:
+        if self._tool_input():
             self.tool.move(event.position(), event.modifiers())
 
     def mouseReleaseEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_from = None
             return
-        if self.tool is not None and self._canvas is not None:
+        if self._tool_input():
             self.tool.release()
 
     def keyPressEvent(self, event) -> None:

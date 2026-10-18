@@ -15,8 +15,9 @@ import numpy as np
 from ..core import audio, subtitles
 from ..core.code_frame import CodeFrame
 from ..core.evaluator import Evaluator
-from ..core.schema import Canvas, Project
+from ..core.schema import Camera, Canvas, Project
 from ..logging_config import get_logger
+from .preview import PreviewView, keep_in_frame, scene_camera
 from .options import (
     DEFAULT_CRF,
     RenderOptions,
@@ -29,26 +30,35 @@ from .options import (
 log = get_logger(__name__)
 
 
-def make_camera(canvas: Canvas) -> m.Camera:
-    return m.Camera(
+def make_camera(canvas: Canvas, camera: Camera | None = None) -> m.Camera:
+    """The export's camera: the whole video frame, seen from ``camera`` (ADR 0048; None or the
+    default is Manim's 2D camera, as before)."""
+    view = PreviewView(
         pixel_width=canvas.width_px,
         pixel_height=canvas.height_px,
         frame_width=canvas.frame_width,
         frame_height=canvas.frame_height,
-        background_color=m.ManimColor(canvas.background),
-        background_opacity=1.0,
+        centre=(0.0, 0.0),
+        background=canvas.background,
     )
+    return scene_camera(view, camera)
 
 
-def render_frame(camera: m.Camera, mobjects: Iterable[m.Mobject]) -> np.ndarray:
+def render_frame(
+    camera: m.Camera, mobjects: Iterable[m.Mobject], overlay: Iterable[m.Mobject] = ()
+) -> np.ndarray:
     """RGBA uint8 array of shape (height, width, 4).
 
     Code layer frames (ADR 0019) are painted by Cairo between runs of ordinary
-    mobjects, so they keep their place in the stacking order.
+    mobjects, so they keep their place in the stacking order. ``overlay`` (the
+    evaluator's: burned-in subtitles) is drawn last and stays flat on the screen
+    when the camera is turned (ADR 0048).
     """
+    overlay = list(overlay)
+    keep_in_frame(camera, overlay)
     camera.reset()
     run: list[m.Mobject] = []
-    for mob in mobjects:
+    for mob in [*mobjects, *overlay]:
         if isinstance(mob, CodeFrame):
             if run:
                 camera.capture_mobjects(run)
@@ -146,7 +156,7 @@ def _encode(
 ) -> None:
     """Encode frames ``[first, last)`` of ``project`` (options applied) and the sound under them."""
     canvas = project.canvas
-    camera = make_camera(canvas)
+    camera = make_camera(canvas, project.camera)
     evaluator = Evaluator(project)
     with av.open(str(out_path), mode="w") as container:
         stream = container.add_stream("libx264", rate=canvas.fps)
@@ -165,7 +175,8 @@ def _encode(
             canvas.fps,
         )
         for i, t in enumerate(times):
-            rgba = render_frame(camera, evaluator.frame(t))
+            layers = [mob for _, mob in evaluator.frame_layers(t)]  # evaluator.frame(t), the subtitle apart
+            rgba = render_frame(camera, layers, evaluator.overlay(t))
             frame = av.VideoFrame.from_ndarray(rgba[:, :, :3].copy(), format="rgb24")
             container.mux(stream.encode(frame))
             if progress:

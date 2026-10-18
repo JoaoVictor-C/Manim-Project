@@ -28,10 +28,13 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
+from pydantic import ValidationError
 
 from . import motion_paths, parts
 from .schema import (
+    CAMERA_FIELDS,
     AudioClip,
+    Camera,
     Clip,
     Cue,
     Easing,
@@ -434,6 +437,26 @@ def set_canvas(project: Project, **fields: Any) -> Edit:
     return Edit(new, "spec", frozenset(layer.id for layer in project.layers))
 
 
+def set_camera(project: Project, **fields: Any) -> Edit:
+    """Change the camera's angles (ADR 0048): ``phi``, ``theta``, ``gamma`` in degrees, validated.
+    Every frame may change, so the edit kind is ``spec`` for every layer (``classify`` agrees)."""
+    unknown = set(fields) - set(CAMERA_FIELDS)
+    if unknown:
+        raise EditError(f"not a camera setting: {', '.join(sorted(unknown))}")
+    try:
+        camera = Camera.model_validate({**project.camera.model_dump(), **fields})
+    except ValidationError as exc:
+        raise EditError(f"camera: {exc.errors()[0]['msg']}") from exc
+    if camera == project.camera:
+        return Edit(project, "timing", frozenset())
+    return Edit(_rebuilt(project, camera=camera), "spec", frozenset(layer.id for layer in project.layers))
+
+
+def reset_camera(project: Project) -> Edit:
+    """Back to the flat 2D view (ADR 0048)."""
+    return set_camera(project, **Camera().model_dump())
+
+
 def anchor_shifts_elsewhere(layer: Layer) -> bool:
     """Whether moving the anchor keeps the drawing only at the edit time (keyed rotation/scale)."""
     return bool(layer.tracks.get("rotation") or layer.tracks.get("scale"))
@@ -635,6 +658,7 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "subtitles": project.subtitles,
         "subtitle_style": project.subtitle_style,
         "markers": project.markers,
+        "camera": project.camera,
     }
     return Project.model_validate({**data, **parts})
 
@@ -746,6 +770,9 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
     old_parts, new_parts = _part_signature(old), _part_signature(new)
     kind: EditKind = "timing"
     touched: set[str] = set()
+    if old.camera != new.camera:  # every object is seen from elsewhere: every frame changes (ADR 0048)
+        kind = "spec"
+        touched = set(old_layers) | set(new_layers)
     for layer_id in old_layers.keys() | new_layers.keys():
         a, b = old_layers.get(layer_id), new_layers.get(layer_id)
         layer_kind = "clip" if a is None or b is None else _layer_kind(a, b)

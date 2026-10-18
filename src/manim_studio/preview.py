@@ -77,6 +77,7 @@ class Renderer:
         self.generation = 0
         self.evaluator = None
         self.view_id = 0
+        self.view = None
         self.camera = None
         self.want: list[int] = []
 
@@ -90,6 +91,7 @@ class Renderer:
         from .core.schema import Project
         from .render.preview import PreviewView, preview_camera
 
+        camera_before = self.project.camera if self.project is not None else None
         if "project" in message:
             project = Project.model_validate(message["project"])
             changed = changed_layers(self.project, project) if self.project is not None else None
@@ -100,7 +102,10 @@ class Renderer:
             self.project, self.generation = project, int(message["generation"])
         if "view" in message:
             self.view_id = int(message["view_id"])
-            self.camera = preview_camera(PreviewView.from_json(message["view"]))
+            self.view = PreviewView.from_json(message["view"])
+        if self.view is not None and self.project is not None:
+            if "view" in message or self.camera is None or self.project.camera != camera_before:
+                self.camera = preview_camera(self.view, self.project.camera)  # as the canvas (ADR 0048)
         if "want" in message:
             self.want = [int(i) for i in message["want"]]
         if message.get("media") and self.evaluator is not None:
@@ -116,9 +121,9 @@ class Renderer:
         if not 0 <= index < frame_count(self.project):
             return
         try:
-            pixels = render_frame(
-                self.camera, self.evaluator.frame(frame_time(index, self.project.canvas.fps))
-            )
+            t = frame_time(index, self.project.canvas.fps)
+            layers = [mob for _, mob in self.evaluator.frame_layers(t)]
+            pixels = render_frame(self.camera, layers, self.evaluator.overlay(t))
         except Exception as exc:  # the editor renders that frame live instead
             _send(self.protocol, {"failed": index, "error": _summary(exc)})
             return
