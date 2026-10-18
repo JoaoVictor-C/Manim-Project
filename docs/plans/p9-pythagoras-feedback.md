@@ -1,6 +1,6 @@
 # P9 - What the Pythagoras project asked for
 
-- **Status:** In progress (U1, U2, U3 and U5 shipped; U4 has its Shift Timing edit, its timeline multi-selection and U6 groups are next)
+- **Status:** In progress (U1, U2, U3, U4 and U5 shipped; U6 groups next)
 - **Date:** 2026-10-18
 - **Decided in:** [decision session 44](../logs/decision-sessions.md) (Terza, `fast`, stopped at confidence 0.84)
 - **Why:** the user finished a real 30-second project (`Pythagoras.json`: 10 layers of text, 4 right triangles,
@@ -9,11 +9,11 @@
 | # | the user's note | what was found | slice |
 |---|---|---|---|
 | 1 | scrolling the timeline moves the view but not the shown frame unless playing; add a lock | the view and the playhead are independent | **U3 done**: View > Follow Playhead (view only; the wheel does not scrub) |
-| 2 | moving keys/clips by hand; moving a preset means copying its start time into Appears at | Appears at is explicit, so it does not follow the clips | **U4** *Shift timing* with the boundary clip carrying Appears at / Disappears at (**done**: `core/shift_timing.py`, Edit > Shift Timing...); timeline multi-selection (after P7.3) |
+| 2 | moving keys/clips by hand; moving a preset means copying its start time into Appears at | Appears at is explicit, so it does not follow the clips | **U4** *Shift timing* with the boundary clip carrying Appears at / Disappears at (**done**: `core/shift_timing.py`, Edit > Shift Timing...); timeline multi-selection (**done**, U4b: `TimelineView` picks, rubber band, group drag, band drag of selected rows) |
 | 3 | right triangles had to be built as a sample | no such object | **U1 done**: Right triangle object (`RightTriangle`, same params as the user's file) |
 | 4 | colour just a part of a text; many MathTex only to transform parts | part layers have no style | **U5 done**: part colour (ADR 0049): a part layer's `style`, a Text's `t2c` |
 | 5 | auto-key ties a new object's movement to a key at its start | a one-key track at the first frame, or keys at 0 and at the playhead, turned the stopwatch on | **U2 done**: ADR 0018 amended - nothing to animate yet means a base edit |
-| 6 | grouping; select several timelines/objects and move them together | no groups; selection of one clip at a time | **U4** (selection) and **U6** (Group, transform-only first) |
+| 6 | grouping; select several timelines/objects and move them together | no groups; selection of one clip at a time | **U4 done** (selection) and **U6** (Group, transform-only first) |
 
 ## Decisions and why (session 44)
 
@@ -26,6 +26,13 @@
   equalled that clip's start, the last clip likewise Disappears at; keys never carry. A partial selection that
   would leave the object ending before its animation gets a warning, not silent invisibility. A delta that
   would take anything below 0 is clamped for the whole selection (never partly applied).
+  *As built (U4b):* the picks are editor state in `TimelineView` (sets, looked up per item, so
+  the rebuild stays linear); the primary pick is the shared selection's clip or key, so Properties
+  shows it, and a selection made elsewhere replaces the picks. A press on empty space becomes a
+  rubber band past 4 px (a click still picks the row); the band of a row not selected is empty
+  space, the band of a selected row (no clip or key picked) drags those layers whole. In a
+  multi-selection a clip's edge moves the group instead of trimming. Escape keeps the primary
+  pick. Building on this exposed a `shift_timing` bug (keys one delta apart moved twice), fixed.
 - **U5**: a `style` on part layers (fill/stroke) applied in the evaluator's per-frame member output (on the
   copy, so no cache key changes); a clip's own colour wins while it plays. *As built (ADR 0049):* the
   colour goes on a copy of the build, the tree's state before any clip (no cache key changes), since

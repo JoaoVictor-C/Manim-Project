@@ -796,6 +796,8 @@ class MainWindow(QMainWindow):
     def _selected_timing(self) -> shift_timing.Selection | None:
         """What is selected, as the timing edit wants it (None: nothing)."""
         sel = self.selection
+        if self.timeline.picked_count() > 1:  # the timeline's multi-selection (U4b)
+            return self.timeline.timing_selection()
         if sel.audio_id is not None:
             return shift_timing.Selection(audio=(sel.audio_id,))
         if sel.subtitle_id is not None:
@@ -909,6 +911,7 @@ class MainWindow(QMainWindow):
             self.layers.select(layer_id, self.selection.layer_ids)
         self.layers.update_buttons()
         self.timeline.set_selected(layer_id, clip_id, key_time)
+        self.timeline.set_selected_layers(self.selection.layer_ids)  # their bands drag them (U4b)
         self.timeline.set_selected_audio(self.selection.audio_id)
         self.timeline.set_selected_subtitle(self.selection.subtitle_id)
         self.timeline.set_selected_marker(self.selection.marker_id)
