@@ -37,7 +37,12 @@ third-party algebra-animation library's code or documentation was consulted.
   computer without LaTeX the steps are added at once as placeholders.
 - Tests: `tests/core/test_equation_steps.py`, `tests/core/test_equation_steps_layers.py`,
   `tests/ui/test_equation_steps_ui.py`. No slow test: the frames are compared in-process.
-- Mutation check: see the end of this file.
+- Mutation check: 56 mutants of the guards (core reading, operations and their parentheses,
+  substitution contexts, transition planning, the generator's checks, timing, highlight and
+  scene growth, the dialog's checks, `BuildService.check`, the panel's no-LaTeX path, selection
+  and free spot). Five survived the first run: four got a test (a sign after an operator, a
+  missing argument before `}` or `\right`, `\left(` beside a plain bracket, no worker request
+  without LaTeX) and one guard was dead code and went; all the others are killed.
 
 ## Not done (P11.1)
 

@@ -76,6 +76,8 @@ def test_the_tree_groups_braces_brackets_left_right_and_command_arguments() -> N
     frac = nodes[0]
     assert [arg.text(tex) for arg in frac.children] == ["{a+b}", "{2}"]
     assert [c.text(tex) for c in frac.children[0].children] == ["a", "+", "b"]
+    nested = r"(\left( x \right) + 1) = y"  # a \left( is not a plain bracket to pair with ")"
+    assert parse(nested)[0].kind == "group" and parse(nested)[0].text(nested) == r"(\left( x \right) + 1)"
     sqrt = parse(r"\sqrt[3]{x}")[0]
     assert [arg.text(r"\sqrt[3]{x}") for arg in sqrt.children] == ["[3]", "{x}"]
 
@@ -87,6 +89,8 @@ def test_the_tree_groups_braces_brackets_left_right_and_command_arguments() -> N
         (r"a} = b", "closes nothing"),
         (r"\left( x = 1", r"a \\right is missing"),
         (r"x = \frac{a}", r"\\frac at character 5 is missing an argument"),
+        (r"x = {\frac{a}}", r"\\frac at character 6 is missing an argument"),
+        (r"\left( \sqrt \right) = 1", r"\\sqrt at character 8 is missing an argument"),
     ],
 )
 def test_unbalanced_lines_say_why(tex, message) -> None:
@@ -118,6 +122,7 @@ DERIVED = [  # (line, operation, term, the derived line)
     ("x + 2 = 5", "subtract", "a+b", "x + 2 - (a+b) = 5 - (a+b)"),
     ("x + 2 = 5", "multiply", "2", r"(x + 2) \cdot 2 = 5 \cdot 2"),
     ("-x = 5", "multiply", "2", r"-x \cdot 2 = 5 \cdot 2"),  # a leading sign is not a sum
+    (r"2 \cdot -x = 4", "multiply", "3", r"2 \cdot -x \cdot 3 = 4 \cdot 3"),  # nor one after an operator
     ("2x = 5", "multiply", "-3", r"2x \cdot (-3) = 5 \cdot (-3)"),
     ("x + 2 = 5", "divide", "a", r"\frac{x + 2}{a} = \frac{5}{a}"),
     ("x + 2 = y", "square", "", "(x + 2)^2 = y^2"),

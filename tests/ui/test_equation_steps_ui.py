@@ -139,6 +139,7 @@ def test_without_latex_the_dialog_says_so_and_still_adds(builds, monkeypatch, tm
     dialog = EquationStepsDialog(0.0, builds)
     dialog.text.setPlainText("x = 1\nx + 1 = 2")
     assert "LaTeX is not installed" in dialog.status.text() and "placeholders" in dialog.status.text()
+    dialog.refresh(check=True)  # the typing pause sends nothing: it could only fail
     assert ok_button(dialog).isEnabled() and builds.worker.requests == {}
 
 

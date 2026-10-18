@@ -524,7 +524,7 @@ class LayersPanel(QWidget):
         they are added at once (each draws a placeholder that says why) instead of waiting for
         builds that cannot succeed."""
         request = self.ask_steps(self.playhead())
-        if request is None or not request.steps:
+        if request is None:
             return
         builds = self.builds
         op = partial(
