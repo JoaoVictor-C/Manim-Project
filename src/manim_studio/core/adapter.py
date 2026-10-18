@@ -760,6 +760,8 @@ def _build(spec: Spec) -> m.Mobject:
             x, y = params[param.name][:2]
             params[param.name] = (x, y, 0.0)  # documents are 2D
     spans = params.pop(parts.SPANS_PARAM, None)
+    extra, style = text_style(spec)
+    params.update(extra)
     if spec.type == "RightTriangle":
         mob = _build_right_triangle(params)
     elif spec.type == "Axes":
@@ -777,7 +779,7 @@ def _build(spec: Spec) -> m.Mobject:
         mob = cls(**number_kwargs(spec))
     else:
         mob = cls(**params)
-    _apply_style(mob, spec.style)
+    _apply_style(mob, style)
     mob.move_to(m.ORIGIN)
     return mob
 
@@ -977,6 +979,21 @@ def _regions_cached(spec_json: str) -> tuple[tuple[int, ...], ...]:
         leaves = group.family_members_with_points() if group is not None else []
         regions.append(tuple(sorted(index[id(leaf)] for leaf in leaves if id(leaf) in index)))
     return tuple(regions)
+
+
+def style_glyphs(glyphs: list[m.Mobject], style: dict[str, Any]) -> None:
+    """A part's colours (ADR 0049) on its glyphs, in place: as ``Spec.style`` colours an object."""
+    for glyph in glyphs:
+        _apply_style(glyph, style)
+
+
+def text_style(spec: Spec) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``(constructor keywords, style left to apply)``. A Text with coloured pieces (``t2c``) takes
+    its fill as ``color=``: a ``set_fill`` afterwards would paint over its pieces (ADR 0049)."""
+    style = dict(spec.style)
+    if spec.type == "Text" and spec.params.get("t2c") and style.get("fill") is not None:
+        return {"color": style.pop("fill")}, style
+    return {}, style
 
 
 def _apply_style(mob: m.Mobject, style: dict[str, Any]) -> None:
