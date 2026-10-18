@@ -34,7 +34,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits, parts, placement, python_object
+from .. import plugins
+from ..core import adapter, edits, parts, placement, python_object, shape
 from ..core.expressions import check as check_expression
 from ..core.layer_index import LayerIndex
 from ..core.python_object import PYTHON_TYPE
@@ -184,6 +185,7 @@ class LayersPanel(QWidget):
         self.ask_colour: Callable[[str | None], str | None] = lambda current: pick_colour(self, current)
         self.ask_expression: Callable[[], str | None] = self._ask_expression_dialog  # Add graph (ADR 0024)
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
+        self.freeze: Callable[[str], None] = lambda layer_id: None  # set by the window (ADR 0052)
         self._known_ids: set[str] = set()
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window: where new objects are placed
         self._select_new = False
@@ -620,6 +622,15 @@ class LayersPanel(QWidget):
         if self.colour_part_action.isEnabled():
             menu.addAction(self.colour_part_action)
         if self.add_part_action.isEnabled() or self.colour_part_action.isEnabled():
+            menu.addSeparator()
+        layer = self.project.layer(layer_id) if layer_id in {x.id for x in self.project.layers} else None
+        if (
+            layer is not None
+            and shape.kind_problem(layer) is None
+            and layer.spec.type not in plugins.SIMULATIONS
+        ):
+            freeze = menu.addAction("Freeze to Shape", lambda: self.freeze(layer_id))  # ADR 0052
+            freeze.setToolTip("Plain vector data as drawn now: no code, no LaTeX (undo turns it back)")
             menu.addSeparator()
         menu.addAction("Delete", self.delete_selected)
         return menu

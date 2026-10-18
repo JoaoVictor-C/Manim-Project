@@ -31,7 +31,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, edits, parts, python_object, scene_length
+from .. import plugins
+from ..core import adapter, edits, parts, python_object, scene_length, shape
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
 from ..core.schema import (
@@ -43,6 +44,7 @@ from ..core.schema import (
     PART_PARENT_TYPES,
     PYTHON_TYPES,
     RASTER_TYPES,
+    SHAPE_TYPES,
     Canvas,
     ClipParam,
     Easing,
@@ -297,6 +299,10 @@ class PropertiesPanel(QWidget):
         self.edit_code: Callable[[str], None] = lambda layer_id: None
         self.python_label: QLabel | None = None
         self._shown_params: tuple[Param, ...] | None = None  # a Python object's parameters shown
+        # Freeze to shape (ADR 0052): set by the window, which knows what is drawn.
+        self.freeze: Callable[[str], None] = lambda layer_id: None
+        self.freeze_button: QPushButton | None = None
+        self._shown_type: str | None = None  # the object type whose sections are shown
         # "Custom curve...": shows the curve editor; tests replace it (P2b)
         self.curve_dialog: Callable[[Easing | None], Easing | None] = lambda ease: edit_curve(self, ease)
 
@@ -483,7 +489,9 @@ class PropertiesPanel(QWidget):
             self._part_section()
             self._part_style_section()
         else:
+            self._shown_type = layer.spec.type
             self._object_section(layer)
+            self._freeze_row(layer)
             if (
                 layer.spec.type not in RASTER_TYPES | CODE_TYPES | GROUP_TYPES
             ):  # no style on images, code, groups
@@ -754,6 +762,9 @@ class PropertiesPanel(QWidget):
         if self._shown_params is not None and adapter.python_params(layer.spec) != self._shown_params:
             self.show_layer(self.layer_id)  # its code declares other parameters now
             return
+        if self._shown_type is not None and layer.spec is not None and layer.spec.type != self._shown_type:
+            self.show_layer(self.layer_id)  # frozen into a shape (or the freeze undone): other sections
+            return
         self._refresh_python_status(layer)
         self._update_title(layer)
         for path, field in self.fields.items():
@@ -794,6 +805,8 @@ class PropertiesPanel(QWidget):
         self._shown_pieces = None
         self._shown_params = None
         self.python_label = None
+        self.freeze_button = None
+        self._shown_type = None
         self.scene_shown = False
         self.fields.clear()
         self._getters.clear()
@@ -927,6 +940,32 @@ class PropertiesPanel(QWidget):
         self._section(layer.spec.type, rows)
         if layer.spec.type in CODE_TYPES:
             self._code_status_row(layer.id)
+
+    def _freeze_row(self, layer: Layer) -> None:
+        """A shape says it is frozen (no parameters: undo is the way back); an object that can be
+        frozen has "Freeze to shape" (ADR 0052). Whether it can be now is said on click."""
+        if layer.spec.type in SHAPE_TYPES:
+            box = QGroupBox("Shape")
+            note = QLabel(f"{shape.FROZEN_NOTE}: no code, no LaTeX. Undo turns it back.")
+            note.setWordWrap(True)
+            note.setObjectName("frozenNote")
+            QVBoxLayout(box).addWidget(note)
+            self.body_layout.addWidget(box)
+            return
+        if shape.kind_problem(layer) is not None or layer.spec.type in plugins.SIMULATIONS:
+            return
+        box = QWidget()
+        line = QHBoxLayout(box)
+        line.setContentsMargins(0, 0, 0, 0)
+        self.freeze_button = QPushButton("Freeze to shape")
+        self.freeze_button.setToolTip(
+            "Turn it into plain vector data as it is drawn now: it needs no code, no trust and no "
+            "LaTeX, so it plays on any computer. Its parameters are gone (undo turns it back)."
+        )
+        self.freeze_button.clicked.connect(lambda: self.freeze(layer.id))
+        line.addStretch(1)
+        line.addWidget(self.freeze_button)
+        self.body_layout.addWidget(box)
 
     def _python_section(self, layer: Layer) -> None:
         """A Python object (ADR 0051): a field per parameter its PARAMS declares, read without
