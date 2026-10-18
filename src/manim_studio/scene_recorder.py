@@ -487,8 +487,12 @@ class _Recorder:
             self.states[name] = adapter.piece_data(leaf)
         except ValueError as exc:
             self.problem(f"a {type(leaf).__name__} cannot become a layer: {exc}", self.line())
-            self.states[name] = {"points": [[0.0, 0.0]], "fill": [0, 0, 0, 0], "stroke": [0, 0, 0, 0],
-                                 "stroke_width": 0.0}  # fmt: skip
+            self.states[name] = {
+                "points": [[0.0, 0.0]],
+                "fill": [0, 0, 0, 0],
+                "stroke": [0, 0, 0, 0],
+                "stroke_width": 0.0,
+            }
         self.state_names[key] = name
         return name
 
@@ -630,7 +634,7 @@ class _Recorder:
                 self.play_start = start
                 scene.play_internal()
             elif self.sample_fps:
-                self.samples.append({"t": start, "draw": self.draw(scene)})
+                self.samples.append(self.picture(scene, start))
             self.advance(renderer, duration)
             self.steps.append({"type": "wait", "t": start, "duration": duration, "line": line})
             renderer.num_plays += 1
@@ -668,7 +672,16 @@ class _Recorder:
 
     def sample(self, scene, t: float) -> None:
         if self.sample_fps:
-            self.samples.append({"t": self.play_start + t, "draw": self.draw(scene)})
+            self.samples.append(self.picture(scene, self.play_start + t))
+
+    def picture(self, scene, t: float) -> dict:
+        """A frame as Manim draws it (tests): its pieces and its pixels (a numpy array, not JSON)."""
+        from manim.utils.iterables import list_update
+
+        camera = scene.renderer.camera
+        camera.reset()
+        camera.capture_mobjects(list_update(scene.mobjects, scene.foreground_mobjects))
+        return {"t": t, "draw": self.draw(scene), "pixels": camera.pixel_array.copy()}
 
     # -- animations ------------------------------------------------------------------------------
 

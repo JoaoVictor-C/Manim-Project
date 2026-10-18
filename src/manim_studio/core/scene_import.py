@@ -137,7 +137,7 @@ class ImportResult:
     counts: dict[str, int] = field(default_factory=dict)
 
 
-class Unsupported(Exception):
+class Unsupported(Exception):  # noqa: N818 - a reason, not a failure
     """Something the layers cannot reproduce exactly: the scene stays a code layer."""
 
     def __init__(self, what: str, line: int | None = None) -> None:
@@ -539,8 +539,15 @@ class _Importer:
                 for item, a in zip(anims, step["animations"], strict=True):
                     item["at_finish"] = pairs(a.get("at_finish"))
                     item["to_at_finish"] = pairs(a.get("to_at_finish"))
-                out.append({**step, "animations": anims, "before": before, "during": during,
-                            "after": pairs(step["after"])})  # fmt: skip
+                out.append(
+                    {
+                        **step,
+                        "animations": anims,
+                        "before": before,
+                        "during": during,
+                        "after": pairs(step["after"]),
+                    }
+                )
             else:
                 out.append(step)
         return out
@@ -560,8 +567,12 @@ class _Importer:
                     self.object_atoms.setdefault(tuple(leaves), o["object"])
             elif step["type"] == "play":
                 for a in step["animations"]:
-                    for key, obj in (("at_begin", "target"), ("at_finish", "target"), ("to_at_begin", "to"),
-                                     ("to_at_finish", "to")):  # fmt: skip
+                    for key, obj in (
+                        ("at_begin", "target"),
+                        ("at_finish", "target"),
+                        ("to_at_begin", "to"),
+                        ("to_at_finish", "to"),
+                    ):
                         leaves = [leaf for leaf, _ in a.get(key) or []]
                         if leaves:
                             groups.append(leaves)
@@ -681,8 +692,15 @@ class _Importer:
                 self.captions.append(step)
         return self.finish()
 
-    def new_layer(self, atom: int | None, states: tuple, t: float, line: int | None, raw: list[str] | None = None,
-                  explicit: bool = False) -> _LayerBuild:  # fmt: skip
+    def new_layer(
+        self,
+        atom: int | None,
+        states: tuple,
+        t: float,
+        line: int | None,
+        raw: list[str] | None = None,
+        explicit: bool = False,
+    ) -> _LayerBuild:
         leaves = raw if raw is not None else [leaf.split("#")[0] for leaf in self.atom_leaves[atom]]
         obj = self.object_atoms.get(tuple(self.atom_leaves[atom])) if atom is not None else None
         layer = _LayerBuild(
@@ -875,14 +893,27 @@ class _Importer:
         raw_b = [x for x, _ in a["raw_to_begin"]]
         if raw_b:
             b_pieces = [self.raw_states[s] for _, s in a["raw_to_begin"]]
-            target.alt = (list(zip(raw_b, [s for _, s in a["raw_to_begin"]], strict=True)), b_pieces,
-                          bool(a.get("to_flat", True)))  # fmt: skip
+            target.alt = (
+                list(zip(raw_b, [s for _, s in a["raw_to_begin"]], strict=True)),
+                b_pieces,
+                bool(a.get("to_flat", True)),
+            )
             if not _same(self.pieces([s for _, s in a["raw_to_begin"]]), target.pieces) and not _drawn_alike(
                 self.pieces([s for _, s in a["raw_to_begin"]]), target.pieces
             ):
                 target.alt = None
-        source.clips.append(_ClipBuild(a["kind"], start, end - start, a.get("ease"), dict(a.get("params") or {}),
-                                       source.motion, line, to=target))  # fmt: skip
+        source.clips.append(
+            _ClipBuild(
+                a["kind"],
+                start,
+                end - start,
+                a.get("ease"),
+                dict(a.get("params") or {}),
+                source.motion,
+                line,
+                to=target,
+            )
+        )
         source.morph_out = True
         self.end(source, end)
         if not a.get("copy"):
@@ -948,8 +979,8 @@ class _Importer:
                 raise Unsupported(f"{self.atom_name(atom)} appears during a play without an animation", line)
             if not self.matches(layer, states):
                 raise Unsupported(
-                    f"{self.atom_name(atom)} does not end as its clips leave it (an animation with an unusual "
-                    "ease or arguments)",
+                    f"{self.atom_name(atom)} does not end as its clips leave it (an animation with an "
+                    "unusual ease or arguments)",
                     line,
                 )
         self.constrain([leaf for leaf, _ in pairs], dict(self.visible))
@@ -976,8 +1007,11 @@ class _Importer:
                 if clip.to_layer is not None:
                     clip = clip.model_copy(update={"to_layer": by_key[int(clip.to_layer)].final.id})
                 clips.append(clip)
-            final_layers.append(Layer.model_validate({**layer.final.model_dump(by_alias=True),
-                                                      "clips": [c.model_dump() for c in clips]}))  # fmt: skip
+            final_layers.append(
+                Layer.model_validate(
+                    {**layer.final.model_dump(by_alias=True), "clips": [c.model_dump() for c in clips]}
+                )
+            )
         audio, sound_notes = self.audio()
         cues, cue_notes = self.cues()
         project = Project(
@@ -1037,7 +1071,7 @@ class _Importer:
             options.append(
                 ("shape", _shape_spec(raw), {"position": None, "rotation": 0.0, "scale": 1.0}, raw)
             )
-        for kind, spec, base, raw in options:
+        for _kind, spec, base, raw in options:
             if layer.needs and spec.type != layer.needs:
                 reasons.append(f"a clip needs a {layer.needs}")
                 continue
@@ -1113,8 +1147,12 @@ class _Importer:
                     track.append(Keyframe(t=start, value=a, ease=easing))
                 track.append(Keyframe(t=end, value=b))
         base_transform = Transform2D(
-            position=first[2], scale=first[0], rotation=first[1], opacity=first[3], anchor=(float(anchor[0]), float(anchor[1]))
-        )  # fmt: skip
+            position=first[2],
+            scale=first[0],
+            rotation=first[1],
+            opacity=first[3],
+            anchor=(float(anchor[0]), float(anchor[1])),
+        )
         built = Layer(
             id=str(layer.key),
             name=layer.name or "",
@@ -1139,7 +1177,7 @@ class _Importer:
         """The point (in the object's own units) its turns turn about: keys hold it still. Every turn
         of a layer must turn about the same point of the object."""
         found: np.ndarray | None = None
-        for start, _end, kind, _ease, before, after, line in layer.spans:
+        for _start, _end, kind, _ease, before, after, line in layer.spans:
             if kind != "rotate":
                 continue
             # The fixed point of before -> after, in world units, mapped back into the object's units.
@@ -1190,8 +1228,16 @@ class _Importer:
                     f"Not imported: the sound {Path(path).name} (line {step.get('line')}) cannot be read"
                 )
                 continue
-            clips.append(AudioClip(id=f"sound-{n}", name=Path(path).stem, path=path, start=max(0.0, step["t"]),
-                                   duration=length, gain=step.get("gain", 0.0)))  # fmt: skip
+            clips.append(
+                AudioClip(
+                    id=f"sound-{n}",
+                    name=Path(path).stem,
+                    path=path,
+                    start=max(0.0, step["t"]),
+                    duration=length,
+                    gain=step.get("gain", 0.0),
+                )
+            )
         return clips, notes
 
     def cues(self) -> tuple[list[Cue], list[str]]:
@@ -1215,8 +1261,8 @@ class _Importer:
         name = self.rec.get("scene", "Scene")
         file = Path(str(self.rec.get("file", ""))).name
         report = [
-            f"Imported {name} ({file}): {len(ordered)} layers ({len(built)} built-in objects, {shapes} shapes), "
-            f"{clips} clips, {moves} keyframed moves, {project.canvas.duration:g} s.",
+            f"Imported {name} ({file}): {len(ordered)} layers ({len(built)} built-in objects, "
+            f"{shapes} shapes), {clips} clips, {moves} keyframed moves, {project.canvas.duration:g} s.",
         ]
         for layer in ordered:
             label = layer.name or layer.final.label
@@ -1230,8 +1276,9 @@ class _Importer:
         latex = [t for t in types if t in LATEX_TYPES]
         if latex:
             report.append(
-                f"{len(latex)} equation{'s are' if len(latex) > 1 else ' is'} kept as LaTeX (MathTex/Tex): drawing "
-                "them needs LaTeX on this computer; Freeze to Shape makes them plain data that does not."
+                f"{len(latex)} equation{'s are' if len(latex) > 1 else ' is'} kept as LaTeX (MathTex/Tex): "
+                "drawing them needs LaTeX on this computer; Freeze to Shape makes them plain data "
+                "that does not."
             )
         if project.subtitles:
             report.append("Subtitles are not burned into the video (Manim writes them as an .srt file).")
