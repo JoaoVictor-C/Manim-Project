@@ -222,7 +222,6 @@ def test_create_save_reopen_and_export_a_typical_animation(qt_app, tmp_path, mon
         window.close()
 
 
-@pytest.mark.xfail(strict=True, reason="GP G3a: keyframed presets still make the export exact")
 def test_the_golden_path_project_exports_readable_python() -> None:
     from manim_studio.core import library
     from manim_studio.core.schema import Canvas, Layer, Spec

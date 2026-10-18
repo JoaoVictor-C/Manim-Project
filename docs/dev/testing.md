@@ -68,11 +68,21 @@ subprocesses — the build worker and the renderer — and LaTeX).
 auto-key; keyframes on the timeline and the curve editor; terms of an equation
 as part layers, with the exported video checked against hand-built Manim).
 `ui/test_acceptance_p4a.py` exports a project built in the editor with File >
-Export Python... both ways (readable, then exact after a key is set) and renders
-each file with `manim render` against the editor's frames;
+Export Python... three ways (readable, readable again after keys are set, exact
+after a clipped layer is turned) and renders each file with `manim render`
+against the editor's frames;
 `core/test_python_export.py` checks the reasons for the exact form, a text
 snapshot (`golden_readable_export.txt` - regenerate it when the output changes
 on purpose), the code-frame painter, and renders both forms.
+`core/test_python_export_keyed.py` (G3a, ADR 0046) exports keyed layers readable
+and renders them against the editor at 256x144, 10 fps: every ease, a curved
+path, an anchor, a turn past 180 degrees, opacity keys, clips (an overlay, a
+remover, a group, a morph) playing while keys change, every built-in preset on a
+square and a text, and `core/euler_example.json` (examples/euler.json as
+committed, so local edits to the example do not move the test). Scenes with the
+same Manim config render in one `manim render -a` process; it also checks the
+`Keyed` helpers on their own with a fake scene, and that waits cover whole
+frames. Mutants: `.cache/g3a/mutate.py`.
 `ui/test_acceptance_p3h.py` builds the area under sin(x), rectangles and labels
 through Parts > Add to axes and checks them against Manim's helpers (scrub =
 play, export = editor); `core/test_axes_objects.py` renders every type against
