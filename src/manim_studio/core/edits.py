@@ -31,10 +31,12 @@ from typing import Any, Literal
 import numpy as np
 from pydantic import ValidationError
 
-from . import equation_steps, motion_paths, parts, shape
+from . import equation_steps, glyph_colours, motion_paths, parts, shape
 from .schema import (
     CAMERA_FIELDS,
+    GLYPH_COLOURS,
     GROUP_TYPE,
+    TEXT_TYPES,
     AudioClip,
     Camera,
     Clip,
@@ -422,6 +424,20 @@ def set_text_colour(project: Project, layer_id: str, piece: str, colour: str | N
     params = {k: v for k, v in layer.spec.params.items() if k != "t2c"}
     if t2c:
         params["t2c"] = t2c
+    return _replace_layer(project, layer_id, {"spec": layer.spec.model_copy(update={"params": params})})
+
+
+def set_glyph_colours(project: Project, layer_id: str, colours: Iterable[str | None] | None) -> Edit:
+    """One colour per drawn glyph of a Text, MathTex or Tex (ADR 0055), None keeping the object's
+    colour; trailing Nones are dropped and a list of only Nones removes the param (the object as
+    it was). The layer validates the colours."""
+    layer = _layer(project, layer_id)
+    if layer.spec is None or layer.spec.type not in TEXT_TYPES:
+        raise EditError(f"{layer_id!r} is not a Text, MathTex or Tex")
+    kept = glyph_colours.normalised(colours)
+    params = {k: v for k, v in layer.spec.params.items() if k != GLYPH_COLOURS}
+    if kept:
+        params[GLYPH_COLOURS] = kept
     return _replace_layer(project, layer_id, {"spec": layer.spec.model_copy(update={"params": params})})
 
 

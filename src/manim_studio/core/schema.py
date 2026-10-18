@@ -31,6 +31,7 @@ from pydantic import (
 SCHEMA_VERSION = 1
 LABEL_CHARS = 32  # a text layer named by its words shows at most this many (GP)
 TEXT_TYPES = frozenset({"Text", "MathTex", "Tex"})  # slow first build, cached on disk by Manim (ADR 0015)
+GLYPH_COLOURS = "glyph_colours"  # a text's param: one colour (or None) per drawn glyph (ADR 0055)
 RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds are refused
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
@@ -424,6 +425,13 @@ class Layer(BaseModel):
         text = self.spec is not None and self.spec.type == "Text" and "t2c" in self.spec.params
         if text and (problem := _t2c_problem(self.spec.params["t2c"])):
             raise ValueError(f"layer {self.id!r}: {problem}")
+        if self.spec is not None and GLYPH_COLOURS in self.spec.params:  # ADR 0055
+            from .glyph_colours import problem as glyph_problem
+
+            if self.spec.type not in TEXT_TYPES:
+                raise ValueError(f"layer {self.id!r}: only Text, MathTex and Tex have glyph colours")
+            if problem := glyph_problem(self.spec.params[GLYPH_COLOURS]):
+                raise ValueError(f"layer {self.id!r}: {problem}")
         if self.locked:
             _check_locked(self)
         for name, track in self.tracks.items():

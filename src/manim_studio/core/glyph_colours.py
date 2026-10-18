@@ -15,9 +15,9 @@ from __future__ import annotations
 import colorsys
 from collections.abc import Iterable, Sequence
 
-from .schema import is_colour
+from .schema import GLYPH_COLOURS, is_colour
 
-PARAM = "glyph_colours"  # the spec param (Text, MathTex, Tex)
+PARAM = GLYPH_COLOURS  # the spec param (Text, MathTex, Tex)
 MAX_GLYPHS = 5000  # entries a list may have: far more than a readable text draws
 Colours = list[str | None]
 
