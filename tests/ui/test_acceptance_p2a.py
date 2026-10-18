@@ -96,6 +96,7 @@ def test_scale_and_rotate_on_the_canvas_undo_redo(window, qt_app) -> None:
 def test_animate_a_rotation_with_auto_key(window, qt_app) -> None:
     layer_id = window.project.layers[0].id
     window.auto_key_action.setChecked(True)
+    window.properties.fields["lifetime.in"].commit(0.0)  # it has an entrance: auto-key animates
     window.seek(2.0)
     _, knob, pivot = handles(window)
     radius = (knob - pivot).manhattanLength()

@@ -364,6 +364,7 @@ def test_auto_key_from_a_field_animates_from_the_layer_start(panel) -> None:
     panel.playhead = lambda: 0.6
     panel.auto_key = lambda: True
     panel.show_layer("dot")  # no clips: visible from 0 s
+    panel.fields["lifetime.in"].commit(0.0)  # an object that was only placed has nothing to animate
     panel.fields["base.rotation"].commit(45.0)
     keys = layer(panel, "dot").tracks["rotation"]
     assert [(k.t, k.value) for k in keys] == [(0.0, 0.0), (pytest.approx(0.6), 45.0)]

@@ -298,6 +298,7 @@ def test_rotating_a_keyed_rotation_sets_a_key(window, qt_app) -> None:
 
 def test_auto_key_turns_a_drag_into_an_animation(window, qt_app) -> None:
     window.move_tool.auto_key = lambda: True
+    appears(window, "dot")
     window.seek(2.0)
     drag(window, px(window, 1.0, 0.0), px(window, 2.0, 0.0), qt_app)
     keys = window.project.layer("dot").tracks["position"]
@@ -318,9 +319,33 @@ def test_keyed_fields_follow_the_playhead(window) -> None:
 def test_the_auto_key_menu_drives_canvas_edits(window, qt_app) -> None:
     assert not window.auto_key_action.isChecked()
     window.auto_key_action.setChecked(True)
+    appears(window, "dot")
     window.seek(1.0)
     drag(window, px(window, 1.0, 0.0), px(window, 1.0, 1.0), qt_app)
     assert [k.t for k in window.project.layer("dot").tracks["position"]] == [0.0, 1.0]
+
+
+def test_auto_key_only_places_a_new_object(window, qt_app) -> None:
+    """Moving an object that has no entrance yet, with auto-key on, sets its place - no keys at
+    its start that every later move would be tied to (the user's report)."""
+    window.auto_key_action.setChecked(True)
+    window.seek(2.0)
+    drag(window, px(window, 1.0, 0.0), px(window, 2.0, 1.0), qt_app)
+    layer = window.project.layer("dot")
+    assert layer.tracks == {}
+    assert layer.base.position == pytest.approx((2.0, 1.0), abs=0.05)
+    assert "placed" in window.statusBar().currentMessage()
+    window.seek(0.5)
+    drag(window, px(window, 2.0, 1.0), px(window, 0.0, 0.0), qt_app)  # and moves freely at any time
+    assert window.project.layer("dot").tracks == {}
+
+
+def appears(window, layer_id: str) -> None:
+    from manim_studio.core import edits
+    from manim_studio.core.schema import Lifetime
+
+    edit = edits.update_layer(window.project, layer_id, lifetime=Lifetime(in_=0.0))
+    window.document.apply(edit, "Appears at")
 
 
 # -- the pivot cross (P2f.2, ADR 0021) ------------------------------------------------

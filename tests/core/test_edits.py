@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from manim_studio.core import adapter, edits
 from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Clip, Easing, Keyframe, Layer, Project, Spec, Transform2D
+from manim_studio.core.schema import Clip, Easing, Keyframe, Layer, Lifetime, Project, Spec, Transform2D
 from support import CANVAS, FRAMES, SQUARE, TEXT, assert_evaluators_agree
 
 CIRCLE = Spec(type="Circle", params={"radius": 1.0})
@@ -451,9 +451,30 @@ def test_auto_key_animates_from_the_layer_start_to_the_new_value() -> None:
     assert edit.kind == "transform"
 
 
-def test_auto_key_at_the_layer_start_writes_one_key() -> None:
+def test_auto_key_at_the_layer_start_sets_the_base_not_a_key() -> None:
+    """A one-key track equals the base but turns the stopwatch on, so every later move became a
+    key (the user's report): placing an object at its first frame is a base edit."""
     edit = edits.set_property(two_clip_project(), "b", "scale", 2.0, t=0.2, auto_key=True)
-    assert [(k.t, k.value) for k in edit.project.layer("b").tracks["scale"]] == [(pytest.approx(0.2), 2.0)]
+    assert edit.project.layer("b").tracks == {} and edit.project.layer("b").base.scale == 2.0
+
+
+def test_auto_key_on_an_object_with_nothing_to_animate_places_it() -> None:
+    """A new object (no clip, no keys, no appear time) is drawn from 0 s: keys at 0 and at the
+    playhead made it glide in from the middle. Placing it edits the base."""
+    project = Project(canvas=CANVAS, layers=[Layer(id="n", spec=SQUARE)])
+    edit = edits.set_property(project, "n", "position", (3.0, 1.0), t=2.0, auto_key=True)
+    assert edit.project.layer("n").tracks == {} and edit.project.layer("n").base.position == (3.0, 1.0)
+    assert edits.auto_key_places(project, "n", 2.0)
+
+
+def test_auto_key_animates_once_the_object_has_an_entrance() -> None:
+    project = two_clip_project()  # "b" has a clip: past its start auto-key animates
+    assert not edits.auto_key_places(project, "b", 0.6)
+    appears = edits.update_layer(
+        Project(canvas=CANVAS, layers=[Layer(id="n", spec=SQUARE)]), "n", lifetime=Lifetime(in_=0.0)
+    ).project
+    assert not edits.auto_key_places(appears, "n", 2.0)  # an explicit Appears at counts
+    assert edits.auto_key_places(appears, "n", 0.0)  # but not at its first frame
 
 
 # -- key editing (P2b) ---------------------------------------------------------------

@@ -319,6 +319,24 @@ def set_key(project: Project, layer_id: str, prop: str, t: float, value: Any) ->
     return _replace_layer(project, layer_id, {"tracks": {**layer.tracks, prop: track}})
 
 
+def auto_key_places(project: Project, layer_id: str, t: float) -> bool:
+    """With auto-key on, does an edit of an untracked property at ``t`` just place the object?
+
+    Yes when the object has nothing to animate from: at its first frame (a one-key track is
+    the base again but switches the stopwatch rule on, so every later move became a key), and
+    for an object that has no entrance clip, no keys and no appear time (a new object, drawn
+    from the start of the scene: keys at 0 and at the playhead made it glide in from the
+    middle). Auto-key animates once the object has an entrance (a clip, keys or Appears at)
+    and the playhead is past its start.
+    """
+    layer = _layer(project, layer_id)
+    fps = project.canvas.fps
+    start = round(project.lifetime(layer_id)[0] * fps) / fps
+    if round(t * fps) / fps <= start + 0.5 / fps:
+        return True
+    return not layer.clips and not layer.tracks and layer.lifetime.in_ is None
+
+
 def set_property(
     project: Project, layer_id: str, prop: str, value: Any, t: float, auto_key: bool = False
 ) -> Edit:
@@ -327,20 +345,19 @@ def set_property(
     * keyed property: a key at ``t`` (frame-quantized);
     * untracked, auto-key off: the base value;
     * untracked, auto-key on: a new track animating from the old value at the
-      layer's start to ``value`` at ``t`` (one key when ``t`` is the start).
+      layer's start to ``value`` at ``t`` - but where there is nothing to animate yet the
+      base changes (see ``auto_key_places``): placing an object is not animating it.
     """
     layer = _layer(project, layer_id)
     if layer.tracks.get(prop):
         return set_key(project, layer_id, prop, t, value)
-    if not auto_key:
+    if not auto_key or auto_key_places(project, layer_id, t):
         base = layer.base.model_dump()
         base[prop] = value
         return update_layer(project, layer_id, base=base)
     fps = project.canvas.fps
     start = round(project.lifetime(layer_id)[0] * fps) / fps
     t = round(t * fps) / fps
-    if t <= start + 0.5 / fps:
-        return set_key(project, layer_id, prop, t, value)
     with_old = set_key(project, layer_id, prop, start, getattr(layer.base, prop)).project
     final = set_key(with_old, layer_id, prop, t, value).project
     kind, layer_ids = classify(project, final)
