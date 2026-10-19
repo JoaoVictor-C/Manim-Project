@@ -93,6 +93,7 @@ def test_a_plain_scene_becomes_built_in_objects_with_clips_keys_and_a_morph(tmp_
     square = by_id["square-1"]
     assert square.clips[0].params == {"shift": "UP"} and square.base.position == (3.0, 0.0)
     assert square.clips[1].kind == "Transform" and square.clips[1].to_layer == "star-1"
+    assert "match" not in square.clips[1].params  # replays Manim's own Transform: classic (ADR 0056)
     assert by_id["text-1"].spec.params["text"] == "Hi"
     assert result.counts == {"layers": 4, "builtin": 4, "shapes": 0, "clips": 6, "moves": 1}
     assert result.project.canvas.duration == pytest.approx(7.5)

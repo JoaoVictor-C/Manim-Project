@@ -1,0 +1,616 @@
+"""Smart morph matching (ADR 0056): pure geometry on cubic bezier outlines, numpy only.
+
+An outline is Manim's point layout: 4 points per cubic curve (anchor, handle, handle, anchor),
+a new subpath wherever a curve does not start where the previous one ended. Nothing here
+imports Manim; ``core/adapter.py`` feeds these functions and writes the results back.
+
+``plan(source, target)`` pairs the pieces (drawn leaves) of two objects and, for each pair,
+returns two outlines with the same number of curves whose straight interpolation is the morph:
+
+* pieces are paired by position within their object, size and outline identity (a glyph keeps
+  its partner when the same glyph exists on the other side); a piece without a partner grows
+  from (or shrinks to) a point at its place mapped into the other object;
+* inside a pair, outer loops pair with outer loops and holes with holes, by position;
+* each loop pair starts at the points that make the travel shortest (any start point, either
+  direction for open paths; a closed pair turns the same way as its partner) and both are cut
+  at each other's corners by arc length, so corners land on corners or on the matching place
+  of a side instead of being dragged around the outline.
+
+Everything is deterministic: the same outlines give the same plan, bit for bit.
+"""
+
+from __future__ import annotations
+
+import itertools
+from dataclasses import dataclass
+
+import numpy as np
+
+N = 4  # points per cubic curve
+_ATOL, _RTOL = 1e-6, 1e-5  # Manim's point equality (np.allclose defaults, tolerance 1e-6)
+SAMPLES = 64  # arc-length samples a loop pair is compared on
+DENSE = 16  # samples per curve of the arc-length table
+SIZE_WEIGHT = 0.05  # cost of a size difference (squared log ratio) against a position difference
+SAME_KEY_BONUS = 0.15  # cost removed when two pieces have the same outline (same glyph)
+MAX_ASSIGNED = 200  # more pieces than this are paired in order (the assignment is cubic)
+SNAP = 0.5  # corners closer than this fraction of a curve's share of the outline snap together
+
+
+# --- outlines ----------------------------------------------------------------
+
+
+def subpaths(points: np.ndarray) -> list[np.ndarray]:
+    """``points`` (k*4, d) split into subpaths, each (c*4, d) with c >= 1 curves."""
+    count = len(points) // N
+    if count == 0:
+        return []
+    curves = np.asarray(points[: count * N], dtype=float)
+    starts = curves[N::N]
+    ends = curves[N - 1 : -1 : N]
+    gaps = np.any(np.abs(starts - ends) > _ATOL + _RTOL * np.abs(ends), axis=1)
+    cuts = [0, *((np.flatnonzero(gaps) + 1) * N).tolist(), count * N]
+    return [curves[a:b] for a, b in itertools.pairwise(cuts) if b > a]
+
+
+def is_closed(sub: np.ndarray) -> bool:
+    first, last = sub[0], sub[-1]
+    return bool(np.all(np.abs(first - last) <= _ATOL + _RTOL * np.abs(last)))
+
+
+def _bezier(curves: np.ndarray, t: np.ndarray) -> np.ndarray:
+    """Points of ``curves`` (c, 4, d) at parameters ``t`` (m,): (c, m, d)."""
+    t = np.asarray(t, dtype=float)[None, :, None]
+    u = 1.0 - t
+    p0, p1, p2, p3 = (curves[:, i][:, None, :] for i in range(N))
+    return u**3 * p0 + 3 * u**2 * t * p1 + 3 * u * t**2 * p2 + t**3 * p3
+
+
+def sample_subpath(sub: np.ndarray, per_curve: int = 6) -> np.ndarray:
+    """A subpath as a polyline: ``per_curve`` points per curve plus its last point."""
+    curves = sub.reshape(-1, N, sub.shape[1])
+    pts = _bezier(curves, np.linspace(0.0, 1.0, per_curve, endpoint=False))
+    return np.concatenate([pts.reshape(-1, sub.shape[1]), sub[-1:]], axis=0)
+
+
+def split_curve(curve: np.ndarray, t: float) -> tuple[np.ndarray, np.ndarray]:
+    """De Casteljau: one cubic (4, d) cut at ``t`` into two that draw the same curve."""
+    p0, p1, p2, p3 = curve
+    a, b, c = p0 + (p1 - p0) * t, p1 + (p2 - p1) * t, p2 + (p3 - p2) * t
+    d, e = a + (b - a) * t, b + (c - b) * t
+    f = d + (e - d) * t
+    return np.array([p0, a, d, f]), np.array([f, e, c, p3])
+
+
+class Path:
+    """One subpath parametrised by arc length: ``knots[i]`` is where curve i starts (0 to 1)."""
+
+    def __init__(self, sub: np.ndarray) -> None:
+        self.points = np.asarray(sub, dtype=float)
+        self.curves = self.points.reshape(-1, N, self.points.shape[1])
+        self.count = len(self.curves)
+        self.closed = is_closed(self.points)
+        dense = _bezier(self.curves, np.linspace(0.0, 1.0, DENSE + 1))  # (c, DENSE+1, d)
+        steps = np.linalg.norm(np.diff(dense[:, :, :2], axis=1), axis=2)  # (c, DENSE)
+        self.local = np.concatenate([np.zeros((self.count, 1)), np.cumsum(steps, axis=1)], axis=1)
+        lengths = self.local[:, -1]
+        self.length = float(lengths.sum())
+        if self.length > 1e-12:
+            self.knots = np.concatenate([[0.0], np.cumsum(lengths)]) / self.length
+        else:
+            self.knots = np.linspace(0.0, 1.0, self.count + 1)
+        self.knots[-1] = 1.0
+        # The dense polyline and its arc-length parameter, for sampling.
+        flat = dense[:, :-1, :2].reshape(-1, 2)
+        self.poly = np.concatenate([flat, dense[-1:, -1, :2]], axis=0)
+        if self.length > 1e-12:
+            cum = np.concatenate([[0.0], np.cumsum(steps.reshape(-1))]) / self.length
+        else:
+            cum = np.linspace(0.0, 1.0, len(self.poly))
+        self.param = np.maximum.accumulate(cum)
+        self.param[-1] = 1.0
+
+    def at(self, s: np.ndarray) -> np.ndarray:
+        """Points (as complex x + iy) at arc-length parameters ``s`` (any shape, in [0, 1])."""
+        s = np.asarray(s, dtype=float)
+        x = np.interp(s, self.param, self.poly[:, 0])
+        y = np.interp(s, self.param, self.poly[:, 1])
+        return x + 1j * y
+
+    def locate(self, s: float) -> tuple[int, float]:
+        """(curve, local t) of arc-length parameter ``s``: the last curve starting at or before it."""
+        i = int(np.searchsorted(self.knots, s, side="right")) - 1
+        i = min(max(i, 0), self.count - 1)
+        span = self.knots[i + 1] - self.knots[i]
+        if span <= 0 or self.local[i, -1] <= 0:
+            return i, 0.0
+        target = (s - self.knots[i]) * self.length
+        grid = np.linspace(0.0, 1.0, DENSE + 1)
+        return i, float(np.clip(np.interp(target, self.local[i], grid), 0.0, 1.0))
+
+
+def signed_area(poly: np.ndarray) -> float:
+    """Shoelace area of a polyline read as closed; positive counter-clockwise."""
+    x, y = poly[:, 0], poly[:, 1]
+    return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+
+
+def _inside(point: np.ndarray, poly: np.ndarray) -> bool:
+    """Even-odd point in polygon."""
+    x, y = point
+    xs, ys = poly[:, 0], poly[:, 1]
+    xn, yn = np.roll(xs, -1), np.roll(ys, -1)
+    crosses = (ys > y) != (yn > y)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        at = xs + (y - ys) * (xn - xs) / (yn - ys)
+    return bool(np.count_nonzero(crosses & (x < at)) % 2)
+
+
+# --- alignment of one loop pair ----------------------------------------------
+
+
+def _wrap(s: np.ndarray) -> np.ndarray:
+    return np.mod(s, 1.0)
+
+
+def _best_start(shifted: Path, fixed: Path, flips: tuple[bool, ...]) -> tuple[float, bool]:
+    """Where ``shifted`` (closed) should start, and whether to run it backwards, so that its
+    points travel least to ``fixed``'s at equal arc length. Ties keep the earliest candidate:
+    no flip before flip, a corner before a grid offset, the smaller offset first."""
+    u = np.arange(SAMPLES) / SAMPLES if fixed.closed else np.linspace(0.0, 1.0, SAMPLES)
+    target = fixed.at(u)
+    corners = shifted.knots[:-1]
+    grid = np.arange(SAMPLES) / SAMPLES
+    candidates = np.concatenate([corners, grid])
+    best = (np.inf, 0.0, False)
+    for flip in flips:
+        s = candidates[:, None] - u[None, :] if flip else candidates[:, None] + u[None, :]
+        cost = np.sum(np.abs(shifted.at(_wrap(s)) - target[None, :]) ** 2, axis=1)
+        i = int(np.argmin(cost))
+        if cost[i] < best[0] * (1 - 1e-9):
+            best = (float(cost[i]), float(candidates[i]), flip)
+    return best[1], best[2]
+
+
+def _open_flip(a: Path, b: Path) -> bool:
+    u = np.linspace(0.0, 1.0, SAMPLES)
+    forward = np.sum(np.abs(a.at(u) - b.at(u)) ** 2)
+    backward = np.sum(np.abs(a.at(1.0 - u) - b.at(u)) ** 2)
+    return bool(backward < forward * (1 - 1e-9))
+
+
+def _reverse(points: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(points[::-1])
+
+
+def _restart(path: Path, s: float) -> np.ndarray:
+    """A closed path's points starting at arc-length parameter ``s`` (cut there if mid-curve)."""
+    i, t = path.locate(s)
+    curves = list(path.curves)
+    if t <= 1e-9:
+        start = i
+    elif t >= 1 - 1e-9:
+        start = (i + 1) % path.count
+    else:
+        left, right = split_curve(curves[i], t)
+        return np.concatenate([right, *curves[i + 1 :], *curves[:i], left]).reshape(-1, path.points.shape[1])
+    return np.concatenate([*curves[start:], *curves[:start]]).reshape(-1, path.points.shape[1])
+
+
+def _correspondence(a: Path, b: Path) -> list[tuple[float, float, int]]:
+    """Every corner of ``a`` and ``b`` as (param on a, param on b, owner): close corners snap
+    together (owner 2), the others are placed at the same share of the other outline."""
+    ka, kb = a.knots[1:-1], b.knots[1:-1]
+    tol = SNAP / max(a.count, b.count)
+    pairs: list[tuple[int, int]] = []
+    if len(ka) and len(kb):
+        dist = np.abs(ka[:, None] - kb[None, :])
+        order = np.lexsort(
+            (np.indices(dist.shape)[1].ravel(), np.indices(dist.shape)[0].ravel(), dist.ravel())
+        )
+        for flat in order:
+            if dist.ravel()[flat] >= tol:
+                break
+            i, j = divmod(int(flat), len(kb))
+            if all((i - p) * (j - q) > 0 and (ka[i] - ka[p]) * (kb[j] - kb[q]) > 0 for p, q in pairs):
+                pairs.append((i, j))
+    pairs.sort()
+    xs = np.array([0.0, *(ka[i] for i, _ in pairs), 1.0])
+    ys = np.array([0.0, *(kb[j] for _, j in pairs), 1.0])
+    snapped_a, snapped_b = {i for i, _ in pairs}, {j for _, j in pairs}
+    partner = dict(pairs)
+    events = []
+    for i, s in enumerate(ka):
+        if i in snapped_a:
+            events.append((float(s), float(kb[partner[i]]), 2))
+        else:
+            events.append((float(s), float(np.interp(s, xs, ys)), 0))
+    for j, s in enumerate(kb):
+        if j not in snapped_b:
+            events.append((float(np.interp(s, ys, xs)), float(s), 1))
+    events.sort()
+    return events
+
+
+def _refine(path: Path, cuts: list[tuple[float, bool]]) -> np.ndarray:
+    """``path`` with a new anchor at each cut ``(param, True)``; ``(param, False)`` marks one of
+    its own corners (kept). The result has ``count + new cuts`` curves."""
+    by_curve: dict[int, list[float]] = {}
+    for s, new in cuts:
+        if new:
+            i, t = path.locate(s)
+            by_curve.setdefault(i, []).append(t)
+    out = []
+    for i, curve in enumerate(path.curves):
+        rest, done = curve, 0.0
+        for t in sorted(by_curve.get(i, ())):
+            local = 0.0 if done >= 1 else min(max((t - done) / (1 - done), 0.0), 1.0)
+            left, rest = split_curve(rest, local)
+            out.append(left)
+            done = t
+        out.append(rest)
+    return np.concatenate(out).reshape(-1, path.points.shape[1])
+
+
+def align_loops(a: np.ndarray, b: np.ndarray, flip: bool | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Two subpaths as outlines with the same number of curves, ready to interpolate.
+
+    ``flip`` runs ``a`` backwards (None: whichever travels less). A closed path may start
+    anywhere: the start point of ``a`` (or of ``b`` when only ``b`` is closed) moves to where
+    the travel is shortest. Then each is cut at the other's corners by arc length.
+    """
+    pa, pb = Path(a), Path(b)
+    if pb.closed and not pa.closed:  # move b's start instead: the same problem seen from b
+        q, p = align_loops(b, a, flip)
+        return p, q
+    if pa.closed:
+        start, back = _best_start(pa, pb, (False, True) if flip is None else (flip,))
+        if back:
+            a, start = _reverse(pa.points), 1.0 - start
+        pa = Path(_restart(Path(a), float(_wrap(start))))
+    elif flip or (flip is None and _open_flip(pa, pb)):
+        pa = Path(_reverse(pa.points))
+    events = _correspondence(pa, pb)
+    new_a = _refine(pa, [(sa, owner == 1) for sa, _, owner in events])
+    new_b = _refine(pb, [(sb, owner == 0) for _, sb, owner in events])
+    return new_a, new_b
+
+
+def point_path(point: np.ndarray, curves: int) -> np.ndarray:
+    """A subpath of ``curves`` curves all at ``point``: what an unpaired loop grows from."""
+    return np.tile(np.asarray(point, dtype=float), (curves * N, 1))
+
+
+# --- pieces ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Loop:
+    points: np.ndarray
+    closed: bool
+    area: float  # signed, counter-clockwise positive
+    centre: np.ndarray  # of its bounding box, 2D
+    size: float  # its bounding box's diagonal
+    hole: bool  # inside an odd number of the piece's other loops
+
+
+def loops(points: np.ndarray) -> list[Loop]:
+    subs = subpaths(points)
+    polys = [sample_subpath(s[:, :2], 4) for s in subs]
+    areas = [signed_area(p) if is_closed(s) else 0.0 for s, p in zip(subs, polys, strict=True)]
+    out = []
+    for k, (sub, poly) in enumerate(zip(subs, polys, strict=True)):
+        lo, hi = poly.min(axis=0), poly.max(axis=0)
+        probe = poly[len(poly) // 2] if len(poly) > 2 else poly[0]
+        depth = sum(
+            1
+            for j, other in enumerate(polys)
+            if j != k and is_closed(subs[j]) and abs(areas[j]) > abs(areas[k]) and _inside(probe, other)
+        )
+        out.append(
+            Loop(sub, is_closed(sub), areas[k], (lo + hi) / 2, float(np.linalg.norm(hi - lo)), depth % 2 == 1)
+        )
+    return out
+
+
+def _frame(boxes: list[tuple[np.ndarray, np.ndarray]]) -> tuple[np.ndarray, np.ndarray]:
+    """(origin, extent) of the union of boxes; each extent at least a quarter of the diagonal."""
+    lo = np.min([b[0] for b in boxes], axis=0)
+    hi = np.max([b[1] for b in boxes], axis=0)
+    extent = hi - lo
+    floor = max(float(np.linalg.norm(extent)) * 0.25, 1e-9)
+    return lo + extent / 2, np.maximum(extent, floor)
+
+
+def _box(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    xy = points[:, :2]
+    return xy.min(axis=0), xy.max(axis=0)
+
+
+def assign(cost: np.ndarray) -> list[tuple[int, int]]:
+    """Pairs (row, column) with the least total cost, min(rows, columns) of them (Hungarian
+    method with potentials; ties resolved by index, so the result is deterministic)."""
+    rows, cols = cost.shape
+    if rows == 0 or cols == 0:
+        return []
+    if rows > cols:
+        return sorted((i, j) for j, i in assign(cost.T))
+    big = cost - cost.min()
+    u, v = np.zeros(rows + 1), np.zeros(cols + 1)
+    match = np.zeros(cols + 1, dtype=int)  # match[j] = row (1-based) given column j
+    way = np.zeros(cols + 1, dtype=int)
+    for i in range(1, rows + 1):
+        match[0] = i
+        j0 = 0
+        minv = np.full(cols + 1, np.inf)
+        used = np.zeros(cols + 1, dtype=bool)
+        while True:
+            used[j0] = True
+            i0 = match[j0]
+            free = ~used[1:]
+            current = big[i0 - 1] - u[i0] - v[1:]
+            better = free & (current < minv[1:])
+            minv[1:][better] = current[better]
+            way[1:][better] = j0
+            candidates = np.where(free, minv[1:], np.inf)
+            j1 = int(np.argmin(candidates)) + 1
+            delta = candidates[j1 - 1]
+            u[match[used]] += delta
+            v[used] -= delta
+            minv[1:][free] -= delta
+            j0 = j1
+            if match[j0] == 0:
+                break
+        while j0:
+            j1 = way[j0]
+            match[j0] = match[j1]
+            j0 = j1
+    return sorted((int(match[j]) - 1, j - 1) for j in range(1, cols + 1) if match[j])
+
+
+def _pair_cost(
+    centres_a: np.ndarray, sizes_a: np.ndarray, centres_b: np.ndarray, sizes_b: np.ndarray
+) -> np.ndarray:
+    position = np.sum((centres_a[:, None, :] - centres_b[None, :, :]) ** 2, axis=2)
+    ratio = np.log(np.maximum(sizes_a, 1e-9))[:, None] - np.log(np.maximum(sizes_b, 1e-9))[None, :]
+    return position + SIZE_WEIGHT * ratio**2
+
+
+def _pairs(cost: np.ndarray) -> list[tuple[int, int]]:
+    rows, cols = cost.shape
+    if max(rows, cols) > MAX_ASSIGNED:  # in order: the assignment would be too slow
+        return [(i, i) for i in range(min(rows, cols))]
+    return assign(cost)
+
+
+def _map(point: np.ndarray, frame_from, frame_to) -> np.ndarray:
+    """A 2D point moved from one frame (origin, extent) to the same place in another."""
+    return frame_to[0] + (point - frame_from[0]) / frame_from[1] * frame_to[1]
+
+
+def _lift(point2: np.ndarray, like: np.ndarray) -> np.ndarray:
+    """A 2D point with the depth of ``like``'s points (Manim's z)."""
+    out = np.zeros(like.shape[1])
+    out[:2] = point2
+    if like.shape[1] > 2 and len(like):
+        out[2:] = like[:, 2:].mean(axis=0)
+    return out
+
+
+def align_pieces(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Two pieces' outlines (all their subpaths) aligned loop by loop, same number of points."""
+    la, lb = loops(a), loops(b)
+    if not la and not lb:
+        return point_path(a[0] if len(a) else np.zeros(3), 1), point_path(b[0] if len(b) else np.zeros(3), 1)
+    fa = _frame([_box(a)]) if len(a) else _frame([_box(b)])
+    fb = _frame([_box(b)]) if len(b) else fa
+    # The piece turns as its partner does: decided once by the largest closed loops.
+    big_a = max((x for x in la if x.closed), key=lambda x: abs(x.area), default=None)
+    big_b = max((x for x in lb if x.closed), key=lambda x: abs(x.area), default=None)
+    flip = None
+    if big_a is not None and big_b is not None:
+        tiny = 1e-6 * max(big_a.size, big_b.size) ** 2
+        if abs(big_a.area) > tiny and abs(big_b.area) > tiny:
+            flip = (big_a.area > 0) != (big_b.area > 0)
+    starts, ends = [], []
+    for hole in (False, True):
+        ia = [k for k, x in enumerate(la) if x.hole == hole]
+        ib = [k for k, x in enumerate(lb) if x.hole == hole]
+        ca = np.array([(la[k].centre - fa[0]) / fa[1] for k in ia]).reshape(-1, 2)
+        cb = np.array([(lb[k].centre - fb[0]) / fb[1] for k in ib]).reshape(-1, 2)
+        sa = np.array([la[k].size / max(np.linalg.norm(fa[1]), 1e-9) for k in ia])
+        sb = np.array([lb[k].size / max(np.linalg.norm(fb[1]), 1e-9) for k in ib])
+        pairs = _pairs(_pair_cost(ca, sa, cb, sb))
+        paired_a, paired_b = {i for i, _ in pairs}, {j for _, j in pairs}
+        for i, j in pairs:
+            x, y = la[ia[i]], lb[ib[j]]
+            p, q = align_loops(x.points, y.points, flip if (x.closed and y.closed) else None)
+            starts.append(p)
+            ends.append(q)
+        for j, k in enumerate(ib):
+            if j not in paired_b:  # grows from a point at its place in a
+                y = lb[k]
+                points = y.points
+                starts.append(point_path(_lift(_map(y.centre, fb, fa), points), len(points) // N))
+                ends.append(points)
+        for i, k in enumerate(ia):
+            if i not in paired_a:  # shrinks to a point at its place in b
+                x = la[k]
+                points = _reverse(x.points) if flip else x.points
+                starts.append(points)
+                ends.append(point_path(_lift(_map(x.centre, fa, fb), points), len(points) // N))
+    return np.concatenate(starts), np.concatenate(ends)
+
+
+@dataclass(frozen=True)
+class PiecePlan:
+    """One drawn piece of the morph: ``source``/``target`` index the pieces it comes from and
+    goes to (None: it grows from or shrinks to a point and fades), ``start``/``end`` its
+    aligned outlines (same shape)."""
+
+    source: int | None
+    target: int | None
+    start: np.ndarray
+    end: np.ndarray
+
+
+def plan(
+    source: list[np.ndarray],
+    target: list[np.ndarray],
+    source_keys: list[str | None] | None = None,
+    target_keys: list[str | None] | None = None,
+) -> list[PiecePlan]:
+    """Pair the pieces of two objects and align each pair (see the module docstring).
+
+    ``source``/``target``: each piece's points (k*4, 3). ``*_keys``: an outline identity per
+    piece (equal keys: the same glyph), or None. The plan lists paired pieces in target order,
+    with pieces that only exist on one side next to their nearest neighbour in order.
+    """
+    source_keys = source_keys or [None] * len(source)
+    target_keys = target_keys or [None] * len(target)
+    boxes_a = [_box(p) for p in source if len(p)]
+    boxes_b = [_box(p) for p in target if len(p)]
+    if not boxes_a or not boxes_b:
+        return []
+    fa, fb = _frame(boxes_a), _frame(boxes_b)
+    diag_a, diag_b = float(np.linalg.norm(fa[1])), float(np.linalg.norm(fb[1]))
+
+    def describe(pieces, frame, diag):
+        centres, sizes = [], []
+        for p in pieces:
+            lo, hi = _box(p) if len(p) else (frame[0], frame[0])
+            centres.append(((lo + hi) / 2 - frame[0]) / frame[1])
+            sizes.append(float(np.linalg.norm(hi - lo)) / max(diag, 1e-9))
+        return np.array(centres).reshape(-1, 2), np.array(sizes)
+
+    ca, sa = describe(source, fa, diag_a)
+    cb, sb = describe(target, fb, diag_b)
+    cost = _pair_cost(ca, sa, cb, sb)
+    same = np.array([[ka is not None and ka == kb for kb in target_keys] for ka in source_keys], dtype=bool)
+    cost = cost - SAME_KEY_BONUS * same.reshape(cost.shape)
+    pairs = _pairs(cost)
+    paired_a, paired_b = {i for i, _ in pairs}, {j for _, j in pairs}
+
+    entries: list[tuple[float, int, PiecePlan]] = []
+    partner_of = dict(pairs)
+    for i, j in pairs:
+        start, end = align_pieces(source[i], target[j])
+        entries.append((float(j), i, PiecePlan(i, j, start, end)))
+    for j, points in enumerate(target):
+        if j not in paired_b:  # grows from its place mapped into the source
+            start = _collapse(points, fa[0] + cb[j] * fa[1])
+            entries.append(
+                (float(j), len(source) + j, PiecePlan(None, j, start, np.asarray(points, dtype=float)))
+            )
+    for i, points in enumerate(source):
+        if i not in paired_a:  # shrinks to its place mapped into the target
+            centre = fb[0] + ca[i] * fb[1]
+            before = [partner_of[k] for k in range(i) if k in partner_of]
+            place = (before[-1] if before else -1) + 0.5
+            end = _collapse(points, centre)
+            entries.append((place, i, PiecePlan(i, None, np.asarray(points, dtype=float), end)))
+    entries.sort(key=lambda e: (e[0], e[1]))
+    return [e[2] for e in entries]
+
+
+def _collapse(points: np.ndarray, centre2: np.ndarray) -> np.ndarray:
+    """``points`` all moved to one point: a piece at the size of nothing."""
+    points = np.asarray(points, dtype=float)
+    if not len(points):
+        return points
+    return np.tile(_lift(centre2, points), (len(points), 1))
+
+
+# --- measures (the gallery, B73, and the tests use them) ----------------------
+
+
+def self_crossings(poly: np.ndarray) -> int:
+    """Proper crossings between non-adjacent segments of a polyline (closed if its ends meet)."""
+    pts = np.asarray(poly, dtype=float)[:, :2]
+    seg_a, seg_b = pts[:-1], pts[1:]
+    keep = np.linalg.norm(seg_b - seg_a, axis=1) > 1e-12
+    seg_a, seg_b = seg_a[keep], seg_b[keep]
+    n = len(seg_a)
+    if n < 4:
+        return 0
+    closed = np.linalg.norm(pts[0] - pts[-1]) <= 1e-9
+
+    def orient(p, q, r):
+        return (q[..., 0] - p[..., 0]) * (r[..., 1] - p[..., 1]) - (q[..., 1] - p[..., 1]) * (
+            r[..., 0] - p[..., 0]
+        )
+
+    i, j = np.triu_indices(n, k=2)
+    if closed:
+        adjacent = (i == 0) & (j == n - 1)
+        i, j = i[~adjacent], j[~adjacent]
+    p, q, r, s = seg_a[i], seg_b[i], seg_a[j], seg_b[j]
+    d1, d2 = orient(p, q, r), orient(p, q, s)
+    d3, d4 = orient(r, s, p), orient(r, s, q)
+    scale = 1e-12
+    hits = (d1 * d2 < -scale) & (d3 * d4 < -scale)
+    return int(np.count_nonzero(hits))
+
+
+# --- colour ------------------------------------------------------------------
+
+_M1 = np.array(
+    [
+        [0.4122214708, 0.5363325363, 0.0514459929],
+        [0.2119034982, 0.6806995451, 0.1073969566],
+        [0.0883024619, 0.2817188376, 0.6299787005],
+    ]
+)
+_M2 = np.array(
+    [
+        [0.2104542553, 0.7936177850, -0.0040720468],
+        [1.9779984951, -2.4285922050, 0.4505937099],
+        [0.0259040371, 0.7827717662, -0.8086757660],
+    ]
+)
+_M1_INV = np.linalg.inv(_M1)
+_M2_INV = np.linalg.inv(_M2)
+
+
+def _to_linear(c: np.ndarray) -> np.ndarray:
+    c = np.clip(c, 0.0, 1.0)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def _to_srgb(c: np.ndarray) -> np.ndarray:
+    c = np.clip(c, 0.0, 1.0)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(c, 1 / 2.4) - 0.055)
+
+
+def srgb_to_oklab(rgb: np.ndarray) -> np.ndarray:
+    """(n, 3) sRGB in [0, 1] to OKLab (L in [0, 1])."""
+    lms = _to_linear(np.asarray(rgb, dtype=float)) @ _M1.T
+    return np.cbrt(lms) @ _M2.T
+
+
+def oklab_to_srgb(lab: np.ndarray) -> np.ndarray:
+    lms = (np.asarray(lab, dtype=float) @ _M2_INV.T) ** 3
+    return _to_srgb(lms @ _M1_INV.T)
+
+
+def blend_rgbas(start: np.ndarray, end: np.ndarray, alpha, lab0=None, lab1=None) -> np.ndarray:
+    """RGBA rows (n, 4) between ``start`` and ``end``: colour mixed in OKLab weighted by each
+    end's opacity (a colour fading out does not tint the other), opacity mixed linearly.
+
+    ``alpha``: one number or one per row, held within [0, 1]; a row is exactly ``start`` at 0
+    and exactly ``end`` at 1. ``lab0``/``lab1``: the ends' OKLab, when already known.
+    """
+    start, end = np.asarray(start, dtype=float), np.asarray(end, dtype=float)
+    a = np.broadcast_to(np.asarray(alpha, dtype=float), (len(start),))  # held by the last two lines
+    lab0 = srgb_to_oklab(start[:, :3]) if lab0 is None else lab0
+    lab1 = srgb_to_oklab(end[:, :3]) if lab1 is None else lab1
+    w0 = start[:, 3] * (1.0 - a)
+    w1 = end[:, 3] * a
+    total = w0 + w1
+    seen = total > 1e-12
+    share = np.where(seen, w1 / np.where(seen, total, 1.0), a)
+    out = np.empty_like(start)
+    out[:, :3] = oklab_to_srgb(lab0 + (lab1 - lab0) * share[:, None])
+    out[:, 3] = total
+    out[a <= 0.0] = start[a <= 0.0]
+    out[a >= 1.0] = end[a >= 1.0]
+    return out

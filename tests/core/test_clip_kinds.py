@@ -49,6 +49,8 @@ def samples() -> list[tuple[str, dict]]:
     for kind, params in CLIP_PARAMS.items():
         if CLIP_KIND_INFO[kind].category == "motion":
             continue  # needs a path layer: the two-layer harness in test_paths.py
+        if CLIP_KIND_INFO[kind].category == "morph":
+            continue  # needs a target layer: the two-layer harness in test_random_access.py (ADR 0056)
         if CLIP_KIND_INFO[kind].only_types == NUMBER_TYPES:
             continue  # counts a Number: the harness in test_readouts.py (ADR 0036)
         for param in params:

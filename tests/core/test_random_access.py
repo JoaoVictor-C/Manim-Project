@@ -11,7 +11,7 @@ import random
 import pytest
 
 from manim_studio.core import adapter
-from manim_studio.core.schema import CLIP_KIND_INFO, Clip, Easing, Layer, Project
+from manim_studio.core.schema import CLIP_KIND_INFO, SMART_MORPHS, Clip, Easing, Layer, Project
 from manim_studio.render.cairo_export import make_camera, render_frame
 from support import (
     CANVAS,
@@ -58,17 +58,18 @@ def test_mathtex_random_access(kind: str) -> None:
     assert_frames_equal(reference, render_in_order(project, order), "mathtex")
 
 
+@pytest.mark.parametrize("params", [{}, {"match": "classic"}, {"match": "smart"}], ids=str)
 @pytest.mark.parametrize("kind", MORPH)
-def test_morph_random_access(kind: str) -> None:
-    layers = [
-        Layer(id="a", spec=SQUARE, clips=[Clip(id="m", kind=kind, start=0, duration=1, to_layer="b")]),
-        Layer(id="b", spec=CIRCLE),
-    ]
+def test_morph_random_access(kind: str, params: dict) -> None:
+    if params and params.get("match") and kind not in SMART_MORPHS:
+        pytest.skip(f"{kind} has no matching choice")
+    clip = Clip(id="m", kind=kind, start=0, duration=1, to_layer="b", params=params)
+    layers = [Layer(id="a", spec=SQUARE, clips=[clip]), Layer(id="b", spec=CIRCLE)]
     project = Project(canvas=CANVAS, layers=layers)
 
     camera = make_camera(CANVAS)
     anim = adapter.make_animation(
-        kind, adapter.build_mobject(SQUARE), None, {}, adapter.build_mobject(CIRCLE)
+        kind, adapter.build_mobject(SQUARE), None, params, adapter.build_mobject(CIRCLE)
     )
     anim.begin()
     reference = []

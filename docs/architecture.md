@@ -126,6 +126,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `shape.py` | Shape objects: an object frozen into plain vector data, and which layers can be frozen (P10.2, ADR 0052) | `core/test_shapes.py` |
 | `equation_steps.py` | equation steps: lines, a small LaTeX tokenizer, operations on both sides, planning the morph between steps (P11, ADR 0054) | `core/test_equation_steps.py`, `core/test_equation_steps_layers.py` |
 | `glyph_colours.py` | colour characters: a text's `glyph_colours` list (one colour per drawn glyph), gradients, rainbow, alternate, ranges, validation (ADR 0055) | `core/test_glyph_colour_helpers.py`, `core/test_glyph_colours.py` |
+| `morph.py` | smart morph matching: pieces paired by place/size/outline (Hungarian), holes with holes, loops started where they travel least and cut at each other's corners, OKLab colour blends, the gallery's measures; numpy only (ADR 0056) | `core/test_morph.py`, `core/test_morph_frames.py` |
 | `python_export.py` | the project as Manim code, readable or exact, and why | `core/test_python_export.py`, `core/test_python_export_keyed.py` |
 | `audio.py` | sounds: decoding on demand, peaks, the mix per span | `core/test_audio.py`, `core/test_audio_spans.py` |
 | `subtitles.py` | wrapping, `.srt` read/write, placing cues, changed spans | `core/test_subtitles.py` |

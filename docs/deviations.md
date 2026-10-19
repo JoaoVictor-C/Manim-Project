@@ -41,6 +41,18 @@ clip (ADR 0004) they play in the layer's own space, so a layer scaled 3x gets
 scales or rotates the object first draws them at their usual size, axis-aligned.
 The editor and the export agree.
 
+## Smart morphs pair pieces themselves (opt-in per clip)
+
+**Manim:** `Transform` aligns its two ends in order: submobjects, subpaths and points by index,
+from wherever each outline starts, and blends colours in sRGB.
+
+**Manim Studio:** a Transform, ClockwiseTransform or CounterclockwiseTransform clip with
+`match: "smart"` (what the editor gives new morphs, ADR 0056) is fed ends aligned by
+`core/morph.py` - pieces paired by place, size and outline, holes with holes, loops started where
+they travel least and cut at each other's corners - and blends colours in OKLab, with each end
+drawn exactly. Clips without the param (older files, imported scenes) are Manim's own Transform,
+bit for bit. A project with a smart morph exports as the exact scene.
+
 ## Robustness patches (output unchanged)
 
 - **MoveAlongPath measures its path once.** Manim's `point_from_proportion`

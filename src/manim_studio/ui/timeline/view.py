@@ -75,6 +75,7 @@ from ...core.schema import (
     Marker,
     Project,
     keyable_props,
+    new_clip_params,
 )
 from ...logging_config import get_logger
 from .. import curve_editor, graph_model, theme
@@ -1987,6 +1988,7 @@ class TimelineView(QGraphicsView):
         params: dict | None = None,
     ) -> None:
         clip_id = edits.new_clip_id(self.project.layer(layer_id), kind)
+        params = {**new_clip_params(kind), **(params or {})}  # new morphs match smartly (ADR 0056)
         self._apply(
             lambda p: edits.add_clip(
                 p, layer_id, kind, start, length, to_layer=to_layer, clip_id=clip_id, params=params

@@ -48,6 +48,22 @@ TeX where both equations have [parts](objects.md#parts-of-an-equation), and by s
 split the equations into terms when a symbol repeats. A part cannot be turned into something
 else; its equation can.
 
+**Transform**, **ClockwiseTransform** and **CounterclockwiseTransform** have a **Matching**
+choice in Properties (ADR 0056). **Smart**, which new morphs get, pairs the pieces of the two
+objects by where they sit in their object, their size and their outline (a letter turns into the
+letter nearest its place; the same letter nearby keeps its shape), holes with holes (the hole of
+an "o" closes in the middle of a square instead of flying off), and starts each outline where its
+points travel least, so a circle does not twist into a square and a square into the same square
+turned does not spin at all; corners land on corners. A piece with no partner shrinks to a point
+and fades where it would be in the other object (the marks of a right angle melt away), or grows
+from one (new letters appear in their place). Colours blend evenly (blue into red does not pass
+through a dark purple), and the first and last frames are exactly the two objects. **Classic** is
+Manim's own Transform, which pairs everything in order: older projects and imported scenes keep
+it. Limits: the matching is by shape and place, not meaning - two different letters still pass
+through in-between blobs; an identical letter far away is not flown across (use
+TransformMatchingShapes for that); a piece never splits in two. A project with a smart morph is
+exported as the exact Python scene.
+
 ### Equation steps
 
 To animate algebra one step at a time, choose **Layers > Add > Equation steps...** (or

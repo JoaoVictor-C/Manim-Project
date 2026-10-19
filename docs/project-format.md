@@ -307,6 +307,7 @@ Registered clip params (ADR 0022):
 | Flash, FocusOn | `color` | a colour |
 | ChangeDecimalToValue | `target_number` | the value it counts to (default 1); linear unless eased |
 | MoveAlongPath | `path`, `rotate` | `path`: the id of another layer (not the object itself or its parts, not a part, code layer or image); a group such as an SVG is followed along its longest path. `rotate`: `"no"` (default) or `"along"` - turn with the path, by its change of direction since the clip's start |
+| Transform, ClockwiseTransform, CounterclockwiseTransform | `match` | `"classic"` (default when absent: Manim's own Transform) or `"smart"` (pieces, holes and start points paired by the editor, colours blended in OKLab, exact ends; ADR 0056). Read by the editor, never passed to Manim. The editor writes `"smart"` on morphs it creates; scene imports and older files have none |
 
 **MoveAlongPath** (ADR 0025) moves the object's centre along the path layer's
 shape as it is at the clip's start - its built shape under its transform (and

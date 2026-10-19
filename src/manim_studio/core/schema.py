@@ -130,6 +130,8 @@ class ClipParam:
     maximum: float | None = None
     step: float = 0.1
     choices: tuple[str, ...] = ()
+    studio: bool = False  # read by the editor itself, never passed to Manim (ADR 0056)
+    tooltip: str = ""
 
     def check(self, value: Any) -> str | None:
         """Why ``value`` is not acceptable, or None."""
@@ -157,7 +159,36 @@ class ClipParam:
 
 
 _YELLOW = "#FFFF00"  # Manim's YELLOW: the default of its indications
+# ADR 0056: how a morph pairs the pieces and points of its two ends. Absent = classic (Manim's own
+# Transform, what every older project draws); smart = core/morph.py.
+MORPH_MATCHES = ("classic", "smart")
+MATCH = ClipParam(
+    "match",
+    "Matching",
+    "choice",
+    default="classic",
+    choices=MORPH_MATCHES,
+    studio=True,
+    tooltip=(
+        "How the two shapes are paired while they morph.\n"
+        "Classic: Manim's own Transform (points and pieces paired in order).\n"
+        "Smart: pieces paired by place and shape, holes with holes, outlines started where they "
+        "travel least, colours blended evenly - fewer twisted or tangled in-between frames."
+    ),
+)
+SMART_MORPHS = frozenset({"Transform", "ClockwiseTransform", "CounterclockwiseTransform"})
+SMART_MORPH = "smart morph matching is computed by the editor"  # why the readable export falls back
+
+
+def new_clip_params(kind: str) -> dict[str, Any]:
+    """The params a clip the editor creates starts with: smart matching for the morphs that
+    offer it (ADR 0056, B73). A clip without the param - every older file, scene imports - stays
+    classic."""
+    return {MATCH.name: "smart"} if kind in SMART_MORPHS else {}
+
+
 CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
+    **{kind: (MATCH,) for kind in sorted(SMART_MORPHS)},
     "FadeIn": (ClipParam("shift", "Moving", "direction"),),
     "FadeOut": (ClipParam("shift", "Moving", "direction"),),
     "GrowFromEdge": (ClipParam("edge", "From edge", "direction", default="DOWN"),),

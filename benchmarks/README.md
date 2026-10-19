@@ -59,6 +59,7 @@ Conventions:
 | `bench_svg.py` | SVGMobject build cost, colours, drawing clips under scrubbing — B40 |
 | `bench_anchor.py` | the anchor model and its compensation, numerically — B34 |
 | `bench_preview.py` | evaluator, QPainter and Cairo time per frame on the stress scene (20 MathTex, 3 concurrent Writes, 10 keyframed layers) at 960×540 |
+| `bench_morph_quality.py` | the morph gallery: 19 pairs at alpha 0-1, contact sheets in `.cache/morph/`, twisting, crossings, collapse, pops, colour, cost; `--modes classic smart` (ADR 0056) — B73 |
 
 ```bash
 uv run python benchmarks/bench_preview.py

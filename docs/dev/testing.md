@@ -210,6 +210,13 @@ the plain one coloured by `set_color` (Text, MathTex, Indicate, Write, FadeIn, a
 style winning, a theme, freeze pixel identity), `core/test_glyph_colour_helpers.py` the pure
 helpers, and `ui/test_glyph_colours_ui.py` drives the dialog with real mouse and key events.
 `.cache/mutate_glyphs.py` mutates the guards; all 41 mutants are killed.
+Smart morph matching (ADR 0056): `core/test_morph.py` tests the pure geometry (a turned, shifted,
+scaled or reversed square aligned to itself, corners kept and snapped, cuts in order, the
+assignment against brute force, pieces by place, unpaired pieces and holes, winding, OKLab
+blends), `core/test_morph_frames.py` the evaluator (classic equal to Manim's Transform with
+`np.array_equal`, smart's exact ends and scrubbing, the B73 measures with margins, an image
+fallback, the export); the morph random-access harness samples both choices. `.cache/morph/mutate.py`
+mutates the guards (42, with a 180 s timeout for mutants that loop); all are killed.
 The P6d.4 sweep fixes are guarded where they live: the frame border at Fit
 (`ui/test_viewport.py`), Compose's first-layout widths and remembered sizes winning over
 them (`ui/test_pages.py`), the Layers buttons going icon-only (`ui/test_layers_panel.py`)

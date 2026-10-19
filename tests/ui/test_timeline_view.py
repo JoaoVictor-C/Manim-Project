@@ -294,6 +294,7 @@ def test_morph_clips_offer_free_targets_only(view) -> None:
     targets.actions()[0].trigger()
     morph = view.project.layer("a").clips[-1]
     assert (morph.kind, morph.to_layer) == ("Transform", "b")
+    assert morph.params == {"match": "smart"}  # a new morph matches smartly (ADR 0056)
 
 
 def test_no_clip_can_be_added_after_a_morph(view) -> None:
