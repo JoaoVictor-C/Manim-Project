@@ -1288,6 +1288,28 @@ def glyph_count(spec: Spec) -> int:
     return len(build_mobject(plain_spec(spec)).family_members_with_points())
 
 
+@dataclass(frozen=True)
+class GlyphOutline:
+    """One drawn glyph as plain data for a preview (ADR 0055): its closed subpaths, each an
+    ``(4k, 2)`` array of cubic bezier points (anchor, handle, handle, anchor, ...) in Manim units
+    (y up), and the colour it has without glyph colours."""
+
+    subpaths: tuple[np.ndarray, ...]
+    fill: str  # "#rrggbb"
+    opacity: float
+
+
+def glyph_outlines(spec: Spec) -> list[GlyphOutline]:
+    """Every drawn glyph of a Text, MathTex or Tex, in ``glyph_colours`` order, as built without
+    its glyph colours. Raises like ``build_mobject`` when it cannot be built."""
+    out = []
+    for leaf in build_mobject(plain_spec(spec)).family_members_with_points():
+        subpaths = tuple(np.asarray(path)[:, :2].copy() for path in leaf.get_subpaths() if len(path) >= 4)
+        fill = leaf.get_fill_color().to_hex().lower()
+        out.append(GlyphOutline(subpaths, fill, float(leaf.get_fill_opacity())))
+    return out
+
+
 _LIGATURES = ("ffi", "ffl", "ff", "fi", "fl")  # Pango draws these letters as one glyph
 _TEX_SYMBOLS = {0: "−"}  # the minus sign (first glyph of TeX's symbol font)
 _MATH_GREEK = dict(zip(range(11, 32), "αβγδϵζηθικλμνξπρστυϕχ", strict=True))

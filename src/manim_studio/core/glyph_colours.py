@@ -20,6 +20,8 @@ from .schema import GLYPH_COLOURS, is_colour
 PARAM = GLYPH_COLOURS  # the spec param (Text, MathTex, Tex)
 MAX_GLYPHS = 5000  # entries a list may have: far more than a readable text draws
 Colours = list[str | None]
+GRADIENT_START, GRADIENT_END = "#ff0000", "#0000ff"  # what Gradient... offers first
+ALTERNATE_FIRST, ALTERNATE_SECOND = "#ffffff", "#facc15"  # and Alternate...
 
 
 def problem(value: object) -> str | None:
