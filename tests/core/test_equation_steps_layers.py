@@ -85,8 +85,11 @@ def test_one_step_is_just_its_entrance_and_nothing_shared_is_a_replacement() -> 
     edit, report = steps(["x = 1"])
     (only,) = edit.project.roots()
     assert [c.kind for c in only.clips] == ["Write"] and report.transitions == ()
-    _, report = steps(["x = 1", "y^2 + 7"])
+    replaced, report = steps(["x = 1", "y^2 + 7"])
     assert report.transitions == (REPLACING,)
+    assert replaced.project.roots()[0].clips[1].params == {"match": "smart"}  # ADR 0056
+    matching, _ = steps()
+    assert matching.project.roots()[0].clips[1].params == {}  # TransformMatchingTex has no choice
 
 
 @pytest.mark.parametrize(
