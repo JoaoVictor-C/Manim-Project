@@ -62,7 +62,10 @@ Manim's own Transform, which pairs everything in order: older projects and impor
 it. Limits: the matching is by shape and place, not meaning - two different letters still pass
 through in-between blobs; an identical letter far away is not flown across (use
 TransformMatchingShapes for that); a piece never splits in two. A project with a smart morph is
-exported as the exact Python scene.
+exported as the exact Python scene. To use the same morph in your own Manim Community scenes,
+copy [`examples/smart_transform.py`](../../examples/smart_transform.py): one self-contained file
+(needs only `manim` and `numpy`) with `SmartScene.smart_transform(a, b)`; it is generated from the
+editor's own code by `scripts/gen_smart_transform.py`.
 
 ### Equation steps
 
