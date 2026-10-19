@@ -173,13 +173,16 @@ def test_pieces_pair_by_place_whatever_their_order() -> None:
 
 
 def test_a_piece_without_partner_shrinks_to_its_place_and_one_grows_from_it() -> None:
-    plan = morph.plan([blob(-2, 0), blob(0, 0), blob(2, 0)], [blob(-2, 0), blob(2, 0)])
+    plan = morph.plan([blob(-2, 0), blob(0, 0), blob(2, 0)], [blob(8, 1), blob(12, 1)])
     lone = [p for p in plan if p.target is None]
     assert len(lone) == 1 and lone[0].source == 1
     assert np.allclose(lone[0].start, blob(0, 0)) and np.allclose(lone[0].end, lone[0].end[0])  # one point
-    assert np.allclose(lone[0].end[0, :2], [0, 0])  # the middle of the target, where it was in the source
-    grown = [p for p in morph.plan([blob(0, 0)], [blob(-1, 0), blob(1, 0)]) if p.source is None]
+    assert np.allclose(lone[0].end[0, :2], [10, 1])  # the middle of the target, as it was in the source
+    assert [p.source for p in plan] == [0, 1, 2]  # drawn next to its neighbours
+    grown = [p for p in morph.plan([blob(5, 5)], [blob(-1, 0), blob(1, 0)]) if p.source is None]
     assert len(grown) == 1 and np.allclose(grown[0].start, grown[0].start[0])
+    side = np.sign(grown[0].end[0, 0])  # the target piece on the right grows from the source's right
+    assert np.allclose(grown[0].start[0, :2], [5 + side * 0.4 * 5 / 7, 5])  # its place mapped into the source
 
 
 def test_the_same_glyph_keeps_its_partner_when_near() -> None:
