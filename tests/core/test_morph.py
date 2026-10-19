@@ -117,6 +117,40 @@ def test_cutting_keeps_every_corner_and_the_drawing() -> None:
     assert on_outline(a, TRIANGLE) and on_outline(b, SQUARE)  # new anchors sit on the old sides
 
 
+def test_a_start_between_grid_offsets_is_found_at_a_corner() -> None:
+    """A triangle's corners sit at thirds of its outline, between the 64 sampled offsets."""
+    turned = np.concatenate([TRIANGLE[4:], TRIANGLE[:4]])
+    a, b = morph.align_loops(TRIANGLE, turned)
+    assert np.allclose(a, b)
+
+
+def perimeter(points: np.ndarray) -> float:
+    corners = np.vstack([anchors(points), points[-1:, :2]])  # back to the start
+    return float(np.sum(np.linalg.norm(np.diff(corners, axis=0), axis=1)))
+
+
+def test_several_cuts_in_one_curve_stay_in_order() -> None:
+    """Eight circle corners land on three triangle sides: the new anchors run along each side
+    in order (out of order, the outline would double back and grow longer)."""
+    a, b = morph.align_loops(TRIANGLE, circle(8, r=1.5))
+    assert a.shape == b.shape and len(a) // morph.N >= 8
+    assert perimeter(a) == pytest.approx(perimeter(TRIANGLE))
+
+
+def test_one_corner_snaps_to_one_partner_only() -> None:
+    """Two close corners of a, one corner of b between them: only one may snap to it."""
+    a = np.concatenate([line((0, 0), (0.48, 0)), line((0.48, 0), (0.52, 0)), line((0.52, 0), (1, 0))])
+    b = np.concatenate([line((0, 1), (0.5, 1)), line((0.5, 1), (1, 1))])
+    p, q = morph.align_loops(a, b)
+    assert p.shape == q.shape == (12, 3)
+
+
+def test_an_open_path_into_a_closed_one_moves_the_closed_start() -> None:
+    from_ul = np.concatenate([SQUARE[4:], SQUARE[:4]])  # starts at (-1, 1)
+    a, b = morph.align_loops(line((1, -0.2), (1, 0.2)), from_ul)
+    assert abs(b[0, 0] - 1.0) < 0.3  # its start moved to the right side, next to the line
+
+
 def test_close_corners_snap_together() -> None:
     """A square into a circle of 4 arcs whose anchors are near the square's corners: the
     corners pair with the anchors instead of adding a curve each."""
@@ -210,11 +244,32 @@ def test_holes_pair_with_holes() -> None:
     assert np.argmin(sizes) == np.argmin(starts)  # the small loop (hole) into the small loop
 
 
+def test_a_hole_never_pairs_with_an_outline() -> None:
+    """By place alone the big outline of one would pair with the hole of the other."""
+    one = np.concatenate([blob(0, 0, size=1.0), morph._reverse(blob(0.6, 0, size=0.3))])
+    two = np.concatenate([blob(0, 0, size=1.0), morph._reverse(blob(-0.6, 0, size=0.3))])
+    start, end = morph.align_pieces(one, two)
+    for s, e in zip(morph.subpaths(start), morph.subpaths(end), strict=True):
+        assert (np.ptp(s[:, 0]) > 1) == (np.ptp(e[:, 0]) > 1)  # big with big, small with small
+
+
 def test_an_unpaired_hole_closes_inside_its_piece() -> None:
     letter_o = np.concatenate([blob(0, 0, size=1.0), morph._reverse(blob(0, 0, size=0.5))])
     start, end = morph.align_pieces(letter_o, blob(3, 0, size=1.0))
     closing = morph.subpaths(end)[-1]
     assert np.allclose(closing, closing[0]) and np.allclose(closing[0, :2], [3, 0])  # at the centre
+    start, end = morph.align_pieces(blob(3, 0, size=1.0), letter_o)  # and opens from it
+    opening = morph.subpaths(start)[-1]
+    assert np.allclose(opening, opening[0]) and np.allclose(opening[0, :2], [3, 0])
+
+
+def test_a_piece_turns_with_its_holes() -> None:
+    """Into a clockwise square the "o" runs backwards whole: its hole keeps the opposite winding
+    (the same winding would fill the hole in as soon as the morph starts)."""
+    letter_o = np.concatenate([blob(0, 0, size=1.0), morph._reverse(blob(0, 0, size=0.5))])
+    start, _ = morph.align_pieces(letter_o, morph._reverse(blob(3, 0, size=1.0)))
+    outer, hole = (morph.signed_area(anchors(s)) for s in morph.subpaths(start))
+    assert outer < 0 < hole
 
 
 def test_plans_are_deterministic() -> None:
