@@ -30,6 +30,7 @@ from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
     DIRECTIONS,
+    GLYPH_COLOURS,
     GROUPS_ONE_OBJECT,
     NUMBER_TYPES,
     PYTHON_TYPES,
@@ -49,6 +50,7 @@ STAR: dict = {}
 exec("from manim import *", STAR)  # what a generated file can name without a prefix
 HELPERS = {
     "clamped",
+    "colour_glyphs",
     "cubic_bezier",
     "Keyed",
     "KeyedClip",
@@ -540,6 +542,8 @@ class _Readable:
             ]
         if "cubic_bezier" in self.helpers:
             lines += ["", *inspect.getsource(adapter.cubic_bezier).splitlines(), ""]
+        if "colour_glyphs" in self.helpers:  # the editor's own function (ADR 0055)
+            lines += ["", *inspect.getsource(adapter.colour_glyphs).splitlines(), ""]
         imports = (["import math"] if self.builders else []) + (["import numpy as np"] if self.shapes else [])
         if imports:
             lines[lines.index("from manim import *")] = (
@@ -580,6 +584,9 @@ class _Readable:
                 continue
             out.append(f"{var} = {self._construct(layer)}")
             out += [f"{var}.{call}" for call in _style_calls(adapter.text_style(layer.spec)[1])]
+            if layer.spec.params.get(GLYPH_COLOURS):  # after the style, as the editor (ADR 0055)
+                self.helpers.add("colour_glyphs")
+                out.append(f"colour_glyphs({var}, {layer.spec.params[GLYPH_COLOURS]!r})")
             out.append(f"{var}.move_to(ORIGIN)")
             if layer.id in self.keyed:  # its transform is drawn frame by frame, after its clips
                 out.append(f"{var}.set_z_index({index})  # the layer order")
@@ -864,6 +871,7 @@ def _construct(spec) -> str:
         a, b, c = (_vector(p) for p in adapter.right_triangle_mark(angle, side))
         return f"VGroup(Polygon({corner}, {end}, {top}), Line({a}, {b}), Line({b}, {c})).move_to(ORIGIN)"
     params = adapter.number_kwargs(spec) if spec.type in NUMBER_TYPES else dict(spec.params)
+    params.pop(GLYPH_COLOURS, None)  # applied after the constructor (ADR 0055)
     args = []
     if spec.type in TEXT_TYPES:
         args.append(repr(params.pop("text", "")))

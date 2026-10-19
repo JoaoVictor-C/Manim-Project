@@ -215,6 +215,58 @@ def test_a_text_with_coloured_pieces_is_plain_t2c_code_that_builds_what_the_edit
     assert np.array_equal(render_frame(camera, [built]), render_frame(camera, [ours]))
 
 
+def coloured_glyphs() -> Project:
+    """Colour characters (ADR 0055): a Text with a fill and t2c, and an equation, each glyph by glyph."""
+    words = Spec(
+        type="Text",
+        params={"text": "Hi ok", "t2c": {"ok": "#ff0000"}, "glyph_colours": [None, "#00ff00", "#0000ff"]},
+        style={"fill": "#ffff00"},
+    )
+    eq = Spec(type="MathTex", params={"text": r"a^2 + b^2 = c^2", "glyph_colours": ["#ff0000", None, "#00f"]})
+    return Project(
+        canvas=CANVAS.model_copy(update={"duration": 2.0}),
+        layers=[
+            Layer(id="t", spec=words, base=Transform2D(position=(0.0, 1.0)), clips=[_write("w")]),
+            Layer(id="eq", spec=eq, base=Transform2D(position=(0.0, -1.0)), clips=[_write("w2")]),
+        ],
+    )
+
+
+def _write(clip_id: str) -> Clip:
+    return Clip(id=clip_id, kind="Write", start=0.0, duration=1.0)
+
+
+@pytest.mark.latex
+def test_glyph_colours_are_plain_code_that_builds_what_the_editor_builds() -> None:
+    import manim
+
+    project = coloured_glyphs()
+    export = to_python(project, "Glyphs")
+    assert export.readable and export.problems == []
+    assert "glyph_colours" not in export.code  # not a Manim keyword: applied after the constructor
+    assert "colour_glyphs(t, [None, '#00ff00', '#0000ff'])" in export.code
+    assert export.code.count("def colour_glyphs(") == 1
+    names = dict(vars(manim))
+    helper = export.code.split("def colour_glyphs(")[1].split("\n\n")[0]
+    exec("def colour_glyphs(" + helper, names)  # the exported function itself
+    camera = make_camera(CANVAS)
+    for layer in project.layers:
+        var = {"t": "t", "eq": "eq"}[layer.id]
+        lines = [x.strip() for x in export.code.splitlines() if x.strip().startswith((f"{var} =", f"{var}."))]
+        lines += [
+            x.strip() for x in export.code.splitlines() if x.strip().startswith(f"colour_glyphs({var},")
+        ]
+        local = dict(names)
+        exec(lines[0], local)
+        for line in lines[1:]:
+            if ".move_to(" in line or "set_z_index" in line or ".shift(" in line:
+                continue
+            exec(line, local)
+        built = local[var].move_to(manim.ORIGIN)
+        ours = adapter.build_mobject(layer.spec)
+        assert np.array_equal(render_frame(camera, [built]), render_frame(camera, [ours])), layer.id
+
+
 def test_a_project_with_a_coloured_part_exports_in_the_exact_form() -> None:
     eq = Layer(id="eq", spec=Spec(type="MathTex", params={"text": "a+b"}))
     part = Layer(id="b", parent_id="eq", part=PartKey(tex="b"), style={"fill": "#ff0000"})
@@ -269,6 +321,13 @@ def test_readable_code_renders_what_the_editor_shows(tmp_path) -> None:
 def test_readable_t2c_code_renders_what_the_editor_shows(tmp_path) -> None:
     export = to_python(coloured_text(), "Words")
     assert_matches_editor(coloured_text(), rendered(export.code, "Words", tmp_path))
+
+
+@pytest.mark.slow
+@pytest.mark.latex
+def test_readable_glyph_colours_render_what_the_editor_shows(tmp_path) -> None:
+    export = to_python(coloured_glyphs(), "Glyphs")
+    assert_matches_editor(coloured_glyphs(), rendered(export.code, "Glyphs", tmp_path))
 
 
 @pytest.mark.slow

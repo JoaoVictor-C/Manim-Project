@@ -296,6 +296,14 @@ class MainWindow(QMainWindow):
         )
         self.freeze_action.triggered.connect(lambda: self.freeze_layer())
         edit_menu.addAction(self.freeze_action)
+        self.characters_action = QAction("Colour C&haracters...", self)  # ADR 0055
+        self.characters_action.setToolTip(
+            "Colour the letters or symbols of the selected Text, MathTex or Tex one by one"
+        )
+        self.characters_action.triggered.connect(
+            lambda: self._has_project and self.layers.colour_characters(self.selection.layer_id)
+        )
+        edit_menu.addAction(self.characters_action)
         edit_menu.addSeparator()
         add_subtitle = QAction("Add &Subtitle", self)
         add_subtitle.setShortcut(QKeySequence("Ctrl+T"))

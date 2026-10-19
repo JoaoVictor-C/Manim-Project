@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import plugins
-from ..core import adapter, edits, parts, placement, python_object, shape
+from ..core import adapter, edits, glyph_colours, parts, placement, python_object, shape
 from ..core.expressions import check as check_expression
 from ..core.layer_index import LayerIndex
 from ..core.python_object import PYTHON_TYPE
@@ -43,9 +43,11 @@ from ..core.schema import (
     CHILD_TYPES,
     CODE_TYPES,
     CONNECTOR_TYPES,
+    GLYPH_COLOURS,
     MEDIA_TYPES,
     PART_PARENT_TYPES,
     RASTER_TYPES,
+    TEXT_TYPES,
     TRACE_TYPES,
     Layer,
     Project,
@@ -55,6 +57,7 @@ from . import icons
 from .build_service import BuildService
 from .equation_steps_dialog import EquationStepsDialog, StepsRequest
 from .fields import pick_colour
+from .glyph_colours_dialog import ask_glyph_colours
 
 ID_ROLE = Qt.ItemDataRole.UserRole
 
@@ -219,6 +222,10 @@ class LayersPanel(QWidget):
         self.ask_steps: Callable[[float], StepsRequest | None] = self._ask_steps_dialog  # P11
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self.freeze: Callable[[str], None] = lambda layer_id: None  # set by the window (ADR 0052)
+        # Colour characters (ADR 0055): (layer id, current colours) -> the new list, or None.
+        self.ask_glyph_colours: Callable[[str, list | None], list | None] = lambda layer_id, current: (
+            ask_glyph_colours(self, self.project, layer_id)
+        )
         self._known_ids: set[str] = set()
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window: where new objects are placed
         self._select_new = False
@@ -580,6 +587,26 @@ class LayersPanel(QWidget):
         op = partial(edits.colour_part, parent_id=layer_id, tex=key[0], occurrence=key[1], fill=colour)
         self._submit(op, "Colour part")
 
+    def colour_characters(self, layer_id: str | None = None) -> bool:
+        """Colour the glyphs of a Text, MathTex or Tex one by one (ADR 0055): the dialog asks, then
+        ``edits.set_glyph_colours`` is one undo step. False when there was nothing to do."""
+        layer_id = layer_id or self.selected_id()
+        if not layer_id or layer_id not in {x.id for x in self.project.layers}:
+            self.message.emit("Colour characters: select a Text, MathTex or Tex")
+            return False
+        layer = self.project.layer(layer_id)
+        if layer.spec is None or layer.spec.type not in TEXT_TYPES:
+            self.message.emit(f"Colour characters: {layer.label} is not a Text, MathTex or Tex")
+            return False
+        current = layer.spec.params.get(GLYPH_COLOURS)
+        colours = self.ask_glyph_colours(layer_id, current)
+        if colours is None or glyph_colours.normalised(colours) == glyph_colours.normalised(current):
+            return False
+        self._submit(
+            partial(edits.set_glyph_colours, layer_id=layer_id, colours=colours), "Colour characters"
+        )
+        return True
+
     def _axes_of(self, layer: Layer | None) -> Layer | None:
         """The axes a selection belongs to (the axes themselves, or one of their objects)."""
         if layer is None:
@@ -699,6 +726,10 @@ class LayersPanel(QWidget):
         if self.add_part_action.isEnabled() or self.colour_part_action.isEnabled():
             menu.addSeparator()
         layer = self.project.layer(layer_id) if layer_id in {x.id for x in self.project.layers} else None
+        if layer is not None and layer.spec is not None and layer.spec.type in TEXT_TYPES:  # ADR 0055
+            characters = menu.addAction("Colour Characters...", lambda: self.colour_characters(layer_id))
+            characters.setToolTip("Colour its letters or symbols one by one, or as a gradient or a rainbow")
+            menu.addSeparator()
         if (
             layer is not None
             and shape.kind_problem(layer) is None

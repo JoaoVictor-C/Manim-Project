@@ -32,19 +32,21 @@ from PySide6.QtWidgets import (
 )
 
 from .. import plugins
-from ..core import adapter, edits, parts, python_object, scene_length, shape
+from ..core import adapter, edits, glyph_colours, parts, python_object, scene_length, shape
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
 from ..core.schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
     DIRECTIONS,
+    GLYPH_COLOURS,
     GRAPH_PARAMS,
     GROUP_TYPES,
     PART_PARENT_TYPES,
     PYTHON_TYPES,
     RASTER_TYPES,
     SHAPE_TYPES,
+    TEXT_TYPES,
     Canvas,
     ClipParam,
     Easing,
@@ -71,6 +73,7 @@ from .fields import (
     pick_colour,
 )
 from .gizmo import SHIFTS_ELSEWHERE
+from .glyph_colours_dialog import ask_glyph_colours
 
 CUSTOM_CURVE = "custom-curve"  # the "Custom curve..." entry of an easing list
 STYLE_KEYS = ("fill", "fill_opacity", "stroke", "stroke_width")
@@ -302,6 +305,11 @@ class PropertiesPanel(QWidget):
         # Freeze to shape (ADR 0052): set by the window, which knows what is drawn.
         self.freeze: Callable[[str], None] = lambda layer_id: None
         self.freeze_button: QPushButton | None = None
+        # Colour characters (ADR 0055): (layer id, current colours) -> the new list, or None.
+        self.ask_glyph_colours: Callable[[str, list | None], list | None] = lambda layer_id, current: (
+            ask_glyph_colours(self, self.project, layer_id)
+        )
+        self.characters_button: QPushButton | None = None
         self._shown_type: str | None = None  # the object type whose sections are shown
         # "Custom curve...": shows the curve editor; tests replace it (P2b)
         self.curve_dialog: Callable[[Easing | None], Easing | None] = lambda ease: edit_curve(self, ease)
@@ -491,6 +499,8 @@ class PropertiesPanel(QWidget):
         else:
             self._shown_type = layer.spec.type
             self._object_section(layer)
+            if layer.spec.type in TEXT_TYPES:
+                self._colour_characters_row(layer.id)
             self._freeze_row(layer)
             if (
                 layer.spec.type not in RASTER_TYPES | CODE_TYPES | GROUP_TYPES
@@ -806,6 +816,7 @@ class PropertiesPanel(QWidget):
         self._shown_params = None
         self.python_label = None
         self.freeze_button = None
+        self.characters_button = None
         self._shown_type = None
         self.scene_shown = False
         self.fields.clear()
@@ -940,6 +951,39 @@ class PropertiesPanel(QWidget):
         self._section(layer.spec.type, rows)
         if layer.spec.type in CODE_TYPES:
             self._code_status_row(layer.id)
+
+    def _colour_characters_row(self, layer_id: str) -> None:
+        """A Text, MathTex or Tex: "Colour characters..." in its object section (ADR 0055)."""
+        self.characters_button = QPushButton("Colour characters...")
+        self.characters_button.setToolTip(
+            "Colour the letters or symbols one by one: click them on a large preview, or give them a "
+            "gradient, a rainbow or two alternating colours (one undo step)"
+        )
+        generation = self._generation
+        self.characters_button.clicked.connect(
+            lambda: generation == self._generation and self.colour_characters(layer_id)
+        )
+        last = self.body_layout.itemAt(self.body_layout.count() - 1)
+        box = last.widget() if last is not None else None
+        if isinstance(box, QGroupBox) and isinstance(box.layout(), QFormLayout):
+            box.layout().addRow("", self.characters_button)
+        else:
+            self.body_layout.addWidget(self.characters_button)
+
+    def colour_characters(self, layer_id: str) -> None:
+        """Ask for the colour of each glyph and apply it (one undo step, ADR 0055)."""
+        if not _has(self.project, layer_id):
+            return
+        current = self.project.layer(layer_id).spec.params.get(GLYPH_COLOURS)
+        colours = self.ask_glyph_colours(layer_id, current)
+        if colours is None or glyph_colours.normalised(colours) == glyph_colours.normalised(current):
+            return
+        try:
+            self.builds.submit(
+                partial(edits.set_glyph_colours, layer_id=layer_id, colours=colours), "Colour characters"
+            )
+        except (edits.EditError, ValidationError) as exc:
+            self.message.emit(f"Colour characters: {_first_error(exc)}")
 
     def _freeze_row(self, layer: Layer) -> None:
         """A shape says it is frozen (no parameters: undo is the way back); an object that can be
@@ -1128,6 +1172,10 @@ class PropertiesPanel(QWidget):
         )
         form.addRow("Text", self.part_tex)
         form.addRow("", self.part_colour_button)
+        help_text = QLabel("To colour single letters, use Colour characters... above.")
+        help_text.setWordWrap(True)
+        help_text.setObjectName("hint")
+        form.addRow(help_text)
         self.body_layout.addWidget(box)
         self._shown_pieces = pieces
 

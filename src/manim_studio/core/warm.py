@@ -21,11 +21,13 @@ import json
 from .. import plugins
 from . import python_object
 from .parts import build_spec
-from .schema import NUMBER_TYPES, PYTHON_TYPES, TEXT_TYPES, Project, Spec
+from .schema import GLYPH_COLOURS, NUMBER_TYPES, PYTHON_TYPES, TEXT_TYPES, Project, Spec
 
 LABELS = {"AxisLabels": ("x_label", "y_label"), "GraphLabel": ("label",)}  # TeX on axes (ADR 0030)
 
-CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color"})  # B19: same cache entry
+# B19: same cache entry. Glyph colours (ADR 0055) are never given to Manim: they colour a copy
+# of the built object, so changing them builds nothing new.
+CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color", GLYPH_COLOURS})
 
 
 def warm_key(spec: Spec) -> str | None:

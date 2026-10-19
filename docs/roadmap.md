@@ -82,3 +82,4 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 - ✅ **P9** — [plan](plans/p9-pythagoras-feedback.md): what the Pythagoras project asked for - auto-key and right triangles, timeline follow lock, multi-select and shift timing, part colour, groups (U1-U6 done)
 - **P10** — [plan](plans/p10-code-to-objects.md): from code to objects - Python objects built by the user's Manim code (P10.1 done, ADR 0051), templates P10.3 import a whole Manim scene as layers and clips: done, ADR 0053.
 - **P11** — [plan](plans/p11-equation-steps.md): equation steps - type a derivation, get one MathTex per step and the morphs between them (P11.1 done, ADR 0054); simplify/solve suggestions and annotations later
+- ✅ **Colour characters** — one colour per drawn glyph of a Text, MathTex or Tex: a dialog to click glyphs, gradients, rainbow, alternate (ADR 0055)

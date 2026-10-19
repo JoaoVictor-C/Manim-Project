@@ -39,6 +39,7 @@ from .schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
     DIRECTIONS,
+    GLYPH_COLOURS,
     GROUP_TYPES,
     MEDIA_TYPES,
     NUMBER_TYPES,
@@ -1022,7 +1023,28 @@ def _polygon_length(mob: m.Mobject) -> float:
 
 @lru_cache(maxsize=256)
 def _build_cached(spec_json: str) -> m.Mobject:
-    return _build(Spec.model_validate_json(spec_json))
+    spec = Spec.model_validate_json(spec_json)
+    if GLYPH_COLOURS in spec.params:  # a coloured copy of the plain build (ADR 0055)
+        return colour_glyphs(
+            _build_cached(plain_spec(spec).model_dump_json()).copy(), spec.params[GLYPH_COLOURS]
+        )
+    return _build(spec)
+
+
+def plain_spec(spec: Spec) -> Spec:
+    """``spec`` without its glyph colours (ADR 0055): what Manim builds, before they are applied."""
+    if GLYPH_COLOURS not in spec.params:
+        return spec
+    return spec.model_copy(update={"params": {k: v for k, v in spec.params.items() if k != GLYPH_COLOURS}})
+
+
+def colour_glyphs(mobject, colours):
+    """Glyph colours from Manim Studio (ADR 0055): one entry per drawn glyph, in the order of
+    family_members_with_points(); None keeps the glyph's colour, extra entries are ignored."""
+    for glyph, colour in zip(mobject.family_members_with_points(), colours, strict=False):
+        if colour:
+            glyph.set_color(colour)
+    return mobject
 
 
 def _build(spec: Spec) -> m.Mobject:
@@ -1238,7 +1260,7 @@ def part_regions(spec: Spec) -> list[tuple[int, ...]]:
     ``spec`` carries ``parts.SPANS_PARAM``; entry ``i`` belongs to the part at
     ``Resolution.order[i]``. Indices hold for every copy of the built object.
     """
-    return list(_regions_cached(spec.model_dump_json()))
+    return list(_regions_cached(plain_spec(spec).model_dump_json()))
 
 
 @lru_cache(maxsize=256)
@@ -1258,6 +1280,99 @@ def style_glyphs(glyphs: list[m.Mobject], style: dict[str, Any]) -> None:
     """A part's colours (ADR 0049) on its glyphs, in place: as ``Spec.style`` colours an object."""
     for glyph in glyphs:
         _apply_style(glyph, style)
+
+
+def glyph_count(spec: Spec) -> int:
+    """How many glyphs a Text, MathTex or Tex draws (ADR 0055): the entries ``glyph_colours`` can
+    have. Raises like ``build_mobject`` when it cannot be built (no LaTeX for a new formula)."""
+    return len(build_mobject(plain_spec(spec)).family_members_with_points())
+
+
+@dataclass(frozen=True)
+class GlyphOutline:
+    """One drawn glyph as plain data for a preview (ADR 0055): its closed subpaths, each an
+    ``(4k, 2)`` array of cubic bezier points (anchor, handle, handle, anchor, ...) in Manim units
+    (y up), and the colour it has without glyph colours."""
+
+    subpaths: tuple[np.ndarray, ...]
+    fill: str  # "#rrggbb"
+    opacity: float
+
+
+def glyph_outlines(spec: Spec) -> list[GlyphOutline]:
+    """Every drawn glyph of a Text, MathTex or Tex, in ``glyph_colours`` order, as built without
+    its glyph colours. Raises like ``build_mobject`` when it cannot be built."""
+    out = []
+    for leaf in build_mobject(plain_spec(spec)).family_members_with_points():
+        subpaths = tuple(np.asarray(path)[:, :2].copy() for path in leaf.get_subpaths() if len(path) >= 4)
+        fill = leaf.get_fill_color().to_hex().lower()
+        out.append(GlyphOutline(subpaths, fill, float(leaf.get_fill_opacity())))
+    return out
+
+
+_LIGATURES = ("ffi", "ffl", "ff", "fi", "fl")  # Pango draws these letters as one glyph
+_TEX_SYMBOLS = {0: "−"}  # the minus sign (first glyph of TeX's symbol font)
+_MATH_GREEK = dict(zip(range(11, 32), "αβγδϵζηθικλμνξπρστυϕχ", strict=True))
+_TEXT_LIGATURES = dict(zip(range(11, 16), ("ff", "fi", "fl", "ffi", "ffl"), strict=True))
+_SVG_SHAPES = ("Path", "SimpleLine", "Rect", "Circle", "Ellipse", "Polygon", "Polyline", "Text")
+
+
+def glyph_labels(spec: Spec) -> list[str]:
+    """What each drawn glyph of a Text, MathTex or Tex shows, in ``glyph_colours`` order (ADR 0055):
+    a Text's characters (spaces draw nothing; a ligature is one glyph of several letters); a TeX
+    glyph's character as read from its font's character code (letters, digits and signs exactly,
+    Greek and a few symbols by the usual Computer Modern positions, "?" otherwise; a rule such
+    as a fraction bar is "—"). The numbers 1, 2, ... when the glyphs cannot be matched."""
+    mob = build_mobject(plain_spec(spec))
+    count = len(mob.family_members_with_points())
+    labels = _text_labels(spec, count) if spec.type == "Text" else _tex_labels(mob, spec.type == "Tex")
+    return labels if labels is not None and len(labels) == count else [str(i + 1) for i in range(count)]
+
+
+def _text_labels(spec: Spec, count: int) -> list[str] | None:
+    chars = [c for c in str(spec.params.get("text", "")) if not c.isspace()]
+    excess, labels, i = len(chars) - count, [], 0
+    while i < len(chars):
+        rest = "".join(chars[i : i + 3])
+        ligature = next((x for x in _LIGATURES if 0 < len(x) - 1 <= excess and rest.startswith(x)), None)
+        size = len(ligature) if ligature else 1
+        labels.append("".join(chars[i : i + size]))
+        excess -= size - 1
+        i += size
+    return labels if excess == 0 else None
+
+
+def _tex_labels(mob: m.Mobject, text_mode: bool) -> list[str] | None:
+    """Labels from the SVG LaTeX made, walked in the order Manim reads it (``SVGMobject``)."""
+    import svgelements as se  # Manim's own SVG reader
+
+    file_name = getattr(mob, "file_name", None)
+    if not file_name:
+        return None
+    try:
+        svg = se.SVG.parse(str(file_name))
+    except Exception:  # an unreadable file: plain numbers
+        return None
+    shapes = tuple(getattr(se, name) for name in _SVG_SHAPES)
+    labels, stack = [], [svg]
+    while stack:
+        element = stack.pop()
+        if isinstance(element, (se.Group, se.Use)):
+            stack.extend(element[::-1])
+        if isinstance(element, shapes):
+            labels.append(_tex_label(str(element.values.get("id") or ""), element, text_mode))
+    return labels
+
+
+def _tex_label(glyph_id: str, element, text_mode: bool) -> str:
+    _, _, code = glyph_id.rpartition("-")  # dvisvgm names a glyph g<font>-<character code>
+    if not code.isdigit():
+        return "—" if type(element).__name__ in ("Rect", "SimpleLine") else "?"
+    number = int(code)
+    if 33 <= number <= 126:
+        return chr(number)
+    table = _TEXT_LIGATURES if text_mode else _MATH_GREEK
+    return table.get(number) or _TEX_SYMBOLS.get(number, "?")
 
 
 def text_style(spec: Spec) -> tuple[dict[str, Any], dict[str, Any]]:
