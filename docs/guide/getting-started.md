@@ -46,9 +46,12 @@ examples, so there the button is hidden. To open a file directly:
 
 ## Your first animation in five minutes
 
-1. **New project.** **File > New** (`Ctrl+N`). The scene is 1280x720 at 30 fps and 5 s long; it
-   grows by itself when you place something past its end. With nothing selected, Properties
-   shows the **Scene** settings (length, size, frame rate, background).
+1. **New project.** **File > New** (`Ctrl+N`) asks one question: how morphs should match their
+   pieces - **Smart** (cleaner in-between frames, recommended) or **Classic** (Manim's own
+   Transform, so the Python export stays readable); your last answer is offered next time.
+   The scene is 1280x720 at 30 fps and 5 s long; it grows by itself when you place something
+   past its end. With nothing selected, Properties shows the **Scene** settings (length, size,
+   frame rate, background, and **New morphs**, where you can change that answer).
 2. **Add a title.** In the Layers panel, **Add > Text > Text**. The object appears on the
    canvas and is selected; type your words in Properties. Drag it on the canvas to move it,
    drag a corner to scale it.

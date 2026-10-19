@@ -635,7 +635,7 @@ def add_equation_steps(
                     start=start + (index + 1) * cycle,
                     duration=step_duration,
                     to_layer=ids[index + 1],
-                    params=new_clip_params(kind),  # a replacement matches smartly (ADR 0056)
+                    params=new_clip_params(kind, project.morph_matching),  # as the project chose (ADR 0056)
                 )
             )
         root = Layer(
@@ -869,6 +869,14 @@ def set_canvas(project: Project, **fields: Any) -> Edit:
     return Edit(new, "spec", frozenset(layer.id for layer in project.layers))
 
 
+def set_morph_matching(project: Project, matching: str) -> Edit:
+    """How the morph clips added from now on match their pieces: 'smart' or 'classic' (ADR 0056).
+    Existing clips keep their own choice; no frame changes."""
+    if matching not in ("smart", "classic"):
+        raise EditError(f"morph matching is smart or classic, not {matching!r}")
+    return Edit(_rebuilt(project, morph_matching=matching), "timing", frozenset())
+
+
 def set_camera(project: Project, **fields: Any) -> Edit:
     """Change the camera's angles (ADR 0048): ``phi``, ``theta``, ``gamma`` in degrees, validated.
     Every frame may change, so the edit kind is ``spec`` for every layer (``classify`` agrees)."""
@@ -1091,6 +1099,7 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "subtitle_style": project.subtitle_style,
         "markers": project.markers,
         "camera": project.camera,
+        "morph_matching": project.morph_matching,
     }
     return Project.model_validate({**data, **parts})
 

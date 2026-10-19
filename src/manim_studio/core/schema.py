@@ -180,11 +180,11 @@ SMART_MORPHS = frozenset({"Transform", "ClockwiseTransform", "CounterclockwiseTr
 SMART_MORPH = "smart morph matching is computed by the editor"  # why the readable export falls back
 
 
-def new_clip_params(kind: str) -> dict[str, Any]:
-    """The params a clip the editor creates starts with: smart matching for the morphs that
-    offer it (ADR 0056, B73). A clip without the param - every older file, scene imports - stays
-    classic."""
-    return {MATCH.name: "smart"} if kind in SMART_MORPHS else {}
+def new_clip_params(kind: str, matching: str = "smart") -> dict[str, Any]:
+    """The params a clip the editor creates starts with: the project's morph matching (ADR 0056,
+    B73) for the morphs that offer it - smart unless the project chose classic. A clip without the
+    param - every older file, scene imports - stays classic."""
+    return {MATCH.name: "smart"} if kind in SMART_MORPHS and matching == "smart" else {}
 
 
 CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
@@ -635,10 +635,15 @@ class Project(BaseModel):
     subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
     markers: list[Marker] = Field(default_factory=list)  # in time order, one per frame (ADR 0037)
     camera: Camera = Field(default_factory=Camera)  # the default is the flat 2D view (ADR 0048)
+    # How new morph clips match their pieces (ADR 0056): chosen when the project is created. It
+    # changes no existing clip. Smart is the default and is not written to the file.
+    morph_matching: Literal["smart", "classic"] = "smart"
 
     @model_serializer(mode="wrap")
     def _omit_unused(self, handler):
         data = handler(self)
+        if self.morph_matching == "smart":
+            data.pop("morph_matching", None)
         if not self.audio:
             data.pop("audio", None)  # files without sound save as before
         if not self.subtitles:

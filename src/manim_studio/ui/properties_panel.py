@@ -377,12 +377,26 @@ class PropertiesPanel(QWidget):
             ),
             ("Frame rate", "canvas.fps", IntField(commit("fps", "Frame rate"), 1, 240)),
             ("Background", "canvas.background", ColorField(commit("background", "Background"))),
+            (
+                "New morphs",
+                "project.morph_matching",
+                ChoiceField(
+                    commit("morph_matching", "New morphs"),
+                    [("Smart (better look)", "smart"), ("Classic (readable Python export)", "classic")],
+                ),
+            ),
         ]
         self._section("Scene", rows)
         self._scene_tips = {  # re-applied after each refresh: set_value clears a field's tooltip
             "canvas.duration": "How long the video is. Shorter than its content also stops it growing.",
             "canvas.grow_with_content": (
                 "The scene gets longer by itself when something is placed past its end"
+            ),
+            "project.morph_matching": (
+                "How Transform clips added from now on pair their pieces. Smart: fewer twisted or "
+                "tangled in-between frames, but a project that uses it exports its Python scene as "
+                "an exact replay. Classic: Manim's own Transform, so the export stays readable. "
+                "Existing clips keep their own choice (Matching, in their Properties)."
             ),
         }
         self.fit_button = QPushButton("Fit Length to Content")
@@ -446,7 +460,9 @@ class PropertiesPanel(QWidget):
         """Change one of the scene's settings (one undo step)."""
         project = self.project
         try:
-            if name == "duration":
+            if name == "morph_matching":
+                edit = edits.set_morph_matching(project, value)
+            elif name == "duration":
                 new = scene_length.set_length(project, value)
                 if project.canvas.grow_with_content and not new.canvas.grow_with_content:
                     self.message.emit("The scene is shorter than its content: it no longer grows by itself.")
@@ -474,7 +490,7 @@ class PropertiesPanel(QWidget):
         self.document.apply(edits.Edit(fitted, "timing", frozenset()), "Fit Length to Content")
 
     def _refresh_scene(self, force: bool) -> None:
-        owners = {"canvas": self.project.canvas, "camera": self.project.camera}
+        owners = {"canvas": self.project.canvas, "camera": self.project.camera, "project": self.project}
         for path, field in self.fields.items():
             if not field.has_focus() or force:
                 owner, name = path.split(".", 1)

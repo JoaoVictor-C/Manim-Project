@@ -22,6 +22,7 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -56,6 +57,7 @@ from .document import Document
 from .elided_label import ElidedLabel
 from .export_dialog import ExportDialog
 from .layers_panel import LayersPanel
+from .new_project_dialog import NewProjectDialog
 from .pages import PageHost, Shared
 from .pages.animate import AnimatePage
 from .pages.audio import AudioPage
@@ -530,12 +532,23 @@ class MainWindow(QMainWindow):
     # -- project ---------------------------------------------------------------
 
     def new_project(self) -> None:
-        """An empty scene with the default canvas (1280x720, 30 fps, 5 s)."""
+        """An empty scene with the default canvas (1280x720, 30 fps, 5 s); it asks how new morphs
+        should match (smart or classic, remembered for next time; ADR 0056)."""
         if not self.confirm_discard():
             return
+        choice = self.ask_new_project(self.prefs.option("morph_matching", "smart"))
+        if choice is None:
+            return
+        self.prefs.set_option("morph_matching", choice)
         self.path = None
-        self.document.replace(Project())
-        log.info("new project")
+        self.document.replace(Project(morph_matching=choice))
+        log.info("new project (morphs: %s)", choice)
+
+    def ask_new_project(self, remembered: str) -> str | None:
+        """``"smart"`` or ``"classic"``, or None when cancelled (tests and other front-ends answer
+        here instead of showing the dialog)."""
+        dialog = NewProjectDialog(remembered, self)
+        return dialog.choice() if dialog.exec() == QDialog.DialogCode.Accepted else None
 
     def open_dialog(self) -> None:
         if not self.confirm_discard():

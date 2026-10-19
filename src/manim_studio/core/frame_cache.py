@@ -20,7 +20,7 @@ from .schema import Layer, Project
 Span = tuple[float, float]  # [start, end) in seconds
 # Parts of a project whose changes are not "every frame": layers, sounds (ADR 0034), subtitles (ADR 0035),
 # markers (ADR 0037: no frame at all).
-_NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers"}
+_NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers", "morph_matching"}
 # The scene's length draws nothing: a frame is the same in a longer scene (P7.1).
 _NOT_DRAWN = {"canvas": {"duration", "grow_with_content"}}
 BUDGET = 512 * 2**20  # bytes of compressed frames (B41: 4500-9700 frames)

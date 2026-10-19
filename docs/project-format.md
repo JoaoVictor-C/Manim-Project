@@ -125,6 +125,10 @@ sounds, cues and markers.
 "markers": [{ "id": "marker-1", "t": 2.0, "name": "Formula", "colour": "#f59e0b" }]
 ```
 
+**Morph matching** (ADR 0056): `morph_matching` is `"smart"` or `"classic"`: the matching the
+Transform clips added from now on start with (a clip's own `match` param decides how it draws).
+`"smart"`, the default, is not saved; a file without it has the default.
+
 **Camera** (ADR 0048): `camera` is the view the scene is drawn from: `phi`
 (0-180), `theta` and `gamma` (-180-180), Manim's `ThreeDCamera` angles in
 degrees. The default - `phi` 0, `theta` -90, `gamma` 0, the flat 2D view - is
