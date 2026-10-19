@@ -207,6 +207,24 @@ def test_clip_edits(panel) -> None:
     assert undo_texts(panel) == ["Change animation", "Trim clip", "Change easing"]
 
 
+def test_a_morph_shows_its_matching_with_a_tooltip(panel) -> None:
+    """ADR 0056: a morph without the param is classic (every older file); Smart is a choice."""
+    panel.show_clip("ball", "m")
+    field = panel.fields["clip.params.match"]
+    choices = [field.widget.itemText(i) for i in range(field.widget.count())]
+    assert choices == ["Classic", "Smart"] and field.widget.currentText() == "Classic"
+    assert "Smart:" in field.widget.toolTip()
+    field.commit("smart")
+    assert layer(panel, "ball").clips[2].params == {"match": "smart"}
+    assert undo_texts(panel)[-1] == "Change matching"
+    panel.refresh(force=True)
+    assert field.widget.currentText() == "Smart" and "Smart:" in field.widget.toolTip()  # kept
+    panel.fields["clip.kind"].commit("ClockwiseTransform")
+    assert layer(panel, "ball").clips[2].params == {"match": "smart"}  # the choice travels along
+    panel.fields["clip.kind"].commit("FadeTransform")
+    assert layer(panel, "ball").clips[2].params == {} and "clip.params.match" not in panel.fields
+
+
 def test_clip_params_follow_the_kind(panel) -> None:
     panel.show_clip("ball", "i")
     assert panel.fields["clip.params.color"].button.text() == "#FFFF00"  # the default, shown

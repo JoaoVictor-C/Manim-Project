@@ -241,7 +241,30 @@ def test_a_smart_morph_falls_back_to_classic_on_an_image() -> None:
     assert type(anim) is m.ReplacementTransform
 
 
+@pytest.mark.latex
+def test_a_smart_equation_morph_keeps_its_ends_and_scrubs() -> None:
+    PAIRS["tex"] = (spec("MathTex", WHITE, text="a^2 + b^2 = c^2"), spec("MathTex", WHITE, text=r"e^{i\pi}+1=0"), 0.0)
+    try:
+        test_smart_morphs_start_and_end_exactly_on_their_objects("tex")
+        test_smart_frames_do_not_depend_on_the_order_they_are_asked_in("tex")
+        smart, classic = measures("tex", SMART), measures("tex", {})
+        assert smart["cross"] < classic["cross"]
+    finally:
+        del PAIRS["tex"]
+
+
 # -- export ----------------------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_the_exact_export_of_a_smart_morph_renders_what_the_editor_shows(tmp_path) -> None:
+    from tests.core.test_python_export import assert_matches_editor, rendered
+
+    proj = project("o-square", SMART)  # on black: h264 shifts a grey background by a level (B43)
+    proj = proj.model_copy(update={"canvas": CANVAS.model_copy(update={"background": "#000000"})})
+    export = python_export.to_python(proj, "Smart")
+    assert not export.readable and f"#   - a: {SMART_MORPH}" in export.code
+    assert_matches_editor(proj, rendered(export.code, "Smart", tmp_path))
 
 
 def test_a_smart_morph_exports_in_the_exact_form_and_classic_stays_readable() -> None:
