@@ -274,7 +274,11 @@ def test_properties_has_the_button_only_for_texts_and_ok_is_one_undo_step(qt_app
     panel.ask_glyph_colours = lambda layer_id, current: None  # Cancel
     panel.characters_button.click()
     panel.ask_glyph_colours = lambda layer_id, current: [None, RED, None]  # OK with nothing changed
+    submitted = []
+    submit = panel.builds.submit
+    panel.builds.submit = lambda *args, **kwargs: submitted.append(args) or submit(*args, **kwargs)
     panel.characters_button.click()
+    assert submitted == []  # nothing to build or undo
     panel.worker.reply_all()
     assert undo_texts(panel.document) == ["Colour characters"]
     panel.document.undo_stack.undo()

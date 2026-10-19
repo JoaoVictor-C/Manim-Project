@@ -46,6 +46,7 @@ def test_a_rainbow_has_a_different_colour_per_glyph_from_red() -> None:
     assert len(out) == 6 and out[0] == RED and len(set(out)) == 6
     assert all(len(c) == 7 and c.startswith("#") for c in out)
     assert gc.rainbow(1) == [RED] and gc.rainbow(0) == []
+    assert gc.rainbow(3) == [RED, GREEN, BLUE]  # evenly around the wheel
     assert out[2] == GREEN or rgb(out[2])[1] == 255  # a third of the way: green's side of the wheel
 
 
@@ -69,6 +70,7 @@ def test_ranges_set_and_clear_without_touching_the_rest() -> None:
 def test_assign_puts_values_at_chosen_glyphs() -> None:
     assert gc.assign([RED], [3, 1], [GREEN, BLUE]) == [RED, BLUE, None, GREEN]
     assert gc.assign([RED, RED], [0], [None]) == [None, RED]
+    assert gc.assign([RED], [1], [GREEN]) == [RED, GREEN]  # right after the end
 
 
 def test_normalised_trims_and_resolved_fits_the_glyph_count() -> None:

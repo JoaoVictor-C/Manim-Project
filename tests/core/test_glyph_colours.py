@@ -95,6 +95,27 @@ def test_glyph_labels_name_the_drawn_characters_without_spaces() -> None:
     assert adapter.glyph_labels(coloured(HELLO, [RED])) == list("hello")  # colours change nothing
 
 
+def test_labels_that_cannot_be_matched_are_numbers(monkeypatch) -> None:
+    assert adapter._text_labels(Spec(type="Text", params={"text": "abcd"}), 3) is None  # no ligature
+    assert adapter._text_labels(Spec(type="Text", params={"text": "a ffi"}), 2) == ["a", "ffi"]
+    monkeypatch.setattr(adapter, "_text_labels", lambda spec, count: ["x"] * (count + 1))
+    assert adapter.glyph_labels(HELLO) == ["1", "2", "3", "4", "5"]
+
+
+def test_tex_glyphs_are_labelled_from_their_font_codes() -> None:
+    label = adapter._tex_label
+    assert [label(f"g1-{code}", None, False) for code in (33, 43, 61, 97, 126)] == ["!", "+", "=", "a", "~"]
+    assert label("g2-0", None, False) == "−"  # the minus of the symbol font
+    assert label("g0-25", None, False) == "π"  # math: Greek
+    assert label("g1-12", None, True) == "fi"  # text: a ligature
+    assert label("g1-200", None, False) == "?"
+
+    class Rect:  # a fraction bar has no glyph id
+        pass
+
+    assert label("", Rect(), False) == "—" and label("", object(), False) == "?"
+
+
 @pytest.mark.latex
 def test_glyph_labels_of_an_equation_follow_its_glyphs() -> None:
     assert adapter.glyph_labels(EQ) == EQ_LABELS
@@ -190,6 +211,13 @@ def test_a_coloured_part_wins_over_glyph_colours_on_its_glyphs() -> None:
     expected = by_hand(EQ, [GREEN, GREEN, GREEN, RED, RED, GREEN, GREEN, GREEN])
     assert_renders(evaluator, 0.5, [expected])
     assert adapter.glyph_labels(coloured(EQ, [GREEN])) == EQ_LABELS  # parts' markers draw nothing
+    from manim_studio.core import parts
+
+    marked = parts.build_spec(Project(canvas=CANVAS, layers=[eq, part]), "eq")
+    regions = adapter.part_regions(marked)
+    misses = adapter._regions_cached.cache_info().misses
+    assert adapter.part_regions(coloured(marked, [BLUE])) == regions == [(3, 4)]
+    assert adapter._regions_cached.cache_info().misses == misses  # a colour edit finds the parts again
 
 
 @pytest.mark.latex
