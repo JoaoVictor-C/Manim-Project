@@ -881,3 +881,52 @@ FadeOuts, an Unwrite; 21 steps, 12 layers); minimum of 3, two runs, this PC (Man
 - Nothing is drawn: each `play` advances once to its end, so the recording costs about as much as
   building the scene's objects. The editor warms the recorder process while the file is chosen, so
   an import from the menu waits about the recording. -> ADR 0053.
+
+### B73 - morph quality: classic against smart matching · 2026-10-19
+`benchmarks/bench_morph_quality.py --modes classic smart`: 19 morph pairs through the evaluator
+(960x540, linear ease, source at (-2, 0), target at (2, 0)); contact sheets (alpha 0, .25, .5,
+.75, 1, then the target after the morph) in `.cache/morph/`. Measures: **travel** - mean distance
+a point moves relative to the object's centre, over the ends' diagonal (twisting); **max** - the
+largest such distance; **cross** - self-crossings of the outlines at alpha .25/.5/.75 beyond the
+ends'; **dip** - smallest drawn area at a mid alpha over the area interpolated between the ends
+(collapse); **pop** - largest pixel difference (of 255) between alpha 0 and the source drawn
+before the morph, and between alpha 1 and the target after it; **mid L** - OKLab lightness of the
+first piece's fill at alpha .5 minus the mean of the ends; **begin** / **frame** - ms to begin the
+morph (ends included) and per frame. TransformMatchingTex has no choice (same numbers both ways).
+
+| pair | travel c / s | max c / s | cross c / s | dip c / s | pop c / s | mid L c / s | begin c / s | frame c / s |
+|---|---|---|---|---|---|---|---|---|
+| circle -> square | 0.299 / 0.052 | 0.340 / 0.109 | 0 / 0 | 0.86 / 1.00 | 0,0 / 0,0 | -0.056 / 0 | 2.8 / 6.3 | 0.03 / 0.07 |
+| square -> triangle | 0.266 / 0.242 | 0.476 / 0.435 | 0 / 0 | 0.89 / 0.93 | 0,5 / 0,0 | -0.016 / 0 | 2.1 / 3.5 | 0.03 / 0.08 |
+| triangle -> star | 0.144 / 0.146 | 0.317 / 0.313 | 0 / 0 | 1.00 / 1.00 | 4,0 / 0,0 | -0.027 / 0 | 2.0 / 2.8 | 0.03 / 0.07 |
+| rectangle -> circle | 0.308 / 0.141 | 0.464 / 0.195 | 0 / 0 | 0.88 / 1.00 | 0,0 / 0,0 | -0.056 / 0 | 1.5 / 3.0 | 0.02 / 0.07 |
+| 7-point star -> square | 0.309 / 0.064 | 0.430 / 0.123 | 0 / 0 | 0.82 / 1.00 | 0,0 / 0,0 | -0.035 / 0 | 1.7 / 3.9 | 0.02 / 0.09 |
+| square -> same square turned 90 | 0.617 / 0.000 | 0.707 / 0.000 | 0 / 0 | 0.50 / 1.00 | 0,0 / 0,0 | -0.056 / 0 | 1.0 / 2.7 | 0.03 / 0.07 |
+| line -> arrow | 0.268 / 0.178 | 0.534 / 0.534 | 0 / 0 | 1.00 / 1.00 | 0,0 / 0,0 | 0 / 0 | 3.8 / 5.7 | 0.05 / 0.08 |
+| filled circle -> outlined square | 0.298 / 0.056 | 0.328 / 0.069 | 0 / 0 | 1.00 / 1.00 | 0,0 / 0,0 | 0 / 0 | 1.8 / 2.8 | 0.03 / 0.09 |
+| "Hello" -> "World" | 0.130 / 0.073 | 0.317 / 0.219 | 42 / 22 | 0.64 / 0.99 | 7,2 / 0,0 | 0 / 0 | 46 / 57 | 0.08 / 0.12 |
+| "cat" -> "elephant" | 0.277 / 0.278 | 0.590 / 0.510 | 62 / 0 | 0.86 / 0.76 | 1,1 / 0,0 | 0 / 0 | 51 / 63 | 0.13 / 0.16 |
+| "Hi" -> circle | 0.522 / 0.373 | 0.759 / 0.543 | 4 / 6 | 0.38 / 0.57 | 0,15 / 0,0 | -0.007 / 0.021 | 12.5 / 16.4 | 0.04 / 0.08 |
+| two-line text | 0.165 / 0.121 | 0.367 / 0.284 | 78 / 5 | 0.68 / 1.00 | 10,11 / 0,0 | 0 / 0 | 59 / 75 | 0.13 / 0.18 |
+| "oe" -> "eo" | 0.268 / 0.141 | 0.416 / 0.326 | 26 / 4 | 0.46 / 0.75 | 2,2 / 0,0 | 0 / 0 | 24 / 31 | 0.04 / 0.08 |
+| "o" -> square | 0.642 / 0.204 | 0.894 / 0.290 | 0 / 0 | 0.06 / 1.00 | 0,0 / 0,0 | -0.023 / 0.018 | 9.5 / 11.4 | 0.03 / 0.06 |
+| right triangle with its mark -> square | 0.617 / 0.133 | 0.999 / 0.463 | 0 / 0 | 0.35 / 1.00 | 0,0 / 0,0 | -0.016 / 0 | 2.5 / 3.7 | 0.06 / 0.11 |
+| thin lines (horizontal -> vertical) | 0.471 / 0.471 | 0.707 / 0.707 | 0 / 0 | 1.00 / 1.00 | 0,0 / 0,0 | 0 / 0 | 1.1 / 2.3 | 0.02 / 0.06 |
+| MathTex `a^2 + b^2 = c^2` -> `c^2` | 0.406 / 0.390 | 0.788 / 0.702 | 59 / 7 | 1.00 / 0.67 | 4,2 / 0,0 | 0 / 0 | 46 / 84 | 0.13 / 0.17 |
+| same, TransformMatchingTex | 0.248 | 0.843 | 0 | 1.00 | 0,0 | 0 | 59 | 0.19 |
+| `a^2 + b^2 = c^2` -> `c^2 = a^2 + b^2`, TransformMatchingTex | 0.311 | 0.841 | 0 | 1.00 | 0,0 | 0 | 52 | 0.18 |
+
+- **What the classic sheets show:** a circle twists 45 degrees into a lopsided square; the turned
+  square spins through a diamond of half its area; the hole of the "o" flies off as a blob to the
+  square's corner; "oe" -> "eo" turns holes into disks; letters tangle in mid-frames; the right
+  angle's two small marks grow into two whole squares sweeping across the target; blue -> red
+  darkens. Smart: none of these; letters morph into nearby letters with their holes, new letters
+  grow in place, the marks shrink away, the "o"'s hole closes in the middle.
+- **Over the 17 pairs smart applies to:** travel 0.35 -> 0.18 on average, mid-frame crossings
+  271 -> 44, pops up to 15 levels -> 0, mid-frame lightness on the mean of the ends. Smart is
+  worse only on the area dip where pieces grow from or shrink to points ("cat" -> "elephant",
+  `a^2 + b^2 = c^2` -> `c^2`: growing is quadratic), which reads as letters appearing. Better in
+  14 pairs, about the same in 3 -> new morphs default to smart, ADR 0056.
+- **Cost:** begin +1-5 ms for shapes, +6-40 ms for words and equations (the ends' build, shared
+  by both, is most of it); a frame +0.03-0.05 ms. Scrubbing a 1 s morph at 30 fps adds ~1.5 ms in
+  all. Contact sheets are ~1.5 MB, not committed: run the script.

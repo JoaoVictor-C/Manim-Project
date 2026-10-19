@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Smart morph matching** (ADR 0056): Transform, ClockwiseTransform and CounterclockwiseTransform
+  have a **Matching** choice in Properties. **Smart** pairs the pieces of the two objects by place,
+  size and shape, holes with holes, and starts each outline where it travels least, cutting both
+  at each other's corners: no more twisting circles, spinning squares, holes flying out of letters
+  or tangled letters in the middle of a morph; pieces without a partner shrink or grow in place;
+  colours blend evenly; the first and last frames are exactly the two objects. New morphs (the
+  timeline's Turn into, Equation steps' replacements) use it; **Classic** - Manim's own Transform -
+  stays for older projects and imported scenes, which draw exactly as before. A project with a
+  smart morph exports as the exact Python scene.
 - **Colour characters** (ADR 0055): a Text, MathTex or Tex can colour each of its letters or
   symbols on its own. **Colour characters...** (Properties, the Layers right-click menu, Edit) shows
   the object's glyphs large: click one, Shift+click a range, Ctrl+click to add or remove, drag a
