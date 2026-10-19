@@ -593,7 +593,7 @@ def blend_rgbas(start: np.ndarray, end: np.ndarray, alpha, lab0=None, lab1=None)
     and exactly ``end`` at 1. ``lab0``/``lab1``: the ends' OKLab, when already known.
     """
     start, end = np.asarray(start, dtype=float), np.asarray(end, dtype=float)
-    a = np.clip(np.broadcast_to(np.asarray(alpha, dtype=float), (len(start),)), 0.0, 1.0)
+    a = np.broadcast_to(np.asarray(alpha, dtype=float), (len(start),))  # held by the last two lines
     lab0 = srgb_to_oklab(start[:, :3]) if lab0 is None else lab0
     lab1 = srgb_to_oklab(end[:, :3]) if lab1 is None else lab1
     w0 = start[:, 3] * (1.0 - a)

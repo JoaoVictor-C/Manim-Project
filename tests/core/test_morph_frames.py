@@ -233,6 +233,25 @@ def test_smart_blends_colour_without_muddying_and_keeps_ends() -> None:
     assert widths == [4, 4, 4]
 
 
+def test_pieces_without_partner_fade_and_an_overshooting_ease_holds_widths() -> None:
+    triangle = adapter.build_mobject(PAIRS["group-square"][0])  # a polygon and two marks
+    square = adapter.build_mobject(spec("Square", {**RED, "stroke_width": 8}))
+    starts, ends, exact = adapter.smart_pair(triangle, square)
+    lone = [i for i, (first, last) in enumerate(exact) if last is None]
+    assert len(lone) == 2  # the marks
+    for i in lone:
+        assert not ends[i].stroke_rgbas[:, 3].any() and not ends[i].fill_rgbas[:, 3].any()
+        assert starts[i].stroke_rgbas[:, 3].all()
+    back = Easing(bezier=(0.34, 1.56, 0.64, 1.0), name=None)  # overshoots past 1
+    anim = adapter.make_animation("Transform", triangle, back, SMART, square)
+    anim.begin()
+    widths = set()
+    for t in np.linspace(0, 1, 21):
+        anim.interpolate(t)
+        widths |= {leaf.stroke_width for leaf in anim.mobject.family_members_with_points()}
+    assert min(widths) >= 4 and max(widths) <= 8
+
+
 def test_a_smart_morph_falls_back_to_classic_on_an_image() -> None:
     source = adapter.build_mobject(PAIRS["circle-square"][0])
     image = m.ImageMobject(np.zeros((4, 4, 4), dtype=np.uint8))

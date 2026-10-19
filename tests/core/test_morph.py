@@ -137,6 +137,13 @@ def test_several_cuts_in_one_curve_stay_in_order() -> None:
     assert perimeter(a) == pytest.approx(perimeter(TRIANGLE))
 
 
+def test_cuts_land_where_asked_by_arc_length() -> None:
+    path = morph.Path(line((0, 0), (1, 0)))
+    refined = morph._refine(path, [(0.25, True), (0.5, True), (0.75, True)])
+    assert np.allclose(anchors(refined)[:, 0], [0, 0.25, 0.5, 0.75])
+    assert np.allclose(refined[-1, :2], [1, 0])
+
+
 def test_one_corner_snaps_to_one_partner_only() -> None:
     """Two close corners of a, one corner of b between them: only one may snap to it."""
     a = np.concatenate([line((0, 0), (0.48, 0)), line((0.48, 0), (0.52, 0)), line((0.52, 0), (1, 0))])
@@ -217,6 +224,13 @@ def test_a_piece_without_partner_shrinks_to_its_place_and_one_grows_from_it() ->
     assert len(grown) == 1 and np.allclose(grown[0].start, grown[0].start[0])
     side = np.sign(grown[0].end[0, 0])  # the target piece on the right grows from the source's right
     assert np.allclose(grown[0].start[0, :2], [5 + side * 0.4 * 5 / 7, 5])  # its place mapped into the source
+
+
+def test_a_flat_object_is_not_stretched_into_a_tall_one() -> None:
+    """Two lines side by side, a hair apart in height: their order across counts, not the hair."""
+    source = [line((0, 0), (1, 0)), line((2, 0.01), (3, 0.01))]
+    target = [line((0, 0.01), (1, 0.01)), line((2, 0), (3, 0))]
+    assert sorted((p.source, p.target) for p in morph.plan(source, target)) == [(0, 0), (1, 1)]
 
 
 def test_the_same_glyph_keeps_its_partner_when_near() -> None:
