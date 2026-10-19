@@ -185,6 +185,8 @@ def new_clip_params(kind: str) -> dict[str, Any]:
     offer it (ADR 0056, B73). A clip without the param - every older file, scene imports - stays
     classic."""
     return {MATCH.name: "smart"} if kind in SMART_MORPHS else {}
+
+
 CLIP_PARAMS: dict[str, tuple[ClipParam, ...]] = {
     **{kind: (MATCH,) for kind in sorted(SMART_MORPHS)},
     "FadeIn": (ClipParam("shift", "Moving", "direction"),),

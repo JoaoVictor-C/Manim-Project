@@ -21,6 +21,7 @@ Everything is deterministic: the same outlines give the same plan, bit for bit.
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
 import numpy as np
@@ -48,7 +49,7 @@ def subpaths(points: np.ndarray) -> list[np.ndarray]:
     ends = curves[N - 1 : -1 : N]
     gaps = np.any(np.abs(starts - ends) > _ATOL + _RTOL * np.abs(ends), axis=1)
     cuts = [0, *((np.flatnonzero(gaps) + 1) * N).tolist(), count * N]
-    return [curves[a:b] for a, b in zip(cuts, cuts[1:], strict=False) if b > a]
+    return [curves[a:b] for a, b in itertools.pairwise(cuts) if b > a]
 
 
 def is_closed(sub: np.ndarray) -> bool:
@@ -203,7 +204,9 @@ def _correspondence(a: Path, b: Path) -> list[tuple[float, float, int]]:
     pairs: list[tuple[int, int]] = []
     if len(ka) and len(kb):
         dist = np.abs(ka[:, None] - kb[None, :])
-        order = np.lexsort((np.indices(dist.shape)[1].ravel(), np.indices(dist.shape)[0].ravel(), dist.ravel()))
+        order = np.lexsort(
+            (np.indices(dist.shape)[1].ravel(), np.indices(dist.shape)[0].ravel(), dist.ravel())
+        )
         for flat in order:
             if dist.ravel()[flat] >= tol:
                 break
@@ -495,7 +498,9 @@ def plan(
     for j, points in enumerate(target):
         if j not in paired_b:  # grows from its place mapped into the source
             start = _collapse(points, fa[0] + cb[j] * fa[1])
-            entries.append((float(j), len(source) + j, PiecePlan(None, j, start, np.asarray(points, dtype=float))))
+            entries.append(
+                (float(j), len(source) + j, PiecePlan(None, j, start, np.asarray(points, dtype=float)))
+            )
     for i, points in enumerate(source):
         if i not in paired_a:  # shrinks to its place mapped into the target
             centre = fb[0] + ca[i] * fb[1]
@@ -530,7 +535,9 @@ def self_crossings(poly: np.ndarray) -> int:
     closed = np.linalg.norm(pts[0] - pts[-1]) <= 1e-9
 
     def orient(p, q, r):
-        return (q[..., 0] - p[..., 0]) * (r[..., 1] - p[..., 1]) - (q[..., 1] - p[..., 1]) * (r[..., 0] - p[..., 0])
+        return (q[..., 0] - p[..., 0]) * (r[..., 1] - p[..., 1]) - (q[..., 1] - p[..., 1]) * (
+            r[..., 0] - p[..., 0]
+        )
 
     i, j = np.triu_indices(n, k=2)
     if closed:

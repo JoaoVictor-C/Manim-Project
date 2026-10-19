@@ -1678,7 +1678,7 @@ class SmartMorph:
     blend in OKLab weighted by opacity (``morph.blend_rgbas``), widths linearly, both held
     within the ends; alpha 0 and 1 draw each piece's original points and style exactly."""
 
-    exact: Exact = []
+    exact: Exact | tuple = ()  # set per animation by make_animation
     _colours = None  # every piece's colour rows, stacked once: one blend per frame
 
     def _stack(self, families: list) -> tuple:
@@ -1760,7 +1760,10 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "TransformMatchingTex": KeyedTransformMatching,  # fed keyed_pieces by the evaluator (ADR 0020)
 }
 SMART_CLASSES.update(
-    {kind: type(f"Smart{ANIMATION_CLASSES[kind].__name__}", (SmartMorph, ANIMATION_CLASSES[kind]), {}) for kind in SMART_MORPHS}
+    {
+        kind: type(f"Smart{ANIMATION_CLASSES[kind].__name__}", (SmartMorph, ANIMATION_CLASSES[kind]), {})
+        for kind in SMART_MORPHS
+    }
 )
 
 
@@ -1881,7 +1884,9 @@ def make_animation(
     if info.category in ("morph", "motion"):
         if target is None:
             raise ValueError(f"{kind} needs a target (the morph's end or the path)")
-        smart = smart_pair(mobject, target) if kind in SMART_MORPHS and params.get("match") == "smart" else None
+        smart = (
+            smart_pair(mobject, target) if kind in SMART_MORPHS and params.get("match") == "smart" else None
+        )
         if smart is not None:  # ADR 0056: the ends aligned by core/morph.py
             source_group, target_group, exact = smart
             anim = SMART_CLASSES[kind](source_group, target_group, **kwargs)

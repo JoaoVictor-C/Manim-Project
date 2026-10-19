@@ -51,7 +51,11 @@ PAIRS = {
     "filled-outline": (spec("Circle", BLUE, radius=1.2), spec("Square", OUTLINE, side_length=2.0), 0.0),
     "Hello-World": (spec("Text", WHITE, text="Hello"), spec("Text", WHITE, text="World"), 0.0),
     "cat-elephant": (spec("Text", WHITE, text="cat"), spec("Text", WHITE, text="elephant"), 0.0),
-    "oe-eo": (spec("Text", WHITE, text="oe", font_size=96), spec("Text", WHITE, text="eo", font_size=96), 0.0),
+    "oe-eo": (
+        spec("Text", WHITE, text="oe", font_size=96),
+        spec("Text", WHITE, text="eo", font_size=96),
+        0.0,
+    ),
     "o-square": (spec("Text", WHITE, text="o", font_size=144), spec("Square", RED, side_length=1.5), 0.0),
     "group-square": (
         spec("RightTriangle", BLUE, angle=40.0, side_length=2.5),
@@ -64,7 +68,13 @@ PAIRS = {
 def project(name: str, params: dict, kind: str = "Transform", start: float = START) -> Project:
     source, target, turn = PAIRS[name]
     clip = Clip(
-        id="m", kind=kind, start=start, duration=LENGTH, to_layer="b", ease=Easing(name="linear"), params=params
+        id="m",
+        kind=kind,
+        start=start,
+        duration=LENGTH,
+        to_layer="b",
+        ease=Easing(name="linear"),
+        params=params,
     )
     return Project(
         canvas=CANVAS,
@@ -114,7 +124,9 @@ def world(spec_: Spec, at: tuple[float, float], turn: float = 0.0) -> m.Mobject:
 
 
 @pytest.mark.parametrize("params", [{}, {"match": "classic"}], ids=str)
-@pytest.mark.parametrize(("name", "kind"), [(n, "Transform") for n in PAIRS] + [("circle-square", "ClockwiseTransform")])
+@pytest.mark.parametrize(
+    ("name", "kind"), [(n, "Transform") for n in PAIRS] + [("circle-square", "ClockwiseTransform")]
+)
 def test_classic_draws_exactly_what_manims_transform_draws(name: str, kind: str, params: dict) -> None:
     """A copy of the path every project took before ADR 0056: Manim's class on the world-space ends."""
     source, target, turn = PAIRS[name]
@@ -195,7 +207,9 @@ def measures(name: str, params: dict) -> dict:
 
     ends = max(crossings(0.0), crossings(1.0))
     a0, a1 = area(0.0), area(1.0)
-    dip = min((area(x) / (a0 + (a1 - a0) * x) for x in (0.25, 0.5, 0.75)), default=1.0) if max(a0, a1) else 1.0
+    dip = (
+        min((area(x) / (a0 + (a1 - a0) * x) for x in (0.25, 0.5, 0.75)), default=1.0) if max(a0, a1) else 1.0
+    )
     return {
         "travel": travel,
         "cross": sum(max(0, crossings(x) - ends) for x in (0.25, 0.5, 0.75)),
@@ -207,8 +221,13 @@ def test_smart_beats_classic_on_the_gallery() -> None:
     classic = {name: measures(name, {}) for name in PAIRS}
     smart = {name: measures(name, SMART) for name in PAIRS}
     # Twisting: points travel needlessly around the outline (B73: 0.37 -> 0.12 on these pairs).
-    assert np.mean([s["travel"] for s in smart.values()]) < 0.6 * np.mean([c["travel"] for c in classic.values()])
-    assert sum(s["travel"] <= c["travel"] + 0.01 for s, c in zip(smart.values(), classic.values())) >= 9
+    assert np.mean([s["travel"] for s in smart.values()]) < 0.6 * np.mean(
+        [c["travel"] for c in classic.values()]
+    )
+    assert (
+        sum(s["travel"] <= c["travel"] + 0.01 for s, c in zip(smart.values(), classic.values(), strict=True))
+        >= 9
+    )
     # Tangled glyph outlines in the in-between frames (B73: 130 -> 26 here).
     assert sum(s["cross"] for s in smart.values()) <= 0.35 * sum(c["cross"] for c in classic.values())
     # The same square turned: classic spins it through a smaller diamond, smart leaves it be.
@@ -262,7 +281,11 @@ def test_a_smart_morph_falls_back_to_classic_on_an_image() -> None:
 
 @pytest.mark.latex
 def test_a_smart_equation_morph_keeps_its_ends_and_scrubs() -> None:
-    PAIRS["tex"] = (spec("MathTex", WHITE, text="a^2 + b^2 = c^2"), spec("MathTex", WHITE, text=r"e^{i\pi}+1=0"), 0.0)
+    PAIRS["tex"] = (
+        spec("MathTex", WHITE, text="a^2 + b^2 = c^2"),
+        spec("MathTex", WHITE, text=r"e^{i\pi}+1=0"),
+        0.0,
+    )
     try:
         test_smart_morphs_start_and_end_exactly_on_their_objects("tex")
         test_smart_frames_do_not_depend_on_the_order_they_are_asked_in("tex")
@@ -294,4 +317,4 @@ def test_a_smart_morph_exports_in_the_exact_form_and_classic_stays_readable() ->
         export = python_export.to_python(project("circle-square", params), "Classic")
         assert export.readable and "match" not in export.code
         assert "ReplacementTransform(" in export.code
-    assert SMART_MORPHS == {"Transform", "ClockwiseTransform", "CounterclockwiseTransform"}
+    assert {"Transform", "ClockwiseTransform", "CounterclockwiseTransform"} == SMART_MORPHS

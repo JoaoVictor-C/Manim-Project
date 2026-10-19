@@ -76,7 +76,11 @@ PAIRS: list[Pair] = [
     Pair("cat-elephant", spec("Text", WHITE, text="cat"), spec("Text", WHITE, text="elephant")),
     Pair("text-circle", spec("Text", WHITE, text="Hi"), spec("Circle", BLUE, radius=1.0)),
     Pair("two-lines", spec("Text", WHITE, text="one\ntwo"), spec("Text", WHITE, text="three\nfour")),
-    Pair("oe-glyphs", spec("Text", WHITE, text="oe", font_size=96), spec("Text", WHITE, text="eo", font_size=96)),
+    Pair(
+        "oe-glyphs",
+        spec("Text", WHITE, text="oe", font_size=96),
+        spec("Text", WHITE, text="eo", font_size=96),
+    ),
     Pair("o-square", spec("Text", WHITE, text="o", font_size=144), spec("Square", RED, side_length=1.5)),
     Pair(
         "triangle-group-square",
@@ -217,14 +221,19 @@ def measure(pair: Pair, mode: str) -> tuple[dict, list[np.ndarray]]:
     travel = float(np.mean(deform))
     step = float(np.max(deform))
     ends_cross = max(crossings(morph_mobject(evaluator, project, a)) for a in (0.0, 1.0))
-    mid_cross = sum(max(0, crossings(morph_mobject(evaluator, project, a)) - ends_cross) for a in (0.25, 0.5, 0.75))
+    mid_cross = sum(
+        max(0, crossings(morph_mobject(evaluator, project, a)) - ends_cross) for a in (0.25, 0.5, 0.75)
+    )
     a0, a1 = area(morph_mobject(evaluator, project, 0.0)), area(morph_mobject(evaluator, project, 1.0))
     dip = 1.0
     if max(a0, a1) > 1e-3:
         for alpha in (0.25, 0.5, 0.75):
             expected = a0 + (a1 - a0) * alpha
             dip = min(dip, area(morph_mobject(evaluator, project, alpha)) / expected)
-    c0, c1 = first_fill(morph_mobject(evaluator, project, 0.0)), first_fill(morph_mobject(evaluator, project, 1.0))
+    c0, c1 = (
+        first_fill(morph_mobject(evaluator, project, 0.0)),
+        first_fill(morph_mobject(evaluator, project, 1.0)),
+    )
     cm = first_fill(morph_mobject(evaluator, project, 0.5))
     mid_l = 0.0
     if c0 is not None and c1 is not None and cm is not None:
@@ -259,8 +268,12 @@ def _crops(tiles: list[np.ndarray]) -> list[np.ndarray]:
         boxes.append((xs.min(), xs.max(), ys.min(), ys.max()) if len(xs) else None)
     side = max([max(b[1] - b[0], b[3] - b[2]) for b in boxes if b] or [10]) + 12
     out = []
-    for tile, box in zip(tiles, boxes):
-        cx, cy = ((box[0] + box[1]) // 2, (box[2] + box[3]) // 2) if box else (tile.shape[1] // 2, tile.shape[0] // 2)
+    for tile, box in zip(tiles, boxes, strict=True):
+        cx, cy = (
+            ((box[0] + box[1]) // 2, (box[2] + box[3]) // 2)
+            if box
+            else (tile.shape[1] // 2, tile.shape[0] // 2)
+        )
         pad = np.pad(tile[:, :, :3], ((side, side), (side, side), (0, 0)), mode="edge")
         y0, x0 = cy + side - side // 2, cx + side - side // 2
         out.append(pad[y0 : y0 + side, x0 : x0 + side])
@@ -297,7 +310,8 @@ def main() -> None:
     logging.getLogger("manim").setLevel(logging.WARNING)
     OUT.mkdir(parents=True, exist_ok=True)
     pairs = [p for p in PAIRS if not args.only or p.name in args.only]
-    header = f"{'pair':24} {'mode':8} {'travel':>7} {'max':>6} {'cross':>5} {'dip':>5} {'pop':>9} {'mid L':>6} {'begin':>7} {'frame':>6}"
+    header = f"{'pair':24} {'mode':8} {'travel':>7} {'max':>6} {'cross':>5} {'dip':>5} {'pop':>9}"
+    header += f" {'mid L':>6} {'begin':>7} {'frame':>6}"
     print(header)
     for mode in args.modes:
         rows = []
@@ -306,7 +320,8 @@ def main() -> None:
             rows.append((f"{pair.name}\n{mode}", tiles))
             print(
                 f"{row['pair']:24} {mode:8} {row['travel']:7.3f} {row['step']:6.3f} {row['cross']:5d} "
-                f"{row['dip']:5.2f} {str(row['pop']):>9} {row['mid L']:6.3f} {row['begin']:7.1f} {row['frame']:6.2f}"
+                f"{row['dip']:5.2f} {row['pop']!s:>9} {row['mid L']:6.3f} "
+                f"{row['begin']:7.1f} {row['frame']:6.2f}"
             )
         for i in range(0, len(rows), args.per_sheet):
             sheet(rows[i : i + args.per_sheet], OUT / f"sheet-{mode}-{i // args.per_sheet + 1}.png")

@@ -72,7 +72,11 @@ def test_split_curve_draws_the_same_curve() -> None:
     curve = circle(4)[:4]
     left, right = morph.split_curve(curve, 0.3)
     whole = morph._bezier(curve[None], np.linspace(0, 1, 11))[0]
-    assert np.allclose(left[-1], right[0]) and np.allclose(left[0], curve[0]) and np.allclose(right[-1], curve[-1])
+    assert (
+        np.allclose(left[-1], right[0])
+        and np.allclose(left[0], curve[0])
+        and np.allclose(right[-1], curve[-1])
+    )
     assert np.allclose(morph._bezier(left[None], [1.0])[0, 0], morph._bezier(curve[None], [0.3])[0, 0])
     assert np.allclose(whole[0], curve[0])
 
@@ -154,7 +158,7 @@ def test_one_corner_snaps_to_one_partner_only() -> None:
 
 def test_an_open_path_into_a_closed_one_moves_the_closed_start() -> None:
     from_ul = np.concatenate([SQUARE[4:], SQUARE[:4]])  # starts at (-1, 1)
-    a, b = morph.align_loops(line((1, -0.2), (1, 0.2)), from_ul)
+    _, b = morph.align_loops(line((1, -0.2), (1, 0.2)), from_ul)
     assert abs(b[0, 0] - 1.0) < 0.3  # its start moved to the right side, next to the line
 
 
@@ -163,7 +167,7 @@ def test_close_corners_snap_together() -> None:
     corners pair with the anchors instead of adding a curve each."""
     ring = circle(4, r=1.4)
     turned = ring @ np.array([[np.cos(0.8), np.sin(0.8), 0], [-np.sin(0.8), np.cos(0.8), 0], [0, 0, 1]])
-    a, b = morph.align_loops(SQUARE, turned)
+    a, _ = morph.align_loops(SQUARE, turned)
     assert len(a) == len(SQUARE)  # 4 curves each: every corner found a partner
 
 
@@ -291,7 +295,10 @@ def test_plans_are_deterministic() -> None:
     target = [SQUARE * 1.5, blob(-2, 1)]
     one, two = morph.plan(source, target), morph.plan(source, target)
     assert [(p.source, p.target) for p in one] == [(p.source, p.target) for p in two]
-    assert all(np.array_equal(p.start, q.start) and np.array_equal(p.end, q.end) for p, q in zip(one, two))
+    assert all(
+        np.array_equal(p.start, q.start) and np.array_equal(p.end, q.end)
+        for p, q in zip(one, two, strict=True)
+    )
 
 
 # -- colour ----------------------------------------------------------------------------------------
