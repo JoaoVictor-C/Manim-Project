@@ -30,7 +30,7 @@ from manim.utils import rate_functions
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import parts, python_object, shape, subtitles
+from . import morph, parts, python_object, shape, subtitles
 from .code_cache import code_hash
 from .python_object import CodeProblem
 from .schema import (
@@ -46,6 +46,7 @@ from .schema import (
     PYTHON_TYPES,
     RASTER_TYPES,
     SHAPE_TYPES,
+    SMART_MORPHS,
     TEXT_TYPES,
     TRACE_TYPES,
     Easing,
@@ -1611,6 +1612,122 @@ class KeyedTransformMatching(TransformMatchingAbstractBase):
         return mobject.match_key
 
 
+# --- smart morphs (ADR 0056) ---------------------------------------------------------------------
+
+_RGBAS = ("fill_rgbas", "stroke_rgbas", "background_stroke_rgbas")
+_LINEAR = ("stroke_width", "background_stroke_width", "sheen_factor", "sheen_direction")
+Exact = list[tuple[np.ndarray | None, np.ndarray | None]]
+
+
+def smart_pair(source: m.Mobject, target: m.Mobject) -> tuple[m.VGroup, m.VGroup, Exact] | None:
+    """Both ends of a morph as groups of pieces aligned by ``core/morph.py``, one drawn piece
+    per entry of its plan (same structure, same point counts: Manim's own alignment then
+    changes nothing), and each piece's original points at either end (None: it grows or
+    shrinks there). None when an end has no outline or something that is not one (an image)."""
+    a, b = source.family_members_with_points(), target.family_members_with_points()
+    if not a or not b or not all(isinstance(leaf, m.VMobject) for leaf in (*a, *b)):
+        return None
+    pieces = morph.plan(
+        [leaf.points for leaf in a],
+        [leaf.points for leaf in b],
+        [shape_key(leaf) for leaf in a],
+        [shape_key(leaf) for leaf in b],
+    )
+    if not pieces:
+        return None
+    starts, ends, exact = m.VGroup(), m.VGroup(), []
+    for piece in pieces:
+        if piece.source is not None and piece.target is not None:
+            start, end = _bare(a[piece.source]), _bare(b[piece.target])
+        elif piece.source is None:  # grows and fades in
+            end = _bare(b[piece.target])
+            start = _faded(end)
+        else:  # shrinks and fades out
+            start = _bare(a[piece.source])
+            end = _faded(start)
+        start.points, end.points = piece.start, piece.end
+        exact.append(
+            (
+                a[piece.source].points.copy() if piece.source is not None else None,
+                b[piece.target].points.copy() if piece.target is not None else None,
+            )
+        )
+        starts.add(start)
+        ends.add(end)
+    return starts, ends, exact
+
+
+def _bare(leaf: m.VMobject) -> m.VMobject:
+    """A copy of one drawn piece without its children (they are pieces of their own)."""
+    copy = leaf.copy()
+    copy.submobjects = []
+    return copy
+
+
+def _faded(leaf: m.VMobject) -> m.VMobject:
+    copy = leaf.copy()
+    for attr in _RGBAS:
+        rgbas = getattr(copy, attr).copy()
+        rgbas[:, 3] = 0.0
+        setattr(copy, attr, rgbas)
+    return copy
+
+
+class SmartMorph:
+    """Mixin for Transform kinds fed by ``smart_pair``: points follow the kind's path; colours
+    blend in OKLab weighted by opacity (``morph.blend_rgbas``), widths linearly, both held
+    within the ends; alpha 0 and 1 draw each piece's original points and style exactly."""
+
+    exact: Exact = []
+    _colours = None  # every piece's colour rows, stacked once: one blend per frame
+
+    def _stack(self, families: list) -> tuple:
+        rows, slices, offset = [], [], 0
+        for _, start, end in families:
+            for attr in _RGBAS:
+                s, e = getattr(start, attr), getattr(end, attr)
+                slices.append((offset, len(s)))
+                offset += len(s)
+                rows.append((s, e))
+        starts = np.concatenate([r[0] for r in rows])
+        ends = np.concatenate([r[1] for r in rows])
+        return starts, ends, morph.srgb_to_oklab(starts[:, :3]), morph.srgb_to_oklab(ends[:, :3]), slices
+
+    def interpolate_mobject(self, alpha: float) -> None:
+        families = list(self.get_all_families_zipped())
+        if self._colours is None:  # once (begin draws alpha 0 first, after Manim's alignment)
+            self._colours = self._stack(families)
+        starts, ends, lab0, lab1, slices = self._colours
+        subs = [self.get_sub_alpha(alpha, i, len(families)) for i in range(len(families))]
+        per_row = np.repeat(np.repeat(subs, len(_RGBAS)), [n for _, n in slices])
+        blended = morph.blend_rgbas(starts, ends, per_row, lab0, lab1)  # held within the ends
+        for i, (piece, start, end) in enumerate(families):
+            sub = subs[i]
+            first, last = self.exact[i] if i < len(self.exact) else (None, None)
+            if sub == 0.0:
+                piece.points = (first if first is not None else start.points).copy()
+            elif sub == 1.0:
+                piece.points = (last if last is not None else end.points).copy()
+            else:
+                piece.points = self.path_func(start.points, end.points, sub)
+            for k, attr in enumerate(_RGBAS):
+                offset, n = slices[i * len(_RGBAS) + k]
+                setattr(piece, attr, blended[offset : offset + n].copy())
+            held = min(max(sub, 0.0), 1.0)  # colours and widths do not overshoot
+            for attr in _LINEAR:
+                a0, a1 = getattr(start, attr), getattr(end, attr)
+                if held == 1.0:
+                    value = a1
+                elif held == 0.0:
+                    value = a0
+                else:
+                    value = m.interpolate(a0, a1, held)
+                setattr(piece, attr, value.copy() if isinstance(value, np.ndarray) else value)
+
+
+SMART_CLASSES: dict[str, type[m.Animation]] = {}  # filled below from ANIMATION_CLASSES
+
+
 ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "Create": m.Create,
     "Uncreate": m.Uncreate,
@@ -1642,6 +1759,9 @@ ANIMATION_CLASSES: dict[str, type[m.Animation]] = {
     "TransformMatchingShapes": m.TransformMatchingShapes,
     "TransformMatchingTex": KeyedTransformMatching,  # fed keyed_pieces by the evaluator (ADR 0020)
 }
+SMART_CLASSES.update(
+    {kind: type(f"Smart{ANIMATION_CLASSES[kind].__name__}", (SmartMorph, ANIMATION_CLASSES[kind]), {}) for kind in SMART_MORPHS}
+)
 
 
 def allowed_clip_kinds(mobject_type: str) -> list[str]:
@@ -1675,7 +1795,7 @@ def clip_kwargs(kind: str, params: dict[str, Any]) -> dict[str, Any]:
     kwargs = dict(params)
     for param in clip_params(kind):
         value = params.get(param.name, param.default)
-        if value is None:
+        if value is None or param.studio:  # studio: read by make_animation itself (ADR 0056)
             kwargs.pop(param.name, None)
             continue
         if param.kind == "direction":
@@ -1761,7 +1881,13 @@ def make_animation(
     if info.category in ("morph", "motion"):
         if target is None:
             raise ValueError(f"{kind} needs a target (the morph's end or the path)")
-        anim = cls(mobject, target, **kwargs)
+        smart = smart_pair(mobject, target) if kind in SMART_MORPHS and params.get("match") == "smart" else None
+        if smart is not None:  # ADR 0056: the ends aligned by core/morph.py
+            source_group, target_group, exact = smart
+            anim = SMART_CLASSES[kind](source_group, target_group, **kwargs)
+            anim.exact = exact
+        else:
+            anim = cls(mobject, target, **kwargs)
     else:
         anim = cls(mobject, **kwargs)
     if isinstance(anim, m.Succession):

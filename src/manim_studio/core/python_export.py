@@ -35,6 +35,8 @@ from .schema import (
     NUMBER_TYPES,
     PYTHON_TYPES,
     SHAPE_TYPES,
+    SMART_MORPH,
+    SMART_MORPHS,
     TEXT_TYPES,
     TRACE_TYPES,
     Clip,
@@ -126,6 +128,8 @@ def readable_problems(project: Project) -> list[str]:
             out.append(f"{name(layer)}: clips on a turned or scaled object animate before its transform")
         if any(c.info.category == "motion" and c.params.get("rotate") == "along" for c in layer.clips):
             out.append(f"{name(layer)}: turning along a path")
+        if any(c.params.get("match") == "smart" for c in layer.clips if c.kind in SMART_MORPHS):
+            out.append(f"{name(layer)}: {SMART_MORPH}")  # ADR 0056
         if layer.id in morph_targets and (layer.lifetime.in_ is not None or layer.lifetime.out is not None):
             out.append(f"{name(layer)}: a morph target with its own lifetime")
         if layer.spec.type in PYTHON_TYPES:  # its code is written out as a function (ADR 0051)
@@ -741,7 +745,7 @@ class _Readable:
         kwargs: dict[str, str] = {}
         for param in clip_params(clip.kind):
             value = clip.params.get(param.name, param.default)
-            if value is None or param.kind == "layer" or param.name == "rotate":
+            if value is None or param.kind == "layer" or param.name == "rotate" or param.studio:
                 continue
             if param.name not in clip.params and _manim_default(cls, param.name, clip.kind, value):
                 continue  # Manim's own default: nothing to say
