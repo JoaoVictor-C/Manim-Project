@@ -53,6 +53,7 @@ from .schema import (
     clip_params,
     infer_lifetime,
     is_colour,
+    new_clip_params,
 )
 
 EditKind = Literal["timing", "transform", "clip", "spec"]
@@ -634,6 +635,7 @@ def add_equation_steps(
                     start=start + (index + 1) * cycle,
                     duration=step_duration,
                     to_layer=ids[index + 1],
+                    params=new_clip_params(kind),  # a replacement matches smartly (ADR 0056)
                 )
             )
         root = Layer(

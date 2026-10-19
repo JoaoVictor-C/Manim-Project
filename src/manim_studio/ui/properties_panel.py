@@ -278,6 +278,7 @@ class PropertiesPanel(QWidget):
         self.code_ends: Callable[[], list[float]] = lambda: []  # rendered code animations, set by the window
         self.fit_button: QPushButton | None = None
         self.fields: dict[str, Field] = {}
+        self._tips: dict[str, str] = {}  # re-applied after each refresh: set_value clears a field's tooltip
         self._getters: dict[str, Callable[[Layer], Any]] = {}
         self._keys: dict[str, Hashable] = {}
         self._generation = 0  # bumped on every rebuild: old widgets can no longer commit
@@ -784,6 +785,8 @@ class PropertiesPanel(QWidget):
             field.set_value(value if waiting else self._getters[path](layer), pending=waiting)
             if path.startswith("base.") and layer.tracks.get(path.split(".", 1)[1]):
                 field.widget.setToolTip("Keyed: a change sets a key at the playhead frame")
+            elif path in self._tips and not waiting:
+                field.widget.setToolTip(self._tips[path])
 
     def _update_title(self, layer: Layer) -> None:
         name = layer.label
@@ -820,6 +823,7 @@ class PropertiesPanel(QWidget):
         self._shown_type = None
         self.scene_shown = False
         self.fields.clear()
+        self._tips.clear()
         self._getters.clear()
         self._keys.clear()
         while self.body_layout.count():
@@ -1333,6 +1337,8 @@ class PropertiesPanel(QWidget):
                 commit = self._op(path, op, f"Change {param.label.lower()}")
                 rows.append((param.label, path, ChoiceField(commit, choices)))
                 continue
+            if param.tooltip:  # e.g. a morph's Matching (ADR 0056)
+                self._tips[path] = param.tooltip
             rows.append(
                 (
                     param.label,
