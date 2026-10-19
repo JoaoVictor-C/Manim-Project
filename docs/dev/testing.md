@@ -205,6 +205,11 @@ presets, a preset a square cannot show, and the dialog being kept between openin
 undo and redo, save a preset and find it marked. `QTest.mouseDClick` alone sends no
 double-click to a list: click first, then double-click. `.cache/p6d3/mutate.py` mutates the
 guards; every non-equivalent mutant is killed.
+Colour characters (ADR 0055): `core/test_glyph_colours.py` compares each coloured object with
+the plain one coloured by `set_color` (Text, MathTex, Indicate, Write, FadeIn, a morph, a part's
+style winning, a theme, freeze pixel identity), `core/test_glyph_colour_helpers.py` the pure
+helpers, and `ui/test_glyph_colours_ui.py` drives the dialog with real mouse and key events.
+`.cache/mutate_glyphs.py` mutates the guards; all 41 mutants are killed.
 The P6d.4 sweep fixes are guarded where they live: the frame border at Fit
 (`ui/test_viewport.py`), Compose's first-layout widths and remembered sizes winning over
 them (`ui/test_pages.py`), the Layers buttons going icon-only (`ui/test_layers_panel.py`)

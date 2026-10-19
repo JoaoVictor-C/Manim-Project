@@ -220,6 +220,13 @@ that is missing or unreadable is silent.
   cannot be read is drawn as a dashed placeholder; the project still opens (ADR 0027).
   A `Text` may take `t2c`, Manim's own `{piece: "#rrggbb"}`: every match of a piece is
   coloured; with `t2c`, the Text's `style.fill` colours the rest (ADR 0049).
+  A `Text`, `MathTex` or `Tex` may take `glyph_colours` (ADR 0055): a list with one entry
+  per **drawn glyph**, in the order of the built object's `family_members_with_points()` -
+  spaces and line breaks draw nothing and have no entry, a ligature is one glyph - each a
+  colour (`"#rgb"` or `"#rrggbb"`) or `null` for the object's own colour. At most 5000
+  entries; extra ones are ignored and missing ones are `null`. It is left out when nothing
+  is coloured. It is applied after `style.fill` and `t2c` (it wins on the glyphs it sets),
+  before a part layer's `style` (which wins on its glyphs) and before any clip.
 - `Axes`: `x_range` / `y_range` as `[from, to]`, `x_step` / `y_step`,
   `x_length` / `y_length` (scene units), `numbers` (`"yes"` / `"no"`).
 - `Graph`: `expression`, a function of `x` with numbers, `pi`, `e`,

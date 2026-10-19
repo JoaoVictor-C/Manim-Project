@@ -61,6 +61,22 @@ goes back up. To turn one equation into another, see
   from the part's colour to its own and back.
 - **A Text:** Properties has **Colour a piece** (the text to colour, **Colour...**), stored as
   Manim's own `t2c` and listed there.
+- **Each character on its own** (a Text, MathTex or Tex): **Colour characters...** in
+  Properties (under the object's settings), in the Layers right-click menu or in the Edit menu.
+  The dialog shows the object's letters and symbols large. Click one to select it,
+  Shift+click to select a range, Ctrl+click to add or remove one, or drag a box around
+  several; `Ctrl+A` selects all and `Escape` clears the selection. The row of swatches under
+  the preview shows each glyph's colour and works with the arrow keys (`Shift` extends,
+  `Space` adds or removes one). Then:
+  - **Colour...** colours the selection; **Clear** gives it back the object's colour;
+  - **Gradient...** (a start and an end colour), **Rainbow** and **Alternate...** (two
+    colours in turn) cover the selection, or every glyph when nothing is selected;
+  - **Reset all** gives every glyph back the object's colour.
+
+  **OK** applies it as one undo step; **Cancel** changes nothing. Spaces have no glyph, so the
+  colours follow what is drawn, not what is typed. A coloured part keeps its own colour on
+  its glyphs; themes and **Freeze to shape** keep the character colours. Without LaTeX a new
+  equation is a placeholder and the dialog says so.
 
 ## Groups
 

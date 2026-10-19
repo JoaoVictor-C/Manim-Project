@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Colour characters** (ADR 0055): a Text, MathTex or Tex can colour each of its letters or
+  symbols on its own. **Colour characters...** (Properties, the Layers right-click menu, Edit) shows
+  the object's glyphs large: click one, Shift+click a range, Ctrl+click to add or remove, drag a
+  box, Ctrl+A for all, then **Colour...**, **Clear**, **Gradient...**, **Rainbow**, **Alternate...**
+  or **Reset all**; a strip of swatches under the preview follows the arrow keys. OK is one undo
+  step. The colours are applied before any clip, so Write, FadeIn and morphs carry them and
+  Indicate comes back to them; a coloured part still wins on its glyphs, a theme keeps them, Freeze
+  to shape keeps them, and the readable Python export writes them as plain Manim. Saved as the
+  object's `glyph_colours` (one colour per drawn glyph); a colour edit runs no LaTeX.
 - **Import Manim scene** (P10.3, ADR 0053): File > Import Manim Scene... turns a Manim scene file
   into layers and clips you can edit: the file runs once, in another process, after a one-time
   question, and its objects go on top of the project from 0 s as one undo step - built-in objects

@@ -125,6 +125,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `python_object.py`, `python_templates.py` | Python objects: `PARAMS` read without running, values, trust, time limit; templates | `core/test_python_objects.py`, `core/test_python_templates.py` |
 | `shape.py` | Shape objects: an object frozen into plain vector data, and which layers can be frozen (P10.2, ADR 0052) | `core/test_shapes.py` |
 | `equation_steps.py` | equation steps: lines, a small LaTeX tokenizer, operations on both sides, planning the morph between steps (P11, ADR 0054) | `core/test_equation_steps.py`, `core/test_equation_steps_layers.py` |
+| `glyph_colours.py` | colour characters: a text's `glyph_colours` list (one colour per drawn glyph), gradients, rainbow, alternate, ranges, validation (ADR 0055) | `core/test_glyph_colour_helpers.py`, `core/test_glyph_colours.py` |
 | `python_export.py` | the project as Manim code, readable or exact, and why | `core/test_python_export.py`, `core/test_python_export_keyed.py` |
 | `audio.py` | sounds: decoding on demand, peaks, the mix per span | `core/test_audio.py`, `core/test_audio_spans.py` |
 | `subtitles.py` | wrapping, `.srt` read/write, placing cues, changed spans | `core/test_subtitles.py` |
@@ -164,6 +165,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `preferences.py`, `places.py`, `welcome.py` | the settings file; where files are kept and suggested; the welcome panel | `ui/test_preferences.py`, `ui/test_places.py` |
 | `presets_browser.py`, `shortcuts_help.py`, `plugins_dialog.py` | Animate > Browse Presets, Help > Keyboard Shortcuts, Help > Plugins | `ui/test_presets_browser.py`, `ui/test_shortcuts_help.py`, `ui/test_plugins_ui.py` |
 | `equation_steps_dialog.py` | Layers > Add > Equation steps... (P11): the lines, derive the next line, checks through the worker | `ui/test_equation_steps_ui.py` |
+| `glyph_colours_dialog.py` | Colour characters...: the glyphs painted large, click/Shift/Ctrl/rubber-band selection, swatch strip, gradient/rainbow/alternate (ADR 0055) | `ui/test_glyph_colours_ui.py` |
 | `theme.py`, `icons.py`, `elided_label.py` | design tokens, stylesheet, contrast; icons; eliding label | `ui/test_theme.py`, `ui/test_layout_checks.py` |
 
 ## Core concepts
