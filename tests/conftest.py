@@ -98,6 +98,7 @@ def _no_unsaved_changes_dialog(request, monkeypatch):
     monkeypatch.setattr(MainWindow, "ask_stop_export", lambda self: "stop")
     monkeypatch.setattr(MainWindow, "ask_trust", lambda self, names: "skip")
     monkeypatch.setattr(MainWindow, "ask_recover", lambda self, entries: "later")
+    monkeypatch.setattr(MainWindow, "ask_new_project", lambda self, remembered: remembered)  # no dialog
 
 
 @pytest.fixture(autouse=True)

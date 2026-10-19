@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHeaderView, QLabel, QMenu, QWidget
 
 from manim_studio.ui.main_window import MainWindow
+from manim_studio.ui.new_project_dialog import NewProjectDialog
 
 pytestmark = pytest.mark.ui
 
@@ -119,7 +120,14 @@ def test_no_page_squeezes_or_clips_at_a_small_window(window, qt_app, page) -> No
 
 
 def test_dialogs_neither_squeeze_nor_clip(window, qt_app) -> None:
-    for dialog in (window.show_shortcuts(), window.show_plugins(), window.show_presets_browser()):
+    new_project = NewProjectDialog(parent=window)
+    new_project.show()
+    for dialog in (
+        window.show_shortcuts(),
+        window.show_plugins(),
+        window.show_presets_browser(),
+        new_project,
+    ):
         qt_app.processEvents()
         assert squeezed(dialog) == [], dialog.windowTitle()
         assert clipped(dialog) == [], dialog.windowTitle()

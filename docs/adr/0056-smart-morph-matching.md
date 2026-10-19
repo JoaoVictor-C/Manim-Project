@@ -124,3 +124,12 @@ rendered at alpha 0, .25, .5, .75, 1 and measured, showed what that looks like:
   `tests/ui/test_properties_panel.py::test_a_morph_shows_its_matching_with_a_tooltip`,
   `tests/ui/test_timeline_view.py::test_morph_clips_offer_free_targets_only`,
   `tests/core/test_equation_steps_layers.py`, `tests/core/test_scene_import.py`.
+
+## Amendment 2026-10-19: the project chooses
+
+Smart stays the default for new morphs, but it makes the project's Python export an exact replay,
+which some users do not want. So the choice belongs to the project: `Project.morph_matching`
+(`smart`, not saved, or `classic`), asked once by File > New (the last answer is offered next time)
+and changeable in Properties' Scene section (New morphs). It sets only the `match` param of morph
+clips added afterwards - from the timeline and by Equation steps; existing clips, imported scenes and
+files from before keep what they have.

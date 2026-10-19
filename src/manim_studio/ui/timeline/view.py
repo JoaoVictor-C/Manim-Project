@@ -1988,7 +1988,7 @@ class TimelineView(QGraphicsView):
         params: dict | None = None,
     ) -> None:
         clip_id = edits.new_clip_id(self.project.layer(layer_id), kind)
-        params = {**new_clip_params(kind), **(params or {})}  # new morphs match smartly (ADR 0056)
+        params = {**new_clip_params(kind, self.project.morph_matching), **(params or {})}  # ADR 0056
         self._apply(
             lambda p: edits.add_clip(
                 p, layer_id, kind, start, length, to_layer=to_layer, clip_id=clip_id, params=params
