@@ -96,7 +96,7 @@ def test_the_page_bar_switches_pages(window, qt_app) -> None:
 
 def test_view_pages_has_a_shortcut_per_page(window) -> None:
     action = menu_action(window.menuBar(), "View", "Pages", "Compose")
-    assert action.shortcut().toString() == "Shift+1"
+    assert action.shortcut().toString() == "Ctrl+1"
 
 
 def test_splitter_sizes_are_kept_per_page(window, qt_app) -> None:

@@ -6,18 +6,25 @@ move between pages, so the selection, playback and undo history are the same eve
 
 ## Pages
 
-Switch with the page bar, **View > Pages**, or `Shift+1` ... `Shift+5`. Each page remembers
+Switch with the page bar, **View > Pages**, or `Ctrl+1` ... `Ctrl+5` (`Shift+1` ... `Shift+5` work too). Each page remembers
 its panel sizes (also between runs), and the editor reopens on the page you left.
 
 | page | key | what it is for | layout |
 |---|---|---|---|
-| **Compose** | `Shift+1` | building the scene | Layers - the viewer over the timeline - Properties |
-| **Animate** | `Shift+2` | shaping motion | the viewer and Properties, the graph editor of the selected object's keys, the timeline |
-| **Code** | `Shift+3` | code layers and Python objects | their list - a code editor over the render/build output - the viewer |
-| **Audio** | `Shift+4` | sounds and subtitles | tables of sounds and of subtitles, a level meter, the viewer, the timeline |
-| **Deliver** | `Shift+5` | exporting | the viewer - render settings, the render queue and the Python scene |
+| **Compose** | `Ctrl+1` | building the scene | Layers - the viewer over the timeline - Properties |
+| **Animate** | `Ctrl+2` | shaping motion | the viewer and Properties, the graph editor of the selected object's keys, the timeline |
+| **Code** | `Ctrl+3` | code layers and Python objects | their list - a code editor over the render/build output - the viewer |
+| **Audio** | `Ctrl+4` | sounds and subtitles | tables of sounds and of subtitles, a level meter, the viewer, the timeline |
+| **Deliver** | `Ctrl+5` | exporting | the viewer - render settings, the render queue and the Python scene |
 
-**View > Layers** and **View > Properties** show or hide those panels on every page.
+The buttons at the left of the page bar - **Layers**, **Properties** and **Timeline** - hide and show
+those panels, like **View > Layers**, **View > Properties** and **View > Timeline**; a page shows the
+buttons for the panels it has, a hidden panel stays hidden on every page, and the choice is remembered.
+The button at the right of the bar, or **View > Full Screen** (`F11`), shows the animation alone, filling the
+screen: no panels, no selection outline, the frame fitted and black around it. `Space` (or a click) plays and
+pauses, `Left`/`Right` step a frame (`Shift`: ten), `Home`/`End` jump to the start and end, and `Esc` or `F11`
+leaves; the hint and the pointer fade when the mouse rests.
+The Code page also has its own buttons for its explorer (`Ctrl+B`) and output (`Ctrl+J`).
 
 ## The viewer: canvas and transport
 

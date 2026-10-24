@@ -130,7 +130,7 @@ A **Python object** is an object built by your own Manim code. It moves, styles,
 animates, groups and morphs like any other object, and its parameters become fields in
 Properties.
 
-**Create one** on the Code page (`Shift+3`): **New Python object** starts from a right
+**Create one** on the Code page (`Ctrl+3`): **New Python object** starts from a right
 triangle; the arrow on the button offers templates (**Right triangle**, **Matrix**). Edit the
 code and press **Run** (`Ctrl+Enter`); errors show under the editor at their line. Python
 objects are listed on the Code page with the code layers (rename with `F2`, delete with

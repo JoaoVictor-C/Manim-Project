@@ -107,7 +107,7 @@ def test_animate_is_the_second_page_with_the_viewer_properties_graph_and_timelin
     from ui.test_acceptance_v1 import menu_action as action
 
     assert list(window.pages.pages)[:2] == ["compose", "animate"] and window.page == "animate"
-    assert action(window.menuBar(), "View", "Pages", "Animate").shortcut().toString() == "Shift+2"
+    assert action(window.menuBar(), "View", "Pages", "Animate").shortcut().toString() == "Ctrl+2"
     assert window.pages.bar.tabText(1) == "Animate" and not window.pages.bar.tabIcon(1).isNull()
     page = window.pages.pages["animate"]
     for view in (window.viewer, window.properties, window.timeline, graph(window)):

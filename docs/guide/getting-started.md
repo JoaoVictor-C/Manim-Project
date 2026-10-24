@@ -78,7 +78,7 @@ examples, so there the button is hidden. To open a file directly:
    breaks the link.
 8. **Export the video.** **File > Export Video...** (`Ctrl+E`) renders an MP4 in the
    background, with the sound and burned-in subtitles. For size, frame rate, range, quality
-   and a queue of several renders, use the **Deliver** page (`Shift+5`).
+   and a queue of several renders, use the **Deliver** page (`Ctrl+5`).
 9. **Export Python.** **File > Export Python...** writes the scene as a Manim script you can keep
    working on in code - plain `self.play(...)` code when possible. See
    [Exporting](exporting.md#python-export).

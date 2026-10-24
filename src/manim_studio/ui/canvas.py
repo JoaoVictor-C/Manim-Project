@@ -82,6 +82,7 @@ class CanvasWidget(QWidget):
         self._t = 0.0  # the time last drawn (F frames the selection as it is then)
         self.selected_layer: str | None = None  # whose outline to draw
         self.show_overlays = True  # outlines, handles and motion paths; off on the Code page (P12)
+        self.presenting = False  # full screen: what lies outside the frame is black, no border (P12)
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
         self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
         self.marquee: tuple[np.ndarray, np.ndarray] | None = None  # a selection rectangle being drawn
@@ -519,7 +520,9 @@ class CanvasWidget(QWidget):
             QRectF(frame.right(), top, widget.right() - frame.right(), bottom - top),
         ):
             if band.width() > 0 and band.height() > 0:
-                painter.fillRect(band, PASTEBOARD_DIM)
+                painter.fillRect(band, Qt.GlobalColor.black if self.presenting else PASTEBOARD_DIM)
+        if self.presenting:
+            return
         pen = QPen(FRAME_BORDER, 1)
         pen.setCosmetic(True)
         painter.setPen(pen)

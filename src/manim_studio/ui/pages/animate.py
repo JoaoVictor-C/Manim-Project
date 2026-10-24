@@ -27,7 +27,7 @@ class AnimatePage(Page):
     name = "animate"
     title = "Animate"
     icon = "animate"
-    tooltip = "Shape motion: keys as curves of value over time, with the viewer and timeline (Shift+2)"
+    tooltip = "Shape motion: keys as curves of value over time, with the viewer and timeline (Ctrl+2)"
 
     def build(self) -> QWidget:
         self.graph: GraphEditor | None = None  # made on the first show: the selection exists then

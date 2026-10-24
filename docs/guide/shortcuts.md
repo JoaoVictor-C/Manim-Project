@@ -44,15 +44,16 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 
 | what | keys |
 |---|---|
-| Pages > Compose | `Shift+1` |
-| Pages > Animate | `Shift+2` |
-| Pages > Code | `Shift+3` |
-| Pages > Audio | `Shift+4` |
-| Pages > Deliver | `Shift+5` |
+| Pages > Compose | `Ctrl+1`, `Shift+1` |
+| Pages > Animate | `Ctrl+2`, `Shift+2` |
+| Pages > Code | `Ctrl+3`, `Shift+3` |
+| Pages > Audio | `Ctrl+4`, `Shift+4` |
+| Pages > Deliver | `Ctrl+5`, `Shift+5` |
+| Full Screen | `F11` |
 | Zoom In | `Ctrl+=`, `Ctrl++` |
 | Zoom Out | `Ctrl+-` |
 | Fit | `Ctrl+0` |
-| Actual Size (100 %) | `Ctrl+1` |
+| Actual Size (100 %) | `Ctrl+Shift+0` |
 | Fit Timeline | `Shift+F` |
 | Snap to Objects | `Ctrl+;` |
 | Reload Media | `F5` |
@@ -80,8 +81,16 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 |---|---|
 | Bring forward (Up) | `Ctrl+]` |
 | Delete the selected layer (Delete) | `Del` |
+| Find (Find…) | `Ctrl+F` |
+| Go to layer or preset (Go to layer or preset…) | `Ctrl+P` |
+| Go to line (Go to line…) | `Alt+G` |
 | Play / Pause | `Space` |
+| Replace (Replace…) | `Ctrl+H` |
+| Reset zoom | `Ctrl+0` |
 | Send backward (Down) | `Ctrl+[` |
+| Show or hide output | `Ctrl+J` |
+| Zoom in | `Ctrl+=` |
+| Zoom out | `Ctrl+-` |
 
 ## Canvas gestures
 

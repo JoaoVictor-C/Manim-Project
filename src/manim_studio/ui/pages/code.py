@@ -144,7 +144,7 @@ class CodePage(Page):
     icon = "code-page"
     tooltip = (
         "Write and run code layers and Python objects, and keep presets: an editor with highlighting, "
-        "find, tabs, errors at their line (Shift+3)"
+        "find, tabs, errors at their line (Ctrl+3)"
     )
 
     def build(self) -> QWidget:

@@ -1,6 +1,6 @@
 # The Code workspace
 
-The **Code** page (`Shift+3`) is where code layers and Python objects are written, and where the
+The **Code** page (`Ctrl+3`) is where code layers and Python objects are written, and where the
 editor keeps its **presets**: pieces of code you reuse. It works like a small code editor, with
 the viewer beside it so every run shows at once.
 

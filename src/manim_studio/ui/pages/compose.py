@@ -37,7 +37,7 @@ class ComposePage(Page):
     name = "compose"
     title = "Compose"
     icon = "compose"
-    tooltip = "Build the scene: objects, the canvas, the timeline and properties (Shift+1)"
+    tooltip = "Build the scene: objects, the canvas, the timeline and properties (Ctrl+1)"
 
     def build(self) -> QWidget:
         self.outer = QSplitter(Qt.Orientation.Horizontal)

@@ -233,7 +233,7 @@ class AudioPage(Page):
     name = "audio"
     title = "Audio"
     icon = "audio"
-    tooltip = "Sounds and subtitles as tables, and the level at the playhead (Shift+4)"
+    tooltip = "Sounds and subtitles as tables, and the level at the playhead (Ctrl+4)"
 
     def build(self) -> QWidget:
         self._active = False  # shown: the tables and the meter follow the document

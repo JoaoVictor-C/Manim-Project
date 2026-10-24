@@ -19,7 +19,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QByteArray, Qt, Signal
-from PySide6.QtWidgets import QSplitter, QStackedWidget, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QSplitter,
+    QStackedWidget,
+    QTabBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import icons
 
@@ -129,9 +137,35 @@ class PageHost(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.stack, 1)
-        layout.addWidget(self.bar, 0, Qt.AlignmentFlag.AlignHCenter)
+        # The bottom row: the panel buttons (left), the page tabs (centre), the window buttons (right).
+        self.panel_row = QHBoxLayout()
+        self.panel_row.setContentsMargins(6, 0, 6, 0)
+        self.panel_buttons: list[tuple[QWidget, QToolButton]] = []
+        left, right = QHBoxLayout(), QHBoxLayout()
+        self.left_buttons, self.right_buttons = left, right
+        self.panel_row.addLayout(left, 1)
+        self.panel_row.addWidget(self.bar, 0)
+        self.panel_row.addLayout(right, 1)
+        left.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        right.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(self.panel_row)
         for view in shared.all():
             view.setParent(self.parking)
+
+    def add_panel_button(self, view: QWidget, button: QToolButton) -> None:
+        """A button that shows or hides ``view`` (a shared panel); it is shown while the current page
+        has that panel."""
+        self.left_buttons.addWidget(button)
+        self.panel_buttons.append((view, button))
+        button.setVisible(self.current is not None and view.parentWidget() is not self.parking)
+
+    def add_window_button(self, button: QToolButton) -> None:
+        """A button for the window itself (full screen), at the right of the page bar."""
+        self.right_buttons.addWidget(button)
+
+    def _sync_panel_buttons(self) -> None:
+        for view, button in self.panel_buttons:
+            button.setVisible(view.parentWidget() is not self.parking)
 
     def add(self, page: Page) -> None:
         self.pages[page.name] = page
@@ -158,6 +192,7 @@ class PageHost(QWidget):
         for view in self.shared.all():  # a panel hidden from View stays hidden on every page
             if view.parentWidget() is not self.parking:
                 view.setVisible(view not in self.hidden)
+        self._sync_panel_buttons()
         page.restore_sizes()
         self.stack.setCurrentWidget(page.widget)
         self.current = name

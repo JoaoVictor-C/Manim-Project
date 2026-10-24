@@ -128,7 +128,7 @@ def test_deliver_is_a_page_after_compose_with_the_viewer(window) -> None:
     index = [win.pages.bar.tabData(i) for i in range(win.pages.bar.count())].index("deliver")
     assert win.pages.bar.tabText(index) == "Deliver" and not win.pages.bar.tabIcon(index).isNull()
     action = menu_action(win.menuBar(), "View", "Pages", "Deliver")
-    assert action.shortcut() == QKeySequence(f"Shift+{names.index('deliver') + 1}")  # Shift+5 in the end
+    assert action.shortcut() == QKeySequence(f"Ctrl+{names.index('deliver') + 1}")  # Ctrl+5 in the end
 
 
 def test_the_settings_start_from_the_project(window, tmp_path) -> None:

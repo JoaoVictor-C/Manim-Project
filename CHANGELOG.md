@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Panel buttons** on the page bar (Layers, Properties, Timeline) hide and show those panels on every page that
+  has them - View > Timeline is new - and are remembered; **Full Screen** (`F11`, View > Full Screen, a button on the
+  bar) shows the animation alone, filling the screen (Space plays, arrows step, Esc leaves); the pages are now `Ctrl+1` ... `Ctrl+5` (`Shift+1` ... `Shift+5` still work), and Actual Size moved to
+  `Ctrl+Shift+0`.
 - **The Code workspace** (ADR 0057): the Code page is reworked as a small code editor - an explorer of the
   project's code and of presets (built in, yours, downloaded), tabs, find and replace, go to line, quick open,
   an output panel, a status strip, editing commands (comment, move, duplicate, delete lines, zoom) and an

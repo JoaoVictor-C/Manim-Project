@@ -15,7 +15,7 @@ exists, else in Documents).
 
 ## The Deliver page
 
-`Shift+5` is the full export, with its own settings (they start from the project's canvas and
+`Ctrl+5` is the full export, with its own settings (they start from the project's canvas and
 do not change the project):
 
 | setting | choices |

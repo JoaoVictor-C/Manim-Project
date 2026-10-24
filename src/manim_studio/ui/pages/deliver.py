@@ -83,7 +83,7 @@ class DeliverPage(Page):
     name = "deliver"
     title = "Deliver"
     icon = "deliver"
-    tooltip = "Export the video (size, range, quality, a queue of renders) and the Python scene (Shift+5)"
+    tooltip = "Export the video (size, range, quality, a queue of renders) and the Python scene (Ctrl+5)"
 
     # -- building ---------------------------------------------------------------------
 

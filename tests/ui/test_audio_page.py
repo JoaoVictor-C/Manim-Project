@@ -99,7 +99,7 @@ def test_the_audio_page_is_registered_with_its_icon_and_shortcut_hint(window) ->
     bar = window.pages.bar
     index = [bar.tabData(i) for i in range(bar.count())].index("audio")
     assert bar.tabText(index) == "Audio" and not bar.tabIcon(index).isNull()
-    assert "Shift+4" in window.pages.pages["audio"].tooltip
+    assert "Ctrl+4" in window.pages.pages["audio"].tooltip
 
 
 def test_the_page_shows_the_viewer_timeline_and_properties_and_parks_the_layers(window, page) -> None:

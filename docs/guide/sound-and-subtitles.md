@@ -39,7 +39,7 @@ video).
 
 ## The Audio page
 
-`Shift+4` lists the sounds (name, file, start, trim, duration, gain, fades) and the subtitles
+`Ctrl+4` lists the sounds (name, file, start, trim, duration, gain, fades) and the subtitles
 (start, end, text) as tables. Double-click a cell to change it; each change is one undo step,
 and an invalid one (two subtitles overlapping, fades longer than the sound) is refused with the
 reason in the status bar. Clicking a subtitle's row moves the playhead to it. The **level

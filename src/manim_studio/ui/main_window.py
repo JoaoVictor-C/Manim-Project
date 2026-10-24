@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSlider,
     QStackedLayout,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -68,6 +69,7 @@ from .pages.compose import ComposePage
 from .pages.deliver import DeliverPage
 from .plugins_dialog import PluginsDialog, startup_message
 from .preferences import Preferences
+from .presenter import Presenter
 from .presets_browser import PresetsBrowser
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
@@ -81,6 +83,13 @@ from .welcome import EXAMPLE, WelcomePanel
 from .worker_process import make_worker
 
 log = get_logger(__name__)
+
+
+def _set_checked(control, on: bool) -> None:
+    """Set a checkable control without it announcing the change (it mirrors another one)."""
+    control.blockSignals(True)
+    control.setChecked(on)
+    control.blockSignals(False)
 
 
 START_HINT = "Create a project (File > New) or open one (File > Open)."
@@ -188,7 +197,14 @@ class MainWindow(QMainWindow):
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.
         self.pages = PageHost(Shared(self.viewer, self.timeline, self.layers, self.properties), self)
-        for page in (ComposePage, AnimatePage, CodePage, AudioPage, DeliverPage):  # Shift+1..5
+        self.presenter = Presenter(self)  # the animation alone, full screen (P12)
+        for page in (
+            ComposePage,
+            AnimatePage,
+            CodePage,
+            AudioPage,
+            DeliverPage,
+        ):  # Ctrl+1..5 (Shift+1..5 too)
             self.pages.add(page(self))
         self.setCentralWidget(self.pages)
         # One selection for every view (ADR 0016): views report, then follow it.
@@ -394,17 +410,46 @@ class MainWindow(QMainWindow):
         pages_menu = view_menu.addMenu("&Pages")  # the workspace pages (ADR 0041)
         for number, (name, page) in enumerate(self.pages.pages.items(), start=1):
             action = QAction(page.title, self)
-            action.setShortcut(QKeySequence(f"Shift+{number}"))
+            action.setShortcuts([QKeySequence(f"Ctrl+{number}"), QKeySequence(f"Shift+{number}")])
             action.setToolTip(page.tooltip)
             action.triggered.connect(lambda _=False, n=name: self.show_page(n))
             pages_menu.addAction(action)
         self.panel_toggles: dict[QWidget, QAction] = {}
-        for title, panel in (("&Layers", self.layers), ("P&roperties", self.properties)):
+        for title, panel, glyph in (
+            ("&Layers", self.layers, "sidebar"),
+            ("P&roperties", self.properties, "sidebar-right"),
+            ("&Timeline", self.timeline, "panel"),
+        ):
+            name = title.replace("&", "")
             toggle = QAction(title, self, checkable=True, checked=True)
-            toggle.setToolTip(f"Show or hide the {title.replace('&', '')} panel on every page")
+            toggle.setToolTip(f"Show or hide the {name} panel on every page that has it")
             toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
             view_menu.addAction(toggle)
             self.panel_toggles[panel] = toggle
+            button = QToolButton()  # the same switch on the page bar
+            button.setIcon(icons.icon(glyph))
+            button.setCheckable(True)
+            button.setChecked(True)
+            button.setAutoRaise(True)
+            button.setToolTip(f"Hide or show {name}")
+            button.toggled.connect(toggle.setChecked)
+            toggle.toggled.connect(lambda on, b=button: _set_checked(b, on))
+            self.pages.add_panel_button(panel, button)
+        view_menu.addSeparator()
+        self.fullscreen_action = QAction("&Full Screen", self)
+        self.fullscreen_action.setShortcut(QKeySequence("F11"))
+        self.fullscreen_action.setToolTip(
+            "Show the animation alone, filling the screen (Space plays, Esc or F11 leaves)"
+        )
+        self.fullscreen_action.triggered.connect(self.present)
+        view_menu.addAction(self.fullscreen_action)
+        self.fullscreen_button = QToolButton()
+        self.fullscreen_button.setIcon(icons.icon("fullscreen"))
+        self.fullscreen_button.setAutoRaise(True)
+        self.fullscreen_button.setToolTip("Full screen: the animation alone (F11)")
+        self.fullscreen_button.clicked.connect(self.present)
+        self.pages.add_window_button(self.fullscreen_button)
+        view_menu.addSeparator()
         self.half_action = QAction("Half-resolution playback", self, checkable=True)
         self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
         self.half_action.toggled.connect(self._set_half_resolution)
@@ -437,7 +482,7 @@ class MainWindow(QMainWindow):
             ),
             (
                 "&Actual Size (100 %)",
-                ("Ctrl+1",),
+                ("Ctrl+Shift+0",),
                 self.canvas.actual_size,
                 "One video pixel per screen pixel",
             ),
@@ -689,7 +734,17 @@ class MainWindow(QMainWindow):
             ("half_resolution", self.half_action, False),
             ("follow_playhead", self.follow_action, True),
             ("render_ahead", self.render_ahead_action, True),
+            ("panel_layers", self.panel_toggles[self.layers], True),
+            ("panel_properties", self.panel_toggles[self.properties], True),
+            ("panel_timeline", self.panel_toggles[self.timeline], True),
         )
+
+    def present(self) -> None:
+        """View > Full Screen (F11): the animation alone, filling the screen; again to leave."""
+        if self.presenter.active:
+            self.presenter.finish()
+        elif not self.presenter.start():
+            self.statusBar().showMessage("Open or create a project to see its animation full screen", 5000)
 
     def _on_page_changed(self, name: str) -> None:
         self.prefs.set_last_page(name)
@@ -1116,6 +1171,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{text}: not applied - {message}", 10000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.presenter.finish()  # the canvas goes back into the editor first
         exporting = (self.export_dialog is not None and self.export_dialog.running) or self.deliver_busy()
         if exporting and self.ask_stop_export() != "stop":
             event.ignore()

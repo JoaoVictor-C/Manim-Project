@@ -57,6 +57,10 @@ NAMES: dict[str, str] = {
     "sidebar": "mdi6.dock-left",
     "panel": "mdi6.dock-bottom",
     "outline": "mdi6.vector-selection",
+    # the panel buttons and full screen (P12)
+    "sidebar-right": "mdi6.dock-right",
+    "fullscreen": "mdi6.fullscreen",
+    "fullscreen-exit": "mdi6.fullscreen-exit",
 }
 
 # icons drawn in another theme colour than the text: Record's red dot, the Python logos

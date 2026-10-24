@@ -169,7 +169,7 @@ it (hold `Alt` to move one handle only).
 
 ## The Animate page
 
-`Shift+2`: the viewer and Properties on top, the **graph editor** in the middle, the timeline at
+`Ctrl+2`: the viewer and Properties on top, the **graph editor** in the middle, the timeline at
 the bottom. The graph shows the selected object's keys as curves of value over time - x, y,
 scale, rotation and opacity, each in its colour. Click property names in the expanded timeline
 row to show only those curves (`Shift`/`Ctrl` to add or remove); with none chosen, all are shown.
