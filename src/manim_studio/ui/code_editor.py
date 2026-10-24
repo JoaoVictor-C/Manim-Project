@@ -35,6 +35,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
+from ..core import snippets
 from . import theme
 from .code_drafts import clamp_line
 from .code_syntax import NORMAL, scan_line
@@ -103,6 +104,7 @@ class CodeEditor(QPlainTextEdit):
         self.highlighter = PythonHighlighter(self.document())
         self._gutter = _Gutter(self)
         self._error_line: int | None = None
+        self._snippet_stops: list[tuple[QTextCursor, QTextCursor]] = []  # places Tab still visits
         self._syntax: tuple[int, int, int, int] | None = None  # line, column, end line, end column
         self._search_selections: list[QTextEdit.ExtraSelection] = []
         self._auto_closers: list[QTextCursor] = []  # before each closer the editor typed itself
@@ -199,6 +201,49 @@ class CodeEditor(QPlainTextEdit):
         cursor.endEditBlock()
         self.setTextCursor(cursor)
 
+    def insert_snippet(self, code: str, module_level: bool = False) -> None:
+        """Insert a snippet (``${1:default}`` stops, P13.3) at the cursor as one editor-undo step.
+
+        On a blank line it takes the line's place; elsewhere it goes on the line below, indented like
+        the cursor's line (one level more after a colon). The first stop is selected and Tab visits
+        the rest; Esc leaves them. ``module_level`` snippets sit at the left margin."""
+        cursor = self.textCursor()
+        block = cursor.block()
+        line = block.text()
+        lead = line[: len(line) - len(line.lstrip(" \t"))]
+        prefix = "" if module_level else lead + (self.indent if line.rstrip().endswith(":") else "")
+        text, stops = snippets.expand(snippets.indent(code, prefix))
+        cursor.beginEditBlock()
+        if not line.strip():
+            cursor.setPosition(block.position())
+            cursor.setPosition(block.position() + len(line), QTextCursor.MoveMode.KeepAnchor)
+            start = block.position()
+        else:
+            cursor.setPosition(block.position() + len(line))
+            text = chr(10) + text
+            start = block.position() + len(line) + 1
+        cursor.insertText(text)
+        cursor.endEditBlock()
+        self._snippet_stops = []
+        for first, last in stops:
+            begin = QTextCursor(self.document())
+            begin.setPosition(start + first)
+            end = QTextCursor(self.document())
+            end.setPosition(start + last)
+            self._snippet_stops.append((begin, end))
+        if self._snippet_stops:
+            self._next_stop()
+        else:
+            self.setTextCursor(cursor)
+
+    def _next_stop(self) -> None:
+        begin, end = self._snippet_stops.pop(0)
+        cursor = QTextCursor(self.document())
+        cursor.setPosition(begin.position())
+        cursor.setPosition(end.position(), QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(cursor)
+        self.ensureCursorVisible()
+
     def cursor_position(self) -> int:
         return self.textCursor().position()
 
@@ -257,6 +302,12 @@ class CodeEditor(QPlainTextEdit):
             return
         if key == Qt.Key.Key_Backtab or (key == Qt.Key.Key_Tab and mods & Qt.KeyboardModifier.ShiftModifier):
             self._dedent()
+            return
+        if key == Qt.Key.Key_Escape and self._snippet_stops:
+            self._snippet_stops = []
+            return
+        if self._snippet_stops and key == Qt.Key.Key_Tab and not mods:
+            self._next_stop()
             return
         if key == Qt.Key.Key_Tab and not mods & (
             Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier

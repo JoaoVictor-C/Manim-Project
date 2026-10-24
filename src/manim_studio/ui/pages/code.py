@@ -67,7 +67,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, code_files, diagnostics, edits, error_hints, live_guard, python_object
+from ...core import (
+    adapter,
+    code_files,
+    diagnostics,
+    edits,
+    error_hints,
+    live_guard,
+    python_object,
+    run_to_cursor,
+)
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from ...core.standalone import standalone_scene
 from .. import code_drag, icons, quick_open, theme
@@ -77,6 +86,7 @@ from ..code_explorer import CodeExplorer, Row, Section
 from ..code_render import CodeStatus
 from ..find_bar import FindBar
 from ..properties_panel import _first_error, set_param, set_python_code
+from ..snippet_dialog import SnippetDialog
 from ..values_panel import ValuesPanel
 from . import Page, Shared
 
@@ -180,6 +190,9 @@ class CodePage(Page):
         self.ask_line = self._ask_line_dialog  # a line number, or None
         self.confirm = self._confirm_dialog  # (title, text) -> bool
         self.quick = self._quick_dialog  # (items) -> QuickItem | None
+        self.pick_snippet = self._snippet_dialog  # () -> Snippet | None
+        self._holding = False  # an apply from here that must not replace the editor's text
+        self._partial: tuple[str, str, int] | None = None  # layer id, code, last line of a Run to cursor
 
         self.split = QSplitter(Qt.Orientation.Horizontal)
         self.split.setChildrenCollapsible(False)
@@ -549,6 +562,9 @@ class CodePage(Page):
         menu.addAction("Go to line…", self.goto_line, QKeySequence("Alt+G"))
         menu.addAction("Go to layer or preset…", self.quick_open, QKeySequence("Ctrl+P"))
         menu.addAction("Show or hide output", self.toggle_output, QKeySequence("Ctrl+J"))
+        menu.addAction("Insert snippet…", self.insert_snippet, QKeySequence("Ctrl+Shift+I"))
+        self.run_to_cursor_action = menu.addAction("Run to cursor", self.run_to_cursor)
+        self.run_to_cursor_action.setToolTip("Show the scene only as far as the statement under the cursor")
         self.live_action = menu.addAction("Live: run Python objects while typing")
         self.live_action.setCheckable(True)
         self.live_action.setToolTip(
@@ -600,6 +616,7 @@ class CodePage(Page):
             ("Ctrl+P", self.quick_open),
             ("Ctrl+J", self.toggle_output),
             ("Ctrl+B", self.toggle_sidebar),
+            ("Ctrl+Shift+I", self.insert_snippet),
         ):
             shortcut = QShortcut(QKeySequence(keys), self.split)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
@@ -1006,7 +1023,7 @@ class CodePage(Page):
             return
         if code != self._base:
             text = self.editor.text()
-            if text == self._base:  # nothing unapplied: show the new code
+            if text == self._base and not self._holding:  # nothing unapplied: show the new code
                 self._base, self._moved = code, False
                 self._set_editor(code, self.editor.cursor_position())
             else:  # an apply from here, or the project moved under unapplied text
@@ -1357,6 +1374,54 @@ class CodePage(Page):
         dialog = quick_open.QuickOpen(items, self.widget)
         return dialog.chosen if dialog.exec() == dialog.DialogCode.Accepted else None
 
+    def _snippet_dialog(self):
+        dialog = SnippetDialog(parent=self.widget)
+        return dialog.chosen if dialog.exec() == dialog.DialogCode.Accepted else None
+
+    def insert_snippet(self) -> None:
+        """Pick a snippet and insert it at the cursor (one editor-undo step; Tab visits its blanks)."""
+        if self.layer_id is None or self.preset_id is not None:
+            self.window.statusBar().showMessage("Open a layer to insert a snippet into", 5000)
+            return
+        chosen = self.pick_snippet()
+        if chosen is not None:
+            self.editor.insert_snippet(chosen.code, chosen.module_level)
+            self.editor.setFocus()
+
+    def run_to_cursor(self) -> None:
+        """Show the scene only as far as the statement under the cursor: the layer gets the shortened
+        code (one undo step) and the editor keeps the whole text; Run shows all of it again."""
+        layer_id = self.layer_id
+        if layer_id is None or self.preset_id is not None or self._is_python(layer_id):
+            self.window.statusBar().showMessage("Run to cursor works on a scene", 5000)
+            return
+        if self.window.builds.busy:
+            self.window.statusBar().showMessage("Still running - wait for it to finish", 4000)
+            return
+        line = self.editor.textCursor().blockNumber() + 1
+        cut = run_to_cursor.truncate(self.editor.text(), line)
+        if cut is None:
+            self.window.statusBar().showMessage("Put the cursor inside a scene's construct", 5000)
+            return
+        self.window.trust.trust([cut.source])
+        op = partial(set_param, layer_id=layer_id, name="code", value=cut.source)
+        self._holding = True
+        try:
+            self.window.builds.submit(op, "Run to cursor")
+        except (edits.EditError, ValidationError) as error:
+            self.window.statusBar().showMessage(f"Run to cursor: {_first_error(error)}", 10000)
+            return
+        finally:
+            self._holding = False
+        self._partial = (layer_id, cut.source, cut.last_line)
+        self._moved = False
+        self.window.statusBar().showMessage(
+            f"Showing {cut.statements_kept} of {cut.statements_total} statements, up to line "
+            f"{cut.last_line}: Run shows all of it",
+            8000,
+        )
+        self._refresh_output()
+
     def new_layer(self) -> None:
         if self.window.project is None:
             self.window.statusBar().showMessage("Create or open a project first.", 5000)
@@ -1614,6 +1679,9 @@ class CodePage(Page):
             took = self.durations.get(self.layer_id or "")
             if took is not None and took >= 0.05 and status.state in ("ready", "built"):
                 text += f" (took {took:.2f} s)"
+        partial = self._partial
+        if partial is not None and partial[0] == self.layer_id and partial[1] == self._code_of(self.layer_id):
+            text += f" - showing the scene up to line {partial[2]}; Run shows all of it"
         if dirty and status is not None and status.state != "error":
             text += " - the editor has changes that were not run (Ctrl+Enter)"
         self.state_label.setText(text)
