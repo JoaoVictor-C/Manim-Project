@@ -78,6 +78,20 @@ class AudioPlayer(QObject):
         self._sink = None
         self._buffer: MixDevice | None = None
         self._start = 0.0
+        self.volume = 1.0  # 0..1, kept between plays
+        self.muted = False
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = max(0.0, min(1.0, volume))
+        self._apply_volume()
+
+    def set_muted(self, muted: bool) -> None:
+        self.muted = muted
+        self._apply_volume()
+
+    def _apply_volume(self) -> None:
+        if self._sink is not None:
+            self._sink.setVolume(0.0 if self.muted else self.volume)
 
     @staticmethod
     def available() -> bool:
@@ -102,6 +116,7 @@ class AudioPlayer(QObject):
         source = _ArraySource(samples) if isinstance(samples, np.ndarray) else samples
         self._buffer = MixDevice(source, round(t * audio.RATE), self)
         self._sink = QAudioSink(QMediaDevices.defaultAudioOutput(), fmt, self)
+        self._apply_volume()
         self._sink.start(self._buffer)
         self._start = t
         log.debug("sound from %.3f s", t)
@@ -131,6 +146,14 @@ class FakePlayer(QObject):
         self.elapsed = 0.0
         self.stopped = 0
         self._start = 0.0
+        self.volume = 1.0
+        self.muted = False
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = max(0.0, min(1.0, volume))
+
+    def set_muted(self, muted: bool) -> None:
+        self.muted = muted
 
     def play(self, samples: np.ndarray, t: float) -> None:
         self.started.append((samples, t))

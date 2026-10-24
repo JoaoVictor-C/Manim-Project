@@ -16,7 +16,7 @@ the timeline, sounds and subtitles in Properties, the export in a dialog.
 - **Pages**: the window's central widget is a stack of pages over a **page bar** at
   the bottom (icon and name, an accent line on the current page), with **View >
   Pages** and **Ctrl+1** to **Ctrl+5** (Shift+1..5 too; amended in P12): *Compose*, *Animate*, *Code*, *Audio*,
-  *Deliver*. Panel buttons (Layers, Properties, Timeline) and a Full Screen button (F11: the animation alone, `ui/presenter.py`) sit on the bar's row. `window.pages`, `window.page`, `window.show_page(name)`.
+  *Deliver*. Panel buttons (Layers, Properties, Timeline) and a Full Screen button (F11: the animation alone with a player bar, `ui/presenter.py`, `ui/player_bar.py`) sit on the bar's row. `window.pages`, `window.page`, `window.show_page(name)`.
 - **One controller**: `MainWindow` keeps the document, selection, undo, playback,
   render-ahead and helper processes, and every attribute it had.
 - **Shared views exist once** - the viewer (canvas and transport), the timeline,

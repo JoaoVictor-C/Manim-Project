@@ -239,15 +239,18 @@ def test_a_click_plays_and_pauses_without_selecting_or_moving(window, qt_app) ->
     window.presenter.finish()
 
 
-def test_the_hint_and_the_time_show_and_go_when_the_mouse_rests(window, qt_app) -> None:
-    window.seek(1.0)
+def test_the_bar_goes_when_the_mouse_rests_while_playing_and_stays_when_paused(window, qt_app) -> None:
     window.present()
     presenter = window.presenter
-    assert presenter.hint.isVisibleTo(presenter) and "1.00 / 2.00 s" in presenter.time_label.text()
+    assert presenter.bar.isVisibleTo(presenter) and presenter.hint.isVisibleTo(presenter)
+    presenter._rest()  # paused: the bar stays
+    assert presenter.bar.isVisibleTo(presenter)
+    window.play()
     presenter._rest()
-    assert not presenter.hint.isVisibleTo(presenter) and not presenter.time_label.isVisibleTo(presenter)
+    assert not presenter.bar.isVisibleTo(presenter)
     presenter.wake()
-    assert presenter.hint.isVisibleTo(presenter)
+    assert presenter.bar.isVisibleTo(presenter)
+    window.pause()
     presenter.finish()
 
 

@@ -21,9 +21,13 @@ The buttons at the left of the page bar - **Layers**, **Properties** and **Timel
 those panels, like **View > Layers**, **View > Properties** and **View > Timeline**; a page shows the
 buttons for the panels it has, a hidden panel stays hidden on every page, and the choice is remembered.
 The button at the right of the bar, or **View > Full Screen** (`F11`), shows the animation alone, filling the
-screen: no panels, no selection outline, the frame fitted and black around it. `Space` (or a click) plays and
-pauses, `Left`/`Right` step a frame (`Shift`: ten), `Home`/`End` jump to the start and end, and `Esc` or `F11`
-leaves; the hint and the pointer fade when the mouse rests.
+screen: no panels, no selection outline, the frame fitted and black around it, with a video player's control bar
+over the bottom: the seek bar with the elapsed and total time (click or drag to jump), the title, start / back 5 s /
+play-pause / forward 5 s / end, **repeat**, the **speed** (0.25x to 2x; a scene with sound plays at 1x), the volume
+and mute (a scene with sound), and a button to leave. While it plays, the bar and the pointer fade when the mouse
+rests (a paused animation keeps the bar). Keys: `Space` or a click plays and pauses, `Left`/`Right` step a frame
+(`Shift`: ten), `Home`/`End` jump to the start and end, `L` repeat, `M` mute, `Up`/`Down` volume, and `Esc`, `F11` or
+a double-click leave.
 The Code page also has its own buttons for its explorer (`Ctrl+B`) and output (`Ctrl+J`).
 
 ## The viewer: canvas and transport

@@ -61,6 +61,15 @@ NAMES: dict[str, str] = {
     "sidebar-right": "mdi6.dock-right",
     "fullscreen": "mdi6.fullscreen",
     "fullscreen-exit": "mdi6.fullscreen-exit",
+    # the full-screen player's bar
+    "player-start": "mdi6.skip-previous",
+    "player-end": "mdi6.skip-next",
+    "player-back": "mdi6.rewind-5",
+    "player-forward": "mdi6.fast-forward-5",
+    "player-loop": "mdi6.repeat",
+    "player-loop-off": "mdi6.repeat-off",
+    "player-volume": "mdi6.volume-high",
+    "player-mute": "mdi6.volume-off",
 }
 
 # icons drawn in another theme colour than the text: Record's red dot, the Python logos

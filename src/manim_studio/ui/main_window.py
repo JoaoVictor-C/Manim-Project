@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
     SLIDER_STEPS_PER_SECOND = 1000
     playheadMoved = Signal(float)  # every seek and playback tick: pages' own views follow it
     codePresetsChanged = Signal()  # the code preset library changed (P12)
+    playingChanged = Signal(bool)  # playback started or stopped (the full-screen player follows it)
 
     def __init__(self) -> None:
         super().__init__()
@@ -119,6 +120,8 @@ class MainWindow(QMainWindow):
         self._media_errors: dict[str, str] = {}  # layers drawn as placeholders (ADR 0027, 0032)
         self.render_ahead: RenderAhead | None = None  # started with the first project (ADR 0028)
         self.t = 0.0
+        self.loop_playback = False  # play again from the start at the end (the full-screen player's repeat)
+        self.play_speed = 1.0  # a silent scene may play slower or faster
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
         # The project's sound plays through this; its played time is the clock (ADR 0034).
         self.audio_player = make_audio_player(self)
@@ -1874,6 +1877,7 @@ class MainWindow(QMainWindow):
         self.play_button.setText("Pause")
         self.play_button.setIcon(icons.icon("pause"))
         self.canvas.playing = True
+        self.playingChanged.emit(True)
 
     def _start_sound(self) -> None:
         """Play the project's mix from the playhead and follow its clock, or the wall clock
@@ -1894,6 +1898,7 @@ class MainWindow(QMainWindow):
             self._audio_signature = None
         self.play_button.setText("Play")
         self.play_button.setIcon(icons.icon("play"))
+        self.playingChanged.emit(False)
         if self.canvas.playing:
             self.canvas.playing = False
             self.refresh()  # the motion path comes back
@@ -1904,14 +1909,24 @@ class MainWindow(QMainWindow):
         if self._audio_signature is not None:  # the sound's clock (ADR 0034)
             t = self.audio_player.position()
         else:
-            t = t0 + (time.perf_counter() - wall0)  # wall clock: slow frames are dropped, never queued
+            # wall clock: slow frames are dropped, never queued
+            t = t0 + (time.perf_counter() - wall0) * self.play_speed
         fps = self.project.canvas.fps
         t = frame_time(frame_index(t, fps), fps)  # the frames the export has (ADR 0028)
         if t >= self.project.canvas.duration:
+            if self.loop_playback:  # again from the start, the sound with it
+                self.seek(0.0)
+                self._start_sound()
+                return
             self.seek(self.project.canvas.duration)
             self.pause()
             return
         self.seek(t)
+
+    def set_play_speed(self, speed: float) -> None:
+        """Play a silent scene at ``speed`` times (1 = as made); the clock restarts from here."""
+        self.play_speed = max(0.05, float(speed))
+        self._play_origin = (time.perf_counter(), self.t)
 
     def _on_idle(self) -> None:
         """Compute one missing checkpoint per idle tick (<= ~25 ms each)."""
