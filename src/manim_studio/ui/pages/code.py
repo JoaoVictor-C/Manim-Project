@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QTabBar,
+    QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -73,6 +74,7 @@ from ..code_explorer import CodeExplorer, Row, Section
 from ..code_render import CodeStatus
 from ..find_bar import FindBar
 from ..properties_panel import _first_error, set_param, set_python_code
+from ..values_panel import ValuesPanel
 from . import Page, Shared
 
 HINT = "Select a code layer or a Python object, or add one with New code layer or New Python object."
@@ -402,11 +404,20 @@ class CodePage(Page):
         self.output_toggle.setChecked(True)
         self.output_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.output_toggle.setToolTip("Show or hide the render output (Ctrl+J)")
-        self.output = QWidget()
-        output_lines = QVBoxLayout(self.output)
+        output_page = QWidget()
+        output_lines = QVBoxLayout(output_page)
         output_lines.setContentsMargins(0, 0, 0, 0)
         output_lines.addWidget(self.state_label)
         output_lines.addWidget(self.error_label)
+        output_lines.addStretch(1)
+        self.values = ValuesPanel(
+            self.window.builds, lambda text: self.window.statusBar().showMessage(text, 8000)
+        )
+        self.output = QTabWidget()  # the bottom panel: what the run said, and the object's values
+        self.output.setObjectName("codePanel")
+        self.output.addTab(output_page, "Output")
+        self.output.addTab(self.values, "Values")
+        self.output.setMaximumHeight(240)
         self.output_toggle.toggled.connect(self._on_output_toggled)
 
         self.sidebar_button = QToolButton()
@@ -921,6 +932,7 @@ class CodePage(Page):
 
     def _on_changed(self, _project, _layer_ids, _kind) -> None:
         self._refresh_list()
+        self.values.refresh(self.window.project)
         if self.layer_id is None:
             self._ensure_layer()
             return
@@ -1353,6 +1365,16 @@ class CodePage(Page):
         self._refresh_output()
         self._refresh_status()
         self._refresh_running()
+        self._refresh_values()
+
+    def _refresh_values(self) -> None:
+        """The Values tab follows the layer in the editor (only a Python object has values)."""
+        project = self.window.project
+        self.values.show_layer(project, self.layer_id)
+        python = self._is_python(self.layer_id)
+        self.output.setTabEnabled(1, python)
+        if not python and self.output.currentIndex() == 1:
+            self.output.setCurrentIndex(0)
 
     def _refresh_status(self) -> None:
         """The strip under the editor: cursor, indent, what the layer is and whether it may run."""

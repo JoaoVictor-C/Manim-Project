@@ -881,7 +881,8 @@ class MainWindow(QMainWindow):
             "Run code from this project?",
             "This project contains Python code that will run on your computer:\n\n"
             + "\n".join(f"  - {name}" for name in names)
-            + "\n\nOnly run it if you trust where the project came from. Run it?",
+            + "\n\nRunning code is not sandboxed: it can read and write your files and use the network, "
+            "like any program you start. Only run it if you trust where the project came from. Run it?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
