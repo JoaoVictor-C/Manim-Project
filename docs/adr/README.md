@@ -85,3 +85,4 @@ need one.
 | [0054](0054-equation-steps.md) | Equation steps: typed lines become one MathTex per step and morphs between them | Accepted |
 | [0055](0055-glyph-colours.md) | Colour characters: one colour per drawn glyph, applied to a copy of the build | Accepted |
 | [0056](0056-smart-morph-matching.md) | Smart morph matching: pieces, holes and start points paired by the editor | Accepted |
+| [0057](0057-code-workspace.md) | The Code workspace: presets, an import window, safe online sources and drag and drop | Accepted |

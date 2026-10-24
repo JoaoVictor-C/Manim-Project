@@ -10,6 +10,7 @@ version 0.3.0 (proposed, not yet released).
 | [Getting started](getting-started.md) | install, open the editor and make a first animation in five minutes |
 | [The editor](the-editor.md) | find your way around: the five pages, the panels, the canvas and the timeline |
 | [Objects](objects.md) | add and edit shapes, text, equations and their parts, groups, images, graphs, Python objects, importing a Manim scene and code layers |
+| [The Code workspace](code-workspace.md) | write code layers and Python objects, keep presets, import and export `.py` files, get presets from the internet, drag them onto the timeline |
 | [Animation](animation.md) | animate with clips, presets, keyframes, curves, motion paths and markers; retime many things at once |
 | [Sound and subtitles](sound-and-subtitles.md) | add sounds, mix them, write subtitles and use `.srt` files |
 | [Exporting](exporting.md) | render MP4 videos, use the render queue, export a Python scene, render from the command line |
