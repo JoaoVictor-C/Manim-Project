@@ -85,6 +85,8 @@ class Colours:
     code_error_line: str  # the line a render error points at
     search_match: str  # every find match in the code editor
     search_current: str  # the match the find bar is on
+    py_object: str  # the Python logo on a Python object (the logo's blue)
+    py_scene: str  # the Python logo on a Manim scene (the logo's yellow)
     error_text: str  # error words on panels and the gutter (danger itself is 4.3:1 on a panel)
     # the graph editor's curves (P6b.2): one per keyed value, x red and y green as elsewhere
     curve_x: str
@@ -147,6 +149,8 @@ STUDIO = Colours(
     code_error_line="#ef444438",
     search_match="#f59e0b44",
     search_current="#2f6fe4b0",
+    py_object="#4b8bbe",
+    py_scene="#ffd43b",
     error_text="#f87171",
     curve_x="#f87171",
     curve_y="#4ade80",

@@ -1,6 +1,6 @@
 # P12 - Code workspace
 
-Status: in progress. Asked for: (1) exporting onto an existing file asks replace / skip / keep both;
+Status: done (P12.1-P12.7 and the Code page quality-of-life round; ADR 0057). Asked for: (1) exporting onto an existing file asks replace / skip / keep both;
 (2) the Code page reworked after a code editor's workspace, everything customisable, importing a file
 opens a window to set its properties first (object or layer, with the right one preselected);
 (3) importing presets from the internet; (4) presets and code usable from the timeline and the scene by

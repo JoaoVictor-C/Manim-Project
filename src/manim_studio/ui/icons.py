@@ -59,8 +59,8 @@ NAMES: dict[str, str] = {
     "outline": "mdi6.vector-selection",
 }
 
-# icons drawn in another colour than the text: a theme token (Record's red dot) or a "#rrggbb" colour
-TINTS: dict[str, str] = {"record": "danger", "py-object": "#4b8bbe", "py-scene": "#ffd43b"}
+# icons drawn in another theme colour than the text: Record's red dot, the Python logos
+TINTS: dict[str, str] = {"record": "danger", "py-object": "py_object", "py-scene": "py_scene"}
 
 
 @cache
@@ -69,8 +69,7 @@ def icon(name: str) -> QIcon:
     import qtawesome as qta  # the icon fonts load here, once
 
     colours = theme.THEME
-    tint = TINTS.get(name, "text")
-    ink = theme.qcolor(tint if tint.startswith("#") else getattr(colours, tint))
+    ink = theme.qcolor(getattr(colours, TINTS.get(name, "text")))
     glyph = NAMES[name]
     return qta.icon(
         glyph if "." in glyph else f"ph.{glyph}",
