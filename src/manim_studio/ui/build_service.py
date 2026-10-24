@@ -45,6 +45,7 @@ class _Pending:
     supersede: Hashable | None
     value: Any
     keys: set[str] = field(default_factory=set)
+    merge_key: Hashable | None = None
 
 
 class BuildService(QObject):
@@ -70,21 +71,28 @@ class BuildService(QObject):
     # -- submitting -------------------------------------------------------------
 
     def submit(
-        self, op: Operation, text: str, *, supersede: Hashable | None = None, value: Any = None
+        self,
+        op: Operation,
+        text: str,
+        *,
+        supersede: Hashable | None = None,
+        value: Any = None,
+        merge_key: Hashable | None = None,
     ) -> bool:
         """Apply ``op`` now (True) or once its text objects are warm (False).
 
         Raises whatever ``op`` raises on the current snapshot (``EditError``,
-        ``ValidationError``), so the caller can show the message.
+        ``ValidationError``), so the caller can show the message. With ``merge_key`` the edit extends
+        the previous undo step when that carries the same key (Live mode, P13.7).
         """
         edit = op(self.document.project)
         if supersede is not None:
             self._drop(lambda p: p.supersede == supersede)
         keys = self._cold(edit)
         if not keys and not self.document.dragging:
-            self.document.apply(edit, text)
+            self.document.apply(edit, text, merge_key, merge_key is not None)
             return True
-        self._pending.append(_Pending(op, text, supersede, value, keys))
+        self._pending.append(_Pending(op, text, supersede, value, keys, merge_key))
         self._request(keys)
         self.pendingChanged.emit()
         return False
@@ -171,7 +179,7 @@ class BuildService(QObject):
                 self._request(keys)
                 self._pending.append(pending)
             else:
-                self.document.apply(edit, pending.text)
+                self.document.apply(edit, pending.text, pending.merge_key, pending.merge_key is not None)
         self.pendingChanged.emit()
 
     def _drop(self, predicate: Callable[[_Pending], bool]) -> list[_Pending]:

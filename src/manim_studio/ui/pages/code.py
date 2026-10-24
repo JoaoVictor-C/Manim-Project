@@ -65,7 +65,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, code_files, edits, python_object
+from ...core import adapter, code_files, edits, live_guard, python_object
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from .. import code_drag, icons, quick_open, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
@@ -77,6 +77,7 @@ from ..properties_panel import _first_error, set_param, set_python_code
 from ..values_panel import ValuesPanel
 from . import Page, Shared
 
+LIVE_PAUSE_MS = 800  # the pause in typing after which Live applies
 HINT = "Select a code layer or a Python object, or add one with New code layer or New Python object."
 PRESET_ORIGINS = (
     ("builtin", "Presets — built in"),
@@ -159,6 +160,7 @@ class CodePage(Page):
         self._base = ""  # the project's code the editor's text was started from
         self._moved = False  # the project's code changed under unapplied text
         self._loading = False
+        self.live_message = ""
         self._last_dirty: bool | None = None
         self._signature: tuple | None = None
         self._selection_connected = False
@@ -373,6 +375,10 @@ class CodePage(Page):
 
         self.editor.runRequested.connect(self.run)
         self.editor.textChanged.connect(self._on_text_changed)
+        self._live_timer = QTimer(self.progress)  # the pause in typing after which Live applies (P13.7)
+        self._live_timer.setSingleShot(True)
+        self._live_timer.setInterval(LIVE_PAUSE_MS)
+        self._live_timer.timeout.connect(self._live_apply)
         self.editor.cursorPositionChanged.connect(self._refresh_status)
         self.editor.zoomChanged.connect(lambda _size: self._save_settings())
         self.find_bar = FindBar(self.editor)
@@ -502,6 +508,13 @@ class CodePage(Page):
         menu.addAction("Go to line…", self.goto_line, QKeySequence("Alt+G"))
         menu.addAction("Go to layer or preset…", self.quick_open, QKeySequence("Ctrl+P"))
         menu.addAction("Show or hide output", self.toggle_output, QKeySequence("Ctrl+J"))
+        self.live_action = menu.addAction("Live: run Python objects while typing")
+        self.live_action.setCheckable(True)
+        self.live_action.setToolTip(
+            "Apply a Python object's code after you pause typing, when it parses and touches no files, "
+            "processes or network; one undo step covers the whole stretch"
+        )
+        self.live_action.toggled.connect(self._on_live_toggled)
         menu.addSeparator()
         menu.addAction("Save code as file…", self.save_code)
         menu.addAction("Save as preset…", self.save_as_preset)
@@ -966,8 +979,51 @@ class CodePage(Page):
     def _on_text_changed(self) -> None:
         if self._loading:
             return
+        if self.live_action.isChecked():
+            self._live_timer.start()
         if self.is_dirty() != self._last_dirty:  # only a change of state needs the views redone
             self._after_change()
+
+    # -- live mode (P13.7) --------------------------------------------------------------------
+
+    def _on_live_toggled(self, on: bool) -> None:
+        if on:
+            self._live_timer.start()
+        else:
+            self._live_timer.stop()
+
+    def _live_apply(self) -> None:
+        """Apply the text typed so far, if Live may: a Python object whose current code was already
+        run (trusted), text that parses and reads its PARAMS, and nothing risky in it. Otherwise
+        nothing happens; a risky reason is said once, and Run is the decision."""
+        layer_id = self.layer_id
+        if layer_id is None or self.preset_id is not None or not self._is_python(layer_id):
+            return
+        if not self.is_dirty():
+            return
+        if self.window.builds.busy:
+            self._live_timer.start()  # try again after the pause
+            return
+        text = self.editor.text()
+        applied = self._code_of(layer_id)
+        if applied is None or not self.window.trust.is_trusted(applied):
+            self._live_say("Live waits: run this object once with Ctrl+Enter first")
+            return
+        reason = live_guard.live_problem(text)
+        if reason is not None:
+            if not live_guard.is_quiet(reason):
+                self._live_say(f"Live is paused: this code {reason}; press Run")
+            return
+        self.window.trust.trust([text])
+        op = partial(set_python_code, layer_id=layer_id, code=text)
+        try:
+            self.window.builds.submit(op, "Edit code (live)", merge_key=("live", layer_id))
+        except (edits.EditError, ValidationError) as error:
+            self._live_say(f"Live: {_first_error(error)}")
+
+    def _live_say(self, text: str) -> None:
+        self.live_message = text
+        self.window.statusBar().showMessage(text, 6000)
 
     # -- actions ------------------------------------------------------------------------------
 
