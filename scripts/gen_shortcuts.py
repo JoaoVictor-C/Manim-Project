@@ -29,8 +29,21 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTRA: tuple[tuple[str, str, str], ...] = (
     ("Transport", "Step one frame back, forward", "Left, Right"),  # ui/main_window.py, unnamed actions
     ("Code page", "Run the code in the editor (apply it as one undo step)", "Ctrl+Enter"),  # pages/code.py
-    ("Code page", "Rename the chosen code layer or Python object", "F2"),  # pages/code.py QShortcut
-    ("Code page", "Delete the chosen code layer or Python object", "Delete"),  # pages/code.py QShortcut
+    ("Code page", "Rename the chosen layer or preset", "F2"),  # pages/code.py QShortcut
+    ("Code page", "Delete the chosen layer or preset", "Delete"),  # pages/code.py QShortcut
+    ("Code page", "Find, replace, next match, previous match", "Ctrl+F, Ctrl+H, F3, Shift+F3"),  # QShortcuts
+    ("Code page", "Go to a line", "Alt+G"),  # pages/code.py QShortcut (Ctrl+G is Group)
+    ("Code page", "Go to a layer or preset by name", "Ctrl+P"),  # pages/code.py QShortcut
+    ("Code page", "Show or hide the output", "Ctrl+J"),  # pages/code.py QShortcut
+    ("Code page", "Show or hide the explorer", "Ctrl+B"),  # pages/code.py QShortcut
+    ("Code page", "Comment or uncomment the lines", "Ctrl+/"),  # ui/code_editor.py keyPressEvent
+    ("Code page", "Move the lines up, down", "Alt+Up, Alt+Down"),  # ui/code_editor.py keyPressEvent
+    ("Code page", "Copy the lines up, down", "Shift+Alt+Up, Shift+Alt+Down"),  # ui/code_editor.py
+    ("Code page", "Delete the line; select the line", "Ctrl+Shift+K, Ctrl+L"),  # ui/code_editor.py
+    ("Code page", "Zoom the code in, out, reset", "Ctrl+=, Ctrl+-, Ctrl+0 (Ctrl+Wheel)"),  # ui/code_editor.py
+    ("Full screen", "Play or pause; one frame back, forward (Shift: ten)", "Space; Left, Right"),  # ui/presenter.py
+    ("Full screen", "Start, end; repeat; mute; volume", "Home, End; L; M; Up, Down"),  # ui/presenter.py
+    ("Full screen", "Leave", "Esc, F11, double-click"),  # ui/presenter.py
     ("Properties", "Apply a multi-line field (LaTeX, code)", "Ctrl+Enter"),  # ui/fields.py
     ("Animate gestures", "Frame every key (the graph has the focus)", "F"),  # ui/graph_editor.py
 )

@@ -145,8 +145,26 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | what | keys |
 |---|---|
 | Run the code in the editor (apply it as one undo step) | `Ctrl+Enter` |
-| Rename the chosen code layer or Python object | `F2` |
-| Delete the chosen code layer or Python object | `Delete` |
+| Rename the chosen layer or preset | `F2` |
+| Delete the chosen layer or preset | `Delete` |
+| Find, replace, next match, previous match | `Ctrl+F`, `Ctrl+H`, `F3`, `Shift+F3` |
+| Go to a line | `Alt+G` |
+| Go to a layer or preset by name | `Ctrl+P` |
+| Show or hide the output | `Ctrl+J` |
+| Show or hide the explorer | `Ctrl+B` |
+| Comment or uncomment the lines | `Ctrl+/` |
+| Move the lines up, down | `Alt+Up`, `Alt+Down` |
+| Copy the lines up, down | `Shift+Alt+Up`, `Shift+Alt+Down` |
+| Delete the line; select the line | `Ctrl+Shift+K`, `Ctrl+L` |
+| Zoom the code in, out, reset | `Ctrl+=`, `Ctrl+-`, `Ctrl+0 (Ctrl+Wheel)` |
+
+## Full screen
+
+| what | keys |
+|---|---|
+| Play or pause; one frame back, forward (Shift: ten) | `Space; Left`, `Right` |
+| Start, end; repeat; mute; volume | `Home`, `End; L; M; Up`, `Down` |
+| Leave | `Esc`, `F11`, `double-click` |
 
 ## Properties
 

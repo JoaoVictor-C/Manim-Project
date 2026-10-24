@@ -39,11 +39,12 @@ from __future__ import annotations
 
 import dataclasses
 import html
+import time
 from functools import partial
 from pathlib import Path
 
 from pydantic import ValidationError
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -161,6 +162,9 @@ class CodePage(Page):
         self._selection_connected = False
         self._sized = False
         self._failed: tuple[str, str, str] | None = None  # (layer, text, why) of an apply refused
+        self._starts: dict[str, float] = {}  # layer id -> when its run began (self.now())
+        self.durations: dict[str, float] = {}  # seconds the last run of each layer took
+        self.now = time.perf_counter  # tests replace the clock
         self._loading_tabs = False
 
         # Hooks for tests and other front-ends.
@@ -336,6 +340,9 @@ class CodePage(Page):
         self.progress.setTextVisible(False)
         self.progress.setFixedHeight(4)
         self.progress.hide()
+        self._elapsed_timer = QTimer(self.progress)  # the seconds on Run while it works
+        self._elapsed_timer.setInterval(200)
+        self._elapsed_timer.timeout.connect(self._refresh_running)
         self.editor_menu_button = QToolButton()
         self.editor_menu_button.setText("Editor")
         self.editor_menu_button.setToolTip("Find, go to, settings and saving")
@@ -935,6 +942,9 @@ class CodePage(Page):
             self._after_change()
 
     def _on_status(self, layer_id: str) -> None:
+        status = self.status(layer_id)
+        if status is not None and layer_id != self.layer_id:  # another layer's render: time it too
+            self._track(layer_id, status.state in ("queued", "rendering"))
         self._refresh_list()
         if layer_id == self.layer_id:
             self._refresh_output()
@@ -1273,9 +1283,28 @@ class CodePage(Page):
     def _refresh_running(self) -> None:
         """The progress bar under the toolbar and the Run button say that it is still working."""
         running = self.is_running()
+        if self.layer_id is not None:
+            self._track(self.layer_id, running)
         self.progress.setVisible(running)
-        self.run_button.setText("Running…" if running else "Run")
+        self.run_button.setText(f"Running… {self.elapsed():.1f} s" if running else "Run")
         self.run_button.setEnabled(self.layer_id is not None and self.preset_id is None and not running)
+
+    def _track(self, layer_id: str, running: bool) -> None:
+        """Time a layer's run: note when it starts, and how long it took when it ends."""
+        if running and layer_id not in self._starts:
+            self._starts[layer_id] = self.now()
+            self._elapsed_timer.start()
+        elif not running and layer_id in self._starts:
+            self.durations[layer_id] = self.now() - self._starts.pop(layer_id)
+            if not self._starts:
+                self._elapsed_timer.stop()
+            if layer_id == self.layer_id:
+                self._refresh_output()
+
+    def elapsed(self) -> float:
+        """Seconds the run of the layer in the editor has been going (0 when it is not running)."""
+        start = self._starts.get(self.layer_id or "")
+        return 0.0 if start is None else self.now() - start
 
     def _on_output_toggled(self, shown: bool) -> None:
         self.output.setVisible(shown)
@@ -1375,6 +1404,9 @@ class CodePage(Page):
                 text += " (from the last run)"
         else:
             text, colour = status.text, colours.muted
+            took = self.durations.get(self.layer_id or "")
+            if took is not None and took >= 0.05 and status.state in ("ready", "built"):
+                text += f" (took {took:.2f} s)"
         if dirty and status is not None and status.state != "error":
             text += " - the editor has changes that were not run (Ctrl+Enter)"
         self.state_label.setText(text)
