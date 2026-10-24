@@ -12,8 +12,8 @@ from collections.abc import Callable
 from functools import partial
 
 from pydantic import ValidationError
-from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -53,7 +53,7 @@ from ..core.schema import (
     Project,
     Spec,
 )
-from . import icons
+from . import code_drag, icons, theme
 from .build_service import BuildService
 from .equation_steps_dialog import EquationStepsDialog, StepsRequest
 from .fields import pick_colour
@@ -67,12 +67,62 @@ class LayerTree(QTreeWidget):
 
     Qt never moves items itself (the drop is ignored): the panel submits a
     ``move_layer`` edit and rebuilds from the document, so parts can never be
-    dropped into another object.
+    dropped into another object. Code dragged from the Code workspace and ``.py``
+    files from the desktop (P12.7) are taken too - the list is outlined while one
+    hovers - and reported; any other drag from outside is refused as before.
     """
 
     rowDropped = Signal(str, int)  # object id, new top-level row (0 = front)
+    codeDropped = Signal(dict)  # a Code workspace drag (code_drag payload) (P12.7)
+    filesDropped = Signal(list)  # .py files dropped from the desktop (P12.7)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.code_hover = False  # code is dragged over the list: it is outlined
+
+    def _set_code_hover(self, on: bool) -> None:
+        if on != self.code_hover:
+            self.code_hover = on
+            self.viewport().update()
+
+    def dragEnterEvent(self, event) -> None:
+        if code_drag.accepts(event.mimeData()):
+            event.acceptProposedAction()
+            self._set_code_hover(True)
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event) -> None:
+        if self.code_hover:
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dragLeaveEvent(self, event) -> None:
+        self._set_code_hover(False)
+        super().dragLeaveEvent(event)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if self.code_hover:
+            painter = QPainter(self.viewport())
+            painter.setPen(QPen(theme.qcolor(theme.THEME.accent), 2))
+            painter.drawRect(self.viewport().rect().adjusted(1, 1, -1, -1))
+            painter.end()
 
     def dropEvent(self, event) -> None:
+        self._set_code_hover(False)
+        mime = event.mimeData()
+        if code_drag.accepts(mime):
+            event.acceptProposedAction()
+            payload, files = code_drag.decode(mime), code_drag.python_files(mime)
+            # After the drop returns: the window may open a dialog, which must not run inside
+            # the system's drag loop (the program dragged from would wait for it).
+            if payload is not None:
+                QTimer.singleShot(0, lambda: self.codeDropped.emit(payload))
+            else:
+                QTimer.singleShot(0, lambda: self.filesDropped.emit(files))
+            return
         item = self.currentItem()
         event.ignore()
         if item is None or item.parent() is not None:
@@ -208,6 +258,8 @@ class LayersPanel(QWidget):
     layerSelected = Signal(str)  # layer id, or "" for none
     layersPicked = Signal(list, str)  # several layers (Ctrl/Shift+click) and the current one (ADR 0043)
     message = Signal(str)  # errors for the status bar
+    codeDropped = Signal(dict)  # a Code workspace drag dropped on the list (code_drag payload, P12.7)
+    filesDropped = Signal(list)  # .py files dropped on the list from the desktop (P12.7)
 
     def __init__(self, builds: BuildService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -244,6 +296,8 @@ class LayersPanel(QWidget):
         self.list.itemSelectionChanged.connect(self._on_selection_changed)
         self.list.itemChanged.connect(self._on_item_renamed)
         self.list.rowDropped.connect(self._on_row_dropped)
+        self.list.codeDropped.connect(self.codeDropped)
+        self.list.filesDropped.connect(self.filesDropped)
 
         self.add_button = QToolButton(text="Add", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
         self.add_button.setMenu(self._library_menu())

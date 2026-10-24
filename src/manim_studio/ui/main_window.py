@@ -200,6 +200,15 @@ class MainWindow(QMainWindow):
         self.move_tool = MoveTool(self.canvas, self.document, self.selection, lambda: self.t, self.seek, self)
         self.move_tool.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.timeline.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
+        # Code dragged from the Code workspace, .py files from the desktop (P12.7).
+        self.timeline.codeDropped.connect(lambda code, t: self.place_code(code, t=t, position=None))
+        self.timeline.filesDropped.connect(lambda paths, t: self.import_code_files(paths, t=t, position=None))
+        self.canvas.codeDropped.connect(lambda code, x, y: self.place_code(code, t=None, position=(x, y)))
+        self.canvas.filesDropped.connect(
+            lambda paths, x, y: self.import_code_files(paths, t=None, position=(x, y))
+        )
+        self.layers.codeDropped.connect(lambda code: self.place_code(code, t=None, position=None))
+        self.layers.filesDropped.connect(lambda paths: self.import_code_files(paths, t=None, position=None))
         self.builds.pendingChanged.connect(self._on_pending_changed)
         # Cut, copy, paste, duplicate; a recovery copy of unsaved work (ADR 0038).
         has_project = lambda: self._has_project  # noqa: E731

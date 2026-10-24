@@ -32,6 +32,10 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
   dragging any picked item moves them all by one snapped delta (``shift_timing``, one undo
   step), Delete removes them all, Escape drops back to the primary one (the one Properties
   shows). The lifetime band of selected rows drags those layers whole. Editor state only.
+* code dropped (P12.7): a preset or code layer dragged from the Code workspace, or ``.py`` files
+  from the desktop (``code_drag``), shows a line at the time it would land - on a frame, snapping
+  as drags do, Alt free - and is handed to the window at that time (``codeDropped``,
+  ``filesDropped``).
 """
 
 from __future__ import annotations
@@ -78,7 +82,7 @@ from ...core.schema import (
     new_clip_params,
 )
 from ...logging_config import get_logger
-from .. import curve_editor, graph_model, theme
+from .. import code_drag, curve_editor, graph_model, theme
 from ..document import Document
 from .model import (
     Edge,
@@ -156,6 +160,7 @@ SUB_CHOSEN.setAlpha(70)
 RUBBER_FILL = QColor(SELECTED_EDGE)  # the rubber band being drawn (U4b)
 RUBBER_FILL.setAlpha(40)
 RUBBER_PX = 4  # a press on empty space moved further than this draws a rubber band
+DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
 
 
 def _number(value: float) -> str:
@@ -543,10 +548,13 @@ class TimelineView(QGraphicsView):
     )  # a row's name or empty space was clicked: layer id, add to selection (P7.1)
     propsSelected = Signal()  # the properties chosen for the graph changed (P7.3)
     message = Signal(str)  # refused edits, for the status bar
+    codeDropped = Signal(dict, float)  # a Code workspace drag (code_drag payload), its time (P12.7)
+    filesDropped = Signal(list, float)  # .py files dropped from the desktop, their time (P12.7)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setScene(QGraphicsScene(self))
+        self.setAcceptDrops(True)
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.setBackgroundBrush(BACKGROUND)
         self.header_width = HEADER_WIDTH  # wider while a row is expanded (P7.3)
@@ -585,6 +593,7 @@ class TimelineView(QGraphicsView):
         self._empty_press: _EmptyPress | None = None
         self._group_drag: _GroupDrag | None = None
         self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
+        self.drop_at: float | None = None  # where code dragged over the rows would land (P12.7)
         # Fills an "Apply preset" menu for a row and a time (ADR 0039); set by the window.
         self.preset_menu = None
         self.browse_presets = None  # opens the presets browser for a row and a time (ADR 0044)
@@ -621,7 +630,7 @@ class TimelineView(QGraphicsView):
         self.selected_audio = None
         self.selected_cue = None
         self.selected_marker = None
-        self.guide = None
+        self.guide = self.drop_at = None
         self._audio_drag = None
         self._cue_drag = None
         self._marker_drag = None
@@ -1395,6 +1404,13 @@ class TimelineView(QGraphicsView):
                 gx = self._viewport_x(self.guide)
                 painter.setPen(QPen(GUIDE_COLOR, 1, Qt.PenStyle.DashLine))
                 painter.drawLine(QPointF(gx, 0), QPointF(gx, self.viewport().height()))
+            if self.drop_at is not None:  # dragged code lands here: a line and a flag on the ruler
+                dx = self._viewport_x(self.drop_at)
+                painter.setPen(QPen(DROP_COLOR, 2))
+                painter.drawLine(QPointF(dx, 0), QPointF(dx, self.viewport().height()))
+                painter.setBrush(DROP_COLOR)
+                painter.drawPolygon(QPolygonF([QPointF(dx - 5, 0), QPointF(dx + 5, 0), QPointF(dx, 7)]))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
             x = self._viewport_x(self.playhead)
             painter.setPen(QPen(PLAYHEAD_COLOR, 2))
             painter.drawLine(QPointF(x, 0), QPointF(x, self.viewport().height()))
@@ -1477,6 +1493,64 @@ class TimelineView(QGraphicsView):
             event.accept()
             return
         super().wheelEvent(event)
+
+    # -- code dropped (P12.7) ------------------------------------------------------
+
+    def drop_time(self, viewport_x: float, snapping: bool = True) -> float:
+        """The time code dropped at ``viewport_x`` lands on: on a frame, snapped to the points drags
+        snap to (ADR 0037) unless ``snapping`` is off, never before 0 s."""
+        project = self.project
+        t = self.scale.t(self.mapToScene(round(viewport_x), 0).x())
+        t = snap(t, snap_candidates(project, self.playhead), self.scale, project.canvas.fps, snapping)
+        return max(t, 0.0)
+
+    def _show_drop(self, event) -> None:
+        snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        t = self.drop_time(event.position().x(), snapping)
+        if t != self.drop_at:
+            self.drop_at = t
+            self.viewport().update()
+
+    def _hide_drop(self) -> None:
+        if self.drop_at is not None:
+            self.drop_at = None
+            self.viewport().update()
+
+    def dragEnterEvent(self, event) -> None:
+        if self.project is not None and code_drag.accepts(event.mimeData()):
+            event.acceptProposedAction()
+            self._show_drop(event)
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event) -> None:
+        if self.drop_at is not None and self.project is not None:
+            event.acceptProposedAction()
+            self._show_drop(event)
+            return
+        super().dragMoveEvent(event)
+
+    def dragLeaveEvent(self, event) -> None:
+        self._hide_drop()
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event) -> None:
+        mime = event.mimeData()
+        if self.project is None or not code_drag.accepts(mime):
+            self._hide_drop()
+            super().dropEvent(event)
+            return
+        snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        t = self.drop_time(event.position().x(), snapping)
+        self._hide_drop()
+        event.acceptProposedAction()
+        payload, files = code_drag.decode(mime), code_drag.python_files(mime)
+        # After the drop returns: the window may open a dialog, which must not run inside the
+        # system's drag loop (the program dragged from would wait for it).
+        if payload is not None:
+            QTimer.singleShot(0, lambda: self.codeDropped.emit(payload, t))
+        else:
+            QTimer.singleShot(0, lambda: self.filesDropped.emit(files, t))
 
     # -- mouse -------------------------------------------------------------------
 

@@ -5,7 +5,9 @@ and keyboard input to a tool (``canvas_tools.MoveTool``). Since P3a (ADR 0023)
 it has a view (``viewport.View``): the frame letterboxed (Fit) or any scale and
 centre; the camera is re-framed to cover the whole widget, so what lies outside
 the video frame shows, dimmed. Widget pixels map to Manim units (y up) through
-``px_per_unit``, ``to_units`` and ``units_transform`` only.
+``px_per_unit``, ``to_units`` and ``units_transform`` only. Code dragged from the
+Code workspace or ``.py`` files from the desktop (P12.7) show a cross where they
+would land and are handed to the window with that point in Manim units.
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ from dataclasses import dataclass, replace
 
 import manim as m
 import numpy as np
-from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
@@ -25,7 +27,7 @@ from ..core.schema import CONNECTOR_TYPES, Camera, Canvas
 from ..render.cairo_export import render_frame
 from ..render.preview import PreviewView, preview_camera
 from ..render.qt_paths import vmobject_path
-from . import motion_overlay, param_handles, theme, viewport
+from . import code_drag, motion_overlay, param_handles, theme, viewport
 from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
 
 OUTLINE_COLOR = theme.qcolor(theme.THEME.outline)
@@ -36,6 +38,8 @@ FRAME_BORDER = theme.qcolor(theme.THEME.frame_border)
 BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
+DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
+DROP_PX = 10.0  # the drop cross's arm
 PARAM_HANDLE_PX = 9.0  # parameter handles: round, drawn size (ADR 0043)
 CLEAR_OF_MIDDLE_PX = 14.0  # parameter handles nearer an object's middle or pivot than this are hidden
 WHEEL_PAN_PX = 48.0  # one wheel notch
@@ -58,11 +62,15 @@ class CanvasWidget(QWidget):
 
     resized = Signal()
     view_changed = Signal()  # zoom or pan: the window renders again and updates the readout
+    codeDropped = Signal(dict, float, float)  # a Code workspace drag (code_drag payload), x, y in units
+    filesDropped = Signal(list, float, float)  # .py files dropped from the desktop, x, y in units
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMinimumSize(320, 180)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAcceptDrops(True)  # code from the Code workspace, .py files (P12.7)
+        self.drop_point: QPointF | None = None  # where dragged code would land, widget pixels
         self._canvas: Canvas | None = None
         self._evaluator: Evaluator | None = None
         self._camera: m.Camera | None = None
@@ -418,7 +426,21 @@ class CanvasWidget(QWidget):
                 painter.drawText(pos + QPointF(14, -10), text)
             if self.camera_turned:
                 self._paint_turned_notice(painter)
+        if self.drop_point is not None:
+            self._paint_drop(painter)
         painter.end()
+
+    def _paint_drop(self, painter: QPainter) -> None:
+        """A cross and a ring where dragged code would land (P12.7)."""
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(DROP_COLOR, 2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        x, y = self.drop_point.x(), self.drop_point.y()
+        painter.drawLine(QPointF(x - DROP_PX, y), QPointF(x + DROP_PX, y))
+        painter.drawLine(QPointF(x, y - DROP_PX), QPointF(x, y + DROP_PX))
+        painter.drawEllipse(self.drop_point, DROP_PX / 2, DROP_PX / 2)
+        painter.restore()
 
     def _paint_turned_notice(self, painter: QPainter) -> None:
         """Why there are no handles: the camera is turned (ADR 0048)."""
@@ -630,3 +652,44 @@ class CanvasWidget(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.resized.emit()
+
+    # -- code dropped (P12.7) ------------------------------------------------------
+
+    def _set_drop_point(self, point: QPointF | None) -> None:
+        if point != self.drop_point:
+            self.drop_point = point
+            self.update()
+
+    def dragEnterEvent(self, event) -> None:
+        if self._canvas is not None and code_drag.accepts(event.mimeData()):
+            event.acceptProposedAction()
+            self._set_drop_point(QPointF(event.position()))
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event) -> None:
+        if self.drop_point is not None and self._canvas is not None:
+            event.acceptProposedAction()
+            self._set_drop_point(QPointF(event.position()))
+            return
+        super().dragMoveEvent(event)
+
+    def dragLeaveEvent(self, event) -> None:
+        self._set_drop_point(None)
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event) -> None:
+        mime = event.mimeData()
+        self._set_drop_point(None)
+        if self._canvas is None or not code_drag.accepts(mime):
+            super().dropEvent(event)
+            return
+        event.acceptProposedAction()
+        x, y = (float(v) for v in self.to_units(event.position())[:2])
+        payload, files = code_drag.decode(mime), code_drag.python_files(mime)
+        # After the drop returns: the window may open a dialog, which must not run inside the
+        # system's drag loop (the program dragged from would wait for it).
+        if payload is not None:
+            QTimer.singleShot(0, lambda: self.codeDropped.emit(payload, x, y))
+        else:
+            QTimer.singleShot(0, lambda: self.filesDropped.emit(files, x, y))
