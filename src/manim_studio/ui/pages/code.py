@@ -324,6 +324,12 @@ class CodePage(Page):
         self.run_button = self._button(
             "Run", "Apply the code to the layer and run it (Ctrl+Enter)", self.run, "play"
         )
+        self.cancel_button = self._button(
+            "Cancel",
+            "Stop rendering this scene (the picture keeps what it had; Run renders it again)",
+            self.cancel_run,
+        )
+        self.cancel_button.hide()
         self.convert_button = self._button(
             "Convert",
             "Convert to layers: turn this code layer's scene into layers and clips you can edit, in its "
@@ -363,6 +369,7 @@ class CodePage(Page):
         for widget in (
             self.revert_button,
             self.convert_button,
+            self.cancel_button,
             self.run_button,
             self.save_code_button,
             self.outline_button,
@@ -1153,7 +1160,7 @@ class CodePage(Page):
             return
         status = self.window.code.status(layer_id)
         self.window.code.trust_layers(project, [layer_id])
-        if status is not None and status.state == "error":
+        if status is not None and status.state in ("error", "cancelled"):
             self.window.code.retry(layer_id)
 
     def save_code(self) -> None:
@@ -1459,6 +1466,20 @@ class CodePage(Page):
         self.progress.setVisible(running)
         self.run_button.setText(f"Running… {self.elapsed():.1f} s" if running else "Run")
         self.run_button.setEnabled(self.layer_id is not None and self.preset_id is None and not running)
+        self.cancel_button.setVisible(running and self._is_cancellable())
+
+    def _is_cancellable(self) -> bool:
+        """Only a scene's render can be stopped: an object's build is quick and has no process of its own."""
+        layer_id = self.layer_id
+        if layer_id is None or self._is_python(layer_id) or self.window.builds.busy:
+            return False
+        status = self.status(layer_id)
+        return status is not None and status.state in ("queued", "rendering")
+
+    def cancel_run(self) -> None:
+        """Stop the render of the scene in the editor."""
+        if self.layer_id is not None and self._is_cancellable():
+            self.window.code.cancel(self.layer_id)
 
     def _track(self, layer_id: str, running: bool) -> None:
         """Time a layer's run: note when it starts, and how long it took when it ends."""

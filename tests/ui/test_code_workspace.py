@@ -525,3 +525,21 @@ def test_the_seconds_belong_to_the_layer_that_ran(window) -> None:
     clock[0] = 12.0
     set_status(window, "orbit", CodeStatus("ready", frames=5))
     assert code.durations["orbit"] == pytest.approx(2.0)
+
+
+def test_cancel_shows_only_while_a_scene_renders_and_stops_it(window, monkeypatch) -> None:
+    from manim_studio.ui.code_render import CodeStatus
+
+    page = window.pages.pages["code"]
+    window.selection.select_layer("orbit")
+    stopped: list[str] = []
+    monkeypatch.setattr(window.code, "cancel", lambda layer_id: stopped.append(layer_id) or True)
+    assert page.cancel_button.isHidden()
+    monkeypatch.setattr(page, "status", lambda layer_id: CodeStatus("rendering", frames=2))
+    page._refresh_running()
+    assert not page.cancel_button.isHidden()
+    page.cancel_button.click()
+    assert stopped == ["orbit"]
+    window.selection.select_layer("wheel")  # a Python object has no process to stop
+    page._refresh_running()
+    assert page.cancel_button.isHidden()

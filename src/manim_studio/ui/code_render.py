@@ -65,6 +65,8 @@ class CodeStatus:
             return f"Rendering... {self.frames} frames" if self.frames else "Rendering..."
         if self.state == "untrusted":
             return "Not run: this code is not trusted on this computer"
+        if self.state == "cancelled":
+            return "Cancelled - press Run to render it again"
         where = f"line {self.line}: " if self.line else ""
         return f"Error - {where}{self.error}"
 
@@ -169,6 +171,31 @@ class CodeRenderService(QObject):
             self._errors.pop(key, None)
             if self._project is not None:
                 self.sync(self._project)
+
+    def cancel(self, layer_id: str) -> bool:
+        """Stop rendering ``layer_id`` (or drop it from the queue); True when something was stopped.
+        The process is killed and a warm spare replaces it; the layer shows *cancelled* until retried."""
+        job = None
+        for spare in self._spares:
+            if (
+                spare.layer_id == layer_id
+                and spare.job is not None
+                and not spare.done
+                and not spare.cancelled
+            ):
+                job = spare.job
+                self._cancel(spare)
+        queued = [(i, j) for i, j in self._queue if i == layer_id]
+        if queued:
+            job = queued[0][1]
+            self._queue = [(i, j) for i, j in self._queue if i != layer_id]
+        if job is None:
+            return False
+        status = CodeStatus("cancelled")
+        self._errors[job.key] = status
+        self._set(layer_id, status)
+        self._top_up()
+        return True
 
     def trust_layers(self, project: Project, layer_ids: list[str]) -> None:
         """Mark these layers' code as safe to run (the user agreed) and render it."""
@@ -371,6 +398,9 @@ class NoCodeRenderer(QObject):
 
     def retry(self, layer_id: str) -> None:
         pass
+
+    def cancel(self, layer_id: str) -> bool:
+        return False
 
     def trust_layers(self, project: Project, layer_ids: list[str]) -> None:
         self.trust.trust([str(project.layer(i).spec.params.get("code", "")) for i in layer_ids])

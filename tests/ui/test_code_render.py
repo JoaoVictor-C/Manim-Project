@@ -127,6 +127,29 @@ def test_new_code_replaces_a_running_render(service, qt_app) -> None:
     assert ("c", "error") not in service.events  # the killed render is not an error
 
 
+def test_cancel_stops_a_running_render_and_a_retry_renders_again(service, qt_app) -> None:
+    p = trusted(service, project(c="SLEEP"))
+    service.sync(p)
+    wait_until(qt_app, lambda: service.status("c").state == "rendering")
+    assert service.cancel("c") and service.status("c").state == "cancelled"
+    assert service.status("c").text.startswith("Cancelled")
+    service.sync(p)  # the same code does not start again by itself
+    assert service.status("c").state == "cancelled"
+    wait_until(qt_app, lambda: service.spare_count == 1)  # a warm spare replaced the killed process
+    assert not service.cancel("c")  # nothing left to stop
+    service.retry("c")
+    wait_until(qt_app, lambda: service.status("c").state == "rendering")
+
+
+def test_cancel_drops_a_queued_render(service, qt_app) -> None:
+    service.max_spares = 1
+    p = trusted(service, project(a="SLEEP", b="class B(Scene): pass"))
+    service.sync(p)
+    wait_until(qt_app, lambda: service.status("a").state == "rendering")
+    assert service.status("b").state == "queued"
+    assert service.cancel("b") and service.status("b").state == "cancelled"
+
+
 def test_errors_keep_their_line_until_the_code_changes_or_a_retry(service, qt_app) -> None:
     p = trusted(service, project(c="FAIL"))
     service.sync(p)
