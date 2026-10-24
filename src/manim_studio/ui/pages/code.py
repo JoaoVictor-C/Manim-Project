@@ -100,6 +100,12 @@ PRESET_ORIGINS = (
 )
 
 
+def _preset_tip(preset) -> str:
+    """What a preset row says when hovered: its description, then its tags."""
+    tip = preset.description or preset.name
+    return f"{tip}  [{', '.join(preset.tags)}]" if preset.tags else tip
+
+
 class ErrorLine(QLabel):
     """The error message under the editor; with a line number it is a link to that line."""
 
@@ -187,6 +193,7 @@ class CodePage(Page):
 
         # Hooks for tests and other front-ends.
         self.ask_name = self._ask_name_dialog  # a new name, or None (cancelled)
+        self.ask_tags = self._ask_tags_dialog  # comma separated tags, or None (cancelled)
         self.ask_line = self._ask_line_dialog  # a line number, or None
         self.confirm = self._confirm_dialog  # (title, text) -> bool
         self.quick = self._quick_dialog  # (items) -> QuickItem | None
@@ -926,6 +933,21 @@ class CodePage(Page):
         self.window.codePresetsChanged.emit()
         self.show_preset(preset.id)
 
+    def edit_tags(self) -> None:
+        """Give a saved preset tags (words the filter finds it by), separated by commas."""
+        preset = self._preset(self.preset_id or self.chosen_preset())
+        if preset is None or preset.builtin:
+            return
+        answer = self.ask_tags(", ".join(preset.tags))
+        if answer is None:
+            return
+        try:
+            self.window.code_presets.set_tags(preset.id, answer.split(","))
+        except (OSError, KeyError, ValueError) as error:
+            self.window.statusBar().showMessage(f"Tags: {error}", 8000)
+            return
+        self.window.codePresetsChanged.emit()
+
     def delete_preset(self) -> None:
         preset = self._preset(self.preset_id or self.chosen_preset())
         if preset is None:
@@ -1305,6 +1327,7 @@ class CodePage(Page):
             if preset is not None and not preset.builtin:
                 menu.addSeparator()
                 menu.addAction("Rename...", self.rename_preset)
+                menu.addAction("Tags...", self.edit_tags)
                 menu.addAction("Delete", self.delete_preset)
         else:
             menu.addAction("New code layer", self.new_layer)
@@ -1362,6 +1385,15 @@ class CodePage(Page):
     def _ask_name_dialog(self, current: str) -> str | None:
         name, ok = QInputDialog.getText(self.explorer, "Name", "Name:", text=current)
         return name if ok and name.strip() else None
+
+    def _ask_tags_dialog(self, current: str) -> str | None:
+        text, ok = QInputDialog.getText(
+            self.explorer,
+            "Tags",
+            "Tags, separated by commas (the filter finds a preset by them):",
+            text=current,
+        )
+        return text if ok else None
 
     def _ask_line_dialog(self, current: int, last: int) -> int | None:
         line, ok = QInputDialog.getInt(self.editor, "Go to line", f"Line (1-{last}):", current, 1, last)
@@ -1716,7 +1748,16 @@ class CodePage(Page):
         presets = self.window.code_presets.presets()
         for origin, title in PRESET_ORIGINS:
             rows = tuple(
-                Row(p.id, p.name, p.kind, "preset", p.description or p.name)
+                Row(
+                    p.id,
+                    p.name,
+                    p.kind,
+                    "preset",
+                    _preset_tip(p),
+                    match=" ".join(
+                        [p.description, *p.tags, p.kind, "mine" if p.origin == "user" else p.origin]
+                    ),
+                )
                 for p in presets
                 if p.origin == origin
             )

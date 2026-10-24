@@ -34,6 +34,7 @@ class Row:
     tip: str = ""
     dirty: bool = False  # unapplied changes (layers)
     state: str = ""  # "", "error", "untrusted", "running" - shown as a marker after the name
+    match: str = ""  # more words the filter looks in (a preset's description, tags and kind)
 
 
 @dataclass(frozen=True)
@@ -160,7 +161,10 @@ class CodeExplorer(QTreeWidget):
                 self.blockSignals(False)
 
     def _matches(self, row: Row) -> bool:
-        return not self._filter or self._filter in row.label.casefold()
+        if not self._filter:
+            return True
+        words = f"{row.label} {row.match}".casefold()
+        return all(word in words for word in self._filter.split())
 
     def _item(self, row: Row) -> QTreeWidgetItem:
         colours = theme.THEME

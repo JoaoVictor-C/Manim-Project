@@ -221,7 +221,7 @@ def test_row_menus_match_what_the_row_can_do(window) -> None:
         "Edit a copy",
         "Export...",
     ]
-    assert labels(code.row_menu("preset", mine.id))[-2:] == ["Rename...", "Delete"]
+    assert labels(code.row_menu("preset", mine.id))[-3:] == ["Rename...", "Tags...", "Delete"]
     assert "New code layer" in labels(code.row_menu("", ""))
 
 
@@ -543,3 +543,30 @@ def test_cancel_shows_only_while_a_scene_renders_and_stops_it(window, monkeypatc
     window.selection.select_layer("wheel")  # a Python object has no process to stop
     page._refresh_running()
     assert page.cancel_button.isHidden()
+
+
+def test_the_filter_finds_a_preset_by_its_tags_and_description(window) -> None:
+    page = window.pages.pages["code"]
+    preset = window.code_presets.add("Orbit helper", "scene", ORBIT)
+    window.code_presets.set_tags(preset.id, ["planets", "sky"])
+    window.codePresetsChanged.emit()
+    page.filter.setText("sky")
+    assert any("Orbit helper" in t for t in names_of(page))
+    page.filter.setText("planets scene")
+    assert any("Orbit helper" in t for t in names_of(page))
+    page.filter.setText("zzz")
+    assert not any("Orbit helper" in t for t in names_of(page))
+
+
+def test_tags_are_edited_from_the_preset_menu(window) -> None:
+    page = window.pages.pages["code"]
+    preset = window.code_presets.add("Spinner", "scene", SPIN)
+    window.codePresetsChanged.emit()
+    page.show_preset(preset.id)
+    page.ask_tags = lambda current: "Fun, Spin ,fun"
+    page.edit_tags()
+    assert window.code_presets.get(preset.id).tags == ("fun", "spin")
+
+
+def names_of(page) -> list[str]:
+    return page.explorer.texts("user")
