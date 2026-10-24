@@ -26,6 +26,18 @@ the viewer beside it so every run shows at once.
 `Ctrl+Enter` (or **Run**) applies the text to the layer and runs it - one undo step. Nothing runs
 while you type. While the code is being applied, built or rendered, a progress bar shows under the
 toolbar and **Run** reads *Running...* and waits: when they go, the object or scene is ready to use.
+While it works Run also shows the seconds it has taken, and afterwards how long the last run took.
+
+**Values** is a second tab next to **Output**, for a Python object: one field per parameter its `PARAMS`
+declares, so you can try values while you read the code. It is the same state as Properties - a value changed
+in either shows in the other, and each change is one undo step. Add or rename a parameter in `PARAMS` and the
+fields follow when you run.
+
+**Live** (Editor menu) applies a Python object's code after you pause typing, so the picture follows the
+code. It only runs text that parses, whose `PARAMS` can be read and that does not use files, processes, the
+network or the import machinery (`open`, `os`, `subprocess`, `socket`, ...), and only for an object you have
+already run once; otherwise the status bar says why and **Run** stays the way to decide. The whole stretch of
+live changes is one undo step. It is a courtesy while typing, not a sandbox: running code is never sandboxed.
 
 | key | does |
 |---|---|

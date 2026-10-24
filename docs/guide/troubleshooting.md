@@ -29,6 +29,8 @@ A project can contain Python code - [code layers](objects.md#code-layers) and
 on this computer lists that code and asks before running it. Answer **Yes** only if you trust
 where the project came from. If you answer **No**, those objects are drawn as dashed
 placeholders ("code not trusted yet"); running the code on the Code page later trusts it.
+Running code is not sandboxed: it can read and write your files and use the network, like any
+program you start.
 
 Trust is remembered per exact code (a hash) in a store file (see
 [below](#where-files-live)); changed code asks again. From the command line, `--trust-code`

@@ -27,6 +27,11 @@ All notable changes to this project are documented here. The format follows
   `index.json`; downloads are text only, over HTTPS, size-limited and never run until allowed.
 - **Drag and drop**: drag a preset or a layer from the explorer onto the timeline (the time), the canvas (the
   place) or the Layers list; `.py` files dragged from the desktop open the import window.
+- Code page: **seconds on Run** while it works and how long it took; a **Values** tab beside Output tries a Python
+  object's parameters while reading its code (the same state as Properties, one undo step per change); **Live**
+  (Editor menu) applies a Python object's code after a pause in typing - only code that parses, reads its `PARAMS`
+  and touches no files, processes or network, only after the object was run once, and one undo step covers the
+  whole stretch.
 - Code page: a progress bar and *Running...* on Run until the layer is applied, built and rendered; the picture
   beside the editor no longer has the blue selection outline over it (a toolbar button brings it back); a button
   (and `Ctrl+B`) hides the explorer like a code editor's side bar; Python-logo icons on the explorer rows and tabs.

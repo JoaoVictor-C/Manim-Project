@@ -86,3 +86,4 @@ need one.
 | [0055](0055-glyph-colours.md) | Colour characters: one colour per drawn glyph, applied to a copy of the build | Accepted |
 | [0056](0056-smart-morph-matching.md) | Smart morph matching: pieces, holes and start points paired by the editor | Accepted |
 | [0057](0057-code-workspace.md) | The Code workspace: presets, an import window, safe online sources and drag and drop | Accepted |
+| [0058](0058-helpers.md) | Helpers: reusable Python modules in the project, imported by name by code layers and Python objects | Proposed |
