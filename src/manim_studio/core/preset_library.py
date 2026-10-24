@@ -127,6 +127,52 @@ class PresetLibrary:
         self._commit(before)
         return renamed
 
+    def set_tags(self, preset_id: str, tags: tuple[str, ...] | list[str]) -> Preset:
+        """Give a saved preset these tags (``normalise_tags``: lowercase, trimmed, no commas, no repeats,
+        at most 12 of at most 24 characters). ``ValueError`` for a built-in one, ``KeyError`` for an
+        unknown id; ``OSError`` when the file cannot be written (the library is then as it was)."""
+        index = self._index(preset_id)
+        before = list(self._saved)
+        tagged = replace(self._saved[index], tags=normalise_tags(tags))
+        self._saved[index] = tagged
+        self._commit(before)
+        return tagged
+
+    # -- finding -----------------------------------------------------------------------------------
+
+    def search(self, query: str) -> list[Preset]:
+        """The presets that match every word of ``query`` (case-insensitive), best first.
+
+        A word matches when it is in the preset's name, description, a tag, its kind (``object``,
+        ``scene``) or its origin worded for the user: ``builtin``, ``mine`` (saved by the user) or
+        ``downloaded`` (from a link). Name matches come first, then tags and origin, then the description;
+        equal ones keep the library's order. An empty query gives every preset.
+        """
+        words = query.lower().split()
+        everyone = self.presets()
+        if not words:
+            return everyone
+        ranked: list[tuple[int, int, Preset]] = []
+        for index, preset in enumerate(everyone):
+            total = 0
+            for word in words:
+                score = _match_score(word, preset)
+                if score == 0:
+                    break
+                total += score
+            else:
+                ranked.append((-total, index, preset))
+        ranked.sort(key=lambda r: (r[0], r[1]))
+        return [preset for _, _, preset in ranked]
+
+    def tags(self) -> list[tuple[str, int]]:
+        """Every tag in use with how many presets have it: the most used first, then by name."""
+        counts: dict[str, int] = {}
+        for preset in self.presets():
+            for tag in set(preset.tags):
+                counts[tag] = counts.get(tag, 0) + 1
+        return sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+
     def import_legacy(self, templates: dict[str, str]) -> int:
         """Move the old ``python_code_templates`` setting (name -> code) in as user presets of kind
         ``object``; one that is already here (same name, or that name with a ``(2)`` suffix, and the
@@ -261,6 +307,39 @@ class PresetLibrary:
 
 
 # -- helpers -----------------------------------------------------------------------------------------
+
+
+MAX_TAGS = 12  # tags on one preset
+MAX_TAG_LENGTH = 24  # characters of one tag
+ORIGIN_WORDS = {"builtin": "builtin built-in", "user": "mine", "online": "downloaded"}  # as the user says it
+
+
+def normalise_tags(tags: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """Tags as they are kept: lowercase, trimmed, spaces squeezed, a comma separating two tags, empty ones
+    and repeats gone (the first stays), each cut to 24 characters, at most 12."""
+    out: list[str] = []
+    for raw in tags:
+        for part in str(raw).split(","):
+            tag = " ".join(part.lower().split())[:MAX_TAG_LENGTH].strip()
+            if tag and tag not in out:
+                out.append(tag)
+    return tuple(out[:MAX_TAGS])
+
+
+def _match_score(word: str, preset: Preset) -> int:
+    """How well one lowercase word matches a preset: 0 when it does not."""
+    name = preset.name.lower()
+    if name.startswith(word):
+        return 100
+    if word in name:
+        return 60
+    if any(word in tag.lower() for tag in preset.tags):
+        return 40
+    if word in ORIGIN_WORDS.get(preset.origin, "") or word == preset.kind:
+        return 30
+    if word in preset.description.lower():
+        return 10
+    return 0
 
 
 def _slug(name: str) -> str:
