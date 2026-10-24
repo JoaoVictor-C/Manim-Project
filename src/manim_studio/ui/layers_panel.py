@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import plugins
-from ..core import adapter, edits, glyph_colours, parts, placement, python_object, scene_import, shape
+from ..core import adapter, clipboard, edits, glyph_colours, parts, placement, python_object, shape
 from ..core.expressions import check as check_expression
 from ..core.layer_index import LayerIndex
 from ..core.python_object import PYTHON_TYPE
@@ -50,6 +50,7 @@ from ..core.schema import (
     TEXT_TYPES,
     TRACE_TYPES,
     Layer,
+    Lifetime,
     Project,
     Spec,
 )
@@ -162,14 +163,53 @@ AXES_MENU = (  # Parts > Add to axes (ADR 0030): type, menu label
 )
 
 
-def add_placed(project: Project, spec: Spec, t: float, name: str = "") -> edits.Edit:
-    """Add an object where it does not cover the others (GP, ``core.placement``)."""
+def add_placed(
+    project: Project,
+    spec: Spec,
+    t: float,
+    name: str = "",
+    position: tuple[float, float] | None = None,
+    appear: float | None = None,
+) -> edits.Edit:
+    """Add an object where it does not cover the others (GP, ``core.placement``), or at ``position``
+    and appearing at ``appear`` seconds when those are given (dropped on the scene or the timeline)."""
     edit = edits.add_layer(project, spec, name=name)
-    where = placement.position_for(project, spec, t)
-    if where == (0.0, 0.0):
-        return edit
     new = edit.project.layers[-1]
-    moved = edits.update_layer(edit.project, new.id, base=new.base.model_copy(update={"position": where}))
+    where = position if position is not None else placement.position_for(project, spec, t)
+    changes: dict = {}
+    if tuple(where) != (0.0, 0.0):
+        changes["base"] = new.base.model_copy(update={"position": tuple(where)})
+    if appear is not None and appear > 0:
+        changes["lifetime"] = Lifetime(**{"in": appear})
+    if not changes:
+        return edit
+    moved = edits.update_layer(edit.project, new.id, **changes)
+    return edits.Edit(moved.project, *edits.classify(project, moved.project))
+
+
+def add_many_placed(project: Project, items: list[tuple[Spec, str]], t: float, **where) -> edits.Edit:
+    """``add_placed`` for several (spec, name) in order, as one edit."""
+    current = project
+    for spec, name in items:
+        current = add_placed(current, spec, t, name=name, **where).project
+    return edits.Edit(current, *edits.classify(project, current))
+
+
+def duplicate_placed(
+    project: Project, layer_id: str, position: tuple[float, float] | None = None, appear: float | None = None
+) -> edits.Edit:
+    """A copy of a layer (its code, values, keys and clips), appearing at ``appear`` and placed at
+    ``position`` when given."""
+    pasted = clipboard.duplicate_layers(project, [layer_id])
+    changes: dict = {}
+    new = pasted.edit.project.layer(pasted.selected)
+    if position is not None:
+        changes["base"] = new.base.model_copy(update={"position": tuple(position)})
+    if appear is not None and appear > 0:
+        changes["lifetime"] = Lifetime(**{"in": appear})
+    if not changes:
+        return pasted.edit
+    moved = edits.update_layer(pasted.edit.project, new.id, **changes)
     return edits.Edit(moved.project, *edits.classify(project, moved.project))
 
 
@@ -525,26 +565,42 @@ class LayersPanel(QWidget):
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), "Add Python object")
 
-    def add_code_file(self, source: str, name: str) -> str:
-        """Add a Python file's text as a layer: a Python object when it has the ``build(p)`` shape,
-        else a code layer holding its (first) Manim scene. Nothing in the file runs here, and the
-        code stays untrusted until it is run. Returns what was done; raises ``ValueError`` (with the
-        reason) when the file is neither."""
-        source = source.lstrip("\ufeff")  # an editor's byte-order mark is not code
-        if python_object.is_python_object_code(source):
-            spec, kind, extra = Spec(type=PYTHON_TYPE, params={"code": source}), "Python object", ""
-        else:
-            scenes = scene_import.scene_classes(source)
-            if not scenes:
-                raise ValueError("it has neither a build(p) function nor a Manim Scene class")
-            spec = Spec(type="Code", params={"code": scene_import.scene_code(source, scenes[0])})
-            kind = "code layer"
-            extra = (
-                f" (the file's other scenes - {', '.join(scenes[1:])} - were left out)" if scenes[1:] else ""
-            )
+    def add_code_layers(
+        self,
+        layers: list[tuple[str, str, str]],
+        *,
+        appear: float | None = None,
+        position: tuple[float, float] | None = None,
+        trust: bool = False,
+    ) -> None:
+        """Add code as layers - (name, "Python" | "Code", code) each - as one undo step, selecting
+        them. The code is untrusted (a placeholder, and it asks) unless ``trust``. P12."""
+        specs = []
+        for name, type_name, code in layers:
+            if trust:
+                self.trust_code(code)
+            specs.append((Spec(type=type_name, params={"code": code}), name))
+        self._select_new = "all" if len(specs) > 1 else True
+        label = "Add Python object" if specs[0][0].type == PYTHON_TYPE else "Add code layer"
+        self._submit(
+            partial(
+                add_many_placed,
+                items=specs,
+                t=self.playhead() if appear is None else appear,
+                position=position,
+                appear=appear,
+            ),
+            label if len(specs) == 1 else f"{label}s",
+        )
+
+    def duplicate_code_layer(
+        self, layer_id: str, *, appear: float | None = None, position: tuple[float, float] | None = None
+    ) -> None:
+        """Another instance of a code layer or Python object, placed as dropped."""
         self._select_new = True
-        self._submit(partial(add_placed, spec=spec, t=self.playhead(), name=name), f"Add {kind}")
-        return f"Adding {name} as a {kind}{extra}"
+        self._submit(
+            partial(duplicate_placed, layer_id=layer_id, position=position, appear=appear), "Duplicate"
+        )
 
     def add_equation_steps(self) -> None:
         """Add > Equation steps... (P11): ask for the steps, then add one MathTex per step with

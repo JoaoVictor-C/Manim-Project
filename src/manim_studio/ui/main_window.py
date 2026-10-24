@@ -40,6 +40,7 @@ from ..core.code_cache import code_hash
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
 from ..core.frame_cache import frame_index, frame_time
+from ..core.preset_library import PresetLibrary
 from ..core.python_export import PythonExport, class_name, to_python
 from ..core.scene_import import import_scene, scene_classes
 from ..core.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
@@ -52,6 +53,7 @@ from .build_service import BuildService
 from .canvas import CanvasWidget
 from .canvas_tools import MoveTool
 from .clipboard_actions import ClipboardActions
+from .code_importer import CodeImporter
 from .code_render import make_code_renderer
 from .document import Document
 from .elided_label import ElidedLabel
@@ -119,6 +121,9 @@ class MainWindow(QMainWindow):
         self.trust = TrustStore()
         self.code = make_code_renderer(adapter.cache_dir(), self.trust, self)
         # Manim scenes are imported by recording them in another process (P10.3, ADR 0053).
+        self.code_presets = PresetLibrary()  # built-in, yours and downloaded presets (P12.2)
+        self.code_presets.import_legacy(self.prefs.python_code_templates())
+        self.importer = CodeImporter(self)  # code into the project (P12.4)
         self.scene_importer = SceneImporter(adapter.cache_dir(), parent=self)
         self.scene_importer.finished.connect(self._on_scene_recorded)
         self.scene_importer.failed.connect(self._on_scene_failed)
@@ -536,14 +541,14 @@ class MainWindow(QMainWindow):
     ) -> None:
         """Put what was dragged from the Code workspace (``code_drag.decode``) into the project at
         time ``t`` and scene position ``position`` (None: the playhead / where it fits). P12.7."""
-        self.statusBar().showMessage(f"Cannot place {payload.get('name', 'code')} yet", 5000)
+        self.importer.place(payload, t, position)
 
     def import_code_files(
         self, paths: list, t: float | None = None, position: tuple[float, float] | None = None
     ) -> None:
         """Open the import window for ``.py`` files dropped or chosen; same placement as
         ``place_code``. P12.4."""
-        self.statusBar().showMessage("Cannot import code files yet", 5000)
+        self.importer.import_paths(paths, t, position)
 
     def new_project(self) -> None:
         """An empty scene with the default canvas (1280x720, 30 fps, 5 s); it asks how new morphs
