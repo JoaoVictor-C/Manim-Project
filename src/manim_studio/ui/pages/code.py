@@ -57,6 +57,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QTabBar,
@@ -66,7 +67,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, code_files, edits, live_guard, python_object
+from ...core import adapter, code_files, diagnostics, edits, error_hints, live_guard, python_object
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from ...core.standalone import standalone_scene
 from .. import code_drag, icons, quick_open, theme
@@ -80,6 +81,7 @@ from ..values_panel import ValuesPanel
 from . import Page, Shared
 
 LIVE_PAUSE_MS = 800  # the pause in typing after which Live applies
+SYNTAX_PAUSE_MS = 800  # the pause in typing after which a syntax error is marked
 HINT = "Select a code layer or a Python object, or add one with New code layer or New Python object."
 PRESET_ORIGINS = (
     ("builtin", "Presets — built in"),
@@ -381,7 +383,12 @@ class CodePage(Page):
         self._live_timer.setSingleShot(True)
         self._live_timer.setInterval(LIVE_PAUSE_MS)
         self._live_timer.timeout.connect(self._live_apply)
+        self._syntax_timer = QTimer(self.progress)  # the pause after which the text is checked (P13.1)
+        self._syntax_timer.setSingleShot(True)
+        self._syntax_timer.setInterval(SYNTAX_PAUSE_MS)
+        self._syntax_timer.timeout.connect(self.check_syntax)
         self.editor.cursorPositionChanged.connect(self._refresh_status)
+        self.editor.cursorPositionChanged.connect(self._on_cursor_moved)
         self.editor.zoomChanged.connect(lambda _size: self._save_settings())
         self.find_bar = FindBar(self.editor)
         editing = QWidget()
@@ -417,13 +424,38 @@ class CodePage(Page):
         output_lines.setContentsMargins(0, 0, 0, 0)
         output_lines.addWidget(self.state_label)
         output_lines.addWidget(self.error_label)
+        self.hint_label = QLabel("")
+        self.hint_label.setWordWrap(True)
+        self.hint_label.setObjectName("codeHint")
+        self.hint_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.hint_label.hide()
+        self.fix_button = QToolButton()
+        self.fix_button.setObjectName("codeFix")
+        self.fix_button.clicked.connect(self.apply_fix)
+        self.fix_button.hide()
+        self.trace_label = QLabel("")
+        self.trace_label.setObjectName("codeTrace")
+        self.trace_label.setFont(theme.mono_font())
+        self.trace_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.trace_label.hide()
+        self.syntax_label = QLabel("")
+        self.syntax_label.setObjectName("codeSyntax")
+        self.syntax_label.setWordWrap(True)
+        self.syntax_label.hide()
+        self._fix = ""
+        for widget in (self.hint_label, self.fix_button, self.trace_label, self.syntax_label):
+            output_lines.addWidget(widget)
         output_lines.addStretch(1)
+        output_scroll = QScrollArea()
+        output_scroll.setWidgetResizable(True)
+        output_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        output_scroll.setWidget(output_page)
         self.values = ValuesPanel(
             self.window.builds, lambda text: self.window.statusBar().showMessage(text, 8000)
         )
         self.output = QTabWidget()  # the bottom panel: what the run said, and the object's values
         self.output.setObjectName("codePanel")
-        self.output.addTab(output_page, "Output")
+        self.output.addTab(output_scroll, "Output")
         self.output.addTab(self.values, "Values")
         self.output.setMaximumHeight(240)
         self.output_toggle.toggled.connect(self._on_output_toggled)
@@ -989,10 +1021,59 @@ class CodePage(Page):
     def _on_text_changed(self) -> None:
         if self._loading:
             return
+        self._syntax_timer.start()
         if self.live_action.isChecked():
             self._live_timer.start()
         if self.is_dirty() != self._last_dirty:  # only a change of state needs the views redone
             self._after_change()
+
+    # -- errors and hints (P13.1) -------------------------------------------------------------
+
+    def _on_cursor_moved(self) -> None:
+        if self.editor.syntax_problem is not None or not self._loading:
+            self._syntax_timer.start()
+
+    def check_syntax(self) -> None:
+        """Mark where the text stops being valid Python - after a pause, never on the line being typed,
+        and not for a string or bracket still open (the user is mid-sentence)."""
+        self.syntax_label.hide()
+        problem = None
+        if self.layer_id is not None and self.preset_id is None:
+            text = self.editor.text()
+            problem = diagnostics.syntax_problem(text)
+            if problem is not None and (
+                diagnostics.pending_string(text) or problem.line == self.editor.textCursor().blockNumber() + 1
+            ):
+                problem = None
+        if problem is None:
+            self.editor.set_syntax_problem(None)
+            return
+        self.editor.set_syntax_problem((problem.line, problem.column, problem.end_line, problem.end_column))
+        self.syntax_label.setText(f"Line {problem.line}: {problem.message}")
+        self.syntax_label.setStyleSheet(f"color: {theme.css(theme.THEME.error_text)};")
+        self.syntax_label.show()
+
+    def apply_fix(self) -> None:
+        """Insert the one-line fix a hint offers (for example the Manim import) at the top."""
+        if self._fix and self.layer_id is not None and self.preset_id is None:
+            self.editor.replace_text(self._fix + chr(10) + self.editor.text())
+
+    def _show_hint(self, error_type: str, message: str, traceback: str) -> None:
+        source = self.editor.text()
+        found = error_hints.hint(error_type, message, source)
+        self._fix = found.fix if found is not None else ""
+        if found is not None:
+            tip = found.text
+            if found.suggestions:
+                tip += "  Did you mean: " + ", ".join(found.suggestions) + "?"
+            self.hint_label.setText(tip)
+            self.hint_label.show()
+        else:
+            self.hint_label.hide()
+        self.fix_button.setVisible(bool(self._fix))
+        self.fix_button.setText(f"Insert {self._fix}" if self._fix else "")
+        self.trace_label.setText(traceback)
+        self.trace_label.setVisible(bool(traceback))
 
     # -- live mode (P13.7) --------------------------------------------------------------------
 
@@ -1484,6 +1565,9 @@ class CodePage(Page):
         dirty = self.is_dirty()
         line = None
         self.error_label.hide()
+        self.hint_label.hide()
+        self.fix_button.hide()
+        self.trace_label.hide()
         failed = self._failed
         if failed is not None and (failed[0], failed[1]) != (self.layer_id, self.editor.text()):
             failed = self._failed = None  # another layer or other text: that refusal is old
@@ -1491,6 +1575,7 @@ class CodePage(Page):
             text, colour = "Not applied", colours.error_text
             self.error_label.show_error(failed[2], None)
             self.error_label.show()
+            self._show_hint("", failed[2], "")
         elif self.layer_id is None:
             text, colour = "", colours.muted
         elif status is None:
@@ -1500,6 +1585,7 @@ class CodePage(Page):
             self.error_label.show_error(status.error, error_line("error", status.line))
             self.error_label.show()
             line = self.error_label.line
+            self._show_hint(status.error_type, status.error, status.traceback)
             if dirty:
                 text += " (from the last run)"
         else:

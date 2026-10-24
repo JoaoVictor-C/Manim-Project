@@ -103,6 +103,7 @@ class CodeEditor(QPlainTextEdit):
         self.highlighter = PythonHighlighter(self.document())
         self._gutter = _Gutter(self)
         self._error_line: int | None = None
+        self._syntax: tuple[int, int, int, int] | None = None  # line, column, end line, end column
         self._search_selections: list[QTextEdit.ExtraSelection] = []
         self._auto_closers: list[QTextCursor] = []  # before each closer the editor typed itself
         self.blockCountChanged.connect(self._update_margin)
@@ -230,6 +231,17 @@ class CodeEditor(QPlainTextEdit):
     @property
     def error_line(self) -> int | None:
         return self._error_line
+
+    def set_syntax_problem(self, span: tuple[int, int, int, int] | None) -> None:
+        """Underline where the text stops being valid Python: ``(line, column, end_line, end_column)``,
+        lines from 1 and columns from 0 (``end_column`` 0: to the end of the line); None clears it."""
+        if span != self._syntax:
+            self._syntax = span
+            self._update_selections()
+
+    @property
+    def syntax_problem(self) -> tuple[int, int, int, int] | None:
+        return self._syntax
 
     # -- keys ------------------------------------------------------------------------
 
@@ -711,5 +723,27 @@ class CodeEditor(QPlainTextEdit):
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = QTextCursor(block)
             selections.append(selection)
-        self.setExtraSelections([*selections, *self._search_selections])
+        squiggle = self._syntax_selection()
+        self.setExtraSelections([*selections, *([squiggle] if squiggle else []), *self._search_selections])
         self._gutter.update()
+
+    def _syntax_selection(self) -> QTextEdit.ExtraSelection | None:
+        if self._syntax is None:
+            return None
+        line, column, end_line, end_column = self._syntax
+        first = self.document().findBlockByNumber(clamp_line(line, self.blockCount()) - 1)
+        last = self.document().findBlockByNumber(clamp_line(end_line, self.blockCount()) - 1)
+        if not first.isValid() or not last.isValid():
+            return None
+        start = first.position() + min(column, max(first.length() - 1, 0))
+        stop = last.position() + (min(end_column, last.length() - 1) if end_column else last.length() - 1)
+        if stop <= start:
+            stop = min(start + 1, first.position() + first.length() - 1)
+        cursor = QTextCursor(self.document())
+        cursor.setPosition(start)
+        cursor.setPosition(max(stop, start), QTextCursor.MoveMode.KeepAnchor)
+        selection = QTextEdit.ExtraSelection()
+        selection.format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
+        selection.format.setUnderlineColor(theme.qcolor(theme.THEME.error_text))
+        selection.cursor = cursor
+        return selection
