@@ -166,3 +166,17 @@ def test_run_to_cursor_outside_a_construct_says_so(window) -> None:
     before = window.project.layer("orbit").spec.params["code"]
     code.run_to_cursor()
     assert window.project.layer("orbit").spec.params["code"] == before
+
+
+def test_go_to_symbol_lists_the_outline_and_moves_the_cursor(window) -> None:
+    code = page(window)
+    offered: list = []
+
+    def pick(items):
+        offered.extend(items)
+        return next(i for i in items if i.label == "construct")
+
+    code.quick = pick
+    code.go_to_symbol()
+    assert {"Orbit", "construct"} <= {i.label for i in offered}
+    assert code.editor.textCursor().blockNumber() + 1 == 2

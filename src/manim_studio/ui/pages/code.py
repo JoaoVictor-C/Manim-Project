@@ -74,6 +74,7 @@ from ...core import (
     edits,
     error_hints,
     live_guard,
+    outline,
     python_object,
     run_to_cursor,
 )
@@ -568,6 +569,7 @@ class CodePage(Page):
         self.replace_action = menu.addAction("Replace…", self.open_replace, QKeySequence("Ctrl+H"))
         menu.addAction("Go to line…", self.goto_line, QKeySequence("Alt+G"))
         menu.addAction("Go to layer or preset…", self.quick_open, QKeySequence("Ctrl+P"))
+        menu.addAction("Go to symbol…", self.go_to_symbol, QKeySequence("Ctrl+Shift+O"))
         menu.addAction("Show or hide output", self.toggle_output, QKeySequence("Ctrl+J"))
         menu.addAction("Insert snippet…", self.insert_snippet, QKeySequence("Ctrl+Shift+I"))
         self.run_to_cursor_action = menu.addAction("Run to cursor", self.run_to_cursor)
@@ -621,6 +623,7 @@ class CodePage(Page):
             ("Shift+F3", self.find_previous),
             ("Alt+G", self.goto_line),
             ("Ctrl+P", self.quick_open),
+            ("Ctrl+Shift+O", self.go_to_symbol),
             ("Ctrl+J", self.toggle_output),
             ("Ctrl+B", self.toggle_sidebar),
             ("Ctrl+Shift+I", self.insert_snippet),
@@ -1529,6 +1532,21 @@ class CodePage(Page):
         self.filter.clear()
         self.explorer.select(chosen.source, chosen.key)
         self._on_chosen(chosen.source, chosen.key)
+
+    def go_to_symbol(self) -> None:
+        """Ctrl+Shift+O: the scenes, classes, functions, PARAMS and constants of the code in the editor."""
+        items = [
+            quick_open.QuickItem(
+                "symbol", str(symbol.line), symbol.name, f"{symbol.kind}, line {symbol.line}"
+            )
+            for symbol in outline.symbols(self.editor.text())
+        ]
+        if not items:
+            self.window.statusBar().showMessage("Nothing to go to: no classes or functions yet", 4000)
+            return
+        chosen = self.quick(items)
+        if chosen is not None:
+            self.editor.go_to_line(int(chosen.key))
 
     def toggle_output(self) -> None:
         self.output_toggle.toggle()
