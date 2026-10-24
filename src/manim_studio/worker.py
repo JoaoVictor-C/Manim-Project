@@ -4,7 +4,9 @@ Run as ``python -m manim_studio.worker --cache-dir DIR``. The protocol is one
 JSON object per line:
 
 * worker → editor, once started: ``{"ready": true}``
-* editor → worker: ``{"id": 7, "spec": {...}}``
+* editor → worker: ``{"id": 7, "spec": {...}}``; for a Python object of a project with helpers
+  (ADR 0058) also ``"helpers": {name: source}`` and ``"trusted_helpers": [name, ...]`` (the only
+  ones it may import); a worker reads them inside ``spec`` too
 * worker → editor: ``{"id": 7, "ok": true, "ms": 1287.4}`` or
   ``{"id": 7, "ok": false, "error": "..."}``
 
@@ -50,13 +52,18 @@ def main(argv: list[str] | None = None) -> int:
 def reply(request: dict) -> dict:
     """Build one request's spec; the answer to send back."""
     from .core import adapter
-    from .core.schema import Spec
+    from .core.schema import PYTHON_TYPES, Spec
 
     started = time.perf_counter()
     try:
         spec = Spec.model_validate(request["spec"])
-        adapter.build_mobject(spec)
-        stopped = adapter.python_timed_out(spec)  # an endless loop in new code (ADR 0051)
+        signature = None
+        sources = request.get("helpers") or request["spec"].get("helpers")  # (ADR 0058)
+        if sources and spec.type in PYTHON_TYPES:
+            trusted = request.get("trusted_helpers", request["spec"].get("trusted_helpers"))
+            signature = adapter.media_signature(spec, sources, trusted)
+        adapter.build_mobject(spec, signature)
+        stopped = adapter.python_timed_out(spec, signature)  # an endless loop in new code (ADR 0051)
     except Exception as exc:  # report every build failure; the editor decides what to show
         return {"id": request["id"], "ok": False, "error": _summary(exc)}
     if stopped:

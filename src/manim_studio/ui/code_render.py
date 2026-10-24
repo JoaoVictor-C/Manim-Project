@@ -33,10 +33,11 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
 from ..code_runner import Job
+from ..core import helpers
 from ..core.code_cache import CodeCache
 from ..core.evaluator import code_key
 from ..core.schema import CODE_TYPES, Project
-from ..core.trust import TrustStore
+from ..core.trust import TrustStore, code_of
 from ..logging_config import get_logger
 
 log = get_logger(__name__)
@@ -48,6 +49,8 @@ class CodeStatus:
     frames: int = 0  # rendered so far (rendering) or in the cache (ready)
     error: str = ""
     line: int | None = None
+    where: str = "code"  # or "helper:<name>": the error was raised in a helper (ADR 0058)
+    helper_line: int | None = None
 
     @property
     def text(self) -> str:
@@ -62,6 +65,9 @@ class CodeStatus:
         if self.state == "untrusted":
             return "Not run: this code is not trusted on this computer"
         where = f"line {self.line}: " if self.line else ""
+        if self.where.startswith("helper:"):
+            at = f", line {self.helper_line}" if self.helper_line else ""
+            where = f"helper {self.where.removeprefix('helper:')}{at}: "
         return f"Error - {where}{self.error}"
 
 
@@ -137,20 +143,25 @@ class CodeRenderService(QObject):
         wanted: dict[str, str] = {}
         jobs: dict[str, Job] = {}
         canvas = project.canvas
+        sources = helpers.sources(project)  # importable by the code, those trusted only (ADR 0058)
+        pairs = tuple(sorted(sources.items()))
+        trusted = tuple(sorted(n for n, c in sources.items() if self.trust.is_trusted(c)))
+        digest = helpers.digest(sources)
         for layer in project.layers:
             if layer.spec is None or layer.spec.type not in CODE_TYPES:
                 continue
-            key = code_key(project, layer)
+            key = code_key(project, layer, digest)
             wanted[layer.id] = key
             code = str(layer.spec.params.get("code", ""))
             jobs[layer.id] = Job(
-                key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height
+                key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, pairs, trusted
             )
         self._wanted = wanted
         self._runnable = any(self.trust.is_trusted(job.code) for job in jobs.values())
         for layer_id in [i for i in self._status if i not in wanted]:
             del self._status[layer_id]
-        self._queue = [(i, job) for i, job in self._queue if wanted.get(i) == job.key]
+        # A waiting job is replaced by today's (the same key may now trust another helper).
+        self._queue = [(i, jobs[i]) for i, job in self._queue if wanted.get(i) == job.key]
         for spare in self._spares:  # a running job for code that changed or went away
             if spare.job is not None and wanted.get(spare.layer_id) != spare.job.key:
                 self._cancel(spare)
@@ -167,9 +178,12 @@ class CodeRenderService(QObject):
                 self.sync(self._project)
 
     def trust_layers(self, project: Project, layer_ids: list[str]) -> None:
-        """Mark these layers' code as safe to run (the user agreed) and render it."""
-        codes = [str(project.layer(i).spec.params.get("code", "")) for i in layer_ids]
-        self.trust.trust(codes)
+        """Mark these layers' code as safe to run (the user agreed) and render it. An id may be
+        ``helper:<name>`` (``TrustStore.untrusted``, ADR 0058): a render that failed importing it is
+        tried again."""
+        self.trust.trust([code_of(project, i) for i in layer_ids])
+        if any(i.startswith("helper:") for i in layer_ids):
+            self._errors.clear()
         self.sync(project)
 
     def stop(self) -> None:
@@ -281,7 +295,13 @@ class CodeRenderService(QObject):
             self.rendered.emit(spare.layer_id)
         elif "error" in message:
             spare.done = True
-            status = CodeStatus("error", error=str(message["error"]), line=message.get("line"))
+            status = CodeStatus(
+                "error",
+                error=str(message["error"]),
+                line=message.get("line"),
+                where=str(message.get("where") or "code"),
+                helper_line=message.get("helper_line"),
+            )
             self._errors[spare.job.key] = status
             self._set(spare.layer_id, status)
 
@@ -357,7 +377,7 @@ class NoCodeRenderer(QObject):
         pass
 
     def trust_layers(self, project: Project, layer_ids: list[str]) -> None:
-        self.trust.trust([str(project.layer(i).spec.params.get("code", "")) for i in layer_ids])
+        self.trust.trust([code_of(project, i) for i in layer_ids])
 
     def stop(self) -> None:
         pass

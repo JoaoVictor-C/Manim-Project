@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import builtins
 import copy
+import hashlib
 import json
 import math
 import os
@@ -30,7 +31,7 @@ from manim.utils import rate_functions
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import morph, parts, python_object, shape, subtitles
+from . import helpers, morph, parts, python_object, shape, subtitles
 from .code_cache import code_hash
 from .python_object import CodeProblem
 from .schema import (
@@ -472,14 +473,26 @@ MISSING = "missing"  # the signature of a file that cannot be found or read
 
 
 TRUSTED, UNTRUSTED = "trusted", "untrusted"  # the signature of a Python object (ADR 0051)
+# What a trusted Python object's signature names besides its own code (ADR 0058): signature ->
+# (the project's helper sources, the names of those that may run). A build looks its helpers up here.
+_HELPER_SETS: dict[str, tuple[dict[str, str], frozenset[str]]] = {}
+_HELPER_SETS_KEPT = 512  # more than the builds kept (``_python_cached``), so a kept build finds its set
 
 
-def media_signature(spec: Spec) -> str | None:
+def media_signature(
+    spec: Spec,
+    helper_sources: helpers.Sources | None = None,
+    trusted_helpers: frozenset[str] | set[str] | list[str] | None = None,
+) -> str | None:
     """What a media object's build depends on besides its spec: its file's modification
     time and size (``MISSING`` when it cannot be stat-ed); for a Python object, whether its
-    code may run here (``TRUSTED`` / ``UNTRUSTED``, ADR 0051); ``None`` for other types."""
+    code may run here (``TRUSTED`` / ``UNTRUSTED``, ADR 0051) and, with the project's helpers
+    (``helper_sources``, ADR 0058), their code and which of them may run - ``TRUSTED:<key>``; those
+    are the trust store's unless ``trusted_helpers`` names them. ``None`` for other types."""
     if spec.type in PYTHON_TYPES:
-        return TRUSTED if python_object.is_trusted(str(spec.params.get("code", ""))) else UNTRUSTED
+        if not python_object.is_trusted(str(spec.params.get("code", ""))):
+            return UNTRUSTED
+        return _with_helpers(TRUSTED, helper_sources, trusted_helpers)
     if spec.type not in MEDIA_TYPES:
         return None
     path = str(spec.params.get("path") or "")
@@ -604,23 +617,58 @@ def python_problem(spec: Spec, signature: str | None = None) -> CodeProblem | No
 
 
 def _python_built(spec: Spec, signature: str | None = None) -> m.Mobject | CodeProblem:
-    if (signature or media_signature(spec)) != TRUSTED:
+    signature = signature or media_signature(spec)
+    if signature != TRUSTED and not str(signature).startswith(f"{TRUSTED}:"):
         return CodeProblem(python_object.NOT_TRUSTED)  # opening a file never runs its code (ADR 0019)
-    return _python_cached(spec.model_dump_json())
+    return _python_cached(spec.model_dump_json(), signature)
+
+
+def _with_helpers(
+    signature: str,
+    helper_sources: helpers.Sources | None,
+    trusted_helpers: frozenset[str] | set[str] | list[str] | None = None,
+) -> str:
+    """``signature`` naming the project's helpers too (ADR 0058): unchanged without any, so a project
+    without helpers builds exactly as before; else ``<signature>:<key>`` over their code and which
+    of them may run, the set kept in ``_HELPER_SETS`` for the build."""
+    if not helper_sources:
+        return signature
+    known = dict(helper_sources)
+    if trusted_helpers is None:
+        trusted = frozenset(name for name, code in known.items() if python_object.is_trusted(code))
+    else:
+        trusted = frozenset(trusted_helpers) & known.keys()
+    material = json.dumps([helpers.digest(known), sorted(trusted)])
+    key = f"{signature}:{hashlib.sha256(material.encode('utf-8')).hexdigest()[:16]}"
+    _HELPER_SETS.pop(key, None)  # most recent last
+    _HELPER_SETS[key] = (known, trusted)
+    while len(_HELPER_SETS) > _HELPER_SETS_KEPT:
+        del _HELPER_SETS[next(iter(_HELPER_SETS))]
+    return key
+
+
+def python_helpers(signature: str | None) -> tuple[dict[str, str], frozenset[str]]:
+    """The helper sources a Python object's ``signature`` names, and those that may run (ADR 0058)."""
+    return _HELPER_SETS.get(signature or "", ({}, frozenset()))
 
 
 @lru_cache(maxsize=256)
-def _python_cached(spec_json: str) -> m.Mobject | CodeProblem:
+def _python_cached(spec_json: str, signature: str = TRUSTED) -> m.Mobject | CodeProblem:
     """A Python object built by its code, or why it cannot be. The first build of each code is
-    done twice: like a plugin, it must be a pure function of its parameters (ADR 0032)."""
+    done twice: like a plugin, it must be a pure function of its parameters (ADR 0032). The
+    project's helpers named by ``signature`` are importable meanwhile, those trusted only (ADR 0058)."""
     spec = Spec.model_validate_json(spec_json)
     code = str(spec.params.get("code", ""))
     problem = python_object.params_problem(code)
     if problem is not None:
         return problem
     values = python_object.call_values(code, dict(spec.params.get("values") or {}))
+    sources, trusted = python_helpers(signature)
     try:
-        with python_object.time_limit(python_object.TIME_LIMIT):
+        with (
+            python_object.time_limit(python_object.TIME_LIMIT),
+            helpers.install(sources, trusted=trusted.__contains__),
+        ):
             build = _python_function(code)
             mob = build(dict(values))
             if not isinstance(mob, m.VMobject):
@@ -628,7 +676,7 @@ def _python_cached(spec_json: str) -> m.Mobject | CodeProblem:
                     f"build(p) must return a Manim VMobject (a shape, a text, a VGroup), "
                     f"not {type(mob).__name__}"
                 )
-            key = code_hash(code)
+            key = code_hash(code) + signature
             if key not in _PY_CHECKED:
                 if not _same_drawing(mob, build(dict(values))):
                     return CodeProblem(
@@ -637,16 +685,21 @@ def _python_cached(spec_json: str) -> m.Mobject | CodeProblem:
                     )
                 _PY_CHECKED.add(key)
     except python_object.TimeLimit as exc:
-        return CodeProblem(str(exc), _code_line(exc))
+        return _problem_at(str(exc), exc)
     except (Exception, SystemExit) as exc:  # the user's code must never break a frame or the editor
         log.info("Python object failed: %s", exc)
         lines = [line for line in str(exc).splitlines() if line.strip()]
         message = f"{type(exc).__name__}: {lines[0] if lines else ''}".rstrip(": ")[:300]
-        syntax = isinstance(exc, SyntaxError) and exc.filename == python_object.FILENAME
-        return CodeProblem(message, (exc.lineno if syntax else None) or _code_line(exc))
+        return _problem_at(message, exc)
     _apply_style(mob, spec.style)  # only what the user set (ADR 0051)
     mob.move_to(m.ORIGIN)
     return mob
+
+
+def _problem_at(message: str, exc: BaseException) -> CodeProblem:
+    """``message`` at the place ``exc`` was raised: the code's line, or a helper's (ADR 0058)."""
+    place = helpers.locate(exc, python_object.FILENAME)
+    return CodeProblem(message, place.line, where=place.where, helper_line=place.helper_line)
 
 
 def _python_function(code: str) -> Callable[[dict[str, Any]], Any]:
@@ -662,19 +715,9 @@ def _python_function(code: str) -> Callable[[dict[str, Any]], Any]:
     return build
 
 
-def _code_line(exc: BaseException) -> int | None:
-    """The line of the user's code an exception came from (its innermost frame there)."""
-    line, tb = None, exc.__traceback__
-    while tb is not None:
-        if tb.tb_frame.f_code.co_filename == python_object.FILENAME:
-            line = tb.tb_lineno
-        tb = tb.tb_next
-    return line
-
-
-def python_timed_out(spec: Spec) -> str | None:
+def python_timed_out(spec: Spec, signature: str | None = None) -> str | None:
     """The message when building ``spec`` (a Python object) was stopped by the time limit."""
-    problem = python_problem(spec) if spec.type in PYTHON_TYPES else None
+    problem = python_problem(spec, signature) if spec.type in PYTHON_TYPES else None
     return str(problem) if problem is not None and python_object.TIMED_OUT in problem.message else None
 
 

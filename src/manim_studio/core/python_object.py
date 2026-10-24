@@ -36,6 +36,7 @@ from typing import Any, Literal
 PYTHON_TYPE = "Python"
 MAX_CODE = 64 * 1024  # characters of source a Python object may hold
 FILENAME = "<python object>"  # what tracebacks name the user's code (to find its lines)
+HELPER_FILES = "<helper "  # ... and the helpers it imports (helpers.FILENAME_PREFIX, ADR 0058)
 # Seconds a build may run before it is stopped (an endless loop must not freeze). It counts the
 # LaTeX a build waits for: the first formula after a MiKTeX update can take many seconds.
 TIME_LIMIT = 30.0
@@ -103,14 +104,25 @@ class PyParam:
 
 
 class CodeProblem(ValueError):  # noqa: N818 - a problem shown to the user, not a crash
-    """Something wrong with a Python object's code, at ``line`` (1-based) when known."""
+    """Something wrong with a Python object's code, at ``line`` (1-based) when known.
 
-    def __init__(self, message: str, line: int | None = None) -> None:
+    ``where`` is ``"code"``, or ``"helper:<name>"`` when the error was raised inside a helper the code
+    imports (ADR 0058): then ``helper_line`` is the helper's line and ``line`` the code's line that
+    led there (its import or call), as before."""
+
+    def __init__(
+        self, message: str, line: int | None = None, *, where: str = "code", helper_line: int | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.line = line
+        self.where = where
+        self.helper_line = helper_line
 
     def __str__(self) -> str:
+        if self.where.startswith("helper:"):
+            at = f", line {self.helper_line}" if self.helper_line else ""
+            return f"helper {self.where.removeprefix('helper:')}{at}: {self.message}"
         return f"line {self.line}: {self.message}" if self.line else self.message
 
 
@@ -359,7 +371,8 @@ def time_limit(seconds: float) -> Iterator[None]:
 
     def calls(frame, event, arg):
         check()
-        return lines if frame.f_code.co_filename == FILENAME else None
+        name = frame.f_code.co_filename
+        return lines if name == FILENAME or name.startswith(HELPER_FILES) else None  # helpers: ADR 0058
 
     sys.settrace(calls)
     try:

@@ -24,7 +24,7 @@ import manim as m
 import numpy as np
 
 from .. import plugins
-from . import adapter, audio, python_object
+from . import adapter, audio, helpers, python_object
 from .evaluator import layer_transform
 from .schema import (
     CODE_TYPES,
@@ -59,7 +59,19 @@ HELPERS = {
     "multiply_opacity",
     "curve_point",
     "shape_from_data",
+    "_register_helper",
 }
+# How a readable file makes the project's helpers importable (ADR 0058), before the code using them.
+_REGISTER_HELPER = '''def _register_helper(name, source):
+    """A helper of the Manim Studio project as an importable module (import it by its name)."""
+    import sys
+    import types
+
+    module = types.ModuleType(name)
+    module.__file__ = f"<helper {name}>"
+    sys.modules[name] = module
+    exec(compile(source, module.__file__, "exec"), module.__dict__)
+    return module'''
 RESERVED = set(STAR) | set(dir(__builtins__)) | {"self", "np", "math"} | HELPERS
 
 
@@ -133,7 +145,7 @@ def readable_problems(project: Project) -> list[str]:
         if layer.id in morph_targets and (layer.lifetime.in_ is not None or layer.lifetime.out is not None):
             out.append(f"{name(layer)}: a morph target with its own lifetime")
         if layer.spec.type in PYTHON_TYPES:  # its code is written out as a function (ADR 0051)
-            out += [f"{name(layer)}: {why}" for why in _python_problems(layer)]
+            out += [f"{name(layer)}: {why}" for why in _python_problems(layer, project)]
         elif layer.spec.type in plugins.TYPES:
             out.append(f"{name(layer)}: a plugin object")
         elif layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS:
@@ -169,14 +181,19 @@ def readable_problems(project: Project) -> list[str]:
     return list(dict.fromkeys(out))
 
 
-def _python_problems(layer: Layer) -> list[str]:
+def _python_problems(layer: Layer, project: Project) -> list[str]:
     """Why a Python object's code cannot be written out as it draws: it draws the placeholder
-    (an error; code not trusted yet is written out all the same - the file is the user's)."""
+    (an error; code not trusted yet is written out all the same - the file is the user's). It is
+    built with the project's helpers, which the file embeds (ADR 0058)."""
     code = str(layer.spec.params.get("code", ""))
     if not python_object.is_trusted(code):
         problem = python_object.params_problem(code)  # what can be known without running it
         return [str(problem)] if problem is not None else []
-    problem = adapter.build_problem(layer.spec)
+    signature = adapter.media_signature(layer.spec, helpers.sources(project))
+    sources, trusted = adapter.python_helpers(signature)
+    if any(name not in trusted for name in helpers.needed(sources, code)):
+        return []  # a helper not trusted yet: the file is the user's, written out all the same
+    problem = adapter.build_problem(layer.spec, signature)
     return [problem] if problem is not None else []
 
 
@@ -216,6 +233,20 @@ def _python_clashes(project: Project) -> list[str]:
             else:
                 seen[name] = layer.name or layer.id
     return out
+
+
+def _source_literal(source: str) -> str:
+    """``source`` as a Python string literal that reads like the code it holds: a raw triple-quoted
+    string when that is exact, else ``repr``."""
+    text = source.replace("\r\n", "\n").replace("\r", "\n")
+    if not text.endswith("\n"):
+        text += "\n"
+    raw = f"r'''{text}'''"
+    try:
+        exact = "'''" not in text and "\0" not in text and ast.literal_eval(raw) == text
+    except (SyntaxError, ValueError):
+        exact = False
+    return raw if exact else repr(text)
 
 
 def _python_renamed(code: str, names: dict[str, str]) -> str:
@@ -554,6 +585,7 @@ class _Readable:
                 "\n".join(imports) + "\n\nimport manim as m\nfrom manim import *"
             )
         if self.builders:
+            lines += self._helper_modules()
             lines += self._python_code()
         if self.shapes:
             lines += ["", *inspect.getsource(adapter.shape_from_data).splitlines(), ""]
@@ -599,6 +631,19 @@ class _Readable:
             out += [f"{var}.{call}" for call in _transform_calls(layer)]
             out.append(f"{var}.set_z_index({index})  # the layer order")
         return out + connectors
+
+    def _helper_modules(self) -> list[str]:
+        """The helpers the Python objects import (ADR 0058), transitively, each registered as a module
+        before the code that imports it - a helper after those it imports."""
+        order: list[str] = []
+        for code in self.builders:
+            order += [name for name in helpers.needed(self.project, code) if name not in order]
+        if not order:
+            return []
+        out = ["", *_REGISTER_HELPER.splitlines(), ""]
+        for name in order:
+            out += ["", f"_register_helper({name!r}, {_source_literal(self.project.helper(name).code)})"]
+        return [*out, ""]
 
     def _python_code(self) -> list[str]:
         """Each Python object's code once (ADR 0051), as the user wrote it: ``build`` renamed to the

@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import plugins
-from ..core import adapter, edits, glyph_colours, parts, python_object, scene_length, shape
+from ..core import adapter, edits, glyph_colours, helpers, parts, python_object, scene_length, shape
 from ..core.adapter import Param
 from ..core.evaluator import layer_transform
 from ..core.schema import (
@@ -1065,7 +1065,8 @@ class PropertiesPanel(QWidget):
     def _refresh_python_status(self, layer: Layer) -> None:
         if self.python_label is None or layer.spec is None or layer.spec.type not in PYTHON_TYPES:
             return
-        problem = adapter.build_problem(layer.spec)
+        signature = adapter.media_signature(layer.spec, helpers.sources(self.project))  # (ADR 0058)
+        problem = adapter.build_problem(layer.spec, signature)
         if problem == python_object.NOT_TRUSTED:
             text = "Not run: its code is not trusted on this computer. Apply it on the Code page to run it."
         elif problem is not None:

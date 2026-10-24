@@ -13,7 +13,11 @@ Runs user code, so it never runs inside the editor. Two entry points:
 Messages (one flushed JSON object per line; readers skip any other line):
 ``{"ready": true}``,
 ``{"frame": n}`` (every few frames), ``{"done": true, "frames": n}``, or
-``{"error": "...", "line": n}`` with the line number in the user's code.
+``{"error": "...", "line": n}`` with the line number in the user's code; an error raised inside a
+helper the code imports (ADR 0058) adds ``"where": "helper:<name>"`` and ``"helper_line": n``.
+
+A job may carry the project's helpers (``helpers``: [name, source] pairs, ``trusted_helpers``: the
+names that may run); they are importable while its code runs.
 """
 
 from __future__ import annotations
@@ -22,7 +26,6 @@ import argparse
 import json
 import logging
 import sys
-import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,25 +43,63 @@ class Job:
     height: int
     fps: int
     frame_height: float
+    # The project's helpers (ADR 0058): (name, source) pairs, and the names of those that may run.
+    # Written to the job line only when there are some, so a job without helpers reads as before.
+    helpers: tuple[tuple[str, str], ...] = ()
+    trusted_helpers: tuple[str, ...] = ()
 
     @classmethod
     def from_json(cls, line: str) -> Job:
-        return cls(**json.loads(line))
+        data = json.loads(line)
+        data["helpers"] = tuple((str(n), str(s)) for n, s in data.get("helpers", ()))
+        data["trusted_helpers"] = tuple(data.get("trusted_helpers", ()))
+        return cls(**data)
 
     def to_json(self) -> str:
-        return json.dumps(self.__dict__)
+        data = dict(self.__dict__)
+        if not self.helpers:
+            del data["helpers"], data["trusted_helpers"]
+        return json.dumps(data)
 
 
 class CodeError(Exception):
-    """The user's code failed; ``line`` is in the user's code (None if unknown)."""
+    """The user's code failed; ``line`` is in the user's code (None if unknown). ``where`` is
+    ``"helper:<name>"`` when it failed inside a helper (ADR 0058), at that helper's ``helper_line``."""
 
-    def __init__(self, message: str, line: int | None = None) -> None:
+    def __init__(
+        self, message: str, line: int | None = None, *, where: str = "code", helper_line: int | None = None
+    ) -> None:
         super().__init__(message)
         self.line = line
+        self.where = where
+        self.helper_line = helper_line
+
+    @classmethod
+    def at(cls, message: str, error: BaseException) -> CodeError:
+        """``message`` where ``error`` was raised: in the code or in a helper it imports."""
+        from .core.helpers import locate
+
+        place = locate(error, CODE_FILENAME)
+        return cls(message, place.line, where=place.where, helper_line=place.helper_line)
+
+    def message(self) -> dict:
+        """The protocol's error message; ``where`` and ``helper_line`` only for an error in a helper."""
+        out: dict = {"error": str(self), "line": self.line}
+        if self.where != "code":
+            out |= {"where": self.where, "helper_line": self.helper_line}
+        return out
 
 
 def render_code(job: Job, cache, progress: Callable[[int], None] | None = None) -> int:
     """Play the job's scene once and store its frames under ``job.key``; returns the frame count."""
+    from .core import helpers
+
+    trusted = frozenset(job.trusted_helpers)
+    with helpers.install(dict(job.helpers), trusted=trusted.__contains__):  # importable (ADR 0058)
+        return _render(job, cache, progress)
+
+
+def _render(job: Job, cache, progress: Callable[[int], None] | None) -> int:
     import manim as m
     from manim.renderer.cairo_renderer import CairoRenderer
 
@@ -107,7 +148,7 @@ def render_code(job: Job, cache, progress: Callable[[int], None] | None = None) 
         raise
     except Exception as error:
         writer.abort()
-        raise CodeError(f"{type(error).__name__}: {error}", _user_line(error)) from error
+        raise CodeError.at(f"{type(error).__name__}: {error}", error) from error
     writer.finish()
     return CapturingRenderer.frames
 
@@ -125,7 +166,7 @@ def _scene_class(code: str) -> type:
     try:
         exec(compiled, namespace)  # the user's own code, in this throwaway process
     except Exception as error:
-        raise CodeError(f"{type(error).__name__}: {error}", _user_line(error)) from error
+        raise CodeError.at(f"{type(error).__name__}: {error}", error) from error
     scenes = [
         v
         for k, v in namespace.items()
@@ -135,12 +176,6 @@ def _scene_class(code: str) -> type:
         found = ", ".join(s.__name__ for s in scenes) or "none"
         raise CodeError(f"define exactly one Scene subclass (found: {found})")
     return scenes[0]
-
-
-def _user_line(error: BaseException) -> int | None:
-    """The last line of the user's code in the traceback."""
-    lines = [f.lineno for f in traceback.extract_tb(error.__traceback__) if f.filename == CODE_FILENAME]
-    return lines[-1] if lines else None
 
 
 def _emit(message: dict) -> None:
@@ -169,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         frames = render_code(job, cache, progress=lambda n: _emit({"frame": n}))
     except CodeError as error:
-        _emit({"error": str(error), "line": error.line})
+        _emit(error.message())
         return 1
     _emit({"done": True, "frames": frames})
     return 0

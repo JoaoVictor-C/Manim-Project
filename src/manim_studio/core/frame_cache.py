@@ -14,13 +14,14 @@ from bisect import bisect_left, insort
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from . import subtitles
-from .schema import Layer, Project
+from . import helpers, subtitles
+from .schema import RUNS_CODE, Layer, Project
 
 Span = tuple[float, float]  # [start, end) in seconds
 # Parts of a project whose changes are not "every frame": layers, sounds (ADR 0034), subtitles (ADR 0035),
-# markers (ADR 0037: no frame at all).
-_NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers", "morph_matching"}
+# markers (ADR 0037: no frame at all). Helpers (ADR 0058) change the frames of the code layers and
+# Python objects only, which ``changed_layers`` adds.
+_NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers", "morph_matching", "helpers"}
 # The scene's length draws nothing: a frame is the same in a longer scene (P7.1).
 _NOT_DRAWN = {"canvas": {"duration", "grow_with_content"}}
 BUDGET = 512 * 2**20  # bytes of compressed frames (B41: 4500-9700 frames)
@@ -74,6 +75,10 @@ def changed_layers(old: Project, new: Project) -> set[str] | None:
     after = {layer.id: layer for layer in new.layers}
     changed = {i for i in before.keys() | after.keys() if before.get(i) != after.get(i)}
     changed |= _moved(old, new)
+    if helpers.code_changed(old, new):  # every layer running code may import a helper (ADR 0058)
+        changed |= {
+            x.id for x in [*old.layers, *new.layers] if x.spec is not None and x.spec.type in RUNS_CODE
+        }
     if not changed:
         return set()
     return _closure(old, changed) | _closure(new, changed)

@@ -63,7 +63,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, code_files, edits, python_object
+from ...core import adapter, code_files, edits, helpers, python_object
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from .. import code_drag, icons, quick_open, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
@@ -584,13 +584,21 @@ class CodePage(Page):
         if layer_id is None:
             return None
         if self._is_python(layer_id):
-            spec = self.window.project.layer(layer_id).spec
-            problem = adapter.python_problem(spec)
+            project = self.window.project
+            spec = project.layer(layer_id).spec
+            signature = adapter.media_signature(spec, helpers.sources(project))  # (ADR 0058)
+            problem = adapter.python_problem(spec, signature)
             if problem is None:
                 return CodeStatus("built")
             if problem.message == python_object.NOT_TRUSTED:
                 return CodeStatus("untrusted")
-            return CodeStatus("error", error=problem.message, line=problem.line)
+            return CodeStatus(
+                "error",
+                error=problem.message,
+                line=problem.line,
+                where=problem.where,
+                helper_line=problem.helper_line,
+            )
         return self.window.code.status(layer_id)
 
     def _code_of(self, layer_id: str | None) -> str | None:

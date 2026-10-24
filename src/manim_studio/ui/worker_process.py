@@ -103,7 +103,10 @@ class WorkerProcess(WorkerClient):
     def request(self, request_id: int, spec_json: str) -> None:
         if not self._available:
             raise RuntimeError("build worker unavailable")
-        line = json.dumps({"id": request_id, "spec": json.loads(spec_json)}) + "\n"
+        spec = json.loads(spec_json)
+        # A Python object's helpers (ADR 0058) ride in its warm key: sent beside the spec.
+        extra = {name: spec.pop(name) for name in ("helpers", "trusted_helpers") if name in spec}
+        line = json.dumps({"id": request_id, "spec": spec, **extra}) + "\n"
         self._requests.append(_Request(request_id, line))
         if self._ready:
             if len(self._requests) == 1:

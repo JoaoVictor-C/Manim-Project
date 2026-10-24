@@ -12,6 +12,7 @@ times are seconds.
 | `schema_version` | int | `1` | bump on breaking changes, with a migration |
 | `canvas` | Canvas | | |
 | `layers` | Layer[] | `[]` | first = back, last = front |
+| `helpers` | Helper[] | `[]` | modules the code imports (ADR 0058); saved only when not empty |
 
 ## Canvas
 
@@ -137,6 +138,21 @@ z = 0 plane: another camera shows the flat scene from that angle.
 
 ```json
 "camera": { "phi": 60.0, "theta": -90.0, "gamma": 0.0 }
+```
+
+**Helpers** (ADR 0058): `helpers` is a list of modules of the project - plain Python that code
+layers, Python objects and other helpers import by name (`import grid_tools`, `from grid_tools
+import make_grid`). Each has a `name`, its `code` and an optional `description` (not saved when
+empty); the list is saved only when it is not empty, so older files are unaffected. A name is a
+Python identifier, not a keyword, unique among the helpers, and must not shadow a module of the
+standard library, `manim`, `numpy`, `np`, `math`, `m`, `manim_studio`, `helpers` or a name starting
+with `studio_`. At most 50 helpers, each at most 64 KB of code. A helper's code is a program like a
+code layer's (ADR 0019): it runs only once its hash is trusted on this computer, and an untrusted
+helper fails the import of the code using it (`render --trust-code` trusts helpers too).
+
+```json
+"helpers": [{ "name": "grid_tools", "code": "def spacing(n):\n    return 8 / n\n",
+              "description": "Grid spacing" }]
 ```
 
 **Audio** (ADR 0034): a project may have a list of sounds, saved only when it is
@@ -332,6 +348,7 @@ dialog in the editor):
   must not be the layer itself, and may be the target of only one morph.
 - Nothing may follow a morph on the same lane (the layer has handed off — ADR 0005).
 - Groups (ADR 0050): no clips, no parent, only whole plain objects inside; morphs stay inside one group.
+- Helpers (ADR 0058): valid, unique names that shadow no reserved module; at most 50; code at most 64 KB.
 - Canvas sizes, fps, `frame_height` and `duration` are positive; `opacity` in `base` is in [0, 1].
 - Cubic-bezier `x1`, `x2` are in [0, 1] (y may overshoot).
 
