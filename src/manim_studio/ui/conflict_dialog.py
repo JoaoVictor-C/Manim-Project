@@ -1,0 +1,95 @@
+"""A file that already exists (P12.4): replace it, skip it, or keep both.
+
+``ConflictAsker`` is the ``decide`` callable ``core.code_files.export_files`` takes: it is called with
+the file name only when that file exists, shows the question, and - when "do this for all the rest"
+is ticked - answers the later conflicts of the same export without asking again. Cancel answers None,
+which stops the export.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+REPLACE, SKIP, COPY = "replace", "skip", "copy"
+
+
+class ConflictDialog(QDialog):
+    def __init__(self, filename: str, folder: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("File already exists")
+        self.setMinimumWidth(420)
+        self.answer: str | None = None
+        layout = QVBoxLayout(self)
+        where = f" in {folder}" if folder else ""
+        text = QLabel(
+            f"<b>{_escape(filename)}</b> already exists{_escape(where)}.<br>What should happen to it?"
+        )
+        text.setWordWrap(True)
+        layout.addWidget(text)
+        self.all_box = QCheckBox("Do this for all the remaining files that already exist")
+        layout.addWidget(self.all_box)
+        row = QHBoxLayout()
+        self.buttons: dict[str, QPushButton] = {}
+        for key, label, tip in (
+            (REPLACE, "Replace", "Overwrite the existing file"),
+            (SKIP, "Skip", "Leave the existing file alone and do not write this one"),
+            (COPY, "Keep both", "Write this one next to it with a number: Name (2).py"),
+        ):
+            button = QPushButton(label)
+            button.setToolTip(tip)
+            button.clicked.connect(lambda _=False, k=key: self._choose(k))
+            self.buttons[key] = button
+            row.addWidget(button)
+        self.buttons[COPY].setDefault(True)
+        cancel = QPushButton("Cancel")
+        cancel.setToolTip("Stop here; files already written stay")
+        cancel.clicked.connect(self.reject)
+        row.addStretch(1)
+        row.addWidget(cancel)
+        layout.addLayout(row)
+
+    def _choose(self, key: str) -> None:
+        self.answer = key
+        self.accept()
+
+    def for_all(self) -> bool:
+        return self.all_box.isChecked()
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+class ConflictAsker:
+    """Ask once per conflict, or once for all of them. ``ask(filename) -> (answer, for_all)`` is the
+    hook tests and other front-ends replace; the default shows ``ConflictDialog``."""
+
+    def __init__(self, parent: QWidget | None = None, folder: str | Path = "") -> None:
+        self.parent = parent
+        self.folder = str(folder)
+        self.sticky: str | None = None
+        self.ask: Callable[[str], tuple[str | None, bool]] = self._dialog
+
+    def _dialog(self, filename: str) -> tuple[str | None, bool]:
+        dialog = ConflictDialog(filename, self.folder, self.parent)
+        dialog.exec()
+        return dialog.answer, dialog.for_all()
+
+    def __call__(self, filename: str) -> str | None:
+        if self.sticky is not None:
+            return self.sticky
+        answer, for_all = self.ask(filename)
+        if answer is not None and for_all:
+            self.sticky = answer
+        return answer
