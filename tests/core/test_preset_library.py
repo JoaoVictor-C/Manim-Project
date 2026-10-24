@@ -376,3 +376,165 @@ class TestLegacy:
 
     def test_empty(self, library):
         assert library.import_legacy({}) == 0
+
+
+class TestSetTags:
+    def test_sets_and_saves(self, library, path):
+        library.add("A", "object", "x")
+        updated = library.set_tags("user:a", ["geometry", "triangle"])
+        assert updated.tags == ("geometry", "triangle")
+        assert library.get("user:a") == updated
+        assert PresetLibrary(path).get("user:a").tags == ("geometry", "triangle")
+
+    def test_replaces_the_old_tags(self, library):
+        library.add("A", "object", "x", tags=("old",))
+        assert library.set_tags("user:a", ("new",)).tags == ("new",)
+        assert library.set_tags("user:a", ()).tags == ()
+
+    def test_normalises(self, library):
+        library.add("A", "object", "x")
+        raw = ["  Algebra ", "ALGEBRA", "a,b", "", " ", "two   words", "x,,y"]
+        assert library.set_tags("user:a", raw).tags == ("algebra", "a", "b", "two words", "x", "y")
+
+    def test_at_most_twelve_tags_of_twenty_four_characters(self, library):
+        library.add("A", "object", "x")
+        tags = library.set_tags("user:a", [f"tag{i}" for i in range(20)]).tags
+        assert tags == tuple(f"tag{i}" for i in range(12))
+        assert library.set_tags("user:a", ["x" * 40]).tags == ("x" * 24,)
+
+    def test_a_cut_tag_that_repeats_is_dropped(self, library):
+        library.add("A", "object", "x")
+        assert library.set_tags("user:a", ["a" * 30, "a" * 25]).tags == ("a" * 24,)
+
+    def test_builtin_refuses(self, library):
+        builtin = library.presets()[0]
+        with pytest.raises(ValueError, match="built-in"):
+            library.set_tags(builtin.id, ["x"])
+        assert library.get(builtin.id).tags == ()
+
+    def test_unknown_id(self, library):
+        with pytest.raises(KeyError):
+            library.set_tags("user:nothing", ["x"])
+
+    def test_the_file_format_is_unchanged(self, library, path):
+        library.add("A", "object", "x")
+        library.set_tags("user:a", ["t"])
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["format"] == 1
+        assert set(data["presets"][0]) == {
+            "id", "name", "kind", "code", "origin", "description", "tags", "source_url",
+        }  # fmt: skip
+        assert data["presets"][0]["tags"] == ["t"]
+
+    def test_failure_keeps_the_old_tags(self, library, path, monkeypatch):
+        library.add("A", "object", "x", tags=("keep",))
+        before = path.read_text(encoding="utf-8")
+
+        def broken(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(preset_library.os, "replace", broken)
+        with pytest.raises(OSError):
+            library.set_tags("user:a", ["lost"])
+        assert library.get("user:a").tags == ("keep",)
+        assert path.read_text(encoding="utf-8") == before
+
+    def test_other_fields_stay(self, library):
+        before = library.add("A", "scene", "code", description="d", source_url="u", origin="online")
+        after = library.set_tags(before.id, ["t"])
+        assert after == Preset(
+            before.id, before.name, before.kind, before.code, before.origin, "d", ("t",), "u"
+        )
+
+    def test_normalise_tags_directly(self):
+        assert preset_library.normalise_tags(("B", "a", "b")) == ("b", "a")
+        assert preset_library.normalise_tags([]) == ()
+
+
+class TestTags:
+    def test_counts_most_used_first_then_by_name(self, library):
+        library.add("A", "object", "1", tags=("zeta", "alpha"))
+        library.add("B", "object", "2", tags=("alpha", "beta"))
+        library.add("C", "scene", "3", tags=("beta", "alpha", "gamma"))
+        assert library.tags() == [("alpha", 3), ("beta", 2), ("gamma", 1), ("zeta", 1)]
+
+    def test_empty(self, library):
+        assert library.tags() == []
+
+    def test_a_tag_repeated_on_one_preset_counts_once(self, library):
+        library.add("A", "object", "1", tags=("x", "x"))
+        assert library.tags() == [("x", 1)]
+
+    def test_follows_set_tags_and_remove(self, library):
+        a = library.add("A", "object", "1")
+        library.set_tags(a.id, ["one"])
+        assert library.tags() == [("one", 1)]
+        library.remove(a.id)
+        assert library.tags() == []
+
+
+class TestSearch:
+    @pytest.fixture
+    def stocked(self, library):
+        library.add("Pythagoras proof", "scene", "1", description="Squares on the sides", tags=("geometry",))
+        library.add("Matrix grid", "object", "2", description="A grid of numbers", tags=("algebra", "grid"))
+        library.add(
+            "Web triangle", "object", "3", origin="online", description="Seen on the web", tags=("geometry",)
+        )
+        return library
+
+    @staticmethod
+    def names(found):
+        return [p.name for p in found]
+
+    def test_empty_query_gives_everything_in_order(self, stocked):
+        assert stocked.search("") == stocked.presets()
+        assert stocked.search("   ") == stocked.presets()
+
+    def test_by_name_case_insensitively(self, stocked):
+        assert self.names(stocked.search("PYTHAGORAS")) == ["Pythagoras proof"]
+
+    def test_by_description(self, stocked):
+        assert self.names(stocked.search("squares")) == ["Pythagoras proof"]
+
+    def test_by_tag(self, stocked):
+        assert self.names(stocked.search("algebra")) == ["Matrix grid"]
+        assert set(self.names(stocked.search("geometry"))) == {"Pythagoras proof", "Web triangle"}
+
+    def test_all_words_must_match(self, stocked):
+        assert self.names(stocked.search("geometry triangle")) == ["Web triangle"]
+        assert stocked.search("geometry matrix") == []
+
+    def test_origin_words(self, stocked):
+        assert set(self.names(stocked.search("mine"))) == {"Pythagoras proof", "Matrix grid"}
+        assert self.names(stocked.search("downloaded")) == ["Web triangle"]
+        builtin = stocked.search("builtin")
+        assert builtin and all(p.builtin for p in builtin)
+        assert len(builtin) == len(python_templates.TEMPLATES)
+
+    def test_origin_word_with_another_word(self, stocked):
+        assert self.names(stocked.search("mine grid")) == ["Matrix grid"]
+
+    def test_kind_words(self, stocked):
+        assert self.names(stocked.search("mine scene")) == ["Pythagoras proof"]
+
+    def test_name_matches_come_before_description_matches(self, library):
+        library.add("Plain", "object", "1", description="mentions grid")
+        library.add("Grid maker", "object", "2")
+        assert [p.name for p in library.search("grid")][:2] == ["Grid maker", "Plain"]
+
+    def test_ties_keep_the_library_order(self, library):
+        library.add("Alpha one", "object", "1")
+        library.add("Alpha two", "object", "2")
+        assert [p.name for p in library.search("alpha")] == ["Alpha one", "Alpha two"]
+
+    def test_builtins_are_found_by_name(self, library):
+        first = library.presets()[0]
+        assert library.search(first.name.lower())[0] == first
+
+    def test_uppercase_tags_still_match(self, library):
+        library.add("A", "object", "x", tags=("Geometry",))
+        assert [p.name for p in library.search("geometry")] == ["A"]
+
+    def test_no_match(self, stocked):
+        assert stocked.search("nothing-like-this") == []
