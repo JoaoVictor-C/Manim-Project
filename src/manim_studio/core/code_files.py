@@ -100,7 +100,7 @@ class Inspection:
 
 def inspect(source: str, filename: str = "") -> Inspection:
     """What ``source`` is (syntax only: nothing is imported or run); ``filename`` helps name it."""
-    source = source.lstrip("﻿")
+    source = source.lstrip("\ufeff")
     stem = _file_stem(filename)
     try:
         tree = ast.parse(source)
