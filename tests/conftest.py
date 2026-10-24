@@ -92,6 +92,14 @@ def _fresh_settings(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_preset_library(tmp_path_factory, monkeypatch):
+    """Every test starts with an empty code preset library (only the built-in presets)."""
+    monkeypatch.setenv(
+        "MANIM_STUDIO_PRESETS", str(tmp_path_factory.mktemp("manim-studio-presets") / "presets.json")
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_unsaved_changes_dialog(request, monkeypatch):
     """Editor windows closed with unsaved edits must not block on a modal question."""
     if "ui" not in request.keywords:
