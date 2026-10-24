@@ -70,10 +70,11 @@ def preset_kind(inspection: code_files.Inspection) -> str:
 
 
 def code_for(item: ImportItem, scene: str | None = None) -> str:
-    """The text a layer or preset from ``item`` holds: without a byte-order mark and, for a scene, with
-    only that scene class kept (a code layer holds exactly one scene, ADR 0019). Raises ``ValueError``
-    with the reason when a scene cannot be separated."""
-    text = item.source.lstrip("\ufeff")
+    """The text a layer or preset from ``item`` holds: without a byte-order mark, with plain newlines
+    (the editor shows them so; CRLF text would look edited at once) and, for a scene, with only that
+    scene class kept (a code layer holds exactly one scene, ADR 0019). Raises ``ValueError`` with the
+    reason when a scene cannot be separated."""
+    text = item.source.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     if scene is None:
         return text
     return scene_import.scene_code(text, scene)
