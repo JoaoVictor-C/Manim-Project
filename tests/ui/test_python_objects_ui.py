@@ -18,6 +18,7 @@ from manim_studio.core import python_object
 from manim_studio.core.schema import Canvas, Layer, Project, Spec
 from manim_studio.ui.fields import BoolField, ColorField, FloatField, IntField, TextField
 from manim_studio.ui.main_window import MainWindow
+from ui.code_page_helpers import project_ids
 
 pytestmark = pytest.mark.ui
 
@@ -75,7 +76,7 @@ def test_the_code_page_button_adds_the_starter_selects_it_and_opens_it(window, q
     assert page(window).layer_id == layer.id
     assert page(window).editor.text() == STARTER
     assert "Built" in page(window).state_label.text()
-    assert layer.id in [page(window).list.item(i).data(256) for i in range(page(window).list.count())]
+    assert layer.id in project_ids(page(window))
     assert not isinstance(drawn(window, layer.id), m.DashedVMobject)  # trusted: the editor's own code
     fields = window.properties.fields
     assert isinstance(fields["values.angle"], FloatField) and isinstance(fields["values.side"], FloatField)
@@ -99,7 +100,7 @@ def test_apply_with_an_error_shows_it_at_its_line(window, qt_app) -> None:
     assert code_page.error_label.line == 5
     assert code_page.editor.error_line == 5
     assert "NameError: name 'missing' is not defined" in code_page.error_label.plain
-    assert "(error)" in code_page.list.currentItem().text()
+    assert "!" in code_page.explorer.currentItem().text(0)
     assert isinstance(drawn(window, layer.id), m.DashedVMobject)
     assert "Error: line 5: NameError" in window.properties.python_label.text()
     fixed = broken.replace(" + missing", "")
@@ -219,7 +220,7 @@ def test_python_objects_are_renamed_and_deleted_on_the_code_page(window, qt_app)
     code_page.ask_name = lambda current: "Triangle"
     code_page.rename_layer()
     assert window.project.layer(layer_id).name == "Triangle"
-    assert code_page.list.currentItem().text() == "Triangle"
+    assert code_page.explorer.currentItem().text(0) == "Triangle"
     code_page.delete_layer()
     assert all(x.spec.type != "Python" for x in window.project.layers)
     window.document.undo_stack.undo()

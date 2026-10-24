@@ -1,6 +1,7 @@
-"""The Code page's file buttons: Save code, Add code file, Import presets from folder and Export
-all to folder - and the user templates they feed to the New Python object menu. Files made by
-editors on Windows start with a byte-order mark; they must be read as the code they hold."""
+"""The Code page's file buttons (P12): Add file, Import folder, Get online, Export, Save code - and the
+presets they feed to the New Python object menu. The windows they open have their own tests
+(test_import_code_dialog, test_code_export_ui, test_online_presets_dialog); here the buttons are
+followed to the importer with the questions answered."""
 
 from __future__ import annotations
 
@@ -8,15 +9,15 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-import json
-
 import pytest
 
 pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QFileDialog
 
+from manim_studio.core import code_import as ci
 from manim_studio.core import python_object, python_templates
+from manim_studio.core.code_import import ImportChoice
 from manim_studio.core.schema import Canvas, Layer, Project, Spec
 from manim_studio.ui.main_window import MainWindow
 
@@ -24,7 +25,6 @@ pytestmark = pytest.mark.ui
 
 BOM = "﻿"
 SCENE = "from manim import *\n\nclass Orbit(Scene):\n    def construct(self):\n        self.add(Dot())\n"
-TWO_SCENES = SCENE + "\nclass Spin(Scene):\n    def construct(self):\n        self.add(Square())\n"
 OBJECT = "from manim import *\n\nPARAMS = {}\n\ndef build(p):\n    return Circle()\n"
 
 
@@ -63,12 +63,12 @@ def message(window) -> str:
     return window.statusBar().currentMessage()
 
 
-def drain(window, qt_app) -> None:
+def drain(qt_app) -> None:
     for _ in range(20):
         qt_app.processEvents()
 
 
-# -- python_object.is_python_object_code ------------------------------------------------------
+# -- python_object.is_python_object_code (kept for the Python object detection) --------------
 
 
 def test_detection_is_by_shape_and_ignores_a_byte_order_mark() -> None:
@@ -80,124 +80,95 @@ def test_detection_is_by_shape_and_ignores_a_byte_order_mark() -> None:
     assert not python_object.is_python_object_code("def build(:\n")  # not Python: never raises
 
 
-# -- the user templates -------------------------------------------------------------------------
+# -- the buttons ----------------------------------------------------------------------------
 
 
-def test_user_templates_round_trip_through_the_settings(window) -> None:
-    templates = {"Mine, with commas": OBJECT, "Línea\nbreak": OBJECT + "# ção\n"}
-    window.prefs.set_python_code_templates(templates)
-    assert window.prefs.python_code_templates() == templates
-
-
-def test_bad_stored_templates_are_ignored(window) -> None:
-    window.prefs._settings.setValue("python_code_templates", "not json")
-    assert window.prefs.python_code_templates() == {}
-    window.prefs._settings.setValue("python_code_templates", json.dumps(["a"]))
-    assert window.prefs.python_code_templates() == {}
-    window.prefs._settings.setValue("python_code_templates", json.dumps({"a": OBJECT, "b": 3, "c": None}))
-    assert window.prefs.python_code_templates() == {"a": OBJECT}
-
-
-def test_the_menu_lists_built_in_then_imported_templates(window, tmp_path, monkeypatch) -> None:
-    folder = tmp_path / "presets"
-    folder.mkdir()
-    (folder / "Spiral.py").write_text(OBJECT, encoding="utf-8")
-    (folder / "Scene.py").write_text(SCENE, encoding="utf-8")  # not an object: skipped
-    (folder / "notes.txt").write_text("x", encoding="utf-8")
-    answer(monkeypatch, getExistingDirectory=str(folder))
+def test_the_buttons_exist_and_have_tips(window) -> None:
     code = page(window)
-    before = [a.text() for a in code.python_templates_menu.actions()]
-    code.import_code_folder()
-    names = [a.text() for a in code.python_templates_menu.actions()]
-    assert names == [*before, "Spiral"] and set(before) == set(python_templates.TEMPLATES)
-    assert "Added 1 Python object preset" in message(window) and "skipped 1" in message(window)
-    code.import_code_folder()  # again: a name that is taken gets a number
-    assert [a.text() for a in code.python_templates_menu.actions()][-1] == "Spiral (2)"
+    for button in (
+        code.add_code_file_button,
+        code.import_folder_button,
+        code.online_button,
+        code.export_folder_button,
+        code.save_code_button,
+        code.new_button,
+        code.new_python_button,
+    ):
+        assert button.isVisibleTo(code.widget) and button.toolTip()
 
 
-def test_a_preset_file_with_a_byte_order_mark_is_imported_whole(window, tmp_path, monkeypatch) -> None:
-    folder = tmp_path / "presets"
-    folder.mkdir()
-    (folder / "Bom.py").write_bytes((BOM + OBJECT).encode("utf-8"))
-    answer(monkeypatch, getExistingDirectory=str(folder))
-    page(window).import_code_folder()
-    assert window.prefs.python_code_templates() == {"Bom": OBJECT}  # no BOM in the stored code
-
-
-def test_an_empty_or_cancelled_import_changes_nothing(window, tmp_path, monkeypatch) -> None:
-    code = page(window)
-    answer(monkeypatch, getExistingDirectory="")
-    code.import_code_folder()
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    answer(monkeypatch, getExistingDirectory=str(empty))
-    code.import_code_folder()
-    assert "No .py files" in message(window) and window.prefs.python_code_templates() == {}
-
-
-def test_choosing_an_imported_template_makes_a_python_object(window, qt_app) -> None:
-    window.prefs.set_python_code_templates({"Mine": OBJECT})
-    code = page(window)
-    code._refresh_python_templates()
-    action = next(a for a in code.python_templates_menu.actions() if a.text() == "Mine")
-    action.trigger()
-    drain(window, qt_app)
-    layer = window.project.layers[-1]
-    assert layer.spec.type == python_object.PYTHON_TYPE and layer.spec.params["code"] == OBJECT
-
-
-# -- Add code file -----------------------------------------------------------------------------
-
-
-def test_add_code_file_adds_a_python_object_and_selects_it(window, tmp_path, monkeypatch, qt_app) -> None:
+def test_add_file_goes_through_the_import_window(window, tmp_path, monkeypatch, qt_app) -> None:
     file = tmp_path / "Wheel.py"
     file.write_bytes((BOM + OBJECT).encode("utf-8"))
-    answer(monkeypatch, getOpenFileName=(str(file), ""))
+    seen = {}
+
+    def ask(items, at, position, **kw):
+        seen["origin"] = [i.origin for i in items]
+        return [ImportChoice(items[0], "Wheel", ci.OBJECT)]
+
+    window.importer.ask = ask
+    answer(monkeypatch, getOpenFileNames=([str(file)], ""))
     page(window).add_code_file()
-    drain(window, qt_app)
+    drain(qt_app)
+    assert seen == {"origin": ["Wheel.py"]}
     layer = window.project.layers[-1]
-    assert (layer.spec.type, layer.name) == (python_object.PYTHON_TYPE, "Wheel")
-    assert layer.spec.params["code"] == OBJECT
+    assert (layer.spec.type, layer.name) == ("Python", "Wheel") and layer.spec.params["code"] == OBJECT
     assert window.selection.layer_id == layer.id
 
 
-def test_add_code_file_adds_a_scene_as_a_code_layer_and_says_what_it_left_out(
-    window, tmp_path, monkeypatch, qt_app
-) -> None:
-    file = tmp_path / "Pair.py"
-    file.write_bytes((BOM + TWO_SCENES).encode("utf-8"))
-    answer(monkeypatch, getOpenFileName=(str(file), ""))
+def test_cancelling_the_file_dialog_does_nothing(window, monkeypatch, qt_app) -> None:
+    answer(monkeypatch, getOpenFileNames=([], ""), getExistingDirectory="")
     page(window).add_code_file()
-    drain(window, qt_app)
+    page(window).import_code_folder()
+    drain(qt_app)
+    assert len(window.project.layers) == 2
+
+
+def test_import_folder_adds_presets_to_the_new_python_object_menu(window, tmp_path, monkeypatch) -> None:
+    folder = tmp_path / "presets"
+    folder.mkdir()
+    (folder / "Spiral.py").write_text(OBJECT, encoding="utf-8")
+    window.importer.ask = lambda items, at, position, **kw: [ImportChoice(items[0], "Spiral", ci.PRESET)]
+    answer(monkeypatch, getExistingDirectory=str(folder))
+    code = page(window)
+    before = [a.text() for a in code.python_templates_menu.actions()]
+    assert set(before) == set(python_templates.TEMPLATES)
+    code.import_code_folder()
+    names = [a.text() for a in code.python_templates_menu.actions()]
+    assert names == [*before, "Spiral"]
+    assert "Spiral" in code.explorer.texts("user")  # the explorer lists it under your presets
+
+
+def test_choosing_an_imported_preset_makes_an_untrusted_python_object(window, qt_app) -> None:
+    code_text = OBJECT + "# imported preset\n"
+    window.code_presets.add("Mine", "object", code_text)
+    code = page(window)
+    code._refresh_python_templates()
+    next(a for a in code.python_templates_menu.actions() if a.text() == "Mine").trigger()
+    drain(qt_app)
     layer = window.project.layers[-1]
-    assert layer.spec.type == "Code" and "Spin" not in layer.spec.params["code"]
-    assert "class Orbit" in layer.spec.params["code"] and not layer.spec.params["code"].startswith(BOM)
-    assert "Spin" in message(window)  # the other scene was left out, and it is said
+    assert layer.spec.type == python_object.PYTHON_TYPE and layer.spec.params["code"] == code_text
+    assert not window.trust.is_trusted(code_text)
 
 
-def test_add_code_file_refuses_a_file_that_is_neither(window, tmp_path, monkeypatch, qt_app) -> None:
-    file = tmp_path / "plain.py"
-    file.write_text("print(1)\n", encoding="utf-8")
-    answer(monkeypatch, getOpenFileName=(str(file), ""))
-    count = len(window.project.layers)
-    page(window).add_code_file()
-    drain(window, qt_app)
-    assert len(window.project.layers) == count
-    assert "Could not add plain.py" in message(window) and "neither" in message(window)
+def test_choosing_a_builtin_preset_is_trusted_like_the_starter(window, qt_app) -> None:
+    code = page(window)
+    name, text = next(iter(python_templates.TEMPLATES.items()))
+    next(a for a in code.python_templates_menu.actions() if a.text() == name).trigger()
+    drain(qt_app)
+    assert window.project.layers[-1].spec.params["code"] == text and window.trust.is_trusted(text)
 
 
-def test_a_new_code_file_does_not_cover_the_objects_already_there(
-    window, tmp_path, monkeypatch, qt_app
-) -> None:
-    file = tmp_path / "Wheel.py"
-    file.write_text(OBJECT, encoding="utf-8")
-    answer(monkeypatch, getOpenFileName=(str(file), ""))
-    page(window).add_code_file()
-    drain(window, qt_app)
-    assert window.project.layers[-1].spec.type == python_object.PYTHON_TYPE  # placed like any new object
+def test_get_online_hands_the_window_the_downloaded_items(window) -> None:
+    from manim_studio.core.code_import import ImportItem
+
+    window.importer.ask_online = lambda: [ImportItem(OBJECT, "https://example.com/Wheel.py", "Wheel.py")]
+    window.importer.ask = lambda items, at, position, **kw: [ImportChoice(items[0], "Online", ci.PRESET)]
+    page(window).get_online()
+    assert "Online" in page(window).explorer.texts("online")
 
 
-# -- Save code and Export all ----------------------------------------------------------------
+# -- save, export ---------------------------------------------------------------------------
 
 
 def test_save_code_writes_the_editor_text_including_unapplied_edits(window, tmp_path, monkeypatch) -> None:
@@ -213,26 +184,28 @@ def test_save_code_writes_the_editor_text_including_unapplied_edits(window, tmp_
     assert "Saved code" in message(window)
 
 
-def test_export_all_writes_one_file_per_code_layer_and_never_overwrites(
-    window, tmp_path, monkeypatch
-) -> None:
-    out = tmp_path / "export"
-    out.mkdir()
-    answer(monkeypatch, getExistingDirectory=str(out))
+def test_export_offers_the_editor_text_and_ticks_what_is_yours(window) -> None:
     code = page(window)
+    window.selection.select_layer("orbit")
+    code.editor.setPlainText(SCENE + "# unapplied\n")
+    seen = {}
+
+    def ask(entries, checked, folder, options):
+        seen["entries"] = {e.key: e.source for e in entries}
+        seen["checked"] = checked
+
+    window.importer.ask_export = ask
     code.export_code_folder()
-    assert sorted(p.name for p in out.iterdir()) == ["Orbit.py"]
-    assert (out / "Orbit.py").read_text(encoding="utf-8") == SCENE
-    code.export_code_folder()  # a second export keeps the first files
-    assert sorted(p.name for p in out.iterdir()) == ["Orbit (2).py", "Orbit.py"]
+    assert seen["entries"]["orbit"].endswith("# unapplied\n")
+    builtin = {p.id for p in window.code_presets.presets() if p.builtin}
+    assert "orbit" in seen["checked"] and not seen["checked"] & builtin
 
 
-def test_the_buttons_exist_and_fit_in_the_left_column(window) -> None:
+def test_row_menu_export_ticks_just_that_row(window) -> None:
     code = page(window)
-    for button in (
-        code.import_folder_button,
-        code.add_code_file_button,
-        code.export_folder_button,
-        code.save_code_button,
-    ):
-        assert button.isVisibleTo(code.widget) and button.toolTip()
+    seen = {}
+    window.importer.ask_export = lambda entries, checked, folder, options: seen.update(checked=checked)
+    window.selection.select_layer("orbit")
+    menu = code.row_menu("layer", "orbit")
+    next(a for a in menu.actions() if a.text() == "Export...").trigger()
+    assert seen["checked"] == {"orbit"}

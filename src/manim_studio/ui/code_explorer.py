@@ -49,6 +49,7 @@ class CodeExplorer(QTreeWidget):
     opened = Signal(str, str)  # source ("layer" | "preset"), key: double-click or Enter
     chosen = Signal(str, str)  # source, key: the current row changed
     menuRequested = Signal(str, str, QPoint)  # source, key ("" for a section header), global position
+    filesDropped = Signal(list)  # .py files dragged in from the desktop
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -61,6 +62,7 @@ class CodeExplorer(QTreeWidget):
         self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_menu)
+        self.setAcceptDrops(True)
         self.currentItemChanged.connect(self._on_current)
         self.itemActivated.connect(self._on_activated)
         self.itemDoubleClicked.connect(self._on_activated)
@@ -105,6 +107,17 @@ class CodeExplorer(QTreeWidget):
                 if child.data(0, KEY_ROLE) is not None:
                     out.append((top.data(0, KEY_ROLE), child.data(0, SOURCE_ROLE), child.data(0, KEY_ROLE)))
         return out
+
+    def texts(self, section: str) -> list[str]:
+        """The text of each row of ``section`` as shown (marks included)."""
+        for top in self._tops():
+            if top.data(0, KEY_ROLE) == section:
+                return [
+                    top.child(i).text(0)
+                    for i in range(top.childCount())
+                    if top.child(i).data(0, KEY_ROLE) is not None
+                ]
+        return []
 
     def _tops(self) -> list[QTreeWidgetItem]:
         return [self.topLevelItem(i) for i in range(self.topLevelItemCount())]
@@ -216,3 +229,25 @@ class CodeExplorer(QTreeWidget):
         drag = QDrag(self)
         drag.setMimeData(mime)
         drag.exec(Qt.DropAction.CopyAction, Qt.DropAction.CopyAction)
+
+    # -- files dropped from the desktop -------------------------------------------------------
+
+    def dragEnterEvent(self, event) -> None:
+        if code_drag.python_files(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event) -> None:
+        if code_drag.python_files(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event) -> None:
+        files = code_drag.python_files(event.mimeData())
+        if not files:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        self.filesDropped.emit(files)

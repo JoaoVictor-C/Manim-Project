@@ -22,6 +22,7 @@ from manim_studio.core.schema import Canvas, Layer, Project, Spec
 from manim_studio.ui import theme
 from manim_studio.ui.code_render import CodeStatus
 from manim_studio.ui.main_window import MainWindow
+from ui.code_page_helpers import choose, list_texts
 from ui.test_acceptance_v1 import menu_action
 
 pytestmark = pytest.mark.ui
@@ -87,10 +88,6 @@ def set_status(window, layer_id: str, status: CodeStatus | None) -> None:
     window.code.statusChanged.emit(layer_id)
 
 
-def list_texts(code_page) -> list[str]:
-    return [code_page.list.item(i).text() for i in range(code_page.list.count())]
-
-
 # -- the page and its layout ---------------------------------------------------------------------
 
 
@@ -115,12 +112,12 @@ def test_only_code_layers_are_listed_and_the_first_is_shown(window) -> None:
     assert list_texts(code) == ["Orbit", "Spin"]
     assert code.layer_id == "orbit" and window.selection.layer_id == "orbit"
     assert code.editor.text() == ORBIT and code.title_label.text() == "Orbit"
-    assert code.list.currentItem().text() == "Orbit"
+    assert code.explorer.currentItem().text(0) == "Orbit"
 
 
 def test_choosing_a_layer_in_the_list_selects_it_everywhere(window) -> None:
     code = page(window)
-    code.list.setCurrentRow(1)
+    choose(code, 1)
     assert window.selection.layer_id == "spin" and code.layer_id == "spin" and code.editor.text() == SPIN
     window.show_page("compose")
     assert window.layers.selected_id() == "spin"
@@ -131,7 +128,7 @@ def test_selecting_a_code_layer_elsewhere_shows_it_in_the_editor(window, qt_app)
     window.selection.select_layer("spin")
     window.show_page("code")
     assert page(window).layer_id == "spin" and page(window).editor.text() == SPIN
-    assert page(window).list.currentItem().text() == "Spin"
+    assert page(window).explorer.currentItem().text(0) == "Spin"
 
 
 def test_a_selected_layer_that_is_not_code_leaves_the_editor_on_its_layer(window) -> None:
@@ -147,7 +144,7 @@ def test_with_no_project_the_editor_is_disabled_and_new_asks_for_one(qt_app) -> 
     win.show()
     win.show_page("code")
     code = page(win)
-    assert not code.editor.isEnabled() and code.list.count() == 0 and not code.run_button.isEnabled()
+    assert not code.editor.isEnabled() and len(list_texts(code)) == 0 and not code.run_button.isEnabled()
     code.new_layer()
     assert "project" in win.statusBar().currentMessage().lower()
     win.close()
@@ -163,7 +160,7 @@ def test_new_code_layer_adds_the_starter_scene_and_shows_it(window, qt_app) -> N
     assert len(ids) == 1
     layer_id = ids.pop()
     assert code.layer_id == layer_id == window.selection.layer_id
-    assert code.editor.text().startswith("class Orbit(Scene)") and code.list.count() == 3
+    assert code.editor.text().startswith("class Orbit(Scene)") and len(list_texts(code)) == 3
     assert window.trust.is_trusted(code.editor.text())  # the starter is the library's own code
 
 
@@ -263,7 +260,7 @@ def test_typing_changes_only_the_editor_until_run(window) -> None:
     assert not code.is_dirty() and not code.dirty_label.isVisible() and not code.revert_button.isEnabled()
     type_text(code.editor, "# note\n")
     assert code.is_dirty() and code.dirty_label.isVisible() and code.revert_button.isEnabled()
-    assert list_texts(code) == ["Orbit *", "Spin"]
+    assert list_texts(code) == ["Orbit  \u25cf", "Spin"]
     assert project_code(window) == ORBIT and window.document.undo_stack.count() == steps
 
 
@@ -340,17 +337,17 @@ def test_drafts_survive_switching_layers_and_pages(window, qt_app) -> None:
     code = page(window)
     type_text(code.editor, "# orbit draft\n")
     draft = code.editor.text()
-    code.list.setCurrentRow(1)
+    choose(code, 1)
     assert code.editor.text() == SPIN and not code.is_dirty()
-    assert list_texts(code) == ["Orbit *", "Spin"]  # the other layer's draft is marked in the list
+    assert list_texts(code) == ["Orbit  \u25cf", "Spin"]  # the other layer's draft is marked in the list
     type_text(code.editor, "# spin draft\n")
     window.show_page("compose")
     window.show_page("code")
     assert code.layer_id == "spin" and code.editor.text().startswith("# spin draft")
-    code.list.setCurrentRow(0)
+    choose(code, 0)
     assert code.editor.text() == draft and code.is_dirty()
     assert project_code(window) == ORBIT and project_code(window, "spin") == SPIN  # nothing was applied
-    assert list_texts(code) == ["Orbit *", "Spin *"]
+    assert list_texts(code) == ["Orbit  \u25cf", "Spin  \u25cf"]
 
 
 def test_the_cursor_of_a_draft_comes_back_with_it(window) -> None:
@@ -358,8 +355,8 @@ def test_the_cursor_of_a_draft_comes_back_with_it(window) -> None:
     code.editor.go_to_line(2)
     type_text(code.editor, "z")
     position = code.editor.cursor_position()
-    code.list.setCurrentRow(1)
-    code.list.setCurrentRow(0)
+    choose(code, 1)
+    choose(code, 0)
     assert code.editor.cursor_position() == position
 
 
@@ -393,7 +390,7 @@ def test_the_project_changing_under_a_dirty_editor_keeps_the_text_and_says_so(wi
 def test_the_notice_also_shows_when_the_draft_comes_back_after_a_switch(window) -> None:
     code = page(window)
     type_text(code.editor, "# mine\n")
-    code.list.setCurrentRow(1)
+    choose(code, 1)
     window.builds.submit(
         lambda project: edits.update_layer(
             project,
@@ -402,7 +399,7 @@ def test_the_notice_also_shows_when_the_draft_comes_back_after_a_switch(window) 
         ),
         "Edit in Properties",
     )
-    code.list.setCurrentRow(0)
+    choose(code, 0)
     assert code.editor.text().startswith("# mine") and code.notice.isVisible()
 
 
@@ -426,14 +423,14 @@ def test_a_deleted_layers_draft_comes_back_when_the_delete_is_undone(window, qt_
     assert "orbit" not in [x.id for x in window.project.layers]
     assert code.layer_id == "spin" and list_texts(code) == ["Spin"]
     window.document.undo_stack.undo()
-    code.list.setCurrentRow(0)
+    choose(code, 0)
     assert code.layer_id == "orbit" and code.editor.text() == typed and code.is_dirty()
 
 
 def test_opening_another_project_drops_drafts_and_says_how_many(window, tmp_path, qt_app) -> None:
     code = page(window)
     type_text(code.editor, "# one\n")
-    code.list.setCurrentRow(1)
+    choose(code, 1)
     type_text(code.editor, "# two\n")
     other = write(tmp_path, "other.json", [code_layer("second", "Other", "class A(Scene):\n    pass\n")])
     window.load(other)
@@ -461,7 +458,7 @@ def test_a_status_of_another_layer_does_not_change_the_output(window) -> None:
     code = page(window)
     set_status(window, "spin", CodeStatus("error", error="NameError: x", line=2))
     assert code.state_label.text() == "Not rendered yet" and not code.error_label.isVisible()
-    assert list_texts(code) == ["Orbit", "Spin  (error)"]
+    assert list_texts(code) == ["Orbit", "Spin  !"]
 
 
 def test_an_error_with_a_line_is_a_link_that_moves_the_cursor_there(window, qt_app) -> None:
@@ -524,9 +521,9 @@ def test_the_error_is_cleared_when_the_status_is_cleared(window) -> None:
 def test_switching_layers_shows_that_layers_status(window) -> None:
     code = page(window)
     window.code.status = lambda i: CodeStatus("error", error="Boom: b", line=2) if i == "spin" else None
-    code.list.setCurrentRow(1)
+    choose(code, 1)
     assert code.error_label.plain == "line 2: Boom: b" and code.editor.error_line == 2
-    code.list.setCurrentRow(0)
+    choose(code, 0)
     assert not code.error_label.isVisible() and code.editor.error_line is None
 
 
@@ -561,21 +558,21 @@ def test_a_selection_ending_at_a_line_start_does_not_indent_that_line(window) ->
 def test_a_restored_draft_that_is_then_run_leaves_no_stale_marker(window) -> None:
     code = page(window)
     type_text(code.editor, "# draft\n")
-    code.list.setCurrentRow(1)
-    code.list.setCurrentRow(0)  # the draft is back in the editor
-    assert list_texts(code) == ["Orbit *", "Spin"]
+    choose(code, 1)
+    choose(code, 0)  # the draft is back in the editor
+    assert list_texts(code) == ["Orbit  \u25cf", "Spin"]
     code.run()
     assert not code.is_dirty() and list_texts(code) == ["Orbit", "Spin"] and len(code.drafts) == 0
-    code.list.setCurrentRow(1)
-    code.list.setCurrentRow(0)
+    choose(code, 1)
+    choose(code, 0)
     assert code.editor.text() == project_code(window) and not code.is_dirty()
 
 
 def test_revert_on_a_restored_draft_leaves_no_stale_marker(window) -> None:
     code = page(window)
     type_text(code.editor, "# draft\n")
-    code.list.setCurrentRow(1)
-    code.list.setCurrentRow(0)
+    choose(code, 1)
+    choose(code, 0)
     code.revert()
     assert list_texts(code) == ["Orbit", "Spin"] and len(code.drafts) == 0
 
@@ -663,7 +660,7 @@ def test_a_layer_deleted_while_another_page_is_shown_keeps_its_draft(window, qt_
 def test_code_layers_are_renamed_and_deleted_from_the_list(window, qt_app) -> None:
     """P7.1: the Code page's list could not rename or delete a code layer."""
     code = page(window)
-    code.list.setCurrentRow(0)  # Orbit
+    choose(code, 0)  # Orbit
     qt_app.processEvents()
     first = code.chosen_layer()
     before = window.project.layer(first).label
@@ -674,12 +671,13 @@ def test_code_layers_are_renamed_and_deleted_from_the_list(window, qt_app) -> No
     assert asked == [before]
     assert window.project.layer(first).name == "Planets"
     assert window.document.undo_stack.undoText() == "Rename layer"
-    assert any(code.list.item(i).text().startswith("Planets") for i in range(code.list.count()))
+    assert any(text.startswith("Planets") for text in list_texts(code))
     code.ask_name = lambda current: None  # cancelled: nothing changes
     code.rename_layer()
     assert window.document.undo_stack.undoText() == "Rename layer"
     menu = code.list_menu()
-    assert [a.text() for a in menu.actions() if a.text()] == ["Rename...", "Delete", "New code layer"]
+    names = [a.text() for a in menu.actions() if a.text()]
+    assert names == ["Open", "Rename...", "Duplicate", "Save as preset...", "Export...", "Delete"]
     assert all(a.toolTip() for a in menu.actions() if a.text())
     count = len(window.project.layers)
     code.delete_button.click()
@@ -688,6 +686,6 @@ def test_code_layers_are_renamed_and_deleted_from_the_list(window, qt_app) -> No
     assert first not in {x.id for x in window.project.layers}
     window.document.undo_stack.undo()
     assert first in {x.id for x in window.project.layers}
-    code.list.setCurrentRow(-1)
+    code.explorer.setCurrentItem(None)
     code.delete_layer()  # nothing chosen: nothing deleted
     assert len(window.project.layers) == count

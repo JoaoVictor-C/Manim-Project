@@ -22,6 +22,7 @@ from PySide6.QtTest import QTest
 
 from manim_studio.core.code_frame import CodeFrame
 from manim_studio.ui.main_window import MainWindow
+from ui.code_page_helpers import list_texts
 from ui.test_acceptance_v1 import menu_action, wait_until
 
 pytestmark = [pytest.mark.ui, pytest.mark.slow]  # starts real processes
@@ -57,7 +58,7 @@ def test_write_run_see_the_error_at_its_line_fix_it_and_see_the_frame(window, qt
     menu_action(window.menuBar(), "File", "New").trigger()
     window.show_page("code")
     code = window.pages.pages["code"]
-    assert code.list.count() == 0 and not code.editor.isEnabled()
+    assert len(list_texts(code)) == 0 and not code.editor.isEnabled()
 
     # 1. a new code layer: the starter scene runs (library code is trusted) and renders
     code.new_button.click()
@@ -80,7 +81,7 @@ def test_write_run_see_the_error_at_its_line_fix_it_and_see_the_frame(window, qt
     wait_until(qt_app, lambda: code.state_label.text() == "Error", timeout=180)
     assert code.error_label.plain.startswith("line 4: NameError") and "Squre" in code.error_label.plain
     assert code.editor.error_line == 4
-    assert "(error)" in code.list.item(0).text()  # the list marks the failed layer
+    assert "!" in list_texts(code)[0]  # the list marks the failed layer
 
     # 4. clicking the error moves the cursor to the line
     code.editor.go_to_line(1)
