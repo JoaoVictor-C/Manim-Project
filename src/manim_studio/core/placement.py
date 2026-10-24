@@ -71,6 +71,8 @@ def place(boxes: list[Box], size, frame: Box) -> tuple[float, float]:
     middle = np.zeros(2)
     if fits(middle):
         return 0.0, 0.0
+    if not boxes:
+        return 0.0, 0.0
     low = np.min([b[0] for b in boxes], axis=0)
     high = np.max([b[1] for b in boxes], axis=0)
     for centre in (

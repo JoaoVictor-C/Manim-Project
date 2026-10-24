@@ -140,6 +140,32 @@ def params_problem(code: str) -> CodeProblem | None:
     return _read(code)[1]
 
 
+def is_python_object_code(code: str) -> bool:
+    """Whether source has the Python-object ``build(p)`` shape rather than a Manim Scene.
+
+    Detection is syntax-only: importing a file must never execute its code. A top-level
+    ``build`` function identifies an object unless a top-level class defines ``construct``,
+    which is the normal Manim Scene interface.
+    """
+    try:
+        tree = ast.parse(code.lstrip("\ufeff"), FILENAME)  # a file saved with a BOM is still Python
+    except (SyntaxError, ValueError):
+        return False
+    has_build = any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "build"
+        for node in tree.body
+    )
+    has_scene = any(
+        isinstance(node, ast.ClassDef)
+        and any(
+            isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and member.name == "construct"
+            for member in node.body
+        )
+        for node in tree.body
+    )
+    return has_build and not has_scene
+
+
 @lru_cache(maxsize=256)
 def _read(code: str) -> tuple[tuple[PyParam, ...], CodeProblem | None]:
     try:

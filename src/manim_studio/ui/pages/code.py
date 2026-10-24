@@ -24,12 +24,15 @@ render output | the viewer. The model, settled in decision session 36:
 from __future__ import annotations
 
 import html
+import re
 from functools import partial
+from pathlib import Path
 
 from pydantic import ValidationError
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -136,12 +139,20 @@ class CodePage(Page):
             "triangle; its parameters become fields in Properties"
         )
         self.new_python_button.clicked.connect(lambda: self.new_python_object())
-        templates = QMenu(self.new_python_button)  # the arrow: which template to start from
-        for name, code in python_templates.TEMPLATES.items():
-            action = templates.addAction(name)
-            action.setToolTip(f"Start from the {name} template")
-            action.triggered.connect(lambda _=False, c=code: self.new_python_object(c))
-        self.new_python_button.setMenu(templates)
+        self.python_templates_menu = QMenu(self.new_python_button)  # the arrow: choose a starter
+        self._refresh_python_templates()
+        self.new_python_button.setMenu(self.python_templates_menu)
+        self.import_folder_button = QPushButton("Import presets from folder…")
+        self.import_folder_button.setToolTip("Add .py files from a folder to the New Python object menu")
+        self.import_folder_button.clicked.connect(self.import_code_folder)
+        self.add_code_file_button = QPushButton("Add code file…")
+        self.add_code_file_button.setToolTip(
+            "Add one .py file to the project; Python objects and Manim scenes are detected automatically"
+        )
+        self.add_code_file_button.clicked.connect(self.add_code_file)
+        self.export_folder_button = QPushButton("Export all to folder…")
+        self.export_folder_button.setToolTip("Save every code layer and Python object as a .py file")
+        self.export_folder_button.clicked.connect(self.export_code_folder)
         self.rename_button = QPushButton("Rename")
         self.rename_button.setToolTip("Rename the chosen layer (F2, or double-click it)")
         self.rename_button.clicked.connect(self.rename_layer)
@@ -163,6 +174,9 @@ class CodePage(Page):
         column.addLayout(manage)
         column.addWidget(self.new_button)
         column.addWidget(self.new_python_button)
+        column.addWidget(self.import_folder_button)
+        column.addWidget(self.add_code_file_button)
+        column.addWidget(self.export_folder_button)
         # Hooks for tests and other front-ends: a new name, or None (cancelled).
         self.ask_name = self._ask_name_dialog
 
@@ -181,6 +195,9 @@ class CodePage(Page):
         self.run_button.setToolTip("Apply the code to the layer and run it (Ctrl+Enter)")
         window.builds.failed.connect(self._on_build_failed)
         self.run_button.clicked.connect(self.run)
+        self.save_code_button = QPushButton("Save code…")
+        self.save_code_button.setToolTip("Save the code shown in the editor as a standalone Python file")
+        self.save_code_button.clicked.connect(self.save_code)
         bar.addWidget(self.title_label)
         bar.addWidget(self.dirty_label)
         bar.addStretch(1)
@@ -194,6 +211,7 @@ class CodePage(Page):
         bar.addWidget(self.revert_button)
         bar.addWidget(self.convert_button)
         bar.addWidget(self.run_button)
+        bar.addWidget(self.save_code_button)
         self.notice = QLabel(
             "The layer's code changed in the project (undo, redo or Properties) while you were editing. "
             "Your text is kept: Revert shows the project's code, Run replaces it."
@@ -463,6 +481,140 @@ class CodePage(Page):
         if status is not None and status.state == "error":
             self.window.code.retry(layer_id)
 
+    def save_code(self) -> None:
+        """Save the editor's current text, including unapplied edits, as a Python file."""
+        layer_id = self.layer_id
+        if layer_id is None or self.window.project is None:
+            return
+        layer = self.window.project.layer(layer_id)
+        stem = re.sub(r'[<>:"/\\|?*]', "_", layer.label).strip(" .") or layer.id
+        start = self.window.default_folder() / f"{stem}.py"
+        name, _ = QFileDialog.getSaveFileName(self.widget, "Save Code", str(start), "Python (*.py)")
+        if not name:
+            return
+        path = Path(name)
+        if path.suffix.lower() != ".py":
+            path = path.with_suffix(".py")
+        try:
+            path.write_text(self.editor.text(), encoding="utf-8")
+        except OSError as error:
+            self.window.statusBar().showMessage(f"Could not save code: {error}", 10000)
+            return
+        self.window.statusBar().showMessage(f"Saved code to {path}", 10000)
+
+    def import_code_folder(self) -> None:
+        """Register each .py file in a chosen folder as a reusable Python object preset."""
+        folder = QFileDialog.getExistingDirectory(
+            self.widget, "Import Code from Folder", str(self.window.default_folder())
+        )
+        if not folder:
+            return
+        files = sorted(
+            (path for path in Path(folder).iterdir() if path.is_file() and path.suffix.lower() == ".py"),
+            key=lambda path: path.name.casefold(),
+        )
+        if not files:
+            self.window.statusBar().showMessage("No .py files found in that folder.", 6000)
+            return
+        sources = []
+        for path in files:
+            try:
+                source = path.read_text(encoding="utf-8-sig")  # editors on Windows add a BOM
+            except (OSError, UnicodeDecodeError):
+                continue  # unreadable: counted as skipped
+            if python_object.is_python_object_code(source):
+                sources.append((path.stem, source))
+        skipped = len(files) - len(sources)
+        if not sources:
+            self.window.statusBar().showMessage(
+                "No Python object files found. Presets need a top-level build(p) function.", 8000
+            )
+            return
+        user_templates = self.window.prefs.python_code_templates()
+        used_names = set(python_templates.TEMPLATES) | set(user_templates)
+        for label, source in sources:
+            preset_name = label
+            number = 2
+            while preset_name in used_names:
+                preset_name = f"{label} ({number})"
+                number += 1
+            user_templates[preset_name] = source
+            used_names.add(preset_name)
+        self.window.prefs.set_python_code_templates(user_templates)
+        self._refresh_python_templates()
+        detail = f"; skipped {skipped} file(s) without a Python object build(p) function" if skipped else ""
+        self.window.statusBar().showMessage(f"Added {len(sources)} Python object preset(s){detail}", 10000)
+
+    def add_code_file(self) -> None:
+        """Add one standalone Manim scene file to the project as a Code layer."""
+        if self.window.project is None:
+            self.window.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        name, _ = QFileDialog.getOpenFileName(
+            self.widget, "Add Code File", str(self.window.default_folder()), "Python (*.py);;All files (*)"
+        )
+        if not name:
+            return
+        path = Path(name)
+        try:
+            source = path.read_text(encoding="utf-8-sig")
+            done = self.window.layers.add_code_file(source, path.stem)
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            self.window.statusBar().showMessage(f"Could not add {path.name}: {error}", 10000)
+            return
+        self.window.statusBar().showMessage(done, 10000)
+
+    def _refresh_python_templates(self) -> None:
+        """Rebuild the new-object menu from built-in and saved user templates."""
+        menu = self.python_templates_menu
+        menu.clear()
+        user_templates = {
+            name: code
+            for name, code in self.window.prefs.python_code_templates().items()
+            if python_object.is_python_object_code(code)
+        }
+        templates = {**python_templates.TEMPLATES, **user_templates}
+        for name, code in templates.items():
+            action = menu.addAction(name)
+            action.setToolTip(f"Start from the {name} template")
+            action.triggered.connect(lambda _=False, c=code: self.new_python_object(c))
+
+    def export_code_folder(self) -> None:
+        """Write all code layers and Python objects, including their unapplied drafts, to a folder."""
+        project = self.window.project
+        if project is None:
+            self.window.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self.widget, "Export All Code to Folder", str(self.window.default_folder())
+        )
+        if not folder:
+            return
+        targets = []
+        for layer in self._layers():
+            source = str(layer.spec.params.get("code", ""))
+            if layer.id == self.layer_id:
+                source = self.editor.text()
+            else:
+                draft = self.drafts.get(layer.id, source)
+                if draft is not None:
+                    source = draft.text
+            stem = re.sub(r'[<>:"/\\|?*]', "_", layer.label).strip(" .") or layer.id
+            targets.append((stem, source))
+        reserved: set[str] = set()
+        try:
+            for stem, source in targets:
+                candidate, number = stem, 2
+                while f"{candidate.casefold()}.py" in reserved or (Path(folder) / f"{candidate}.py").exists():
+                    candidate = f"{stem} ({number})"
+                    number += 1
+                reserved.add(f"{candidate.casefold()}.py")
+                (Path(folder) / f"{candidate}.py").write_text(source, encoding="utf-8")
+        except OSError as error:
+            self.window.statusBar().showMessage(f"Could not export code files: {error}", 10000)
+            return
+        self.window.statusBar().showMessage(f"Exported {len(targets)} code file(s) to {folder}", 10000)
+
     def convert(self) -> None:
         """Convert to layers (P10.3, ADR 0053): the window records the scene in another process and
         replaces the layer by its objects, or says why it stays code."""
@@ -564,6 +716,7 @@ class CodePage(Page):
         self.dirty_label.setVisible(dirty)
         self.notice.setVisible(self._moved)  # _moved is false while clean
         self.run_button.setEnabled(self.layer_id is not None)
+        self.save_code_button.setEnabled(self.layer_id is not None)
         self.convert_button.setEnabled(
             self.layer_id is not None and not dirty and not self._is_python(self.layer_id)
         )

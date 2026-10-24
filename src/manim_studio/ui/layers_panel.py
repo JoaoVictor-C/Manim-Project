@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import plugins
-from ..core import adapter, edits, glyph_colours, parts, placement, python_object, shape
+from ..core import adapter, edits, glyph_colours, parts, placement, python_object, scene_import, shape
 from ..core.expressions import check as check_expression
 from ..core.layer_index import LayerIndex
 from ..core.python_object import PYTHON_TYPE
@@ -162,9 +162,9 @@ AXES_MENU = (  # Parts > Add to axes (ADR 0030): type, menu label
 )
 
 
-def add_placed(project: Project, spec: Spec, t: float) -> edits.Edit:
+def add_placed(project: Project, spec: Spec, t: float, name: str = "") -> edits.Edit:
     """Add an object where it does not cover the others (GP, ``core.placement``)."""
-    edit = edits.add_layer(project, spec)
+    edit = edits.add_layer(project, spec, name=name)
     where = placement.position_for(project, spec, t)
     if where == (0.0, 0.0):
         return edit
@@ -524,6 +524,27 @@ class LayersPanel(QWidget):
         self.trust_code(code)  # the editor's own template
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), "Add Python object")
+
+    def add_code_file(self, source: str, name: str) -> str:
+        """Add a Python file's text as a layer: a Python object when it has the ``build(p)`` shape,
+        else a code layer holding its (first) Manim scene. Nothing in the file runs here, and the
+        code stays untrusted until it is run. Returns what was done; raises ``ValueError`` (with the
+        reason) when the file is neither."""
+        source = source.lstrip("\ufeff")  # an editor's byte-order mark is not code
+        if python_object.is_python_object_code(source):
+            spec, kind, extra = Spec(type=PYTHON_TYPE, params={"code": source}), "Python object", ""
+        else:
+            scenes = scene_import.scene_classes(source)
+            if not scenes:
+                raise ValueError("it has neither a build(p) function nor a Manim Scene class")
+            spec = Spec(type="Code", params={"code": scene_import.scene_code(source, scenes[0])})
+            kind = "code layer"
+            extra = (
+                f" (the file's other scenes - {', '.join(scenes[1:])} - were left out)" if scenes[1:] else ""
+            )
+        self._select_new = True
+        self._submit(partial(add_placed, spec=spec, t=self.playhead(), name=name), f"Add {kind}")
+        return f"Adding {name} as a {kind}{extra}"
 
     def add_equation_steps(self) -> None:
         """Add > Equation steps... (P11): ask for the steps, then add one MathTex per step with

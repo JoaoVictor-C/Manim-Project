@@ -12,6 +12,7 @@ variable at a fresh file each, so windows in tests start at the defaults.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -83,6 +84,21 @@ class Preferences:
 
     def clear_recent(self) -> None:
         self._write_recent([])
+
+    def python_code_templates(self) -> dict[str, str]:
+        """User-imported code templates for the Code page's New Python object menu."""
+        raw = self._settings.value("python_code_templates", "{}")
+        try:
+            value = json.loads(str(raw))
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        return {name: code for name, code in value.items() if isinstance(name, str) and isinstance(code, str)}
+
+    def set_python_code_templates(self, templates: dict[str, str]) -> None:
+        self._settings.setValue("python_code_templates", json.dumps(templates, ensure_ascii=False))
+        self._settings.sync()
 
     # -- window and pages -----------------------------------------------------------------
 
