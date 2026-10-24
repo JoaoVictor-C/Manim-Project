@@ -3,12 +3,21 @@
 A ``QPlainTextEdit`` for Python: the theme's monospace font, a line number gutter,
 the current line (and the line a render error points at) tinted, Python highlighting
 from ``code_syntax``, auto-indent (a new line keeps the indent and adds four spaces
-after a colon), Tab as four spaces (indenting a selection's lines), Shift+Tab
-dedenting, Backspace removing a whole indent, and Ctrl+Enter asking to run.
-All colours come from the theme's tokens.
+after a colon), Tab as one indent (four spaces by default, indenting a selection's lines),
+Shift+Tab dedenting, Backspace removing a whole indent, and Ctrl+Enter asking to run.
+
+P12 makes it behave like a code editor: ``apply_settings`` takes an ``EditorSettings`` live
+(font size, tab width, wrapping, gutter, current-line tint, visible whitespace, auto-closing
+brackets and quotes), the usual line commands exist as methods and keys (toggle comment,
+duplicate, move, delete and select line, zoom), and ``set_search_highlights`` draws the find
+bar's matches. Every multi-line edit is one step of the editor's own undo. All colours come
+from the theme's tokens.
 """
 
 from __future__ import annotations
+
+import re
+from dataclasses import replace
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
@@ -21,15 +30,24 @@ from PySide6.QtGui import (
     QTextCursor,
     QTextDocument,
     QTextFormat,
+    QTextOption,
+    QWheelEvent,
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
 from . import theme
 from .code_drafts import clamp_line
 from .code_syntax import NORMAL, scan_line
+from .editor_settings import MAX_FONT_SIZE, MIN_FONT_SIZE, EditorSettings, clamp
 
 INDENT = " " * 4
 CODE_POINT_SIZE = 10
+MAX_HIGHLIGHTS = 5000  # find matches drawn at most (the counter still counts them all)
+PAIRS = {"(": ")", "[": "]", "{": "}", '"': '"', "'": "'"}
+CLOSERS = frozenset(PAIRS.values())
+STRING_PREFIXES = frozenset({"r", "b", "f", "u", "rb", "br", "fr", "rf"})  # f"..." still pairs
+BEFORE_CLOSER = frozenset(")]},:;.")  # a bracket pairs when the next character is one of these or blank
+MAX_TRACKED = 200  # auto-inserted closers remembered
 
 
 class PythonHighlighter(QSyntaxHighlighter):
@@ -75,21 +93,90 @@ class _Gutter(QWidget):
 
 class CodeEditor(QPlainTextEdit):
     runRequested = Signal()  # Ctrl+Enter
+    zoomChanged = Signal(int)  # the new font size after Ctrl+= / Ctrl+- / Ctrl+0 / Ctrl+wheel
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("codeEditor")
-        self.setFont(theme.mono_font(CODE_POINT_SIZE))
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.setTabStopDistance(len(INDENT) * self.fontMetrics().horizontalAdvance(" "))
+        self.indent = INDENT  # one level of indent: ``tab_width`` spaces
+        self._settings = EditorSettings(font_size=CODE_POINT_SIZE)
         self.highlighter = PythonHighlighter(self.document())
         self._gutter = _Gutter(self)
         self._error_line: int | None = None
+        self._search_selections: list[QTextEdit.ExtraSelection] = []
+        self._auto_closers: list[QTextCursor] = []  # before each closer the editor typed itself
         self.blockCountChanged.connect(self._update_margin)
         self.updateRequest.connect(self._update_gutter)
         self.cursorPositionChanged.connect(self._update_selections)
+        self.apply_settings(self._settings)
+
+    # -- settings --------------------------------------------------------------------------
+
+    @property
+    def settings(self) -> EditorSettings:
+        """The settings in force (zooming changes the font size in them)."""
+        return self._settings
+
+    def apply_settings(self, settings: EditorSettings) -> None:
+        """Take ``settings`` (clamped) live: font, tab stops and indent, wrapping, gutter, line tint,
+        visible whitespace and auto-closing. Never emits ``zoomChanged``."""
+        settings = clamp(settings)
+        self._settings = settings
+        self.setFont(theme.mono_font(settings.font_size))
+        self.indent = " " * settings.tab_width
+        self.setTabStopDistance(settings.tab_width * self.fontMetrics().horizontalAdvance(" "))
+        self.setLineWrapMode(
+            QPlainTextEdit.LineWrapMode.WidgetWidth
+            if settings.word_wrap
+            else QPlainTextEdit.LineWrapMode.NoWrap
+        )
+        option = self.document().defaultTextOption()
+        flags = option.flags()
+        if settings.show_whitespace:
+            flags |= QTextOption.Flag.ShowTabsAndSpaces
+        else:
+            flags &= ~QTextOption.Flag.ShowTabsAndSpaces
+        option.setFlags(flags)
+        self.document().setDefaultTextOption(option)
+        self._gutter.setVisible(settings.line_numbers)
         self._update_margin()
+        self._place_gutter()
         self._update_selections()
+        self.viewport().update()
+
+    def trimmed_text(self) -> str:
+        """The text, with trailing spaces and tabs dropped from every line when the setting is on
+        (the text as it is otherwise); the editor itself is left alone."""
+        text = self.text()
+        if not self._settings.trim_trailing_whitespace:
+            return text
+        return "\n".join(line.rstrip(" \t") for line in text.split("\n"))
+
+    # -- zoom --------------------------------------------------------------------------------
+
+    def zoom_in(self) -> None:
+        self._zoom(self._settings.font_size + 1)
+
+    def zoom_out(self) -> None:
+        self._zoom(self._settings.font_size - 1)
+
+    def zoom_reset(self) -> None:
+        self._zoom(EditorSettings().font_size)
+
+    def _zoom(self, size: int) -> None:
+        size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, size))
+        if size != self._settings.font_size:
+            self.apply_settings(replace(self._settings, font_size=size))
+            self.zoomChanged.emit(size)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = event.angleDelta().y()
+            if delta:
+                self.zoom_in() if delta > 0 else self.zoom_out()
+            event.accept()
+            return
+        super().wheelEvent(event)
 
     # -- text and lines -------------------------------------------------------------
 
@@ -98,6 +185,7 @@ class CodeEditor(QPlainTextEdit):
 
     def set_text(self, text: str, cursor: int = 0) -> None:
         """Replace everything (the text-undo history starts again) and put the cursor back."""
+        self._auto_closers.clear()
         self.setPlainText(text)
         self.set_cursor(cursor)
 
@@ -151,6 +239,10 @@ class CodeEditor(QPlainTextEdit):
         if enter and mods & Qt.KeyboardModifier.ControlModifier:
             self.runRequested.emit()
             return
+        command = self._key_commands().get((mods & ~Qt.KeyboardModifier.KeypadModifier, key))
+        if command is not None:
+            command()
+            return
         if key == Qt.Key.Key_Backtab or (key == Qt.Key.Key_Tab and mods & Qt.KeyboardModifier.ShiftModifier):
             self._dedent()
             return
@@ -162,16 +254,42 @@ class CodeEditor(QPlainTextEdit):
         if enter and not mods & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
             self._new_line()
             return
-        if key == Qt.Key.Key_Backspace and not mods and self._backspace_indent():
+        if key == Qt.Key.Key_Backspace and not mods and (self._backspace_pair() or self._backspace_indent()):
+            return
+        if self._type_pair(event):
             return
         super().keyPressEvent(event)
+
+    def _key_commands(self) -> dict:
+        """(modifiers, key) -> the editing command it runs (VS Code's bindings)."""
+        ctrl, shift, alt = (
+            Qt.KeyboardModifier.ControlModifier,
+            Qt.KeyboardModifier.ShiftModifier,
+            Qt.KeyboardModifier.AltModifier,
+        )
+        key = Qt.Key
+        return {
+            (ctrl, key.Key_Slash): self.toggle_comment,
+            (shift | alt, key.Key_Down): self.duplicate_lines_down,
+            (shift | alt, key.Key_Up): self.duplicate_lines_up,
+            (alt, key.Key_Down): self.move_lines_down,
+            (alt, key.Key_Up): self.move_lines_up,
+            (ctrl | shift, key.Key_K): self.delete_lines,
+            (ctrl, key.Key_L): self.select_lines,
+            (ctrl, key.Key_Equal): self.zoom_in,
+            (ctrl, key.Key_Plus): self.zoom_in,
+            (ctrl | shift, key.Key_Equal): self.zoom_in,
+            (ctrl | shift, key.Key_Plus): self.zoom_in,
+            (ctrl, key.Key_Minus): self.zoom_out,
+            (ctrl, key.Key_0): self.zoom_reset,
+        }
 
     def _new_line(self) -> None:
         cursor = self.textCursor()
         before = cursor.block().text()[: cursor.positionInBlock()]
         indent = before[: len(before) - len(before.lstrip(" \t"))]
         if before.rstrip().endswith(":"):
-            indent += INDENT
+            indent += self.indent
         cursor.insertText("\n" + indent)
         self.setTextCursor(cursor)
         self.ensureCursorVisible()
@@ -180,10 +298,10 @@ class CodeEditor(QPlainTextEdit):
         cursor = self.textCursor()
         column = cursor.positionInBlock()
         before = cursor.block().text()[:column]
-        if cursor.hasSelection() or column == 0 or before.strip() or column % len(INDENT):
+        if cursor.hasSelection() or column == 0 or before.strip() or column % len(self.indent):
             return False
         cursor.beginEditBlock()
-        for _ in INDENT:
+        for _ in self.indent:
             cursor.deletePreviousChar()
         cursor.endEditBlock()
         self.setTextCursor(cursor)
@@ -209,16 +327,16 @@ class CodeEditor(QPlainTextEdit):
         blocks = self._selected_blocks()
         if len(blocks) < 2 or not cursor.hasSelection():
             column = cursor.positionInBlock()
-            cursor.insertText(" " * (len(INDENT) - column % len(INDENT)))
+            cursor.insertText(" " * (len(self.indent) - column % len(self.indent)))
             self.setTextCursor(cursor)
             return
-        self._edit_blocks(blocks, lambda text: INDENT + text if text.strip() else text)
+        self._edit_blocks(blocks, lambda text: self.indent + text if text.strip() else text)
 
     def _dedent(self) -> None:
         def remove(text: str) -> str:
             if text.startswith("\t"):
                 return text[1:]
-            return text[min(len(INDENT), len(text) - len(text.lstrip(" "))) :]
+            return text[min(len(self.indent), len(text) - len(text.lstrip(" "))) :]
 
         self._edit_blocks(self._selected_blocks(), remove)
 
@@ -242,9 +360,290 @@ class CodeEditor(QPlainTextEdit):
         selection.setPosition(end.position() + end.length() - 1, QTextCursor.MoveMode.KeepAnchor)
         self.setTextCursor(selection)
 
+    # -- brackets and quotes ------------------------------------------------------------------
+
+    def _char_before(self, cursor: QTextCursor) -> str:
+        column = cursor.positionInBlock()
+        return cursor.block().text()[column - 1] if column else ""
+
+    def _char_after(self, cursor: QTextCursor) -> str:
+        text, column = cursor.block().text(), cursor.positionInBlock()
+        return text[column] if column < len(text) else ""
+
+    def _type_pair(self, event: QKeyEvent) -> bool:
+        """Auto-closing: a typed opener inserts its pair (or wraps the selection), a typed closer
+        over one the editor inserted steps over it. True when the key was handled."""
+        text, mods = event.text(), event.modifiers()
+        if not self._settings.auto_close_brackets or len(text) != 1:
+            return False
+        ctrl_alt = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+        held = mods & ctrl_alt
+        if held and held != ctrl_alt:  # Ctrl+Alt together is AltGr on Windows
+            return False
+        cursor = self.textCursor()
+        if text in PAIRS and cursor.hasSelection():
+            self._surround(cursor, text)
+            return True
+        if text in CLOSERS and self._step_over(cursor, text):
+            return True
+        if text in PAIRS and not cursor.hasSelection() and self._may_pair(cursor, text):
+            cursor.insertText(text + PAIRS[text])
+            cursor.movePosition(QTextCursor.MoveOperation.Left)
+            closer = QTextCursor(self.document())
+            closer.setPosition(cursor.position())
+            self._auto_closers = [*self._auto_closers[-MAX_TRACKED + 1 :], closer]
+            self.setTextCursor(cursor)
+            return True
+        return False
+
+    def _may_pair(self, cursor: QTextCursor, opener: str) -> bool:
+        """VS Code's rule: pair when the next character is blank, a closer or punctuation; a quote never
+        right after a word character (``don't``), except a string prefix (``f"``), nor a repeated one."""
+        after = self._char_after(cursor)
+        if after and not after.isspace() and after not in BEFORE_CLOSER:
+            return False
+        if opener in "\"'":
+            before = cursor.block().text()[: cursor.positionInBlock()]
+            if before.endswith(opener):
+                return False
+            word = re.search(r"\w+$", before)
+            if word and word.group().lower() not in STRING_PREFIXES:
+                return False
+        return True
+
+    def _surround(self, cursor: QTextCursor, opener: str) -> None:
+        """Wrap the selection in the pair and keep the same text selected."""
+        selected = cursor.selectedText()
+        start = cursor.selectionStart()
+        cursor.beginEditBlock()
+        cursor.insertText(opener + selected + PAIRS[opener])
+        cursor.endEditBlock()
+        inner = QTextCursor(self.document())
+        inner.setPosition(start + 1)
+        inner.setPosition(start + 1 + len(selected), QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(inner)
+
+    def _step_over(self, cursor: QTextCursor, closer: str) -> bool:
+        """Typing ``closer`` right before one the editor inserted just moves past it."""
+        if cursor.hasSelection() or self._char_after(cursor) != closer:
+            return False
+        position = cursor.position()
+        tracked = [c for c in self._auto_closers if c.position() == position]
+        if not tracked:
+            return False
+        self._auto_closers = [c for c in self._auto_closers if c.position() != position]
+        cursor.movePosition(QTextCursor.MoveOperation.Right)
+        self.setTextCursor(cursor)
+        return True
+
+    def _backspace_pair(self) -> bool:
+        """Backspace between an empty pair (``(|)``) removes both characters."""
+        cursor = self.textCursor()
+        if not self._settings.auto_close_brackets or cursor.hasSelection():
+            return False
+        before, after = self._char_before(cursor), self._char_after(cursor)
+        if not before or PAIRS.get(before) != after:
+            return False
+        cursor.beginEditBlock()
+        cursor.deletePreviousChar()
+        cursor.deleteChar()
+        cursor.endEditBlock()
+        self.setTextCursor(cursor)
+        return True
+
+    # -- line commands (one undo step each) ----------------------------------------------------------
+
+    def _span(self) -> tuple[int, int]:
+        """The first and last (0-based) line numbers the cursor or selection touches."""
+        blocks = self._selected_blocks()
+        return blocks[0].blockNumber(), blocks[-1].blockNumber()
+
+    def _line_texts(self, first: int, last: int) -> list[str]:
+        document = self.document()
+        return [document.findBlockByNumber(n).text() for n in range(first, last + 1)]
+
+    def _replace_lines(self, first: int, last: int, lines: list[str]) -> None:
+        """Replace lines ``first``..``last`` by ``lines`` (call inside an edit block)."""
+        document = self.document()
+        edit = QTextCursor(document.findBlockByNumber(first))
+        end = document.findBlockByNumber(last)
+        edit.setPosition(end.position() + end.length() - 1, QTextCursor.MoveMode.KeepAnchor)
+        edit.insertText("\n".join(lines))
+
+    def _select_lines(self, first: int, last: int) -> None:
+        document = self.document()
+        selection = QTextCursor(document.findBlockByNumber(first))
+        end = document.findBlockByNumber(last)
+        selection.setPosition(end.position() + end.length() - 1, QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(selection)
+
+    def _put_cursor(self, line: int, column: int) -> None:
+        block = self.document().findBlockByNumber(line)
+        cursor = QTextCursor(block)
+        cursor.setPosition(block.position() + max(0, min(column, len(block.text()))))
+        self.setTextCursor(cursor)
+
+    def toggle_comment(self) -> None:
+        """Comment the selected lines with ``# `` at their common indent, or uncomment them when every
+        non-blank one is already commented (blank lines are left alone)."""
+        first, last = self._span()
+        texts = self._line_texts(first, last)
+        code = [t for t in texts if t.strip()]
+        if not code:
+            return
+        cursor = self.textCursor()
+        selected, line, column = cursor.hasSelection(), cursor.blockNumber(), cursor.positionInBlock()
+        uncomment = all(t.lstrip().startswith("#") for t in code)
+        margin = min(len(t) - len(t.lstrip(" \t")) for t in code)
+        new = []
+        for text in texts:
+            if not text.strip():
+                new.append(text)
+            elif uncomment:
+                lead = len(text) - len(text.lstrip(" \t"))
+                body = text[lead + 1 :]
+                new.append(text[:lead] + (body[1:] if body.startswith(" ") else body))
+            else:
+                new.append(text[:margin] + "# " + text[margin:])
+        edit = QTextCursor(self.document())
+        edit.beginEditBlock()
+        self._replace_lines(first, last, new)
+        edit.endEditBlock()
+        if selected:
+            self._select_lines(first, last)
+        else:
+            delta = len(new[line - first]) - len(texts[line - first])
+            self._put_cursor(line, column + delta if uncomment or column >= margin else column)
+
+    def duplicate_lines_down(self) -> None:
+        """Copy the selected lines below themselves; the copy is left selected (or holds the cursor)."""
+        self._duplicate(down=True)
+
+    def duplicate_lines_up(self) -> None:
+        """Copy the selected lines above themselves; the copy (now the upper one) is left selected."""
+        self._duplicate(down=False)
+
+    def _duplicate(self, *, down: bool) -> None:
+        first, last = self._span()
+        texts = self._line_texts(first, last)
+        cursor = self.textCursor()
+        selected, line, column = cursor.hasSelection(), cursor.blockNumber(), cursor.positionInBlock()
+        document = self.document()
+        edit = QTextCursor(document)
+        edit.beginEditBlock()
+        if down:
+            end = document.findBlockByNumber(last)
+            edit.setPosition(end.position() + end.length() - 1)
+            edit.insertText("\n" + "\n".join(texts))
+        else:
+            edit.setPosition(document.findBlockByNumber(first).position())
+            edit.insertText("\n".join(texts) + "\n")
+        edit.endEditBlock()
+        start = last + 1 if down else first
+        if selected:
+            self._select_lines(start, start + len(texts) - 1)
+        else:
+            self._put_cursor(start + (line - first), column)
+
+    def move_lines_up(self) -> None:
+        """Swap the selected lines with the one above (nothing happens at the top)."""
+        self._move(up=True)
+
+    def move_lines_down(self) -> None:
+        """Swap the selected lines with the one below (nothing happens at the bottom)."""
+        self._move(up=False)
+
+    def _move(self, *, up: bool) -> None:
+        first, last = self._span()
+        if (up and first == 0) or (not up and last == self.blockCount() - 1):
+            return
+        cursor = self.textCursor()
+        selected, line, column = cursor.hasSelection(), cursor.blockNumber(), cursor.positionInBlock()
+        texts = self._line_texts(first, last)
+        edit = QTextCursor(self.document())
+        edit.beginEditBlock()
+        if up:
+            (other,) = self._line_texts(first - 1, first - 1)
+            self._replace_lines(first - 1, last, [*texts, other])
+        else:
+            (other,) = self._line_texts(last + 1, last + 1)
+            self._replace_lines(first, last + 1, [other, *texts])
+        edit.endEditBlock()
+        shift = -1 if up else 1
+        if selected:
+            self._select_lines(first + shift, last + shift)
+        else:
+            self._put_cursor(line + shift, column)
+
+    def delete_lines(self) -> None:
+        """Remove the selected lines (the cursor's line when nothing is selected)."""
+        first, last = self._span()
+        document = self.document()
+        column = self.textCursor().positionInBlock()
+        edit = QTextCursor(document)
+        edit.beginEditBlock()
+        if last < self.blockCount() - 1:
+            edit.setPosition(document.findBlockByNumber(first).position())
+            edit.setPosition(document.findBlockByNumber(last + 1).position(), QTextCursor.MoveMode.KeepAnchor)
+        else:  # the last lines: take the newline before them instead
+            end = document.findBlockByNumber(last)
+            edit.setPosition(max(0, document.findBlockByNumber(first).position() - 1))
+            edit.setPosition(end.position() + end.length() - 1, QTextCursor.MoveMode.KeepAnchor)
+        edit.removeSelectedText()
+        edit.endEditBlock()
+        self._put_cursor(min(first, self.blockCount() - 1), column)
+
+    def select_lines(self) -> None:
+        """Select the whole lines the selection touches, newline included; again: one line more."""
+        cursor = self.textCursor()
+        document = self.document()
+        start = document.findBlock(cursor.selectionStart())
+        end = document.findBlock(cursor.selectionEnd())
+        ends_at_line_start = (
+            cursor.hasSelection() and cursor.selectionEnd() == end.position() > start.position()
+        )
+        if ends_at_line_start and cursor.selectionStart() != start.position():
+            end = end.previous()  # that last line is not in the selection; whole lines selected extend by one
+        after = end.next()
+        stop = after.position() if after.isValid() else end.position() + end.length() - 1
+        selection = QTextCursor(document)
+        selection.setPosition(start.position())
+        selection.setPosition(stop, QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(selection)
+
+    # -- the find bar's matches ---------------------------------------------------------------------
+
+    def set_search_highlights(self, matches: list[tuple[int, int]], current: int | None = None) -> None:
+        """Draw find matches (``(start, length)`` document positions; ``current`` is the index of the one
+        in focus), on top of the current-line and error-line tints. An empty list clears them."""
+        document = self.document()
+        end = document.characterCount() - 1
+        shown = set(range(min(len(matches), MAX_HIGHLIGHTS)))
+        if current is not None and 0 <= current < len(matches):
+            shown.add(current)
+        else:
+            current = None
+        selections = []
+        for index in sorted(shown):
+            start, length = matches[index]
+            if start < 0 or length <= 0 or start + length > end:
+                continue
+            selection = QTextEdit.ExtraSelection()
+            token = theme.THEME.search_current if index == current else theme.THEME.search_match
+            selection.format.setBackground(theme.qcolor(token))
+            selection.cursor = QTextCursor(document)
+            selection.cursor.setPosition(start)
+            selection.cursor.setPosition(start + length, QTextCursor.MoveMode.KeepAnchor)
+            selections.append(selection)
+        self._search_selections = selections
+        self._update_selections()
+
     # -- the gutter and the tinted lines ------------------------------------------------
 
     def gutter_width(self) -> int:
+        """The gutter's width: room for the line numbers, 0 when they are switched off."""
+        if not self._settings.line_numbers:
+            return 0
         digits = max(3, len(str(self.blockCount())))
         return 12 + self.fontMetrics().horizontalAdvance("9") * digits
 
@@ -261,6 +660,9 @@ class CodeEditor(QPlainTextEdit):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._place_gutter()
+
+    def _place_gutter(self) -> None:
         area = self.contentsRect()
         self._gutter.setGeometry(QRect(area.left(), area.top(), self.gutter_width(), area.height()))
 
@@ -295,7 +697,7 @@ class CodeEditor(QPlainTextEdit):
     def _update_selections(self) -> None:
         selections = []
         for tint, block in (
-            (theme.THEME.code_line, self.textCursor().block()),
+            (theme.THEME.code_line, self.textCursor().block() if self._settings.highlight_line else None),
             (
                 theme.THEME.code_error_line,
                 self.document().findBlockByNumber(self._error_line - 1) if self._error_line else None,
@@ -309,5 +711,5 @@ class CodeEditor(QPlainTextEdit):
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = QTextCursor(block)
             selections.append(selection)
-        self.setExtraSelections(selections)
+        self.setExtraSelections([*selections, *self._search_selections])
         self._gutter.update()

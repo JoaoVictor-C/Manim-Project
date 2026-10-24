@@ -83,6 +83,8 @@ class Colours:
     syntax_definition: str  # the name after def and class
     code_line: str  # the line the cursor is on
     code_error_line: str  # the line a render error points at
+    search_match: str  # every find match in the code editor
+    search_current: str  # the match the find bar is on
     error_text: str  # error words on panels and the gutter (danger itself is 4.3:1 on a panel)
     # the graph editor's curves (P6b.2): one per keyed value, x red and y green as elsewhere
     curve_x: str
@@ -143,6 +145,8 @@ STUDIO = Colours(
     syntax_definition="#f2d58a",
     code_line="#ffffff0f",
     code_error_line="#ef444438",
+    search_match="#f59e0b44",
+    search_current="#2f6fe4b0",
     error_text="#f87171",
     curve_x="#f87171",
     curve_y="#4ade80",

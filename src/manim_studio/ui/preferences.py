@@ -18,6 +18,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QSettings, QStandardPaths
 
+from .editor_settings import EditorSettings, from_json, to_json
+
 MAX_RECENT = 10
 FILE_NAME = "manim-studio.ini"
 
@@ -154,6 +156,16 @@ class Preferences:
 
     def set_option(self, name: str, value) -> None:
         self._settings.setValue(f"options/{name}", value)
+        self._settings.sync()
+
+    # -- the code editor's settings (P12) ----------------------------------------------------------
+
+    def editor_settings(self) -> EditorSettings:
+        """How the code editor behaves, as last saved (the defaults for anything missing or unreadable)."""
+        return from_json(str(self._settings.value("editor_settings", "")))
+
+    def set_editor_settings(self, settings: EditorSettings) -> None:
+        self._settings.setValue("editor_settings", to_json(settings))
         self._settings.sync()
 
     def _bytes(self, key: str) -> QByteArray | None:
