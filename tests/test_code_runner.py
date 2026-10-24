@@ -106,7 +106,36 @@ def test_a_failing_job_reports_its_error_and_line(tmp_path) -> None:
     bad = "class A(Scene):\n    def construct(self):\n        raise RuntimeError('boom')\n"
     messages, code = run_spare(tmp_path, job(bad).to_json())
     assert code == 1
-    assert messages[-1] == {"error": "RuntimeError: boom", "line": 3}
+    last = messages[-1]
+    assert (last["error"], last["line"]) == ("RuntimeError: boom", 3)
+    assert (last["type"], last["where"]) == ("RuntimeError", "code")  # P13.1
+    assert "line 3, in construct" in last["traceback"] and "raise RuntimeError('boom')" in last["traceback"]
+    assert "File " not in last["traceback"]  # only the user's own frames
+
+
+def test_errors_carry_their_type_and_the_users_own_traceback(tmp_path) -> None:
+    code = "def helper():\n    return 1 / 0\nclass A(Scene):\n    def construct(self):\n        helper()\n"
+    with pytest.raises(CodeError) as caught:
+        render_code(job(code), CodeCache(tmp_path))
+    error = caught.value
+    assert (error.error_type, error.where) == ("ZeroDivisionError", "code")
+    assert error.line == 2
+    assert error.traceback.startswith("Traceback (most recent call last):")
+    assert "line 5, in construct" in error.traceback and "line 2, in helper" in error.traceback
+    assert error.traceback.endswith("ZeroDivisionError: division by zero")
+    assert "File " not in error.traceback and len(error.traceback.encode()) <= 4096
+
+
+def test_a_syntax_error_has_a_type_and_a_traceback(tmp_path) -> None:
+    with pytest.raises(CodeError) as caught:
+        render_code(job("class A(Scene):\n    def construct(self)\n        pass\n"), CodeCache(tmp_path))
+    assert caught.value.error_type == "SyntaxError" and "line 2" in caught.value.traceback
+
+
+def test_an_error_without_an_exception_has_no_type(tmp_path) -> None:
+    with pytest.raises(CodeError) as caught:
+        render_code(job("x = 1\n"), CodeCache(tmp_path))
+    assert (caught.value.error_type, caught.value.where, caught.value.traceback) == ("", "code", "")
 
 
 @pytest.mark.slow

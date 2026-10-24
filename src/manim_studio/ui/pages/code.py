@@ -624,7 +624,14 @@ class CodePage(Page):
                 return CodeStatus("built")
             if problem.message == python_object.NOT_TRUSTED:
                 return CodeStatus("untrusted")
-            return CodeStatus("error", error=problem.message, line=problem.line)
+            return CodeStatus(
+                "error",
+                error=problem.message,
+                line=problem.line,
+                error_type=problem.error_type,
+                where=problem.where,
+                traceback=problem.traceback,
+            )
         return self.window.code.status(layer_id)
 
     def _code_of(self, layer_id: str | None) -> str | None:

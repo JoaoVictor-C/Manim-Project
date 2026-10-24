@@ -103,12 +103,24 @@ class PyParam:
 
 
 class CodeProblem(ValueError):  # noqa: N818 - a problem shown to the user, not a crash
-    """Something wrong with a Python object's code, at ``line`` (1-based) when known."""
+    """Something wrong with a Python object's code, at ``line`` (1-based) when known. ``error_type`` is
+    the exception's class name ("" when the problem is not an exception), ``where`` is ``"code"`` (or
+    ``"helper:<name>"``) and ``traceback`` the user's own frames, at most 4 KB (P13.1)."""
 
-    def __init__(self, message: str, line: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        line: int | None = None,
+        error_type: str = "",
+        where: str = "code",
+        traceback: str = "",
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.line = line
+        self.error_type = error_type
+        self.where = where
+        self.traceback = traceback
 
     def __str__(self) -> str:
         return f"line {self.line}: {self.message}" if self.line else self.message
@@ -171,9 +183,9 @@ def _read(code: str) -> tuple[tuple[PyParam, ...], CodeProblem | None]:
     try:
         tree = ast.parse(code, FILENAME)
     except SyntaxError as exc:
-        return (), CodeProblem(f"SyntaxError: {exc.msg}", exc.lineno)
+        return (), CodeProblem(f"SyntaxError: {exc.msg}", exc.lineno, "SyntaxError")
     except ValueError as exc:  # e.g. a NUL character
-        return (), CodeProblem(f"SyntaxError: {exc}")
+        return (), CodeProblem(f"SyntaxError: {exc}", error_type="SyntaxError")
     assignments = [
         node
         for node in tree.body

@@ -42,6 +42,10 @@ if "SLEEP" in code:
 if "FAIL" in code:
     print(json.dumps({"error": "ValueError: nope", "line": 2}), flush=True)
     sys.exit(1)
+if "STRUCT" in code:
+    print(json.dumps({"error": "NameError: name 'x' is not defined", "line": 3, "type": "NameError",
+                      "where": "helper:geo", "traceback": "Traceback\n  line 3"}), flush=True)
+    sys.exit(1)
 if "CRASH" in code:
     sys.exit(3)
 writer = CodeCache(Path(sys.argv[1]) / "code").writer(job["key"], job["width"], job["height"], job["fps"])
@@ -135,6 +139,25 @@ def test_errors_keep_their_line_until_the_code_changes_or_a_retry(service, qt_ap
     assert service.status("c").state == "queued"
 
 
+def test_structured_errors_keep_type_where_and_traceback(service, qt_app) -> None:
+    service.sync(trusted(service, project(c="STRUCT")))
+    wait_until(qt_app, lambda: service.status("c").state == "error")
+    status = service.status("c")
+    assert (status.error_type, status.where, status.traceback) == (
+        "NameError",
+        "helper:geo",
+        "Traceback\n  line 3",
+    )
+    assert status.line == 3
+
+
+def test_an_old_message_without_a_type_is_read_from_its_text(service, qt_app) -> None:
+    service.sync(trusted(service, project(c="FAIL")))  # the stand-in sends only error and line
+    wait_until(qt_app, lambda: service.status("c").state == "error")
+    status = service.status("c")
+    assert (status.error_type, status.where, status.traceback) == ("ValueError", "code", "")
+
+
 def test_a_crash_and_a_timeout_are_errors(service, qt_app) -> None:
     service.sync(trusted(service, project(c="CRASH")))
     wait_until(qt_app, lambda: service.status("c").state == "error")
@@ -143,6 +166,7 @@ def test_a_crash_and_a_timeout_are_errors(service, qt_app) -> None:
     service.sync(trusted(service, project(c="SLEEP again")))
     wait_until(qt_app, lambda: service.status("c").state == "error")
     assert "longer than 0.5 s" in service.status("c").error
+    assert service.status("c").error_type == "TimeoutError"
 
 
 def test_spares_stop_when_no_code_layer_remains(service, qt_app) -> None:

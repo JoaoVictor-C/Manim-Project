@@ -13,7 +13,10 @@ Runs user code, so it never runs inside the editor. Two entry points:
 Messages (one flushed JSON object per line; readers skip any other line):
 ``{"ready": true}``,
 ``{"frame": n}`` (every few frames), ``{"done": true, "frames": n}``, or
-``{"error": "...", "line": n}`` with the line number in the user's code.
+``{"error": "...", "line": n, "type": "NameError", "where": "code", "traceback": "..."}``: the line
+number in the user's code, the exception's class name, where it came from (``"code"``, or
+``"helper:<name>"``) and the traceback of the user's own frames (at most 4 KB). ``type``, ``where`` and
+``traceback`` are optional for readers (older runners send only ``error`` and ``line``).
 """
 
 from __future__ import annotations
@@ -50,11 +53,23 @@ class Job:
 
 
 class CodeError(Exception):
-    """The user's code failed; ``line`` is in the user's code (None if unknown)."""
+    """The user's code failed; ``line`` is in the user's code (None if unknown). ``error_type`` is the
+    exception's class name, ``where`` is ``"code"`` (or ``"helper:<name>"``) and ``traceback`` the
+    user's own frames (P13.1)."""
 
-    def __init__(self, message: str, line: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        line: int | None = None,
+        error_type: str = "",
+        where: str = "code",
+        traceback: str = "",
+    ) -> None:
         super().__init__(message)
         self.line = line
+        self.error_type = error_type
+        self.where = where
+        self.traceback = traceback
 
 
 def render_code(job: Job, cache, progress: Callable[[int], None] | None = None) -> int:
@@ -107,7 +122,7 @@ def render_code(job: Job, cache, progress: Callable[[int], None] | None = None) 
         raise
     except Exception as error:
         writer.abort()
-        raise CodeError(f"{type(error).__name__}: {error}", _user_line(error)) from error
+        raise _failure(error, job.code) from error
     writer.finish()
     return CapturingRenderer.frames
 
@@ -121,11 +136,11 @@ def _scene_class(code: str) -> type:
     try:
         compiled = compile(code, CODE_FILENAME, "exec")
     except SyntaxError as error:
-        raise CodeError(f"SyntaxError: {error.msg}", error.lineno) from error
+        raise _failure(error, code) from error
     try:
         exec(compiled, namespace)  # the user's own code, in this throwaway process
     except Exception as error:
-        raise CodeError(f"{type(error).__name__}: {error}", _user_line(error)) from error
+        raise _failure(error, code) from error
     scenes = [
         v
         for k, v in namespace.items()
@@ -135,6 +150,18 @@ def _scene_class(code: str) -> type:
         found = ", ".join(s.__name__ for s in scenes) or "none"
         raise CodeError(f"define exactly one Scene subclass (found: {found})")
     return scenes[0]
+
+
+def _failure(error: Exception, code: str) -> CodeError:
+    """The user's exception as a ``CodeError``: its type and the traceback of the user's own frames."""
+    from .core.diagnostics import user_traceback
+
+    trace = user_traceback(error, {CODE_FILENAME: code})
+    if isinstance(error, SyntaxError):
+        return CodeError(f"SyntaxError: {error.msg}", error.lineno, "SyntaxError", traceback=trace)
+    return CodeError(
+        f"{type(error).__name__}: {error}", _user_line(error), type(error).__name__, traceback=trace
+    )
 
 
 def _user_line(error: BaseException) -> int | None:
@@ -169,7 +196,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         frames = render_code(job, cache, progress=lambda n: _emit({"frame": n}))
     except CodeError as error:
-        _emit({"error": str(error), "line": error.line})
+        _emit(
+            {
+                "error": str(error),
+                "line": error.line,
+                "type": error.error_type,
+                "where": error.where,
+                "traceback": error.traceback,
+            }
+        )
         return 1
     _emit({"done": True, "frames": frames})
     return 0

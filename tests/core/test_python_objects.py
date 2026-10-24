@@ -184,6 +184,25 @@ def test_an_error_is_the_placeholder_with_its_line(trusted) -> None:
     assert evaluator.build_errors() == {"a": "line 4: NameError: name 'nothing' is not defined"}
 
 
+def test_a_problem_carries_its_type_and_the_users_traceback(trusted) -> None:
+    problem = adapter.python_problem(python(code("    size = 2\n    return Square() + nothing")))
+    assert (problem.error_type, problem.where) == ("NameError", "code")
+    assert problem.traceback.startswith("Traceback (most recent call last):")
+    assert "line 4, in build" in problem.traceback and "File " not in problem.traceback
+    assert problem.traceback.endswith("NameError: name 'nothing' is not defined")
+    assert len(problem.traceback.encode()) <= 4096
+    syntax = adapter.python_problem(python("def build(p)\n    return 1\n"))
+    assert syntax.error_type == "SyntaxError"
+    stopped = CodeProblem("plain")
+    assert (stopped.error_type, stopped.where, stopped.traceback) == ("", "code", "")
+
+
+def test_a_time_out_is_a_timeout_error(trusted, monkeypatch) -> None:
+    monkeypatch.setattr(python_object, "TIME_LIMIT", 0.2)
+    problem = adapter.python_problem(python(code("    while True:\n        x = 1")))
+    assert problem.error_type == "TimeoutError"
+
+
 @pytest.mark.parametrize(
     ("source", "message"),
     [

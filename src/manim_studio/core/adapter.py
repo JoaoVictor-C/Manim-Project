@@ -32,6 +32,7 @@ from .. import plugins
 from ..logging_config import get_logger
 from . import morph, parts, python_object, shape, subtitles
 from .code_cache import code_hash
+from .diagnostics import user_traceback
 from .python_object import CodeProblem
 from .schema import (
     AXES_OBJECTS,
@@ -637,13 +638,18 @@ def _python_cached(spec_json: str) -> m.Mobject | CodeProblem:
                     )
                 _PY_CHECKED.add(key)
     except python_object.TimeLimit as exc:
-        return CodeProblem(str(exc), _code_line(exc))
+        return CodeProblem(str(exc), _code_line(exc), "TimeoutError")
     except (Exception, SystemExit) as exc:  # the user's code must never break a frame or the editor
         log.info("Python object failed: %s", exc)
         lines = [line for line in str(exc).splitlines() if line.strip()]
         message = f"{type(exc).__name__}: {lines[0] if lines else ''}".rstrip(": ")[:300]
         syntax = isinstance(exc, SyntaxError) and exc.filename == python_object.FILENAME
-        return CodeProblem(message, (exc.lineno if syntax else None) or _code_line(exc))
+        return CodeProblem(
+            message,
+            (exc.lineno if syntax else None) or _code_line(exc),
+            type(exc).__name__,
+            traceback=user_traceback(exc, {python_object.FILENAME: code}),
+        )
     _apply_style(mob, spec.style)  # only what the user set (ADR 0051)
     mob.move_to(m.ORIGIN)
     return mob
