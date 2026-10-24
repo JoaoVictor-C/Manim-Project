@@ -33,6 +33,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
 from ..code_runner import Job
+from ..core import error_hints
 from ..core.code_cache import CodeCache
 from ..core.evaluator import code_key
 from ..core.schema import CODE_TYPES, Project
@@ -48,6 +49,9 @@ class CodeStatus:
     frames: int = 0  # rendered so far (rendering) or in the cache (ready)
     error: str = ""
     line: int | None = None
+    error_type: str = ""  # the exception's class name ("NameError"); "" when unknown (P13.1)
+    where: str = "code"  # "code", or "helper:<name>" when the error came from a helper
+    traceback: str = ""  # the user's own frames, at most 4 KB
 
     @property
     def text(self) -> str:
@@ -281,7 +285,15 @@ class CodeRenderService(QObject):
             self.rendered.emit(spare.layer_id)
         elif "error" in message:
             spare.done = True
-            status = CodeStatus("error", error=str(message["error"]), line=message.get("line"))
+            text = str(message["error"])
+            status = CodeStatus(
+                "error",
+                error=text,
+                line=message.get("line"),
+                error_type=str(message.get("type") or error_hints.split_legacy(text)[0]),
+                where=str(message.get("where") or "code"),
+                traceback=str(message.get("traceback") or ""),
+            )
             self._errors[spare.job.key] = status
             self._set(spare.layer_id, status)
 
@@ -324,7 +336,11 @@ class CodeRenderService(QObject):
             return
         for spare in busy:
             if time.monotonic() - spare.since > self.timeout_s:
-                status = CodeStatus("error", error=f"rendering took longer than {self.timeout_s:g} s")
+                status = CodeStatus(
+                    "error",
+                    error=f"rendering took longer than {self.timeout_s:g} s",
+                    error_type="TimeoutError",
+                )
                 self._errors[spare.job.key] = status
                 self._set(spare.layer_id, status)
                 self._cancel(spare)

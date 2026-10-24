@@ -6,7 +6,8 @@ JSON object per line:
 * worker → editor, once started: ``{"ready": true}``
 * editor → worker: ``{"id": 7, "spec": {...}}``
 * worker → editor: ``{"id": 7, "ok": true, "ms": 1287.4}`` or
-  ``{"id": 7, "ok": false, "error": "..."}``
+  ``{"id": 7, "ok": false, "error": "...", "type": "ValueError", "where": "code", "traceback": ""}``
+  (``type``, ``where`` and ``traceback`` are optional for readers: P13.1)
 
 Building the spec here leaves Manim's SVG cache warm, so the editor's own build
 of the same object takes milliseconds (B18). New code of a Python object (ADR 0051)
@@ -58,9 +59,23 @@ def reply(request: dict) -> dict:
         adapter.build_mobject(spec)
         stopped = adapter.python_timed_out(spec)  # an endless loop in new code (ADR 0051)
     except Exception as exc:  # report every build failure; the editor decides what to show
-        return {"id": request["id"], "ok": False, "error": _summary(exc)}
+        return {
+            "id": request["id"],
+            "ok": False,
+            "error": _summary(exc),
+            "type": type(exc).__name__,
+            "where": "code",
+            "traceback": "",  # a build failure is Manim's or LaTeX's, not a line of the user's code
+        }
     if stopped:
-        return {"id": request["id"], "ok": False, "error": stopped}
+        return {
+            "id": request["id"],
+            "ok": False,
+            "error": stopped,
+            "type": "TimeoutError",
+            "where": "code",
+            "traceback": "",
+        }
     ms = (time.perf_counter() - started) * 1000
     return {"id": request["id"], "ok": True, "ms": round(ms, 1)}
 
