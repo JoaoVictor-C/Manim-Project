@@ -12,8 +12,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..core import code_files, code_import
+from ..core import code_export, code_files, code_import
+from ..core.code_export import ExportEntry, ExportOptions
 from ..core.code_import import ImportChoice, ImportItem
+from .conflict_dialog import ConflictAsker
+from .export_code_dialog import ExportCodeDialog
 from .import_code_dialog import ImportCodeDialog
 
 if TYPE_CHECKING:
@@ -25,6 +28,13 @@ class CodeImporter:
         self.window = window
         # Hook for tests and other front-ends: the choices for these items, or None when cancelled.
         self.ask: Callable[..., list[ImportChoice] | None] = self._dialog
+        # Hook for the export window: (entries, checked keys, folder, options) -> (chosen, folder,
+        # options) or None when cancelled.
+        self.ask_export: Callable[..., tuple[list[ExportEntry], str, ExportOptions] | None] = (
+            self._export_dialog
+        )
+        # Hook for the question about a file that exists: a ConflictAsker (called with the file name).
+        self.conflicts: Callable[[str | Path], Callable[[str], str | None]] = self._asker
 
     # -- asking -----------------------------------------------------------------------------
 
@@ -143,3 +153,91 @@ class CodeImporter:
         if message:
             self.window.statusBar().showMessage(message, 10000)
         return message
+
+    # -- exporting --------------------------------------------------------------------------
+
+    def entries(self) -> list[ExportEntry]:
+        """Everything that can be exported: the project's code layers and Python objects, then the
+        presets (with unapplied edits of the layer being edited left out - the page asks for them)."""
+        window = self.window
+        out = []
+        project = window.project
+        if project is not None:
+            for layer in project.layers:
+                if layer.spec is not None and layer.spec.type in ("Code", "Python"):
+                    kind = "object" if layer.spec.type == "Python" else "scene"
+                    out.append(
+                        ExportEntry(layer.id, layer.label, kind, str(layer.spec.params.get("code", "")))
+                    )
+        for preset in window.code_presets.presets():
+            out.append(
+                ExportEntry(preset.id, preset.name, preset.kind, preset.code, "preset", preset.description)
+            )
+        return out
+
+    def _asker(self, folder: str | Path) -> Callable[[str], str | None]:
+        return ConflictAsker(self.window, folder)
+
+    def _export_dialog(
+        self, entries: list[ExportEntry], checked: set[str] | None, folder: str, options: ExportOptions
+    ) -> tuple[list[ExportEntry], str, ExportOptions] | None:
+        dialog = ExportCodeDialog(
+            entries, checked=checked, folder=folder, options=options, parent=self.window
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return None
+        return dialog.chosen(), dialog.folder(), dialog.options()
+
+    def export_code(self, entries: list[ExportEntry] | None = None, checked: set[str] | None = None) -> str:
+        """Ask what to export and where, then write it; a file that is already there is asked about
+        (replace, skip or keep both). Returns the status line."""
+        window = self.window
+        prefs = window.prefs
+        entries = self.entries() if entries is None else entries
+        if not entries:
+            return self._say("There is no code to export")
+        folder = str(prefs.option("code_export_folder", str(window.default_folder())))
+        saved = ExportOptions(
+            "\r\n" if prefs.option("code_export_crlf", False) else "\n",
+            prefs.option("code_export_header", False),
+            prefs.option("code_export_manifest", False),
+        )
+        answer = self.ask_export(entries, checked, folder, saved)
+        if answer is None:
+            return ""
+        chosen, folder, options = answer
+        if not chosen:
+            return ""
+        prefs.set_option("code_export_folder", folder)
+        prefs.set_option("code_export_crlf", options.newline == "\r\n")
+        prefs.set_option("code_export_header", options.header)
+        prefs.set_option("code_export_manifest", options.manifest)
+        decide = self.conflicts(folder)
+        result = code_files.export_files(code_export.prepare(chosen, options), folder, decide)
+        extra = None
+        if options.manifest and not result.cancelled:
+            index = code_export.manifest(chosen, Path(folder).name)
+            extra = code_files.export_files(
+                [(code_export.MANIFEST_NAME, index)], folder, decide, extension=".json"
+            )
+        return self._say(self._summary(result, extra, folder))
+
+    @staticmethod
+    def _summary(result: code_files.ExportResult, index: code_files.ExportResult | None, folder: str) -> str:
+        saved = result.saved
+        details = []
+        if result.replaced:
+            details.append(f"{len(result.replaced)} replaced")
+        if result.copied:
+            details.append(f"{len(result.copied)} kept as copies")
+        if result.skipped:
+            details.append(f"{len(result.skipped)} skipped")
+        if result.failed:
+            first = result.failed[0]
+            details.append(f"{len(result.failed)} failed ({first[0]}: {first[1]})")
+        if index is not None and index.saved:
+            details.append("index.json written")
+        text = f"Exported {saved} file{'s' if saved != 1 else ''} to {folder}"
+        if result.cancelled:
+            text = f"Export cancelled after {saved} file{'s' if saved != 1 else ''} to {folder}"
+        return text + (f" ({', '.join(details)})" if details else "")
