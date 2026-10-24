@@ -68,14 +68,17 @@ from PySide6.QtWidgets import (
 )
 
 from ...core import adapter, code_files, diagnostics, edits, error_hints, live_guard, python_object
+from ...core.code_history import CodeHistory
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from ...core.standalone import standalone_scene
 from .. import code_drag, icons, quick_open, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
 from ..code_editor import CodeEditor
 from ..code_explorer import CodeExplorer, Row, Section
+from ..code_history_dialog import HistoryKeeper
 from ..code_render import CodeStatus
 from ..find_bar import FindBar
+from ..params_definition import ParamsDefinitionPanel
 from ..properties_panel import _first_error, set_param, set_python_code
 from ..values_panel import ValuesPanel
 from . import Page, Shared
@@ -174,6 +177,8 @@ class CodePage(Page):
         self.durations: dict[str, float] = {}  # seconds the last run of each layer took
         self.now = time.perf_counter  # tests replace the clock
         self._loading_tabs = False
+        self.history = CodeHistory()  # the versions of each layer's code in this session (P13.4)
+        self.history_keeper = HistoryKeeper(self)
 
         # Hooks for tests and other front-ends.
         self.ask_name = self._ask_name_dialog  # a new name, or None (cancelled)
@@ -464,6 +469,8 @@ class CodePage(Page):
         self.output.setObjectName("codePanel")
         self.output.addTab(output_scroll, "Output")
         self.output.addTab(self.values, "Values")
+        self.params_panel = ParamsDefinitionPanel(self.editor)  # P13.4: define PARAMS with a form
+        self.output.addTab(self.params_panel, "Parameters")
         self.output.setMaximumHeight(240)
         self.output_toggle.toggled.connect(self._on_output_toggled)
 
@@ -556,6 +563,11 @@ class CodePage(Page):
             "processes or network; one undo step covers the whole stretch"
         )
         self.live_action.toggled.connect(self._on_live_toggled)
+        menu.addSeparator()
+        self.revert_working_action = menu.addAction(
+            "Revert to last working version", self.history_keeper.revert_to_working
+        )
+        self.history_action = menu.addAction("History…", self.history_keeper.show_dialog)
         menu.addSeparator()
         menu.addAction("Save code as file…", self.save_code)
         self.copy_scene_action = menu.addAction("Copy as a Manim scene", self.copy_as_scene)
@@ -739,6 +751,7 @@ class CodePage(Page):
                 self.drafts.discard(layer_id)  # the editor holds it now
             self._moved = moved_on(text, self._base, code)
             self._set_editor(text, cursor)
+            self.history_keeper.opened(layer_id, code)
         self._last_dirty = None
         self._after_change()
 
@@ -974,6 +987,7 @@ class CodePage(Page):
             1 if self.layer_id is not None and self.editor.text() != self._base else 0
         )
         self.drafts.clear()
+        self.history_keeper.project_reset()
         self.layer_id = None
         self.open_ids = []
         self._base, self._moved = "", False
@@ -993,6 +1007,7 @@ class CodePage(Page):
         self._after_change()
 
     def _on_changed(self, _project, _layer_ids, _kind) -> None:
+        self.history_keeper.project_changed()
         self._refresh_list()
         self.values.refresh(self.window.project)
         if self.layer_id is None:
@@ -1016,6 +1031,7 @@ class CodePage(Page):
             self._after_change()
 
     def _on_status(self, layer_id: str) -> None:
+        self.history_keeper.status_changed(layer_id)
         status = self.status(layer_id)
         if status is not None and layer_id != self.layer_id:  # another layer's render: time it too
             self._track(layer_id, status.state in ("queued", "rendering"))
@@ -1113,6 +1129,7 @@ class CodePage(Page):
                 self._live_say(f"Live is paused: this code {reason}; press Run")
             return
         self.window.trust.trust([text])
+        self.history_keeper.ran(layer_id, text, "live")
         op = partial(set_python_code, layer_id=layer_id, code=text)
         try:
             self.window.builds.submit(op, "Edit code (live)", merge_key=("live", layer_id))
@@ -1139,6 +1156,7 @@ class CodePage(Page):
             self.editor.replace_text(trimmed)  # one step of the editor's own undo
         text = self.editor.text()
         self.window.trust.trust([text])  # code the user applies here is theirs (ADR 0019)
+        self.history_keeper.ran(layer_id, text)
         python = self._is_python(layer_id)
         if text != self._code_of(layer_id):
             if python:  # its values are kept for the parameters still declared (ADR 0051)
@@ -1554,6 +1572,10 @@ class CodePage(Page):
         python = self._is_python(self.layer_id)
         self.output.setTabEnabled(1, python)
         if not python and self.output.currentIndex() == 1:
+            self.output.setCurrentIndex(0)
+        self.params_panel.set_active(python and self.preset_id is None)
+        self.output.setTabEnabled(2, python)
+        if not python and self.output.currentIndex() == 2:
             self.output.setCurrentIndex(0)
 
     def _refresh_status(self) -> None:
