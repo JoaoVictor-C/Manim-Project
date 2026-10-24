@@ -65,7 +65,7 @@ def test_an_equation_turns_into_another(window, qt_app, tmp_path) -> None:
     targets = [
         a.text() for a in menu_action(menu, "Add clip", "Turn into", "TransformMatchingTex").menu().actions()
     ]
-    assert targets == [window.project.layer(two).name or two]
+    assert targets == [window.project.layer(two).label]
     menu_action(menu, "Add clip", "Turn into", "TransformMatchingTex", targets[0]).trigger()
     clip = next(c for c in window.project.layer(one).clips if c.to_layer == two)
     assert clip.kind == "TransformMatchingTex"

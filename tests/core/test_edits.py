@@ -477,6 +477,19 @@ def test_auto_key_animates_once_the_object_has_an_entrance() -> None:
     assert edits.auto_key_places(appears, "n", 0.0)  # but not at its first frame
 
 
+def test_a_part_has_the_entrance_of_its_parent() -> None:
+    """The part of an equation that writes itself in has no clip of its own: moving it past the
+    start still animates it (a plain part of a plain parent is just placed)."""
+    equation = Project(
+        canvas=CANVAS, layers=[Layer(id="eq", spec=Spec(type="MathTex", params={"text": "a+b"}))]
+    )
+    plain = edits.add_part(equation, "eq", "a", layer_id="term").project
+    assert edits.auto_key_places(plain, "term", 2.0)
+    entering = edits.update_layer(plain, "eq", lifetime=Lifetime(in_=0.0)).project
+    assert not edits.auto_key_places(entering, "term", 2.0)
+    assert edits.auto_key_places(entering, "term", 0.0)
+
+
 # -- key editing (P2b) ---------------------------------------------------------------
 
 

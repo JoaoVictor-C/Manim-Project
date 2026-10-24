@@ -745,14 +745,15 @@ def auto_key_places(project: Project, layer_id: str, t: float) -> bool:
     for an object that has no entrance clip, no keys and no appear time (a new object, drawn
     from the start of the scene: keys at 0 and at the playhead made it glide in from the
     middle). Auto-key animates once the object has an entrance (a clip, keys or Appears at)
-    and the playhead is past its start.
+    and the playhead is past its start; a part has the entrance of its parent.
     """
     layer = _layer(project, layer_id)
     fps = project.canvas.fps
     start = round(project.lifetime(layer_id)[0] * fps) / fps
     if round(t * fps) / fps <= start + 0.5 / fps:
         return True
-    return not layer.clips and not layer.tracks and layer.lifetime.in_ is None
+    chain = [layer, *project.ancestors(layer_id)]  # a part enters with its parent
+    return not any(x.clips or x.tracks or x.lifetime.in_ is not None for x in chain)
 
 
 def set_property(

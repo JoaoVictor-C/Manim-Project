@@ -117,7 +117,13 @@ def test_smallest_useful_v1(window, qt_app, tmp_path) -> None:
     wait_until(qt_app, lambda: len(window.project.layers) == 2)
     second = window.project.layers[1].id
     type_latex(window, qt_app, rf"c = \sqrt{{a^2 + b^2}} \;\, \text{{{tag}}}")
-    menu_action(timeline_menu(window, first, 2.0), "Add clip", "Turn into", "Transform", second).trigger()
+    menu_action(
+        timeline_menu(window, first, 2.0),
+        "Add clip",
+        "Turn into",
+        "Transform",
+        window.project.layer(second).label,
+    ).trigger()
 
     # 4. fade it out
     menu_action(timeline_menu(window, second, 4.0), "Add clip", "Appear / disappear", "FadeOut").trigger()
