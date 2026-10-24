@@ -89,6 +89,7 @@ START_HINT = "Create a project (File > New) or open one (File > Open)."
 class MainWindow(QMainWindow):
     SLIDER_STEPS_PER_SECOND = 1000
     playheadMoved = Signal(float)  # every seek and playback tick: pages' own views follow it
+    codePresetsChanged = Signal()  # the code preset library changed (P12)
 
     def __init__(self) -> None:
         super().__init__()

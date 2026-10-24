@@ -67,7 +67,7 @@ def answers(window, *given):
         asked.append(name)
         return next(it)
 
-    window.importer.conflicts = lambda folder: decide
+    window.importer.conflicts = lambda folder="", what="file": decide
     return asked
 
 

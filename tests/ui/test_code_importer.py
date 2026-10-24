@@ -187,3 +187,55 @@ def test_old_saved_templates_move_into_the_library(qt_app) -> None:
         assert any(p.name == "Old one" and p.origin == "user" for p in win.code_presets.presets())
     finally:
         win.close()
+
+
+# -- preset names that are taken ---------------------------------------------------------------
+
+
+def named(window, name):
+    return [p for p in window.code_presets.presets() if p.name == name]
+
+
+def test_a_taken_preset_name_asks_and_can_replace(window) -> None:
+    other = OBJECT.replace("Circle", "Square")
+    store = window.importer.store_preset
+    assert store("Wheel", "object", OBJECT) == "added"
+    assert store("Wheel", "object", OBJECT) == "same"  # nothing to ask
+    asked = []
+
+    def replace(name):
+        asked.append(name)
+        return "replace"
+
+    assert store("wheel", "object", other, decide=replace) == "replaced"
+    assert (
+        asked == ["Wheel"]
+        and [p.code for p in named(window, "wheel")] == [other]
+        and not named(window, "Wheel")
+    )
+
+
+def test_a_taken_preset_name_can_be_skipped_or_kept_both(window) -> None:
+    other = OBJECT.replace("Circle", "Square")
+    store = window.importer.store_preset
+    store("Wheel", "object", OBJECT)
+    assert store("Wheel", "object", other, decide=lambda name: "skip") == "skipped"
+    assert [p.code for p in named(window, "Wheel")] == [OBJECT]
+    assert store("Wheel", "object", other, decide=lambda name: "copy") == "copied"
+    assert len(named(window, "Wheel")) == 1 and len(named(window, "Wheel (2)")) == 1
+    assert store("Wheel", "object", other.replace("Square", "Dot"), decide=lambda name: None) == "cancelled"
+
+
+def test_a_builtin_preset_is_never_replaced(window) -> None:
+    builtin = next(p for p in window.code_presets.presets() if p.builtin)
+    outcome = window.importer.store_preset(builtin.name, "object", OBJECT, decide=lambda name: "replace")
+    assert outcome == "copied" and any(
+        p.builtin and p.name == builtin.name for p in window.code_presets.presets()
+    )
+
+
+def test_changing_the_library_is_announced(window) -> None:
+    seen = []
+    window.codePresetsChanged.connect(lambda: seen.append(1))
+    window.importer.store_preset("Wheel", "object", OBJECT)
+    assert seen == [1]

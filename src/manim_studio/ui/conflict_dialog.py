@@ -25,9 +25,11 @@ REPLACE, SKIP, COPY = "replace", "skip", "copy"
 
 
 class ConflictDialog(QDialog):
-    def __init__(self, filename: str, folder: str = "", parent: QWidget | None = None) -> None:
+    def __init__(
+        self, filename: str, folder: str = "", parent: QWidget | None = None, what: str = "file"
+    ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("File already exists")
+        self.setWindowTitle(f"{what.capitalize()} already exists")
         self.setMinimumWidth(420)
         self.answer: str | None = None
         layout = QVBoxLayout(self)
@@ -37,14 +39,14 @@ class ConflictDialog(QDialog):
         )
         text.setWordWrap(True)
         layout.addWidget(text)
-        self.all_box = QCheckBox("Do this for all the remaining files that already exist")
+        self.all_box = QCheckBox(f"Do this for all the remaining {what}s that already exist")
         layout.addWidget(self.all_box)
         row = QHBoxLayout()
         self.buttons: dict[str, QPushButton] = {}
         for key, label, tip in (
-            (REPLACE, "Replace", "Overwrite the existing file"),
-            (SKIP, "Skip", "Leave the existing file alone and do not write this one"),
-            (COPY, "Keep both", "Write this one next to it with a number: Name (2).py"),
+            (REPLACE, "Replace", f"Overwrite the existing {what}"),
+            (SKIP, "Skip", f"Leave the existing {what} alone and do not add this one"),
+            (COPY, "Keep both", "Add this one next to it with a number: Name (2)"),
         ):
             button = QPushButton(label)
             button.setToolTip(tip)
@@ -75,14 +77,15 @@ class ConflictAsker:
     """Ask once per conflict, or once for all of them. ``ask(filename) -> (answer, for_all)`` is the
     hook tests and other front-ends replace; the default shows ``ConflictDialog``."""
 
-    def __init__(self, parent: QWidget | None = None, folder: str | Path = "") -> None:
+    def __init__(self, parent: QWidget | None = None, folder: str | Path = "", what: str = "file") -> None:
         self.parent = parent
+        self.what = what
         self.folder = str(folder)
         self.sticky: str | None = None
         self.ask: Callable[[str], tuple[str | None, bool]] = self._dialog
 
     def _dialog(self, filename: str) -> tuple[str | None, bool]:
-        dialog = ConflictDialog(filename, self.folder, self.parent)
+        dialog = ConflictDialog(filename, self.folder, self.parent, self.what)
         dialog.exec()
         return dialog.answer, dialog.for_all()
 

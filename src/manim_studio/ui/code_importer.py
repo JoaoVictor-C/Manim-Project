@@ -39,7 +39,7 @@ class CodeImporter:
         # Hook for the online window: the downloaded items, or None when cancelled.
         self.ask_online: Callable[[], list[ImportItem] | None] = self._online_dialog
         # Hook for the question about a file that exists: a ConflictAsker (called with the file name).
-        self.conflicts: Callable[[str | Path], Callable[[str], str | None]] = self._asker
+        self.conflicts: Callable[..., Callable[[str], str | None]] = self._asker
 
     # -- asking -----------------------------------------------------------------------------
 
@@ -107,20 +107,25 @@ class CodeImporter:
         window = self.window
         layers = presets = 0
         problems = []
+        decide = self.conflicts("", "preset")
         for choice in choices:
             why = code_import.validate(choice)
             if why is not None:
                 problems.append(f"{choice.name}: {why}")
                 continue
+            online = choice.item.origin.startswith("http")
             for name, kind, code in code_import.presets_of(choice):
-                window.code_presets.add(
+                outcome = self.store_preset(
                     name,
                     kind,
                     code,
-                    origin="online" if choice.item.origin.startswith("http") else "user",
-                    source_url=choice.item.origin if choice.item.origin.startswith("http") else "",
+                    origin="online" if online else "user",
+                    source_url=choice.item.origin if online else "",
+                    decide=decide,
                 )
-                presets += 1
+                if outcome == "cancelled":
+                    return self._say("Import cancelled")
+                presets += outcome not in ("skipped", "same")
             if choice.as_ != code_import.PRESET:
                 made = code_import.layers_of(choice)
                 window.layers.add_code_layers(
@@ -136,6 +141,41 @@ class CodeImporter:
         if problems:
             message += f" ({'; '.join(problems[:2])})"
         return self._say(message)
+
+    def store_preset(
+        self,
+        name: str,
+        kind: str,
+        code: str,
+        *,
+        origin: str = "user",
+        source_url: str = "",
+        description: str = "",
+        decide: Callable[[str], str | None] | None = None,
+    ) -> str:
+        """Add a preset to the library; when one has the name already, ask: replace it, skip this one
+        or keep both. Returns ``added``, ``replaced``, ``copied``, ``skipped``, ``same`` (the same code
+        under that name, nothing to do) or ``cancelled``."""
+        library = self.window.code_presets
+        clash = next((p for p in library.presets() if p.name.casefold() == name.casefold()), None)
+        outcome = "added"
+        if clash is not None:
+            if clash.code == code:
+                return "same"
+            decide = decide or self.conflicts("", "preset")
+            choice = decide(clash.name)
+            if choice is None:
+                return "cancelled"
+            if choice == "skip":
+                return "skipped"
+            if choice == "replace" and not clash.builtin:
+                library.remove(clash.id)
+                outcome = "replaced"
+            else:  # keep both (a built-in preset cannot be replaced)
+                outcome = "copied"
+        library.add(name, kind, code, origin=origin, description=description, source_url=source_url)
+        self.window.codePresetsChanged.emit()
+        return outcome
 
     # -- dragging ---------------------------------------------------------------------------
 
@@ -190,8 +230,8 @@ class CodeImporter:
             )
         return out
 
-    def _asker(self, folder: str | Path) -> Callable[[str], str | None]:
-        return ConflictAsker(self.window, folder)
+    def _asker(self, folder: str | Path = "", what: str = "file") -> Callable[[str], str | None]:
+        return ConflictAsker(self.window, folder, what)
 
     def _export_dialog(
         self, entries: list[ExportEntry], checked: set[str] | None, folder: str, options: ExportOptions
