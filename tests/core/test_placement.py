@@ -85,3 +85,7 @@ def test_layers_are_labelled_by_their_name_their_words_or_their_id() -> None:
     assert Layer(id="sq", name="Box", spec=Spec(type="Square")).label == "Box"  # a name wins
     assert Layer(id="t", spec=Spec(type="Text", params={"text": "  "})).label == "t"
     assert Layer(id="p", parent_id="m", part=PartKey(tex="b^2")).label == "b^2"
+
+
+def test_an_object_bigger_than_the_frame_in_an_empty_scene_stays_at_the_centre() -> None:
+    assert placement.place([], (30, 20), FRAME) == (0.0, 0.0)  # no boxes to measure: no error

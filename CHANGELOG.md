@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Code page files: **Add code file...** (a Python object or a scene, detected without running it),
+  **Import presets from folder...** (into the New Python object menu, kept between sessions),
+  **Export all to folder...** and **Save code...**; files saved with a byte-order mark are read
+  correctly. A Python object bigger than the frame in an empty scene no longer raises when placed.
 - **File > New** asks how new morphs should match their pieces - Smart (the default: cleaner in-between
   frames, but the Python export is an exact replay) or Classic (Manim's own Transform: the export stays
   readable) - and remembers the answer; Properties' Scene section (**New morphs**) changes it later.
@@ -77,6 +81,10 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - Documentation: README, user guide (docs/guide), refreshed architecture and contributing guides,
   link checker (`scripts/check_docs.py`) and a generated shortcuts page (`scripts/gen_shortcuts.py`).
+
+### Fixed
+- Auto-key on a part of an equation that enters (writes itself in, fades in...) animates the part from
+  its start instead of just moving it: a part has the entrance of its parent.
 
 ## [0.3.0] - unreleased
 

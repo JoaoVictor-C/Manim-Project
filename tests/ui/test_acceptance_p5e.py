@@ -107,5 +107,5 @@ def test_presets_themes_and_templates_to_a_video_and_a_manim_file(window, qt_app
     scene = tmp_path / "presets.py"
     window.ask_python_path = lambda start: str(scene)
     menu_action(window.menuBar(), "File", "Export Python...").trigger()
-    assert "keyframes" in window.statusBar().currentMessage()
+    assert "exact scene" in window.statusBar().currentMessage()  # keys make it a replay, not readable code
     assert_matches_editor(window, manim_render(scene, "Presets"))

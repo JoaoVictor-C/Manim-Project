@@ -39,6 +39,8 @@ def window(qt_app):
     menu_action(win.menuBar(), "File", "New").trigger()
     menu_action(win.layers.library_menu, "Circle").trigger()
     win.properties.fields["style.fill_opacity"].commit(1.0)
+    # auto-key animates an object that enters; a circle with nothing set up is only placed (ADR 0018)
+    win.properties.fields["lifetime.in"].commit(0.0)
     qt_app.processEvents()
     yield win
     win.close()

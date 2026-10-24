@@ -136,6 +136,18 @@ code and press **Run** (`Ctrl+Enter`); errors show under the editor at their lin
 objects are listed on the Code page with the code layers (rename with `F2`, delete with
 `Delete`). They are not in the Add menu.
 
+**Files on the Code page:**
+
+- **Add code file...** adds a `.py` file to the project: a file with a top-level `build(p)` becomes
+  a Python object, a file with a Manim `Scene` class becomes a code layer (the first scene; the
+  others are left out and the status bar says so), anything else is refused. The file is only read,
+  never run, and stays untrusted until you run it. A byte-order mark at the start is ignored.
+- **Import presets from folder...** adds every `.py` file with a `build(p)` in a folder to the arrow
+  menu of **New Python object** (kept between sessions; a name already used gets a number).
+- **Export all to folder...** writes every code layer and Python object, with the text in the
+  editor, as `.py` files; it never overwrites (a taken name becomes `Name (2).py`).
+- **Save code...** saves the code in the editor as one file.
+
 **Write one:** the code defines, at top level, `PARAMS` and `build(p)`:
 
 ```python
