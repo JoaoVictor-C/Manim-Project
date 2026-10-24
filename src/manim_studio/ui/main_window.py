@@ -531,6 +531,20 @@ class MainWindow(QMainWindow):
 
     # -- project ---------------------------------------------------------------
 
+    def place_code(
+        self, payload: dict, t: float | None = None, position: tuple[float, float] | None = None
+    ) -> None:
+        """Put what was dragged from the Code workspace (``code_drag.decode``) into the project at
+        time ``t`` and scene position ``position`` (None: the playhead / where it fits). P12.7."""
+        self.statusBar().showMessage(f"Cannot place {payload.get('name', 'code')} yet", 5000)
+
+    def import_code_files(
+        self, paths: list, t: float | None = None, position: tuple[float, float] | None = None
+    ) -> None:
+        """Open the import window for ``.py`` files dropped or chosen; same placement as
+        ``place_code``. P12.4."""
+        self.statusBar().showMessage("Cannot import code files yet", 5000)
+
     def new_project(self) -> None:
         """An empty scene with the default canvas (1280x720, 30 fps, 5 s); it asks how new morphs
         should match (smart or classic, remembered for next time; ADR 0056)."""
