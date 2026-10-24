@@ -80,6 +80,7 @@ def test_typing_over_a_stop_keeps_the_others_in_place(editor) -> None:
     editor.go_to_line(1)
     editor.insert_snippet("a = ${1:one}\nb = ${2:two}")
     QTest.keyClicks(editor, "longer value")
+    editor._completer.popup().hide()  # a name popup would take the Tab
     QTest.keyClick(editor, Qt.Key.Key_Tab)
     assert editor.textCursor().selectedText() == "two"
 

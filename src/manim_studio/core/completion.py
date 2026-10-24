@@ -93,6 +93,8 @@ def suggestions(source: str, position: int, *, force: bool = False) -> list[str]
     here = context(source, position)
     if len(here.prefix) < 2 and not force and not here.receiver:
         return []
+    if _quiet_place(source[:position]):
+        return []
     low = here.prefix.casefold()
     if here.receiver:
         cls = class_of(source, here.receiver)
@@ -106,6 +108,15 @@ def suggestions(source: str, position: int, *, force: bool = False) -> list[str]
     ranked += [*keyword.kwlist, *BUILTINS]
     ranked += manim_names.names()
     return _pick(ranked, low, here.prefix)
+
+
+def _quiet_place(before: str) -> bool:
+    """Is the cursor in a comment or a string, where names are not wanted? (A line-wise guess: a
+    ``#`` before the cursor, or an odd number of quotes of one kind.)"""
+    line = before.rsplit(chr(10), 1)[-1]
+    if "#" in line:
+        return True
+    return line.count('"') % 2 == 1 or line.count("'") % 2 == 1
 
 
 def _pick(pool: list[str], low: str, prefix: str) -> list[str]:

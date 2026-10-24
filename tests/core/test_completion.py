@@ -64,3 +64,9 @@ def test_hover_describes_a_manim_name_and_a_method() -> None:
     assert c.hover(SOURCE, "move_to", "circle") == "Circle.move_to"
     assert c.hover(SOURCE, "nothing_here") == ""
     assert c.hover(SOURCE, "move_to", "mystery") == ""
+
+
+def test_nothing_is_suggested_in_a_comment_or_a_string() -> None:
+    for text in ("# Circ", 'x = "Circ', "x = 'Circ"):
+        assert c.suggestions(text, len(text), force=True) == [], text
+    assert c.suggestions("x = 'a' + Circ", 14)

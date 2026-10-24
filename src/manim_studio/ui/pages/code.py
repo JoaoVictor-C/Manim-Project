@@ -483,6 +483,7 @@ class CodePage(Page):
         )
         self.output = QTabWidget()  # the bottom panel: what the run said, and the object's values
         self.output.setObjectName("codePanel")
+        self.output.tabBar().setUsesScrollButtons(False)  # a few short tabs: no arrows to make room for
         self.output.addTab(output_scroll, "Output")
         self.output.addTab(self.values, "Values")
         self.output.setMaximumHeight(240)
