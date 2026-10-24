@@ -393,3 +393,104 @@ def test_files_dropped_on_the_explorer_open_the_import_window(window, tmp_path, 
 
 def test_project_ids_helper_matches_the_list(window) -> None:
     assert project_ids(page(window)) == ["orbit", "spin", "wheel"]
+
+
+# -- running, the plain picture, hiding the explorer, icons (QOL) -------------------------------
+
+
+def set_status(window, layer_id, status) -> None:
+    window.code.status = lambda i: status if i == layer_id else None
+    window.code.statusChanged.emit(layer_id)
+
+
+def test_a_progress_bar_shows_while_the_layer_renders_and_run_waits(window) -> None:
+    from manim_studio.ui.code_render import CodeStatus
+
+    code = page(window)
+    choose(code, 0)
+    assert not code.progress.isVisibleTo(code.widget) and code.run_button.text() == "Run"
+    set_status(window, "orbit", CodeStatus("rendering", frames=3))
+    assert code.is_running() and code.progress.isVisibleTo(code.widget)
+    assert code.run_button.text() == "Running\u2026" and not code.run_button.isEnabled()
+    set_status(window, "orbit", CodeStatus("ready", frames=20))
+    assert not code.is_running() and not code.progress.isVisibleTo(code.widget)
+    assert code.run_button.text() == "Run" and code.run_button.isEnabled()
+
+
+def test_the_bar_also_shows_while_an_apply_is_on_its_way_and_run_is_not_stacked(window, monkeypatch) -> None:
+    code = page(window)
+    choose(code, 0)
+    monkeypatch.setattr(type(window.builds), "busy", property(lambda self: True))
+    window.builds.pendingChanged.emit()
+    assert code.progress.isVisibleTo(code.widget) and not code.run_button.isEnabled()
+    code.editor.setPlainText(ORBIT + "# change\n")
+    count = window.document.undo_stack.count()
+    code.run()
+    assert (
+        window.document.undo_stack.count() == count and "Still running" in window.statusBar().currentMessage()
+    )
+    monkeypatch.setattr(type(window.builds), "busy", property(lambda self: False))
+    window.builds.pendingChanged.emit()
+    assert not code.progress.isVisibleTo(code.widget) and code.run_button.isEnabled()
+
+
+def test_the_picture_is_plain_on_this_page_and_the_outline_is_a_switch(window, qt_app) -> None:
+    code = page(window)
+    choose(code, 0)
+    window.canvas.render_at(window.t)
+    assert not code.outline_button.isChecked() and not window.canvas.show_overlays
+    assert window.canvas.outline is None and window.canvas.other_outlines == []
+    code.outline_button.setChecked(True)
+    assert window.canvas.show_overlays and window.prefs.option("code_canvas_outline", False)
+    code.outline_button.setChecked(False)
+    assert not window.canvas.show_overlays
+    window.show_page("compose")
+    qt_app.processEvents()
+    assert window.canvas.show_overlays  # the other pages edit on the canvas
+    window.show_page("code")
+    qt_app.processEvents()
+    assert not window.canvas.show_overlays
+
+
+def test_the_outline_choice_is_remembered(window, qt_app, tmp_path) -> None:
+    page(window).outline_button.setChecked(True)
+    other = make_window(qt_app, tmp_path)
+    try:
+        assert page(other).outline_button.isChecked() and other.canvas.show_overlays
+    finally:
+        other.document.undo_stack.setClean()
+        other.close()
+
+
+def test_the_explorer_hides_with_its_button_and_stays_hidden(window, qt_app, tmp_path) -> None:
+    code = page(window)
+    side = code.split.widget(0)
+    assert side.isVisibleTo(code.widget)
+    code.sidebar_button.setChecked(False)
+    assert not side.isVisibleTo(code.widget)
+    code.toggle_sidebar()
+    assert side.isVisibleTo(code.widget)
+    code.toggle_sidebar()
+    other = make_window(qt_app, tmp_path)
+    try:
+        assert not page(other).split.widget(0).isVisibleTo(page(other).widget)
+    finally:
+        other.document.undo_stack.setClean()
+        other.close()
+    code.toggle_sidebar()
+    assert window.prefs.option("code_sidebar_open", False)
+
+
+def test_python_files_have_the_python_icon_in_the_explorer_and_the_tabs(window) -> None:
+    code = page(window)
+    choose(code, 0)
+    choose(code, 2)
+    projects = code.explorer.topLevelItem(0)
+    assert all(not projects.child(i).icon(0).isNull() for i in range(projects.childCount()))
+    builtin_section = code.explorer.topLevelItem(1)
+    assert not builtin_section.child(0).icon(0).isNull()
+    assert all(not code.tabs.tabIcon(i).isNull() for i in range(code.tabs.count()))
+    from manim_studio.ui import icons
+
+    for name in ("py-object", "py-scene", "sidebar", "panel", "outline"):
+        assert not icons.icon(name).isNull()

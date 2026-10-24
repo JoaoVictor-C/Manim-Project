@@ -50,10 +50,17 @@ NAMES: dict[str, str] = {
     "revert": "arrow-counter-clockwise",
     # the Animate page (P7.3)
     "record": "record-fill",
+    # the Code workspace (P12): the Python logo for .py code (from the Material Design icon font that
+    # ships with QtAwesome), blue for a Python object and yellow for a Manim scene
+    "py-object": "mdi6.language-python",
+    "py-scene": "mdi6.language-python",
+    "sidebar": "mdi6.dock-left",
+    "panel": "mdi6.dock-bottom",
+    "outline": "mdi6.vector-selection",
 }
 
-# icons drawn in another theme colour than the text: Record's red dot
-TINTS: dict[str, str] = {"record": "danger"}
+# icons drawn in another colour than the text: a theme token (Record's red dot) or a "#rrggbb" colour
+TINTS: dict[str, str] = {"record": "danger", "py-object": "#4b8bbe", "py-scene": "#ffd43b"}
 
 
 @cache
@@ -62,9 +69,11 @@ def icon(name: str) -> QIcon:
     import qtawesome as qta  # the icon fonts load here, once
 
     colours = theme.THEME
-    ink = theme.qcolor(getattr(colours, TINTS.get(name, "text")))
+    tint = TINTS.get(name, "text")
+    ink = theme.qcolor(tint if tint.startswith("#") else getattr(colours, tint))
+    glyph = NAMES[name]
     return qta.icon(
-        f"ph.{NAMES[name]}",
+        glyph if "." in glyph else f"ph.{glyph}",
         color=ink,
         color_disabled=theme.qcolor(colours.disabled),
         color_active=ink,

@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -177,6 +178,10 @@ class CodePage(Page):
 
         if not window.prefs.option("code_output_open", True):
             self.output_toggle.setChecked(False)
+        if not window.prefs.option("code_sidebar_open", True):
+            self.sidebar_button.setChecked(False)
+        self.outline_button.setChecked(bool(window.prefs.option("code_canvas_outline", False)))
+        window.builds.pendingChanged.connect(self._refresh_running)
         self._shortcuts()
         self._drops = _DropFilter(self._import_dropped, self.split)
         for target in (self.editor.viewport(), self.preview_editor.viewport()):
@@ -215,12 +220,13 @@ class CodePage(Page):
         self.explorer.filesDropped.connect(self._import_dropped)
 
         self.new_button = self._button(
-            "New code layer", "Add a code layer with a starter scene", self.new_layer, "add"
+            "New layer", "Add a code layer with a starter scene", self.new_layer, "add"
         )
         self.new_python_button = self._button(
-            "New Python object",
-            "Add an object built by your own Manim code (PARAMS + build(p)), starting from a right "
-            "triangle; the arrow lists the object presets. Its parameters become fields in Properties",
+            "New object",
+            "Add a Python object: an object built by your own Manim code (PARAMS + build(p)), starting "
+            "from a right triangle; the arrow lists the object presets. Its parameters become fields "
+            "in Properties",
             lambda: self.new_python_object(),
             "add",
         )
@@ -234,13 +240,14 @@ class CodePage(Page):
             self.add_code_file,
         )
         self.import_folder_button = self._button(
-            "Import folder…",
-            "Add every .py file in a folder to your presets (a window asks about each)",
+            "Import…",
+            "Import a folder: add every .py file in it to your presets (a window asks about each)",
             self.import_code_folder,
         )
         self.online_button = self._button(
-            "Get online…",
-            "Find presets from a link: a .py file, a GitHub folder or gist, or an index.json",
+            "Online…",
+            "Get presets from the internet: paste a link to a .py file, a GitHub folder or gist, "
+            "or an index.json",
             self.get_online,
         )
         self.export_folder_button = self._button(
@@ -293,7 +300,7 @@ class CodePage(Page):
         bar = QHBoxLayout()
         self.title_label = QLabel("")
         self.title_label.setProperty("role", "section")
-        self.dirty_label = QLabel("Unapplied changes")
+        self.dirty_label = QLabel("Unapplied")
         self.dirty_label.setObjectName("codeDirty")
         self.dirty_label.setStyleSheet(f"color: {theme.css(theme.THEME.warning)};")
         self.revert_button = self._button(
@@ -306,15 +313,29 @@ class CodePage(Page):
             "Run", "Apply the code to the layer and run it (Ctrl+Enter)", self.run, "play"
         )
         self.convert_button = self._button(
-            "Convert to layers",
-            "Turn this code layer's scene into layers and clips you can edit, in its place (ADR 0053); "
-            "a scene with updaters, cameras or custom animations stays code and the report says why",
+            "Convert",
+            "Convert to layers: turn this code layer's scene into layers and clips you can edit, in its "
+            "place (ADR 0053); a scene with updaters, cameras or custom animations stays code and the "
+            "report says why",
             self.convert,
         )
         self.convert_button.setObjectName("convertToLayers")
         self.save_code_button = self._button(
-            "Save code…", "Save the code shown in the editor as a standalone Python file", self.save_code
+            "Save…", "Save the code shown in the editor as a standalone Python file", self.save_code
         )
+        self.outline_button = QToolButton()
+        self.outline_button.setIcon(icons.icon("outline"))
+        self.outline_button.setCheckable(True)
+        self.outline_button.setToolTip(
+            "Draw the selection outline and handles over the picture (off: only the picture shows)"
+        )
+        self.outline_button.toggled.connect(self._on_outline_toggled)
+        self.progress = QProgressBar()
+        self.progress.setObjectName("codeProgress")
+        self.progress.setRange(0, 0)  # busy: it does not know how long
+        self.progress.setTextVisible(False)
+        self.progress.setFixedHeight(4)
+        self.progress.hide()
         self.editor_menu_button = QToolButton()
         self.editor_menu_button.setText("Editor")
         self.editor_menu_button.setToolTip("Find, go to, settings and saving")
@@ -329,6 +350,7 @@ class CodePage(Page):
             self.convert_button,
             self.run_button,
             self.save_code_button,
+            self.outline_button,
             self.editor_menu_button,
         ):
             bar.addWidget(widget)
@@ -368,6 +390,7 @@ class CodePage(Page):
         self.error_label.clicked.connect(self.go_to_error)
         self.output_toggle = QToolButton()
         self.output_toggle.setText("Output")
+        self.output_toggle.setIcon(icons.icon("panel"))
         self.output_toggle.setCheckable(True)
         self.output_toggle.setChecked(True)
         self.output_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -379,8 +402,18 @@ class CodePage(Page):
         output_lines.addWidget(self.error_label)
         self.output_toggle.toggled.connect(self._on_output_toggled)
 
-        stack.addWidget(self.tabs)
+        self.sidebar_button = QToolButton()
+        self.sidebar_button.setIcon(icons.icon("sidebar"))
+        self.sidebar_button.setCheckable(True)
+        self.sidebar_button.setChecked(True)
+        self.sidebar_button.setToolTip("Hide or show the explorer (Ctrl+B)")
+        self.sidebar_button.toggled.connect(self._on_sidebar_toggled)
+        tab_row = QHBoxLayout()
+        tab_row.addWidget(self.sidebar_button)
+        tab_row.addWidget(self.tabs, 1)
+        stack.addLayout(tab_row)
         stack.addLayout(bar)
+        stack.addWidget(self.progress)
         stack.addWidget(self.notice)
         stack.addWidget(self.views, 1)
         stack.addWidget(self.output_toggle, 0, Qt.AlignmentFlag.AlignLeft)
@@ -493,6 +526,7 @@ class CodePage(Page):
             ("Alt+G", self.goto_line),
             ("Ctrl+P", self.quick_open),
             ("Ctrl+J", self.toggle_output),
+            ("Ctrl+B", self.toggle_sidebar),
         ):
             shortcut = QShortcut(QKeySequence(keys), self.split)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
@@ -525,9 +559,13 @@ class CodePage(Page):
             total = max(self.split.width(), 1200)
             side = 230
             self.split.setSizes([side, total * 45 // 100, total - side - total * 45 // 100])
+        self.window.canvas.set_overlays(self.outline_button.isChecked())
         self._refresh_list(force=True)
         self._ensure_layer()
         self._after_change()
+
+    def on_hide(self) -> None:
+        self.window.canvas.set_overlays(True)  # the other pages edit on the canvas
 
     # -- the project ----------------------------------------------------------------------
 
@@ -711,6 +749,10 @@ class CodePage(Page):
                     self.tabs.addTab(text)
                 else:
                     self.tabs.setTabText(index, text)
+                self.tabs.setTabIcon(
+                    index,
+                    icons.icon("py-object" if layers[layer_id].spec.type in PYTHON_TYPES else "py-scene"),
+                )
                 self.tabs.setTabData(index, layer_id)
                 self.tabs.setTabToolTip(
                     index, "Unapplied changes: Run applies them" if layer_id in dirty else ""
@@ -897,6 +939,7 @@ class CodePage(Page):
         if layer_id == self.layer_id:
             self._refresh_output()
             self._refresh_status()
+            self._refresh_running()
 
     def _on_text_changed(self) -> None:
         if self._loading:
@@ -911,6 +954,9 @@ class CodePage(Page):
         layer_id = self.layer_id
         project = self.window.project
         if layer_id is None or project is None or self.preset_id is not None:
+            return
+        if self.window.builds.busy:  # an apply is still on its way: running again would stack them
+            self.window.statusBar().showMessage("Still running - wait for it to finish", 4000)
             return
         trimmed = self.editor.trimmed_text()
         if trimmed != self.editor.text():
@@ -1202,6 +1248,35 @@ class CodePage(Page):
     def toggle_output(self) -> None:
         self.output_toggle.toggle()
 
+    def toggle_sidebar(self) -> None:
+        self.sidebar_button.toggle()
+
+    def _on_sidebar_toggled(self, shown: bool) -> None:
+        self.split.widget(0).setVisible(shown)
+        self.window.prefs.set_option("code_sidebar_open", shown)
+
+    def _on_outline_toggled(self, shown: bool) -> None:
+        self.window.prefs.set_option("code_canvas_outline", shown)
+        if self.window.page == self.name:
+            self.window.canvas.set_overlays(shown)
+
+    def is_running(self) -> bool:
+        """Is the layer in the editor being applied, built or rendered? Until it is not, it is not
+        ready to be used in full."""
+        if self.layer_id is None:
+            return False
+        if self.window.builds.busy:
+            return True
+        status = self.status(self.layer_id)
+        return status is not None and status.state in ("queued", "rendering")
+
+    def _refresh_running(self) -> None:
+        """The progress bar under the toolbar and the Run button say that it is still working."""
+        running = self.is_running()
+        self.progress.setVisible(running)
+        self.run_button.setText("Running…" if running else "Run")
+        self.run_button.setEnabled(self.layer_id is not None and self.preset_id is None and not running)
+
     def _on_output_toggled(self, shown: bool) -> None:
         self.output.setVisible(shown)
         self.window.prefs.set_option("code_output_open", shown)
@@ -1241,7 +1316,6 @@ class CodePage(Page):
         self.dirty_label.setVisible(dirty)
         self.notice.setVisible(self._moved)  # _moved is false while clean
         editing = self.layer_id is not None and self.preset_id is None
-        self.run_button.setEnabled(editing)
         self.save_code_button.setEnabled(self.layer_id is not None)
         self.convert_button.setEnabled(editing and not dirty and not self._is_python(self.layer_id))
         self.revert_button.setEnabled(dirty and self.preset_id is None)
@@ -1249,6 +1323,7 @@ class CodePage(Page):
         self._refresh_tabs()
         self._refresh_output()
         self._refresh_status()
+        self._refresh_running()
 
     def _refresh_status(self) -> None:
         """The strip under the editor: cursor, indent, what the layer is and whether it may run."""

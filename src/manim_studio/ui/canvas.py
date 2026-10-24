@@ -81,6 +81,7 @@ class CanvasWidget(QWidget):
         self.last_render_ms = 0.0
         self._t = 0.0  # the time last drawn (F frames the selection as it is then)
         self.selected_layer: str | None = None  # whose outline to draw
+        self.show_overlays = True  # outlines, handles and motion paths; off on the Code page (P12)
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
         self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
         self.marquee: tuple[np.ndarray, np.ndarray] | None = None  # a selection rectangle being drawn
@@ -254,8 +255,20 @@ class CanvasWidget(QWidget):
             self._image = QImage(pixels.data, width, height, 4 * width, QImage.Format.Format_RGBA8888).copy()
         self.motion = self._motion(t)
         self.param_handles = self._param_handles(t)
+        if not self.show_overlays:  # a plain view: nothing over the picture, nothing to grab
+            self.outline, self.other_outlines, self.motion, self.param_handles = None, [], None, []
         self.last_render_ms = (time.perf_counter() - start) * 1000
         self.update()
+
+    def set_overlays(self, shown: bool) -> None:
+        """Draw the selection outline, handles and motion path (the default), or only the picture."""
+        if shown == self.show_overlays:
+            return
+        self.show_overlays = shown
+        if self._evaluator is not None and self._canvas is not None:
+            self.render_at(self._t)
+        else:
+            self.update()
 
     @property
     def camera_turned(self) -> bool:

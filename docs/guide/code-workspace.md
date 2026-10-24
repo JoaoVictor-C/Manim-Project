@@ -6,21 +6,26 @@ the viewer beside it so every run shows at once.
 
 ## Layout
 
-- **Explorer** (left). **This project** lists the code layers (Manim scenes) and Python objects of
+- **Explorer** (left; the button at the left of the tabs, or `Ctrl+B`, hides and shows it). **This project** lists the code layers (Manim scenes) and Python objects of
   the scene; **Presets** are grouped as *built in*, *mine* and *downloaded*. Type in the filter to
   narrow the lists. A dot after a name means unapplied changes, `!` an error, `?` code that has
-  not been allowed to run yet. Right-click a row for what you can do with it.
+  not been allowed to run yet. Each row has the Python logo: blue for a Python object, yellow for a
+  Manim scene. Right-click a row for what you can do with it.
 - **Tabs** (top of the editor): one for each layer you opened. Close the ones you do not need; the
   layer stays in the project, and unapplied text stays with it.
 - **Editor**: highlighting, line numbers, auto-indent, brackets and quotes that close themselves.
-  Under it the **Output** (`Ctrl+J` shows or hides it) says how the last run went and links an
-  error to its line, and a **status strip** shows the line and column, the indent size, what the
-  layer is and whether it may run.
+  Under it the **Output** (`Ctrl+J`, or its button, shows or hides it) says how the last run went and
+  links an error to its line, and a **status strip** shows the line and column, the indent size,
+  what the layer is and whether it may run.
+- **The picture** beside the editor is plain: the blue selection outline and handles are not drawn
+  over it while you are on this page, so you can see what the code makes. The **outline** button in
+  the toolbar brings them back (remembered); the other pages always draw them.
 
 ## Writing code
 
 `Ctrl+Enter` (or **Run**) applies the text to the layer and runs it - one undo step. Nothing runs
-while you type.
+while you type. While the code is being applied, built or rendered, a progress bar shows under the
+toolbar and **Run** reads *Running...* and waits: when they go, the object or scene is ready to use.
 
 | key | does |
 |---|---|

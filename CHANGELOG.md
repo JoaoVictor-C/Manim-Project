@@ -7,6 +7,24 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **The Code workspace** (ADR 0057): the Code page is reworked as a small code editor - an explorer of the
+  project's code and of presets (built in, yours, downloaded), tabs, find and replace, go to line, quick open,
+  an output panel, a status strip, editing commands (comment, move, duplicate, delete lines, zoom) and an
+  Editor menu with every setting, remembered. Presets can be read, added to the project, copied for editing,
+  renamed, deleted and exported.
+- **An import window** for code files: each is preselected as what it is (a Python object or a Manim scene) and
+  can be changed to anything possible, with its name, scenes, time and place, whether it may run at once and
+  whether to keep a copy as a preset. It serves files, folders, files dropped from the desktop and downloads.
+- **Exporting asks** what to do with a file that already exists - replace, skip or keep both, or the same for
+  all the rest - for code files and for preset names; the export window also chooses the folder, line endings,
+  a first-line comment and an `index.json`.
+- **Presets from the internet**: paste a link to a `.py` file, a GitHub folder, repository or gist, or an
+  `index.json`; downloads are text only, over HTTPS, size-limited and never run until allowed.
+- **Drag and drop**: drag a preset or a layer from the explorer onto the timeline (the time), the canvas (the
+  place) or the Layers list; `.py` files dragged from the desktop open the import window.
+- Code page: a progress bar and *Running...* on Run until the layer is applied, built and rendered; the picture
+  beside the editor no longer has the blue selection outline over it (a toolbar button brings it back); a button
+  (and `Ctrl+B`) hides the explorer like a code editor's side bar; Python-logo icons on the explorer rows and tabs.
 - Code page files: **Add code file...** (a Python object or a scene, detected without running it),
   **Import presets from folder...** (into the New Python object menu, kept between sessions),
   **Export all to folder...** and **Save code...**; files saved with a byte-order mark are read

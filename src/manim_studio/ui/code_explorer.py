@@ -15,7 +15,7 @@ from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QDrag
 from PySide6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem, QWidget
 
-from . import code_drag, theme
+from . import code_drag, icons, theme
 
 KEY_ROLE = Qt.ItemDataRole.UserRole
 SOURCE_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -177,6 +177,7 @@ class CodeExplorer(QTreeWidget):
         item.setData(0, SOURCE_ROLE, row.source)
         item.setData(0, KIND_ROLE, row.kind)
         item.setData(0, NAME_ROLE, row.label)
+        item.setIcon(0, icons.icon("py-object" if row.kind == "object" else "py-scene"))
         badge = KIND_BADGE.get(row.kind, row.kind)
         item.setToolTip(0, row.tip or f"{row.label} ({badge})")
         item.setFlags(
