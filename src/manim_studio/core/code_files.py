@@ -247,8 +247,10 @@ def export_files(
     items: Iterable[tuple[str, str]],
     folder: str | Path,
     decide: Callable[[str], Choice | None],
+    *,
+    extension: str = EXTENSION,
 ) -> ExportResult:
-    """Write each ``(stem, source)`` of ``items`` to ``folder`` as ``<stem>.py``.
+    """Write each ``(stem, source)`` of ``items`` to ``folder`` as ``<stem>.py`` (``extension``).
 
     Files are UTF-8 without a BOM, line endings as given, each written whole (to a temporary file in
     the folder, then moved over) so a failure never leaves half a file. Two items with one stem never
@@ -258,7 +260,7 @@ def export_files(
     recorded as failed and the others go on.
     """
     folder = Path(folder)
-    todo = [(safe_stem(stem) + EXTENSION, source) for stem, source in items]
+    todo = [(safe_stem(stem) + extension, source) for stem, source in items]
     written: list[str] = []
     replaced: list[str] = []
     copied: list[str] = []
