@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import replace
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, QStringListModel, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QKeyEvent,
@@ -33,9 +33,9 @@ from PySide6.QtGui import (
     QTextOption,
     QWheelEvent,
 )
-from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
+from PySide6.QtWidgets import QCompleter, QPlainTextEdit, QTextEdit, QToolTip, QWidget
 
-from ..core import snippets
+from ..core import completion, snippets
 from . import theme
 from .code_drafts import clamp_line
 from .code_syntax import NORMAL, scan_line
@@ -104,6 +104,12 @@ class CodeEditor(QPlainTextEdit):
         self.highlighter = PythonHighlighter(self.document())
         self._gutter = _Gutter(self)
         self._error_line: int | None = None
+        self._names = QStringListModel(self)
+        self._completer = QCompleter(self._names, self)  # the names offered while typing (P13.6)
+        self._completer.setWidget(self)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.activated[str].connect(self._complete_with)
         self._snippet_stops: list[tuple[QTextCursor, QTextCursor]] = []  # places Tab still visits
         self._syntax: tuple[int, int, int, int] | None = None  # line, column, end line, end column
         self._search_selections: list[QTextEdit.ExtraSelection] = []
@@ -294,7 +300,20 @@ class CodeEditor(QPlainTextEdit):
         key, mods = event.key(), event.modifiers()
         enter = key in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
         if enter and mods & Qt.KeyboardModifier.ControlModifier:
+            self._completer.popup().hide()
             self.runRequested.emit()
+            return
+        if self._completer.popup().isVisible() and key in (
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Escape,
+            Qt.Key.Key_Tab,
+            Qt.Key.Key_Backtab,
+        ):
+            event.ignore()  # the popup takes these: it accepts the choice or closes
+            return
+        if key == Qt.Key.Key_Space and mods & Qt.KeyboardModifier.ControlModifier:
+            self.suggest(force=True)
             return
         command = self._key_commands().get((mods & ~Qt.KeyboardModifier.KeypadModifier, key))
         if command is not None:
@@ -320,8 +339,73 @@ class CodeEditor(QPlainTextEdit):
         if key == Qt.Key.Key_Backspace and not mods and (self._backspace_pair() or self._backspace_indent()):
             return
         if self._type_pair(event):
+            self._completer.popup().hide()
             return
         super().keyPressEvent(event)
+        self._after_typing(event)
+
+    # -- suggestions (P13.6) -----------------------------------------------------------------
+
+    def _after_typing(self, event: QKeyEvent) -> None:
+        text = event.text()
+        if text and (text.isalnum() or text in "_."):
+            self.suggest()
+        elif self._completer.popup().isVisible() and event.key() not in (
+            Qt.Key.Key_Shift,
+            Qt.Key.Key_Control,
+            Qt.Key.Key_Alt,
+            Qt.Key.Key_Backspace,
+        ):
+            self._completer.popup().hide()
+
+    def suggest(self, force: bool = False) -> list[str]:
+        """Offer the names that fit the word at the cursor; returns them (none: the popup closes)."""
+        popup = self._completer.popup()
+        if not self._settings.suggest_names:
+            popup.hide()
+            return []
+        cursor = self.textCursor()
+        text = self.text()
+        found = [] if cursor.hasSelection() else completion.suggestions(text, cursor.position(), force=force)
+        if not found:
+            popup.hide()
+            return []
+        here = completion.context(text, cursor.position())
+        self._names.setStringList(found)
+        self._completer.setCompletionPrefix(here.prefix)
+        if self._completer.completionCount() == 0:
+            popup.hide()
+            return found
+        popup.setCurrentIndex(self._completer.completionModel().index(0, 0))
+        rect = self.cursorRect()
+        rect.setWidth(popup.sizeHintForColumn(0) + popup.verticalScrollBar().sizeHint().width())
+        self._completer.complete(rect)
+        return found
+
+    def _complete_with(self, name: str) -> None:
+        cursor = self.textCursor()
+        here = completion.context(self.text(), cursor.position())
+        cursor.setPosition(here.start)
+        cursor.setPosition(here.start + len(here.prefix), QTextCursor.MoveMode.KeepAnchor)
+        cursor.insertText(name)
+        self.setTextCursor(cursor)
+
+    def viewportEvent(self, event) -> bool:
+        if event.type() == QEvent.Type.ToolTip and self._settings.suggest_names:
+            cursor = self.cursorForPosition(event.pos())
+            text = self.text()
+            here = completion.context(text, cursor.position())
+            end = cursor.position()
+            while end < len(text) and (text[end].isalnum() or text[end] == "_"):
+                end += 1
+            word = text[here.start : end]
+            tip = completion.hover(text, word, here.receiver) if word else ""
+            if tip:
+                QToolTip.showText(event.globalPos(), tip, self)
+            else:
+                QToolTip.hideText()
+            return True
+        return super().viewportEvent(event)
 
     def _key_commands(self) -> dict:
         """(modifiers, key) -> the editing command it runs (VS Code's bindings)."""

@@ -27,6 +27,9 @@ class EditorSettings:
     show_whitespace: bool = False  # draw spaces and tabs
     auto_close_brackets: bool = True  # ( [ { " ' typed as pairs
     trim_trailing_whitespace: bool = False  # drop it from ``CodeEditor.trimmed_text()``
+    suggest_names: bool = (
+        True  # offer Manim and the code's own names while typing, and describe them on hover
+    )
 
 
 def clamp(settings: EditorSettings) -> EditorSettings:

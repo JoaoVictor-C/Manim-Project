@@ -712,3 +712,39 @@ def test_ctrl_enter_still_asks_to_run_and_does_not_edit(editor) -> None:
     editor.set_text("a")
     press(editor, K.Key_Return, CTRL)
     assert asked == [1] and editor.text() == "a"
+
+
+# -- names while typing (P13.6) -----------------------------------------------------------------
+
+
+def test_typing_a_name_opens_suggestions_and_enter_takes_the_choice(editor) -> None:
+    editor.setPlainText("")
+    editor.show()
+    QTest.keyClicks(editor, "Circ")
+    assert editor._completer.popup().isVisible()
+    QTest.keyClick(editor._completer.popup(), K.Key_Enter)
+    assert editor.text().startswith("Circle")
+
+
+def test_escape_closes_the_suggestions_without_changing_the_text(editor) -> None:
+    editor.setPlainText("")
+    editor.show()
+    QTest.keyClicks(editor, "Circ")
+    assert editor._completer.popup().isVisible()
+    QTest.keyClick(editor._completer.popup(), K.Key_Escape)
+    assert not editor._completer.popup().isVisible() and editor.text() == "Circ"
+
+
+def test_suggestions_can_be_turned_off(editor) -> None:
+    editor.apply_settings(EditorSettings(suggest_names=False))
+    editor.setPlainText("")
+    QTest.keyClicks(editor, "Circ")
+    assert not editor._completer.popup().isVisible()
+
+
+def test_a_dot_after_a_known_object_suggests_its_methods(editor) -> None:
+    editor.setPlainText("c = Circle()\nc")
+    editor.show()
+    editor.moveCursor(editor.textCursor().MoveOperation.End)
+    QTest.keyClicks(editor, ".mov")
+    assert "move_to" in editor._names.stringList()

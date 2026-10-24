@@ -594,6 +594,7 @@ class CodePage(Page):
             ("show_whitespace", "Show spaces and tabs"),
             ("auto_close_brackets", "Close brackets and quotes"),
             ("trim_trailing_whitespace", "Trim trailing spaces when running"),
+            ("suggest_names", "Suggest names while typing (Ctrl+Space)"),
         ):
             action = menu.addAction(text)
             action.setCheckable(True)
