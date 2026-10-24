@@ -47,7 +47,7 @@ def drain(qt_app) -> None:
 
 def answer(window, build):
     """Make the import window's answer ``build(items)``."""
-    window.importer.ask = lambda items, at, position: build(items)
+    window.importer.ask = lambda items, at, position, **kw: build(items)
 
 
 def test_an_object_choice_adds_a_python_layer_at_the_chosen_place_and_time(window, qt_app, tmp_path) -> None:

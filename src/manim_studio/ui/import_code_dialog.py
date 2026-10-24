@@ -61,6 +61,7 @@ class ImportCodeDialog(QDialog):
         at: float | None = None,
         position: tuple[float, float] | None = None,
         has_project: bool = True,
+        prefer_preset: bool = False,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -72,7 +73,7 @@ class ImportCodeDialog(QDialog):
             inspection = item.inspection
             found = code_import.detected(inspection)
             as_ = found or PRESET
-            if not has_project and found:
+            if (not has_project or prefer_preset) and found:
                 as_ = PRESET
             state = _State(
                 item,

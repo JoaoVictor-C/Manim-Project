@@ -8,6 +8,7 @@ dropped. Nothing here runs the code: it stays untrusted unless the user allows i
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -15,9 +16,11 @@ from typing import TYPE_CHECKING
 from ..core import code_export, code_files, code_import
 from ..core.code_export import ExportEntry, ExportOptions
 from ..core.code_import import ImportChoice, ImportItem
+from . import online_presets_dialog
 from .conflict_dialog import ConflictAsker
 from .export_code_dialog import ExportCodeDialog
 from .import_code_dialog import ImportCodeDialog
+from .online_presets_dialog import OnlinePresetsDialog
 
 if TYPE_CHECKING:
     from .main_window import MainWindow
@@ -33,13 +36,19 @@ class CodeImporter:
         self.ask_export: Callable[..., tuple[list[ExportEntry], str, ExportOptions] | None] = (
             self._export_dialog
         )
+        # Hook for the online window: the downloaded items, or None when cancelled.
+        self.ask_online: Callable[[], list[ImportItem] | None] = self._online_dialog
         # Hook for the question about a file that exists: a ConflictAsker (called with the file name).
         self.conflicts: Callable[[str | Path], Callable[[str], str | None]] = self._asker
 
     # -- asking -----------------------------------------------------------------------------
 
     def _dialog(
-        self, items: list[ImportItem], at: float | None, position: tuple[float, float] | None
+        self,
+        items: list[ImportItem],
+        at: float | None,
+        position: tuple[float, float] | None,
+        prefer_preset: bool = False,
     ) -> list[ImportChoice] | None:
         window = self.window
         dialog = ImportCodeDialog(
@@ -48,6 +57,7 @@ class CodeImporter:
             at=at,
             position=position,
             has_project=window.project is not None,
+            prefer_preset=prefer_preset,
             parent=window,
         )
         return dialog.choices() if dialog.exec() == dialog.DialogCode.Accepted else None
@@ -80,9 +90,14 @@ class CodeImporter:
         return message
 
     def import_items(
-        self, items: list[ImportItem], at: float | None = None, position: tuple[float, float] | None = None
+        self,
+        items: list[ImportItem],
+        at: float | None = None,
+        position: tuple[float, float] | None = None,
+        *,
+        prefer_preset: bool = False,
     ) -> str:
-        choices = self.ask(items, at, position)
+        choices = self.ask(items, at, position, prefer_preset=prefer_preset)
         if not choices:
             return ""
         return self.apply(choices)
@@ -241,3 +256,38 @@ class CodeImporter:
         if result.cancelled:
             text = f"Export cancelled after {saved} file{'s' if saved != 1 else ''} to {folder}"
         return text + (f" ({', '.join(details)})" if details else "")
+
+    # -- folders and the internet -------------------------------------------------------------
+
+    def import_folder(self, folder: str | Path) -> str:
+        """Every ``.py`` file in a folder, offered in the import window as presets to keep."""
+        try:
+            paths = sorted(
+                (p for p in Path(folder).iterdir() if p.is_file() and p.suffix.lower() == ".py"),
+                key=lambda p: p.name.casefold(),
+            )
+        except OSError as error:
+            return self._say(f"Could not read that folder: {error.strerror or error}")
+        if not paths:
+            return self._say("No .py files found in that folder")
+        items, problems = self.read_paths(paths)
+        if not items:
+            return self._say("; ".join(problems[:2]))
+        message = self.import_items(items, prefer_preset=True)
+        return message
+
+    def _online_dialog(self) -> list[ImportItem] | None:
+        sources = online_presets_dialog.load_sources(
+            str(self.window.prefs.option(online_presets_dialog.SOURCES_OPTION, "[]"))
+        )
+        dialog = OnlinePresetsDialog(sources, self.window)
+        accepted = dialog.exec() == dialog.DialogCode.Accepted
+        self.window.prefs.set_option(online_presets_dialog.SOURCES_OPTION, json.dumps(dialog.sources))
+        return dialog.items() if accepted else None
+
+    def get_online(self) -> str:
+        """Presets from a link: the online window, then the import window for what was downloaded."""
+        items = self.ask_online()
+        if not items:
+            return ""
+        return self.import_items(items, prefer_preset=True)
