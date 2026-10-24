@@ -19,7 +19,7 @@ import pytest
 pytest.importorskip("PySide6")
 
 from manim_studio.core.evaluator import code_key
-from manim_studio.core.schema import Canvas, Layer, Project, Spec
+from manim_studio.core.schema import Canvas, Helper, Layer, Project, Spec
 from manim_studio.core.trust import TrustStore
 from manim_studio.ui.code_render import CodeRenderService
 
@@ -48,6 +48,11 @@ if "STRUCT" in code:
     sys.exit(1)
 if "CRASH" in code:
     sys.exit(3)
+if "HELPER" in code:  # says which helpers it was sent, as an error in one of them (ADR 0058)
+    sent = sorted(name for name, _ in job.get("helpers", []))
+    message = f"sent {sent} trusted {job.get('trusted_helpers', [])}"
+    print(json.dumps({"error": message, "line": 1, "where": "helper:grid", "helper_line": 3}), flush=True)
+    sys.exit(1)
 writer = CodeCache(Path(sys.argv[1]) / "code").writer(job["key"], job["width"], job["height"], job["fps"])
 for i in range(3):
     frame = np.zeros((job["height"], job["width"], 4), np.uint8)
@@ -179,6 +184,22 @@ def test_an_old_message_without_a_type_is_read_from_its_text(service, qt_app) ->
     wait_until(qt_app, lambda: service.status("c").state == "error")
     status = service.status("c")
     assert (status.error_type, status.where, status.traceback) == ("ValueError", "code", "")
+
+
+def test_jobs_carry_the_helpers_and_trusting_one_renders_again(service, qt_app) -> None:
+    p = trusted(service, project(c="import grid  # HELPER"))
+    p = p.model_copy(update={"helpers": [Helper(name="grid", code="X = 1\n")]})
+    service.sync(p)
+    wait_until(qt_app, lambda: service.status("c").state == "error")
+    status = service.status("c")
+    assert status.error == "sent ['grid'] trusted []"
+    assert (status.line, status.where, status.helper_line) == (1, "helper:grid", 3)
+    assert status.text == "Error - helper grid, line 3: sent ['grid'] trusted []"
+    assert service.trust.untrusted(p) == ["helper:grid"]
+    service.trust_layers(p, ["helper:grid"])  # what the open-project prompt passes
+    assert service.status("c").state in ("queued", "rendering")
+    wait_until(qt_app, lambda: service.status("c").state == "error")
+    assert service.status("c").error == "sent ['grid'] trusted ['grid']"
 
 
 def test_a_crash_and_a_timeout_are_errors(service, qt_app) -> None:

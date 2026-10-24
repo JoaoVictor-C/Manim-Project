@@ -57,7 +57,7 @@ import numpy as np
 
 from .. import plugins
 from ..logging_config import get_logger
-from . import adapter, motion_paths, parts, subtitles
+from . import adapter, helpers, motion_paths, parts, subtitles
 from .code_cache import CodeCache, cache_key
 from .code_frame import CodeFrame
 from .edits import Edit, EditKind
@@ -175,6 +175,8 @@ class Evaluator:
             and (layer.spec.type in TRACE_TYPES or layer.spec.type in plugins.SIMULATIONS)
         }
         self._signatures: dict[str, str] = {}  # what a traced layer is evaluated from, per project
+        self._helpers = helpers.sources(self.project)  # what Python objects can import (ADR 0058)
+        self._helpers_digest: str | None = None  # their digest, when first asked
 
     # -- public ----------------------------------------------------------------
 
@@ -274,7 +276,8 @@ class Evaluator:
         changed = {
             layer.id
             for layer in self.project.layers
-            if layer.id in self._media and adapter.media_signature(layer.spec) != self._media[layer.id]
+            if layer.id in self._media
+            and adapter.media_signature(layer.spec, self._helpers) != self._media[layer.id]
         }
         if changed:
             self.invalidate(self.project, changed, "spec")
@@ -301,7 +304,14 @@ class Evaluator:
     def built(self, spec: Spec) -> m.Mobject:
         """``spec`` built as the editor draws it: the placeholder when it cannot be (the canvas's
         handles ask this, not the adapter, so no LaTeX does not break them either)."""
+        if spec.type in PYTHON_TYPES:  # with the project's helpers (ADR 0058)
+            return self._built(spec, lambda: adapter.build_mobject(spec, self.signature_of(spec)))
         return self._built(spec, lambda: adapter.build_mobject(spec))
+
+    def signature_of(self, spec: Spec) -> str | None:
+        """``adapter.media_signature`` of ``spec`` in this project (a Python object's names the
+        project's helpers, ADR 0058): what ``adapter.build_problem`` and friends are given."""
+        return adapter.media_signature(spec, self._helpers)
 
     def _built(self, spec: Spec, build: Callable[[], m.Mobject]) -> m.Mobject:
         """``build()``, or the dashed placeholder when it raises (its reason in ``build_errors``)."""
@@ -321,7 +331,7 @@ class Evaluator:
         if layer.spec is None or layer.spec.type not in MEDIA_TYPES | PYTHON_TYPES:  # parts: no spec
             return None
         if layer.id not in self._media:
-            self._media[layer.id] = adapter.media_signature(layer.spec)
+            self._media[layer.id] = adapter.media_signature(layer.spec, self._helpers)
         return self._media[layer.id]
 
     def frame(self, t: float) -> list[m.Mobject]:
@@ -865,7 +875,9 @@ class Evaluator:
         return self._code_cache
 
     def code_key(self, layer: Layer) -> str:
-        return code_key(self.project, layer)
+        if self._helpers_digest is None:  # once per snapshot: asked for every frame
+            self._helpers_digest = helpers.digest(self.project)
+        return code_key(self.project, layer, self._helpers_digest)
 
     def code_ends(self) -> list[float]:
         """When each rendered code layer's animation ends (P7.1: Fit Length to Content)."""
@@ -1205,11 +1217,14 @@ def _builds(project: Project, tree: LayerIndex) -> dict[str, object]:
     out: dict[str, object] = {}
     by_id = {layer.id: layer for layer in project.layers}
     grouped = {x.id for x in project.layers if x.parent_id is not None and by_id[x.parent_id].is_group}
+    imported = helpers.digest(project) if project.helpers else ""  # a Python object imports them (ADR 0058)
     for root in [*tree.roots(), *(by_id[i] for i in grouped)]:  # an object in a group builds alone
         if root.is_group:
             continue  # draws nothing (ADR 0050)
         children = tuple(x.spec for x in tree.children(root.id) if not x.is_part)
         out[root.id] = (parts.build_spec(project, root.id, index=tree), children)
+        if imported and root.spec.type in PYTHON_TYPES:
+            out[root.id] += (imported,)
     for layer in project.layers:
         if layer.is_child and not layer.is_part and layer.id not in grouped:
             out[layer.id] = (
@@ -1220,12 +1235,20 @@ def _builds(project: Project, tree: LayerIndex) -> dict[str, object]:
     return out
 
 
-def code_key(project: Project, layer: Layer) -> str:
-    """The cache entry a code layer's frames live under (its code + what the render depends on)."""
+def code_key(project: Project, layer: Layer, helpers_digest: str | None = None) -> str:
+    """The cache entry a code layer's frames live under (its code + what the render depends on,
+    the project's helpers among it: ``helpers_digest`` when the caller has it already)."""
     canvas = project.canvas
     code = str(layer.spec.params.get("code", ""))
     return cache_key(
-        code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, adapter.MANIM_VERSION
+        code,
+        canvas.width_px,
+        canvas.height_px,
+        canvas.fps,
+        canvas.frame_height,
+        adapter.MANIM_VERSION,
+        # empty without helpers: the key it always had (ADR 0058)
+        helpers.digest(project) if helpers_digest is None else helpers_digest,
     )
 
 

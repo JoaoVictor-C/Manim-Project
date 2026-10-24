@@ -41,12 +41,21 @@ def code_hash(code: str) -> str:
     return hashlib.sha256(normalize_code(code).encode("utf-8")).hexdigest()
 
 
-def cache_key(code: str, width: int, height: int, fps: int, frame_height: float, manim_version: str) -> str:
-    """Everything a render depends on besides the code's own behaviour."""
-    material = json.dumps(
-        [FORMAT_VERSION, code_hash(code), width, height, fps, round(frame_height, 6), manim_version]
-    )
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+def cache_key(
+    code: str,
+    width: int,
+    height: int,
+    fps: int,
+    frame_height: float,
+    manim_version: str,
+    helpers: str = "",
+) -> str:
+    """Everything a render depends on besides the code's own behaviour. ``helpers`` is the project's
+    ``helpers.digest`` (ADR 0058): empty without helpers, so those keys are what they always were."""
+    parts = [FORMAT_VERSION, code_hash(code), width, height, fps, round(frame_height, 6), manim_version]
+    if helpers:
+        parts.append(helpers)
+    return hashlib.sha256(json.dumps(parts).encode("utf-8")).hexdigest()[:32]
 
 
 @dataclass(frozen=True)

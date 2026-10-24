@@ -46,6 +46,7 @@ from ..core.python_export import PythonExport, class_name, to_python
 from ..core.scene_import import import_scene, scene_classes
 from ..core.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.trust import TrustStore
+from ..core.trust import label as trust_label
 from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
 from . import arrange, icons, places, shortcuts_help, snap_guides, theme
 from .audio_player import make_audio_player
@@ -857,7 +858,7 @@ class MainWindow(QMainWindow):
         self.report_media()
         untrusted = self.trust.untrusted(project)
         if untrusted:  # opening a file must never run its code silently (ADR 0019)
-            names = [project.layer(i).name or i for i in untrusted]
+            names = [trust_label(project, i) for i in untrusted]  # helpers too (ADR 0058)
             if self.ask_trust(names) == "run":
                 self.code.trust_layers(project, untrusted)
                 self.reload_media()  # Python objects drawn as placeholders are built now (ADR 0051)
@@ -1012,7 +1013,8 @@ class MainWindow(QMainWindow):
                 raise edits.EditError(
                     f"it is drawn as a placeholder ({drawn}): only what is drawn can be frozen"
                 )
-            edit = edits.freeze_layer(self.project, layer_id, adapter.freeze_data(layer.spec))
+            signature = self.evaluator.signature_of(layer.spec)  # a Python object's helpers (ADR 0058)
+            edit = edits.freeze_layer(self.project, layer_id, adapter.freeze_data(layer.spec, signature))
         except (edits.EditError, ValueError) as exc:
             reason = str(exc).removeprefix(f"cannot freeze {layer_id!r}: ")
             self.statusBar().showMessage(f"Freeze to Shape: {layer.label}: {reason}", 15000)

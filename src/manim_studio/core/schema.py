@@ -36,6 +36,7 @@ RASTER_TYPES = frozenset({"ImageMobject"})  # no paths: vector-only clip kinds a
 MEDIA_TYPES = frozenset({"ImageMobject", "SVGMobject"})  # built from a file on disk (ADR 0027)
 CODE_TYPES = frozenset({"Code"})  # user Manim code, rendered to a frame cache (ADR 0019)
 PYTHON_TYPES = frozenset({"Python"})  # an object built by the user's code: PARAMS + build(p) (ADR 0051)
+RUNS_CODE = CODE_TYPES | PYTHON_TYPES  # layers whose code may import the project's helpers (ADR 0058)
 SHAPE_TYPE = "Shape"  # an object frozen into plain vector data: points and colours (ADR 0052)
 SHAPE_TYPES = frozenset({SHAPE_TYPE})
 TRACE_TYPES = frozenset({"TracedPath"})  # draws where another layer has been, frame by frame (ADR 0033)
@@ -626,6 +627,33 @@ class Camera(BaseModel):
         return (self.phi, self.theta, self.gamma) == (0.0, -90.0, 0.0)
 
 
+class Helper(BaseModel):
+    """A module of the project (ADR 0058): plain Python that code layers, Python objects and other
+    helpers import by ``name``. Its code runs only once trusted, like theirs (ADR 0019)."""
+
+    name: str
+    code: str = ""
+    description: str = ""
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_description(self, handler):
+        data = handler(self)
+        if not self.description:
+            data.pop("description", None)
+        return data
+
+    @model_validator(mode="after")
+    def _rules(self) -> Helper:
+        from .helpers import MAX_CODE, check_name  # pure; the file format never asks what is installed
+
+        problem = check_name(self.name)
+        if problem is not None:
+            raise ValueError(f"helper {self.name!r}: {problem}")
+        if len(self.code) > MAX_CODE:
+            raise ValueError(f"helper {self.name!r}: the code is longer than {MAX_CODE // 1024} KB")
+        return self
+
+
 class Project(BaseModel):
     schema_version: int = SCHEMA_VERSION
     canvas: Canvas = Field(default_factory=Canvas)
@@ -638,12 +666,15 @@ class Project(BaseModel):
     # How new morph clips match their pieces (ADR 0056): chosen when the project is created. It
     # changes no existing clip. Smart is the default and is not written to the file.
     morph_matching: Literal["smart", "classic"] = "smart"
+    helpers: list[Helper] = Field(default_factory=list)  # importable by code (ADR 0058)
 
     @model_serializer(mode="wrap")
     def _omit_unused(self, handler):
         data = handler(self)
         if self.morph_matching == "smart":
             data.pop("morph_matching", None)
+        if not self.helpers:
+            data.pop("helpers", None)  # files without helpers save as before (ADR 0058)
         if not self.audio:
             data.pop("audio", None)  # files without sound save as before
         if not self.subtitles:
@@ -673,6 +704,7 @@ class Project(BaseModel):
         for a, b in itertools.pairwise(self.markers):  # one per frame is the editor's rule (ADR 0037)
             if b.t - a.t < 1e-9:
                 raise ValueError(f"markers {a.id!r} and {b.id!r} are at the same time")
+        self._helper_rules()
         self._tree_rules()
         self._path_rules()
         self._graph_refs()
@@ -710,6 +742,23 @@ class Project(BaseModel):
                     )
                 targeted[clip.to_layer] = layer.id
         return self
+
+    def _helper_rules(self) -> None:
+        """ADR 0058: at most ``MAX_HELPERS`` helpers, with different names."""
+        from .helpers import MAX_HELPERS
+
+        if len(self.helpers) > MAX_HELPERS:
+            raise ValueError(f"a project has at most {MAX_HELPERS} helpers, not {len(self.helpers)}")
+        names = Counter(helper.name for helper in self.helpers)
+        duplicates = sorted(name for name, count in names.items() if count > 1)
+        if duplicates:
+            raise ValueError(f"duplicate helper names: {duplicates}")
+
+    def helper(self, name: str) -> Helper:
+        for helper in self.helpers:
+            if helper.name == name:
+                return helper
+        raise KeyError(name)
 
     def _path_rules(self) -> None:
         """ADR 0025: motion clips move root objects along another layer's shape."""

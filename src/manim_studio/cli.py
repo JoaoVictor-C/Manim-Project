@@ -44,8 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument(
         "--trust-code",
         action="store_true",
-        help="run the project's Python code: code layers not cached yet and Python objects not in "
-        "the trusted store (ADR 0019, 0051)",
+        help="run the project's Python code: code layers not cached yet, and Python objects and "
+        "helpers not in the trusted store (ADR 0019, 0051, 0058)",
     )
     render.add_argument("--size", metavar="WxH", help="video size in pixels (default: the project's canvas)")
     render.add_argument("--fps", type=int, help="frames per second (default: the project's canvas)")
@@ -228,11 +228,15 @@ def _import(path: Path, output: Path, scene: str | None, cache_dir: Path | None)
 def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
     """Render code layers missing from the cache (ADR 0019); warnings for those left as placeholders."""
     from .code_runner import CodeError, Job, render_code
+    from .core import helpers
     from .core.evaluator import Evaluator
     from .core.schema import CODE_TYPES
 
     evaluator = Evaluator(project)
     canvas, warnings = project.canvas, []
+    # A code layer runs only with --trust-code, which trusts the helpers too (ADR 0058).
+    pairs = tuple(sorted(helpers.sources(project).items()))
+    trusted = tuple(name for name, _ in pairs)
     for layer in project.layers:
         if layer.spec is None or layer.spec.type not in CODE_TYPES:
             continue
@@ -245,27 +249,46 @@ def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
         if mode == "text":
             print(f"rendering code layer {layer.id}...", flush=True)
         code = str(layer.spec.params.get("code", ""))
-        job = Job(key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height)
+        job = Job(
+            key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, pairs, trusted
+        )
         try:
             render_code(job, evaluator.code_cache)
         except CodeError as error:
             where = f" (line {error.line})" if error.line else ""
+            if error.where != "code":
+                at = f", line {error.helper_line}" if error.helper_line else ""
+                where = f" (in helper {error.where.removeprefix('helper:')}{at})"
             warnings.append(f"code layer {layer.id!r} failed{where}: {error}")
     return warnings
 
 
 def _untrusted_objects(project) -> list[str]:
-    """Warnings for Python objects whose code may not run here (ADR 0051): they draw a placeholder."""
-    from .core import python_object
+    """Warnings for Python objects whose code may not run here (ADR 0051): they draw a placeholder;
+    so do those importing a helper that may not run (ADR 0058)."""
+    from .core import helpers, python_object
     from .core.schema import PYTHON_TYPES
 
-    return [
+    out = [
         f"Python object {layer.id!r} is drawn as a placeholder (pass --trust-code to run its code)"
         for layer in project.layers
         if layer.spec is not None
         and layer.spec.type in PYTHON_TYPES
         and not python_object.is_trusted(str(layer.spec.params.get("code", "")))
     ]
+    used = {
+        name
+        for layer in project.layers
+        if layer.spec is not None and layer.spec.type in PYTHON_TYPES
+        for name in helpers.needed(project, str(layer.spec.params.get("code", "")))
+    }
+    out += [
+        f"helper {helper.name!r} is not trusted: Python objects importing it are drawn as a placeholder "
+        "(pass --trust-code to run its code)"
+        for helper in project.helpers
+        if helper.name in used and not python_object.is_trusted(helper.code)
+    ]
+    return out
 
 
 def _emit(message: dict) -> None:

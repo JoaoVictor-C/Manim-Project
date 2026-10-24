@@ -31,17 +31,19 @@ from typing import Any, Literal
 import numpy as np
 from pydantic import ValidationError
 
-from . import equation_steps, glyph_colours, motion_paths, parts, shape
+from . import equation_steps, glyph_colours, helpers, motion_paths, parts, shape
 from .schema import (
     CAMERA_FIELDS,
     GLYPH_COLOURS,
     GROUP_TYPE,
+    RUNS_CODE,
     TEXT_TYPES,
     AudioClip,
     Camera,
     Clip,
     Cue,
     Easing,
+    Helper,
     Keyframe,
     Layer,
     Marker,
@@ -70,6 +72,10 @@ class Edit:
     project: Project
     kind: EditKind
     layer_ids: frozenset[str]
+    # Code texts the edit rewrote, (before, after): renaming a helper fixes the imports of the code
+    # that uses it (ADR 0058). Trust is by hash, so the caller trusts each ``after`` whose ``before``
+    # was trusted (``TrustStore.carry``).
+    rewritten: tuple[tuple[str, str], ...] = ()
 
 
 # -- edit functions -------------------------------------------------------------
@@ -1101,8 +1107,119 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "markers": project.markers,
         "camera": project.camera,
         "morph_matching": project.morph_matching,
+        "helpers": project.helpers,
     }
     return Project.model_validate({**data, **parts})
+
+
+# -- helpers (ADR 0058) -------------------------------------------------------------------------------
+# A helper's code can change what every code layer and Python object draws: ``classify`` marks them
+# all ``spec`` when the helpers' code changes (coarse on purpose); a description changes nothing.
+
+
+def add_helper(project: Project, name: str, code: str, description: str = "") -> Edit:
+    """A new helper named ``name`` (a Python name that hides no module: ``helpers.check_name``)."""
+    problem = helpers.check_name(name, (h.name for h in project.helpers), installed=True)
+    if problem is not None:
+        raise EditError(problem)
+    if len(project.helpers) >= helpers.MAX_HELPERS:
+        raise EditError(f"a project has at most {helpers.MAX_HELPERS} helpers")
+    helper = _new_helper(name, code, description)
+    return _replace_helpers(project, [*project.helpers, helper])
+
+
+def update_helper(
+    project: Project, name: str, code: str | None = None, description: str | None = None
+) -> Edit:
+    """Change a helper's code and/or description."""
+    old = _helper(project, name)
+    helper = _new_helper(
+        name, old.code if code is None else code, old.description if description is None else description
+    )
+    return _replace_helpers(project, [helper if h.name == name else h for h in project.helpers])
+
+
+def rename_helper(project: Project, old: str, new: str, *, fix_imports: bool = True) -> Edit:
+    """Rename helper ``old`` to ``new``. With ``fix_imports`` the code layers, Python objects and
+    other helpers that import it are rewritten to import ``new`` (``helpers.rename_imports``: only
+    the import statements and, when safe, the uses of a plain ``import old``); the texts rewritten
+    are in ``Edit.rewritten``, so their trust can follow."""
+    helper = _helper(project, old)
+    if new == old:
+        return Edit(project, "timing", frozenset())
+    problem = helpers.check_name(new, (h.name for h in project.helpers if h.name != old), installed=True)
+    if problem is not None:
+        raise EditError(problem)
+    rewritten: list[tuple[str, str]] = []
+
+    def fixed(code: str) -> str:
+        if not fix_imports:
+            return code
+        out = helpers.rename_imports(code, old, new)
+        if out is None:
+            return code
+        rewritten.append((code, out))
+        return out
+
+    renamed = []
+    for h in project.helpers:
+        if h.name == old:
+            renamed.append(_new_helper(new, helper.code, helper.description))
+            continue
+        code = fixed(h.code) if old in helpers.imports_of(h.code) else h.code
+        renamed.append(h if code == h.code else _new_helper(h.name, code, h.description))
+    layers = []
+    for layer in project.layers:
+        code = str(layer.spec.params.get("code", "")) if layer.spec is not None else ""
+        if layer.spec is not None and layer.spec.type in RUNS_CODE and old in helpers.imports_of(code):
+            after = fixed(code)
+            if after != code:  # rebuilt from data so the layer's validators run
+                data = layer.model_dump(by_alias=True)
+                data["spec"]["params"]["code"] = after
+                layer = Layer.model_validate(data)
+        layers.append(layer)
+    edit = _replace_helpers(project, renamed, layers)
+    return Edit(edit.project, edit.kind, edit.layer_ids, tuple(rewritten))
+
+
+def remove_helper(project: Project, name: str, *, force: bool = False) -> Edit:
+    """Delete a helper; refused while code imports it, unless ``force`` (that code then fails at its
+    import, as any missing module)."""
+    _helper(project, name)
+    users = helpers.importers(project, name)
+    if users and not force:
+        labels = [
+            f"helper {key.removeprefix('helper:')}" if key.startswith("helper:") else project.layer(key).label
+            for key in users
+        ]
+        raise EditError(f"helper {name!r} is imported by {', '.join(labels)}")
+    return _replace_helpers(project, [h for h in project.helpers if h.name != name])
+
+
+def _helper(project: Project, name: str) -> Helper:
+    try:
+        return project.helper(name)
+    except KeyError:
+        raise EditError(f"no helper {name!r}") from None
+
+
+def _new_helper(name: str, code: str, description: str) -> Helper:
+    try:
+        return Helper(name=name, code=code, description=description)
+    except ValidationError as exc:
+        raise EditError(str(exc.errors()[0]["msg"]).removeprefix("Value error, ")) from exc
+
+
+def _replace_helpers(project: Project, new_helpers: list[Helper], layers: list[Layer] | None = None) -> Edit:
+    parts: dict[str, Any] = {"helpers": new_helpers}
+    if layers is not None:
+        parts["layers"] = layers
+    try:
+        new_project = _rebuilt(project, **parts)
+    except ValidationError as exc:
+        raise EditError(str(exc.errors()[0]["msg"]).removeprefix("Value error, ")) from exc
+    kind, layer_ids = classify(project, new_project)
+    return Edit(new_project, kind, layer_ids)
 
 
 # -- subtitles (P5a, ADR 0035) ------------------------------------------------------------
@@ -1215,6 +1332,11 @@ def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
     if old.camera != new.camera:  # every object is seen from elsewhere: every frame changes (ADR 0048)
         kind = "spec"
         touched = set(old_layers) | set(new_layers)
+    if helpers.code_changed(old, new):  # any code may import a helper (ADR 0058)
+        running = {i for i, x in {**old_layers, **new_layers}.items() if x.spec and x.spec.type in RUNS_CODE}
+        if running:
+            kind = "spec"
+            touched |= running
     for layer_id in old_layers.keys() | new_layers.keys():
         a, b = old_layers.get(layer_id), new_layers.get(layer_id)
         # Into, out of or between groups (ADR 0050): built and animated as before, only carried.

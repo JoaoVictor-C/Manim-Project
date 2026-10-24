@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from manim_studio.core import completion as c
 
-SOURCE = "class Orbit(Scene):\n    def construct(self):\n        circle = Circle(radius=1)\n        planet_count = 3\n"
-
-
-def at_end(text: str) -> int:
-    return len(text)
+SOURCE = (
+    "class Orbit(Scene):\n"
+    "    def construct(self):\n"
+    "        circle = Circle(radius=1)\n"
+    "        planet_count = 3\n"
+)
 
 
 def test_context_finds_the_word_and_the_name_before_a_dot() -> None:

@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 
 from .. import plugins
-from . import python_object
+from . import helpers, python_object
 from .parts import build_spec
 from .schema import GLYPH_COLOURS, NUMBER_TYPES, PYTHON_TYPES, TEXT_TYPES, Project, Spec
 
@@ -30,13 +30,22 @@ LABELS = {"AxisLabels": ("x_label", "y_label"), "GraphLabel": ("label",)}  # TeX
 CACHE_NEUTRAL_PARAMS = frozenset({"font_size", "color", GLYPH_COLOURS})
 
 
-def warm_key(spec: Spec) -> str | None:
-    """The disk-cache identity of a text-bearing spec, or None if it builds fast."""
+def warm_key(spec: Spec, helper_sources: helpers.Sources | None = None) -> str | None:
+    """The disk-cache identity of a text-bearing spec, or None if it builds fast.
+
+    A Python object's key carries the project's helpers (ADR 0058) when there are any: their
+    sources and the names of those trusted, which the worker serves while it builds."""
     if spec.type in PYTHON_TYPES:  # new code is run in the worker first (ADR 0051)
         code = str(spec.params.get("code", ""))
         if not python_object.is_trusted(code):
             return None  # never run there: the editor shows the placeholder
-        return json.dumps({"type": spec.type, "params": {"code": code}}, sort_keys=True)
+        key: dict = {"type": spec.type, "params": {"code": code}}
+        if helper_sources:
+            key["helpers"] = dict(helper_sources)
+            key["trusted_helpers"] = sorted(
+                n for n, c in helper_sources.items() if python_object.is_trusted(c)
+            )
+        return json.dumps(key, sort_keys=True)
     if spec.type in NUMBER_TYPES:  # every glyph a count can show (ADR 0036)
         return json.dumps({"type": spec.type, "params": number_glyphs(spec)}, sort_keys=True)
     numbered_axes = spec.type == "Axes" and spec.params.get("numbers") == "yes"  # LaTeX digits (B37)
@@ -61,18 +70,25 @@ def number_glyphs(spec: Spec) -> dict:
     return params
 
 
-def warm_keys(spec: Spec) -> set[str]:
+def warm_keys(spec: Spec, helper_sources: helpers.Sources | None = None) -> set[str]:
     """Every disk-cache entry building ``spec`` reads: its own, or its labels' TeX (ADR 0030)."""
     if spec.type in LABELS:
         texts = (str(spec.params.get(name) or "") for name in LABELS[spec.type])
         return {warm_key(Spec(type="MathTex", params={"text": t})) for t in texts if t.strip()}
-    key = warm_key(spec)
+    key = warm_key(spec, helper_sources)
     return {key} if key is not None else set()
 
 
 def key_spec(key: str) -> Spec:
-    """A spec that builds exactly the cache entry ``key`` stands for (what the worker builds)."""
+    """A spec that builds exactly the cache entry ``key`` stands for (what the worker builds; a
+    Python object's helpers ride beside it in the key, ``key_helpers``)."""
     return Spec.model_validate_json(key)
+
+
+def key_helpers(key: str) -> tuple[dict[str, str], list[str]]:
+    """The helper sources and trusted helper names a warm key carries (ADR 0058), or none."""
+    data = json.loads(key)
+    return dict(data.get("helpers") or {}), list(data.get("trusted_helpers") or [])
 
 
 def needs_warm(old: Project, new: Project, warmed: set[str] | frozenset[str]) -> set[str]:
@@ -85,9 +101,11 @@ def needs_warm(old: Project, new: Project, warmed: set[str] | frozenset[str]) ->
     old_specs |= {x.id: x.spec for x in old.layers if x.is_child and not x.is_part}
     built = [(root.id, build_spec(new, root.id)) for root in new.roots()]
     built += [(x.id, x.spec) for x in new.layers if x.is_child and not x.is_part]  # labels on axes
+    sources = helpers.sources(new)
+    rerun = helpers.code_changed(old, new)  # a helper's new code runs in every Python object (ADR 0058)
     keys = set()
     for layer_id, spec in built:
-        if old_specs.get(layer_id) == spec:
+        if old_specs.get(layer_id) == spec and not (rerun and spec.type in PYTHON_TYPES):
             continue
-        keys |= {key for key in warm_keys(spec) if key not in warmed}
+        keys |= {key for key in warm_keys(spec, sources) if key not in warmed}
     return keys

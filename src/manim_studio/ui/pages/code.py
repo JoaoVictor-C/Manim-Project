@@ -73,6 +73,7 @@ from ...core import (
     diagnostics,
     edits,
     error_hints,
+    helpers,
     live_guard,
     outline,
     python_object,
@@ -698,8 +699,10 @@ class CodePage(Page):
         if layer_id is None:
             return None
         if self._is_python(layer_id):
-            spec = self.window.project.layer(layer_id).spec
-            problem = adapter.python_problem(spec)
+            project = self.window.project
+            spec = project.layer(layer_id).spec
+            signature = adapter.media_signature(spec, helpers.sources(project))  # (ADR 0058)
+            problem = adapter.python_problem(spec, signature)
             if problem is None:
                 return CodeStatus("built")
             if problem.message == python_object.NOT_TRUSTED:
@@ -711,6 +714,7 @@ class CodePage(Page):
                 error_type=problem.error_type,
                 where=problem.where,
                 traceback=problem.traceback,
+                helper_line=problem.helper_line,
             )
         return self.window.code.status(layer_id)
 

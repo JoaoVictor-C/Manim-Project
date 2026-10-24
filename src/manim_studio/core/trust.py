@@ -34,13 +34,33 @@ def default_path() -> Path:
     return Path.home() / ".local" / "share" / "manim-studio" / "trusted-code.json"
 
 
+HELPER_KEY = "helper:"  # project_code's key for a helper: "helper:<name>" (ADR 0058)
+
+
 def project_code(project: Project) -> dict[str, str]:
-    """layer id -> code, for every code layer and Python object (ADR 0051) of ``project``."""
-    return {
+    """layer id -> code, for every code layer and Python object (ADR 0051) of ``project``, then
+    ``helper:<name>`` -> code for every helper (ADR 0058): each is trusted by its own hash."""
+    out = {
         layer.id: str(layer.spec.params.get("code", ""))
         for layer in project.layers
         if layer.spec is not None and layer.spec.type in CODE_TYPES | PYTHON_TYPES
     }
+    out.update({f"{HELPER_KEY}{helper.name}": helper.code for helper in project.helpers})
+    return out
+
+
+def code_of(project: Project, key: str) -> str:
+    """The code a ``project_code`` key names (a layer id or ``helper:<name>``); raises KeyError."""
+    if key.startswith(HELPER_KEY):
+        return project.helper(key.removeprefix(HELPER_KEY)).code
+    return str(project.layer(key).spec.params.get("code", ""))
+
+
+def label(project: Project, key: str) -> str:
+    """How a ``project_code`` key is named to the user: a layer's label, or "helper <name>"."""
+    if key.startswith(HELPER_KEY):
+        return f"helper {key.removeprefix(HELPER_KEY)}"
+    return project.layer(key).name or key
 
 
 class TrustStore:
@@ -66,6 +86,12 @@ class TrustStore:
             temp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
             os.replace(temp, self.path)
 
+    def carry(self, rewritten: Iterable[tuple[str, str]]) -> None:
+        """Trust each rewritten text whose text before was trusted (``Edit.rewritten``: renaming a
+        helper rewrote the imports of the code that uses it, ADR 0058)."""
+        self.trust([after for before, after in rewritten if self.is_trusted(before)])
+
     def untrusted(self, project: Project) -> list[str]:
-        """Ids of the code layers and Python objects whose code may not run."""
+        """Ids of the code layers and Python objects whose code may not run, then ``helper:<name>``
+        for each such helper (ADR 0058)."""
         return [layer_id for layer_id, code in project_code(project).items() if not self.is_trusted(code)]
