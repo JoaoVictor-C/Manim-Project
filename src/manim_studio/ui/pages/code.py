@@ -47,6 +47,7 @@ from pydantic import ValidationError
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -67,6 +68,7 @@ from PySide6.QtWidgets import (
 
 from ...core import adapter, code_files, edits, live_guard, python_object
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
+from ...core.standalone import standalone_scene
 from .. import code_drag, icons, quick_open, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
 from ..code_editor import CodeEditor
@@ -517,6 +519,7 @@ class CodePage(Page):
         self.live_action.toggled.connect(self._on_live_toggled)
         menu.addSeparator()
         menu.addAction("Save code as file…", self.save_code)
+        self.copy_scene_action = menu.addAction("Copy as a Manim scene", self.copy_as_scene)
         menu.addAction("Save as preset…", self.save_as_preset)
         menu.addSeparator()
         self.setting_actions: dict[str, QAction] = {}
@@ -1086,6 +1089,18 @@ class CodePage(Page):
             self.window.statusBar().showMessage(f"Could not save code: {error}", 10000)
             return
         self.window.statusBar().showMessage(f"Saved code to {path}", 10000)
+
+    def copy_as_scene(self) -> None:
+        """Put a Python object's code on the clipboard as a Manim scene that runs by itself."""
+        layer_id = self.layer_id
+        if layer_id is None or self.window.project is None or not self._is_python(layer_id):
+            self.window.statusBar().showMessage("Only a Python object can be copied as a Manim scene", 6000)
+            return
+        layer = self.window.project.layer(layer_id)
+        values = layer.spec.params.get("values") or {}
+        text = standalone_scene(self.editor.text(), values, layer.label)
+        QApplication.clipboard().setText(text)
+        self.window.statusBar().showMessage("Copied as a Manim scene: render it with manim", 6000)
 
     def convert(self) -> None:
         """Convert to layers (P10.3, ADR 0053): the window records the scene in another process and

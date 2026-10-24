@@ -118,3 +118,11 @@ def test_risky_code_is_paused_with_a_message(window, qt_app, code_text) -> None:
     drain(qt_app)
     type_text(window, qt_app, "import os\n" + code_text)
     assert code_of(window) == code_text and "uses os" in code.live_message
+
+
+def test_copy_as_scene_puts_a_runnable_scene_on_the_clipboard(window, qt_app, code_text) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    page(window).copy_as_scene()
+    text = QApplication.clipboard().text()
+    assert "class Wheel(Scene):" in text and "self.add(build(p))" in text
