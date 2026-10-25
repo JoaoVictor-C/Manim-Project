@@ -104,7 +104,7 @@ from . import Page, Shared
 
 LIVE_PAUSE_MS = 800  # the pause in typing after which Live applies
 SYNTAX_PAUSE_MS = 800  # the pause in typing after which a syntax error is marked
-HINT = "Select a code layer or a Python object, or add one with New code layer or New Python object."
+HINT = "Select a code layer or a Python object, or add one with the New button."
 PRESET_ORIGINS = (
     ("builtin", "Presets — built in"),
     ("user", "Presets — mine"),
@@ -280,25 +280,39 @@ class CodePage(Page):
         self.explorer.filesDropped.connect(self._import_dropped)
 
         self.new_button = self._button(
-            "New layer", "Add a code layer with a starter scene", self.new_layer, "add"
-        )
-        self.new_python_button = self._button(
-            "New object",
-            "Add a Python object: an object built by your own Manim code (PARAMS + build(p)), starting "
-            "from a right triangle; the arrow lists the object presets. Its parameters become fields "
-            "in Properties",
-            lambda: self.new_python_object(),
+            "New",
+            "Create something: a code layer, a Python object (from a starter or a preset), a helper, "
+            "or add a .py file",
+            lambda: None,
             "add",
         )
-        self.python_templates_menu = QMenu(self.new_python_button)  # the arrow: choose a starter
-        self._refresh_python_templates()
-        self.new_python_button.setMenu(self.python_templates_menu)
-        self.add_code_file_button = self._button(
-            "Add file…",
-            "Add .py files to the project: a window asks what each becomes (a Python object or a scene) "
-            "and its name, time and place first",
-            self.add_code_file,
+        self.new_menu = QMenu(self.new_button)
+        self.new_actions: dict[str, QAction] = {}
+        self.new_actions["layer"] = self.new_menu.addAction("Code layer (a Manim scene)", self.new_layer)
+        self.new_actions["layer"].setToolTip("Add a code layer with a starter scene")
+        self.new_actions["object"] = self.new_menu.addAction(
+            "Python object", lambda: self.new_python_object()
         )
+        self.new_actions["object"].setToolTip(
+            "Add a Python object: an object built by your own Manim code (PARAMS + build(p)), starting "
+            "from a right triangle. Its parameters become fields in Properties"
+        )
+        self.python_templates_menu = self.new_menu.addMenu("Python object from a preset")
+        self.python_templates_menu.setToolTip("Start a Python object from one of the object presets")
+        self._refresh_python_templates()
+        self.new_actions["helper"] = self.new_menu.addAction(
+            "Helper...", lambda: self.helper_actions.new_helper()
+        )
+        self.new_actions["helper"].setToolTip(
+            "Add a helper: reusable Python your code and objects can import by name"
+        )
+        self.new_menu.addSeparator()
+        self.new_actions["file"] = self.new_menu.addAction("From a file...", self.add_code_file)
+        self.new_actions["file"].setToolTip(
+            "Add .py files to the project: a window asks what each becomes (a Python object, a scene "
+            "or a helper) and its name, time and place first"
+        )
+        self.new_button.setMenu(self.new_menu)
         self.import_folder_button = self._button(
             "Import…",
             "Import a folder: add every .py file in it to your presets (a window asks about each)",
@@ -328,8 +342,7 @@ class CodePage(Page):
         )
         grid = QVBoxLayout()
         for pair in (
-            (self.new_button, self.new_python_button),
-            (self.add_code_file_button, self.import_folder_button),
+            (self.new_button, self.import_folder_button),
             (self.online_button, self.export_folder_button),
             (self.rename_button, self.delete_button),
         ):

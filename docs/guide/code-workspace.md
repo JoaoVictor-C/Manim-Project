@@ -104,7 +104,8 @@ or downloaded is **not** trusted until you run it; the built-in presets are the 
 
 ## Adding files
 
-- **Add file...** opens the **import window** for the `.py` files you choose. For each one it shows
+- **New** is one button with a menu of everything you can create: a code layer (a Manim scene), a Python
+  object, a Python object from a preset, a helper, or a file. **From a file...** opens the **import window** for the `.py` files you choose. For each one it shows
   what it was detected as - a *Python object* (a top-level `build(p)`) or a *Manim scene* (a `Scene`
   class) - and offers anything else that is possible, with the reason when something is not:
   - **Add it as**: a Python object, a Manim scene (a code layer; if the file has several scenes you

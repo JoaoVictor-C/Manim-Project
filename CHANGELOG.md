@@ -37,6 +37,8 @@ All notable changes to this project are documented here. The format follows
   `index.json`; downloads are text only, over HTTPS, size-limited and never run until allowed.
 - **Drag and drop**: drag a preset or a layer from the explorer onto the timeline (the time), the canvas (the
   place) or the Layers list; `.py` files dragged from the desktop open the import window.
+- Code page: one **New** button with a menu (code layer, Python object, Python object from a preset, helper,
+  from a file) replaces the New layer, New object and Add file buttons.
 - **Code assistance** on the Code page (ADR 0058, P13): errors say what kind they are and how to fix them (did-you-mean
   for Manim names, one-click `from manim import *`, your own traceback only); syntax errors are underlined after a
   pause; names are suggested while typing and described on hover; a snippet gallery with tab stops

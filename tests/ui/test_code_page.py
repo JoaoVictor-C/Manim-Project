@@ -153,7 +153,7 @@ def test_with_no_project_the_editor_is_disabled_and_new_asks_for_one(qt_app) -> 
 def test_new_code_layer_adds_the_starter_scene_and_shows_it(window, qt_app) -> None:
     code = page(window)
     before = len(window.project.layers)
-    code.new_button.click()
+    code.new_actions["layer"].trigger()
     qt_app.processEvents()
     assert len(window.project.layers) == before + 1
     ids = {x.id for x in window.project.layers} - {"dot", "orbit", "spin"}

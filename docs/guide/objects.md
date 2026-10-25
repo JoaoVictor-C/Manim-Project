@@ -130,7 +130,7 @@ A **Python object** is an object built by your own Manim code. It moves, styles,
 animates, groups and morphs like any other object, and its parameters become fields in
 Properties.
 
-**Create one** on the Code page (`Ctrl+3`): **New Python object** starts from a right
+**Create one** on the Code page (`Ctrl+3`): **New > Python object** starts from a right
 triangle; the arrow on the button offers templates (**Right triangle**, **Matrix**). Edit the
 code and press **Run** (`Ctrl+Enter`); errors show under the editor at their line. Python
 objects are listed on the Code page with the code layers (rename with `F2`, delete with
@@ -235,7 +235,7 @@ it ("This runs the Python in ... on your computer").
 ## Code layers
 
 A **code layer** holds a whole Manim `Scene` for what the timeline cannot express (updaters,
-`ValueTracker`, custom simulations). **Add > Python > Code**, or **New code layer** on the Code
+`ValueTracker`, custom simulations). **Add > Python > Code**, or **New > Code layer** on the Code
 page. Edit it on the Code page (highlighting, line numbers, auto-indent) and press **Run**
 (`Ctrl+Enter`): real Manim plays it once in a separate process and the editor shows its
 frames, placed, scaled and faded like any layer. Typing alone never runs anything; text not

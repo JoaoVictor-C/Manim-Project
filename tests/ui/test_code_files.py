@@ -86,15 +86,15 @@ def test_detection_is_by_shape_and_ignores_a_byte_order_mark() -> None:
 def test_the_buttons_exist_and_have_tips(window) -> None:
     code = page(window)
     for button in (
-        code.add_code_file_button,
         code.import_folder_button,
         code.online_button,
         code.export_folder_button,
         code.save_code_button,
         code.new_button,
-        code.new_python_button,
     ):
         assert button.isVisibleTo(code.widget) and button.toolTip()
+    assert set(code.new_actions) == {"layer", "object", "helper", "file"}
+    assert all(action.toolTip() for action in code.new_actions.values())
 
 
 def test_add_file_goes_through_the_import_window(window, tmp_path, monkeypatch, qt_app) -> None:
@@ -209,3 +209,22 @@ def test_row_menu_export_ticks_just_that_row(window) -> None:
     menu = code.row_menu("layer", "orbit")
     next(a for a in menu.actions() if a.text() == "Export...").trigger()
     assert seen["checked"] == {"orbit"}
+
+
+def test_the_new_menu_offers_each_kind_and_runs_it(window, monkeypatch) -> None:
+    code = page(window)
+    calls = []
+    monkeypatch.setattr(code.helper_actions, "new_helper", lambda: calls.append("helper"))
+    monkeypatch.setattr(code, "add_code_file", lambda: calls.append("file"))
+    assert [a.text() for a in code.new_menu.actions() if a.text()] == [
+        "Code layer (a Manim scene)",
+        "Python object",
+        "Python object from a preset",
+        "Helper...",
+        "From a file...",
+    ]
+    code.new_actions["helper"].trigger()
+    assert calls == ["helper"]
+    before = len(window.project.layers)
+    code.new_actions["layer"].trigger()
+    assert len(window.project.layers) == before + 1

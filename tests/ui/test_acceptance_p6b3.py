@@ -61,7 +61,7 @@ def test_write_run_see_the_error_at_its_line_fix_it_and_see_the_frame(window, qt
     assert len(list_texts(code)) == 0 and not code.editor.isEnabled()
 
     # 1. a new code layer: the starter scene runs (library code is trusted) and renders
-    code.new_button.click()
+    code.new_actions["layer"].trigger()
     wait_until(qt_app, lambda: code.layer_id is not None)
     layer_id = code.layer_id
     assert code.editor.text().startswith("class Orbit(Scene)") and window.selection.layer_id == layer_id

@@ -68,7 +68,7 @@ def unique(code: str) -> str:
 
 def test_the_code_page_button_adds_the_starter_selects_it_and_opens_it(window, qt_app) -> None:
     window.show_page("animate")
-    page(window).new_python_button.click()
+    page(window).new_actions["object"].trigger()
     qt_app.processEvents()
     layer = python_layer(window)
     assert window.page == "code"
@@ -86,7 +86,7 @@ def test_the_code_page_button_adds_the_starter_selects_it_and_opens_it(window, q
 
 
 def test_apply_with_an_error_shows_it_at_its_line(window, qt_app) -> None:
-    page(window).new_python_button.click()
+    page(window).new_actions["object"].trigger()
     qt_app.processEvents()
     code_page = page(window)
     broken = "PARAMS = {'r': 1.0}\n\n\ndef build(p):\n    return Circle(radius=p['r']) + missing\n"
@@ -114,7 +114,7 @@ def test_apply_with_an_error_shows_it_at_its_line(window, qt_app) -> None:
 
 
 def test_new_code_keeps_the_values_of_parameters_that_still_exist(window, qt_app) -> None:
-    page(window).new_python_button.click()
+    page(window).new_actions["object"].trigger()
     qt_app.processEvents()
     layer_id = python_layer(window).id
     window.properties.fields["values.side"].commit(5.0)
@@ -129,7 +129,7 @@ def test_new_code_keeps_the_values_of_parameters_that_still_exist(window, qt_app
 
 
 def test_a_properties_change_redraws_and_is_one_undo_step(window, qt_app) -> None:
-    page(window).new_python_button.click()
+    page(window).new_actions["object"].trigger()
     qt_app.processEvents()
     layer_id = python_layer(window).id
     before = drawn(window, layer_id).width
@@ -213,7 +213,7 @@ def test_trusting_on_open_builds_it(qt_app, tmp_path) -> None:
 
 
 def test_python_objects_are_renamed_and_deleted_on_the_code_page(window, qt_app) -> None:
-    page(window).new_python_button.click()
+    page(window).new_actions["object"].trigger()
     qt_app.processEvents()
     code_page = page(window)
     layer_id = python_layer(window).id
@@ -230,10 +230,9 @@ def test_python_objects_are_renamed_and_deleted_on_the_code_page(window, qt_app)
 def test_the_template_menu_starts_from_the_matrix(window, qt_app) -> None:
     from manim_studio.core import python_templates
 
-    page(window).new_python_button.menu()  # the arrow's menu exists
-    names = [a.text() for a in page(window).new_python_button.menu().actions()]
+    names = [a.text() for a in page(window).python_templates_menu.actions()]
     assert names == list(python_templates.TEMPLATES)
-    next(a for a in page(window).new_python_button.menu().actions() if a.text() == "Matrix").trigger()
+    next(a for a in page(window).python_templates_menu.actions() if a.text() == "Matrix").trigger()
     qt_app.processEvents()
     layer = python_layer(window)
     assert page(window).editor.text() == python_templates.MATRIX
