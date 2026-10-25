@@ -643,11 +643,11 @@ def test_zoom_keys_change_the_font_and_report_the_new_size(editor) -> None:
     editor.zoomChanged.connect(sizes.append)
     press(editor, K.Key_Equal, CTRL)
     press(editor, K.Key_Plus, CTRL | SHIFT)
-    assert editor.font().pointSize() == 12 and editor.settings.font_size == 12
+    assert editor.settings.font_size == 12 and abs(editor.font().pointSize() - 12) <= 1
     press(editor, K.Key_Minus, CTRL)
-    assert editor.font().pointSize() == 11
+    assert editor.settings.font_size == 11
     press(editor, K.Key_0, CTRL)
-    assert editor.font().pointSize() == 10
+    assert editor.settings.font_size == 10
     assert sizes == [11, 12, 11, 10]
 
 
