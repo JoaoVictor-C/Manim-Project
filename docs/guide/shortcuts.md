@@ -84,6 +84,8 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Find (Find…) | `Ctrl+F` |
 | Go to layer or preset (Go to layer or preset…) | `Ctrl+P` |
 | Go to line (Go to line…) | `Alt+G` |
+| Go to symbol (Go to symbol…) | `Ctrl+Shift+O` |
+| Insert snippet (Insert snippet…) | `Ctrl+Shift+I` |
 | Play / Pause | `Space` |
 | Replace (Replace…) | `Ctrl+H` |
 | Reset zoom | `Ctrl+0` |
@@ -150,6 +152,9 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Find, replace, next match, previous match | `Ctrl+F`, `Ctrl+H`, `F3`, `Shift+F3` |
 | Go to a line | `Alt+G` |
 | Go to a layer or preset by name | `Ctrl+P` |
+| Go to a symbol (class, function, PARAMS) of the code | `Ctrl+Shift+O` |
+| Insert a snippet at the cursor | `Ctrl+Shift+I` |
+| Suggest names (also while typing) | `Ctrl+Space` |
 | Show or hide the output | `Ctrl+J` |
 | Show or hide the explorer | `Ctrl+B` |
 | Comment or uncomment the lines | `Ctrl+/` |

@@ -54,6 +54,39 @@ The **Editor** menu next to Run holds every setting, and the editor remembers th
 line numbers, highlighting the current line, showing spaces and tabs, closing brackets and quotes,
 trimming trailing spaces when running, the indent size (2, 4 or 8) and the font size.
 
+## Help while you write
+
+- **Errors explain themselves.** An error in Output says what kind it is and, when it can, what to do: a
+  misspelt Manim name offers the nearest real ones, a missing `from manim import *` has a one-click
+  *Insert* button, a missing `PARAMS` key lists the keys that exist. Below it the traceback shows only
+  your own lines (and your helpers'), not Manim's.
+- **Syntax errors are marked** with a wavy underline after you pause typing - never on the line you are
+  still writing, and not while a bracket or a triple-quoted string is still open.
+- **Names are suggested** as you type (two letters, or `Ctrl+Space`): Manim's names, the names your code
+  defines, a Manim object's methods after a dot (when the code shows what it is: `circle = Circle()`), and
+  a call's keyword arguments inside its brackets. `Enter` or `Tab` takes one, `Esc` closes. Hover a name for
+  a one-line description. Not in comments or strings; the Editor menu can turn it off.
+- **Snippets** (`Ctrl+Shift+I`, Editor > Insert snippet): about fifty small pieces of Manim - shapes, an
+  equation written in parts, axes and a graph, a number that counts up, a Python object. They are pasted at
+  the cursor, indented to it, with their blanks selected one at a time: `Tab` moves to the next, `Esc`
+  stops. All of it is one undo step.
+- **Go to symbol** (`Ctrl+Shift+O`) lists the scenes, classes, functions, `PARAMS` and constants of the
+  code in the editor.
+- **Run to cursor** (Editor menu) shows a scene only as far as the statement under the cursor, by giving
+  the layer a shortened copy of the code (one undo step; line numbers stay the same). The editor keeps the
+  whole text; Run shows all of it again.
+- **Cancel** appears next to Run while a scene renders and stops it. Run renders it again.
+- **Copy as a Manim scene** (Editor menu) puts a Python object on the clipboard as a scene that runs by
+  itself with `manim`, using the values the object has now.
+- **History** (Editor menu): every Run keeps a version of the layer's code for this session. *Revert to
+  last working version* puts the last version that ran without an error in the editor; *History...* lists
+  the versions with a diff against the editor. Neither applies anything; Run does.
+- **Parameters** is a third tab next to Output and Values for a Python object: add, rename, remove or
+  change a parameter in `PARAMS` with buttons instead of typing the dictionary. It edits the text in the
+  editor (one editor-undo step) and keeps your comments and layout; Run applies it.
+- **Tags**: a saved preset can have tags (right-click > Tags...). The explorer's filter finds a preset by
+  its name, description, tags, kind (`object`, `scene`) or origin (`mine`, `downloaded`).
+
 ## Presets
 
 Choose a preset in the explorer to read its code (read-only). Then:
