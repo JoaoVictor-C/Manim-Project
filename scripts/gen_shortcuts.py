@@ -34,6 +34,9 @@ EXTRA: tuple[tuple[str, str, str], ...] = (
     ("Code page", "Find, replace, next match, previous match", "Ctrl+F, Ctrl+H, F3, Shift+F3"),  # QShortcuts
     ("Code page", "Go to a line", "Alt+G"),  # pages/code.py QShortcut (Ctrl+G is Group)
     ("Code page", "Go to a layer or preset by name", "Ctrl+P"),  # pages/code.py QShortcut
+    ("Code page", "Go to a symbol (class, function, PARAMS) of the code", "Ctrl+Shift+O"),  # pages/code.py
+    ("Code page", "Insert a snippet at the cursor", "Ctrl+Shift+I"),  # pages/code.py QShortcut
+    ("Code page", "Suggest names (also while typing)", "Ctrl+Space"),  # ui/code_editor.py keyPressEvent
     ("Code page", "Show or hide the output", "Ctrl+J"),  # pages/code.py QShortcut
     ("Code page", "Show or hide the explorer", "Ctrl+B"),  # pages/code.py QShortcut
     ("Code page", "Comment or uncomment the lines", "Ctrl+/"),  # ui/code_editor.py keyPressEvent
