@@ -43,11 +43,33 @@ RISKY_MODULES = frozenset(
 )
 
 
+def risky_uses(source: str) -> list[str]:
+    """Every risky module or built-in the code names (``["os", "open"]``), in order of appearance; empty
+    when it does not parse. What the import window tells the user before they allow the code to run."""
+    try:
+        tree = ast.parse(source.removeprefix("\ufeff"))
+    except (SyntaxError, ValueError):
+        return []
+    found: dict[str, None] = {}
+    for node in ast.walk(tree):
+        names: list[str] = []
+        if isinstance(node, ast.Import):
+            names = [a.name.split(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            names = [node.module.split(".")[0]]
+        elif isinstance(node, ast.Name):
+            names = [node.id]
+        for name in names:
+            if name in RISKY_MODULES or name in RISKY_NAMES:
+                found[name] = None
+    return list(found)
+
+
 def risky_reason(source: str) -> str | None:
     """What makes ``source`` unsuitable for Live (``"uses os"``), or None. Text that does not parse
     has no reason here: it simply does not run (``live_problem`` says so)."""
     try:
-        tree = ast.parse(source.lstrip("﻿"))
+        tree = ast.parse(source.lstrip("\ufeff"))
     except (SyntaxError, ValueError):
         return None
     found: list[str] = []
@@ -70,10 +92,10 @@ def live_problem(source: str) -> str | None:
     ``"does not parse yet"`` and ``"PARAMS cannot be read yet"`` are quiet reasons (the user is
     mid-sentence); ``"uses os"`` and the like are the ones worth telling the user about."""
     try:
-        ast.parse(source.lstrip("﻿"))
+        ast.parse(source.lstrip("\ufeff"))
     except (SyntaxError, ValueError):
         return "does not parse yet"
-    if python_object.params_problem(source.removeprefix("﻿")) is not None:
+    if python_object.params_problem(source.removeprefix("\ufeff")) is not None:
         return "PARAMS cannot be read yet"
     return risky_reason(source)
 

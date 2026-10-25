@@ -57,3 +57,11 @@ def test_safe_imports_and_names_pass() -> None:
 def test_a_byte_order_mark_does_not_matter() -> None:
     assert lg.live_problem("\ufeff" + GOOD) is None
     assert lg.live_problem("\ufeff" + GOOD + "import os\n") == "uses os"
+
+
+def test_risky_uses_lists_every_risky_name_once_in_order() -> None:
+    from manim_studio.core.live_guard import risky_uses
+
+    source = "import os, sys\nfrom subprocess import run\nx = open('a')\nos.remove(x)\n"
+    assert risky_uses(source) == ["os", "sys", "subprocess", "open"]
+    assert risky_uses("Circle()") == [] and risky_uses("def (") == []

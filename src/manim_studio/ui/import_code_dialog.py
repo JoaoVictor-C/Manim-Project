@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import code_import
+from ..core import code_import, live_guard
 from ..core.code_import import AS_LABELS, HELPER, OBJECT, PRESET, SCENE, ImportChoice, ImportItem
 from . import theme
 from .code_editor import CodeEditor
@@ -198,6 +198,10 @@ class ImportCodeDialog(QDialog):
         self.trust.toggled.connect(self._on_edit)
         column.addWidget(self.place_box)
         column.addWidget(self.trust)
+        self.uses_label = QLabel("")  # what the code reaches, so the user can decide before allowing it
+        self.uses_label.setWordWrap(True)
+        self.uses_label.setProperty("role", "hint")
+        column.addWidget(self.uses_label)
 
         self.params_label = QLabel("")
         self.params_label.setWordWrap(True)
@@ -330,7 +334,14 @@ class ImportCodeDialog(QDialog):
                 self.params_label.setText(f"Parameters: {shown}{more}")
             else:
                 self.params_label.setText(inspection.summary)
-            self.preview.set_text(state.item.source.lstrip("﻿"), 0)
+            self.preview.set_text(state.item.source.lstrip("\ufeff"), 0)
+            uses = live_guard.risky_uses(state.item.source)
+            self.uses_label.setText(
+                f"This code uses {', '.join(uses)}: it can reach files, programs or the network. "
+                "Read it first."
+                if uses
+                else "This code does not use files, programs or the network (by what the text shows)."
+            )
         finally:
             self._loading = False
         self._relabel()

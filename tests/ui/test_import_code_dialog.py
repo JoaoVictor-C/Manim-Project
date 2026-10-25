@@ -157,3 +157,16 @@ def test_the_preview_shows_the_code_without_a_byte_order_mark(qt_app) -> None:
     dialog = ImportCodeDialog([ImportItem("\ufeff" + OBJECT, "w.py")])
     assert dialog.preview.text() == OBJECT and dialog.preview.isReadOnly()
     assert "size" in dialog.params_label.text()
+
+
+def test_the_dialog_says_what_the_code_reaches(qt_app) -> None:
+    from manim_studio.core.code_import import ImportItem
+    from manim_studio.ui.import_code_dialog import ImportCodeDialog
+
+    risky = ImportItem("import os\n\ndef build(p):\n    return Circle()\n", "risky.py")
+    plain = ImportItem("def build(p):\n    return Circle()\n", "plain.py")
+    dialog = ImportCodeDialog([risky, plain])
+    dialog.list.setCurrentRow(0)
+    assert "os" in dialog.uses_label.text() and "Read it first" in dialog.uses_label.text()
+    dialog.list.setCurrentRow(1)
+    assert "does not use files" in dialog.uses_label.text()
