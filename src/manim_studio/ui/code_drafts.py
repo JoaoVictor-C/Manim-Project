@@ -51,6 +51,12 @@ class Drafts:
     def discard(self, layer_id: str) -> None:
         self._drafts.pop(layer_id, None)
 
+    def move(self, old: str, new: str) -> None:
+        """Keep ``old``'s draft under ``new`` (a renamed helper, ADR 0058)."""
+        draft = self._drafts.pop(old, None)
+        if draft is not None:
+            self._drafts[new] = draft
+
     def clear(self) -> int:
         """Forget everything (a new project): how many drafts were dropped."""
         dropped = len(self._drafts)

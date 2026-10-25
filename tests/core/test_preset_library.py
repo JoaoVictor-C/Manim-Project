@@ -85,6 +85,12 @@ class TestAdd:
             "https://example.org/a.py",
         )
 
+    def test_a_helper_is_a_kind_of_preset_too(self, library, path):  # ADR 0058
+        preset = library.add("Grid tools", "helper", "def grid():\n    return 1\n")
+        assert (preset.kind, preset.id) == ("helper", "user:grid-tools")
+        assert [p.kind for p in saved(PresetLibrary(path))] == ["helper"]  # read back from the file
+        assert [p.name for p in library.search("helper")] == ["Grid tools"]
+
     def test_tags_may_be_a_list(self, library):
         assert library.add("T", "object", "x", tags=["a"]).tags == ("a",)
 

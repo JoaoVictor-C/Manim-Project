@@ -33,6 +33,11 @@ What P12 adds to it:
   asks what to write and how, and asks about each file that already exists.
 * **Editor**: find and replace (Ctrl+F, Ctrl+H, F3), go to line (Alt+G), quick open (Ctrl+P), the
   output panel (Ctrl+J), and every editor setting in the menu next to Run, remembered.
+
+**Helpers** (ADR 0058) are edited here like layers: the thing in the editor is named by a key - a
+layer id, or ``helper:<name>`` for a helper (the key trust uses) - so tabs, drafts, the dirty marker
+and Revert treat both alike; what only a helper has (Run test-imports it, New, Rename, Delete,
+Duplicate, Export, Extract to helper) lives in ``code_helpers``.
 """
 
 from __future__ import annotations
@@ -86,6 +91,8 @@ from .. import code_drag, icons, quick_open, theme
 from ..code_drafts import Drafts, error_line, error_text, moved_on
 from ..code_editor import CodeEditor
 from ..code_explorer import CodeExplorer, Row, Section
+from ..code_helpers import EMPTY as NO_HELPERS
+from ..code_helpers import HelperActions, key_of, name_of
 from ..code_history_dialog import HistoryKeeper
 from ..code_render import CodeStatus
 from ..find_bar import FindBar
@@ -112,7 +119,9 @@ def _preset_tip(preset) -> str:
 
 
 class ErrorLine(QLabel):
-    """The error message under the editor; with a line number it is a link to that line."""
+    """The error message under the editor; with a line number it is a link to that line. ``helper``
+    names the helper the line is in when the error was raised in one (ADR 0058): the link says so
+    and opens it."""
 
     clicked = Signal()
 
@@ -123,13 +132,22 @@ class ErrorLine(QLabel):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.setFont(theme.mono_font())
         self.line: int | None = None
+        self.helper: str | None = None
         self.plain = ""
 
-    def show_error(self, message: str, line: int | None) -> None:
+    def show_error(self, message: str, line: int | None, helper: str | None = None) -> None:
         colours = theme.THEME
-        self.line, self.plain = line, error_text(message, line)
+        self.line, self.helper = line, helper
+        self.plain = error_text(message, line)
         text = html.escape(message)
-        if line:
+        if helper is not None:
+            where = f"helper {helper}, line {line}" if line else f"helper {helper}"
+            self.plain = f"{where}: {message}"
+            link = f"<u>{html.escape(where)}</u>"
+            text = f'<span style="color:{theme.css(colours.outline)}">{link}</span>: {text}'
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.setToolTip("Open the helper at this line")
+        elif line:
             link = f"<u>line {line}</u>"
             text = f'<span style="color:{theme.css(colours.outline)}">{link}</span>: {text}'
             self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -141,7 +159,7 @@ class ErrorLine(QLabel):
         self.setAccessibleName(self.plain)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton and self.line:
+        if event.button() == Qt.MouseButton.LeftButton and (self.line or self.helper):
             self.clicked.emit()
         super().mousePressEvent(event)
 
@@ -178,7 +196,8 @@ class CodePage(Page):
 
     def build(self) -> QWidget:
         window = self.window
-        self.layer_id: str | None = None  # the layer the editor shows
+        # The key of what the editor shows: a layer id, or "helper:<name>" for a helper (ADR 0058).
+        self.layer_id: str | None = None
         self.preset_id: str | None = None  # the preset shown read-only instead (the editor keeps its layer)
         self.open_ids: list[str] = []  # the layers with a tab
         self.drafts = Drafts()  # unapplied text of the other layers
@@ -214,6 +233,8 @@ class CodePage(Page):
         self.split.addWidget(self._build_centre())
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(1, 1)
+        self.helper_actions = HelperActions(self)  # helpers: Run, New, Rename... (ADR 0058)
+        self._open_pending: str | None = None  # a key to open once the edit adding it lands
 
         if not window.prefs.option("code_output_open", True):
             self.output_toggle.setChecked(False)
@@ -250,7 +271,7 @@ class CodePage(Page):
         heading.setProperty("role", "section")
         self.filter = QLineEdit()
         self.filter.setClearButtonEnabled(True)
-        self.filter.setPlaceholderText("Filter layers and presets")
+        self.filter.setPlaceholderText("Filter layers, helpers and presets")
         self.explorer = CodeExplorer()
         self.filter.textChanged.connect(self.explorer.set_filter)
         self.explorer.chosen.connect(self._on_chosen)
@@ -295,11 +316,13 @@ class CodePage(Page):
             self.export_code_folder,
         )
         self.rename_button = self._button(
-            "Rename", "Rename the chosen layer or preset (F2, or double-click a layer)", self.rename_item
+            "Rename",
+            "Rename the chosen layer, helper or preset (F2, or double-click a layer)",
+            self.rename_item,
         )
         self.delete_button = self._button(
             "Delete",
-            "Delete the chosen layer (Delete; Ctrl+Z brings it back) or preset (asks first)",
+            "Delete the chosen layer or helper (Delete; Ctrl+Z brings it back) or preset (asks first)",
             self.delete_item,
             "delete",
         )
@@ -413,6 +436,10 @@ class CodePage(Page):
 
         self.editor.runRequested.connect(self.run)
         self.editor.textChanged.connect(self._on_text_changed)
+        self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.editor.customContextMenuRequested.connect(
+            lambda pos: self.editor_menu_at().exec(self.editor.viewport().mapToGlobal(pos))
+        )
         self._live_timer = QTimer(self.progress)  # the pause in typing after which Live applies (P13.7)
         self._live_timer.setSingleShot(True)
         self._live_timer.setInterval(LIVE_PAUSE_MS)
@@ -477,6 +504,7 @@ class CodePage(Page):
         self.syntax_label.setWordWrap(True)
         self.syntax_label.hide()
         self._fix = ""
+        self._fix_helper = ""  # the helper the fix button runs (a helper not trusted yet, ADR 0058)
         for widget in (self.hint_label, self.fix_button, self.trace_label, self.syntax_label):
             output_lines.addWidget(widget)
         output_lines.addStretch(1)
@@ -581,6 +609,13 @@ class CodePage(Page):
         menu.addAction("Go to symbol…", self.go_to_symbol, QKeySequence("Ctrl+Shift+O"))
         menu.addAction("Show or hide output", self.toggle_output, QKeySequence("Ctrl+J"))
         menu.addAction("Insert snippet…", self.insert_snippet, QKeySequence("Ctrl+Shift+I"))
+        self.extract_action = menu.addAction(
+            "Extract selection to helper…", lambda: self.helper_actions.extract()
+        )
+        self.extract_action.setToolTip(
+            "Move the selected top-level functions and classes (or the one at the cursor) into a new helper "
+            "and import them back"
+        )
         self.run_to_cursor_action = menu.addAction("Run to cursor", self.run_to_cursor)
         self.run_to_cursor_action.setToolTip("Show the scene only as far as the statement under the cursor")
         self.live_action = menu.addAction("Live: run Python objects while typing")
@@ -627,6 +662,15 @@ class CodePage(Page):
         menu.addAction("Zoom in", self.editor.zoom_in, QKeySequence("Ctrl+="))
         menu.addAction("Zoom out", self.editor.zoom_out, QKeySequence("Ctrl+-"))
         menu.addAction("Reset zoom", self.editor.zoom_reset, QKeySequence("Ctrl+0"))
+        return menu
+
+    def editor_menu_at(self) -> QMenu:
+        """The editor's right-click menu: the usual editing commands, then Extract to helper."""
+        menu = self.editor.createStandardContextMenu()
+        menu.addSeparator()
+        action = menu.addAction("Extract selection to helper…", self.helper_actions.extract)
+        action.setToolTip(self.extract_action.toolTip())
+        action.setEnabled(self.layer_id is not None and self.preset_id is None)
         return menu
 
     def _shortcuts(self) -> None:
@@ -694,10 +738,27 @@ class CodePage(Page):
         layer = next((x for x in self._layers() if x.id == layer_id), None)
         return layer is not None and layer.spec.type in PYTHON_TYPES
 
+    def _keys(self) -> list[str]:
+        """What the editor can show: the code layers' and Python objects' ids, then the helpers' keys."""
+        return [x.id for x in self._layers()] + [key_of(name) for name in self.helper_actions.names()]
+
+    def _label_of(self, key: str) -> str:
+        """How a key is named: a layer's label, or a helper's name."""
+        helper = name_of(key)
+        if helper is not None:
+            return helper
+        project = self.window.project
+        layer = next((x for x in project.layers if x.id == key), None) if project is not None else None
+        return key if layer is None else layer.label
+
     def status(self, layer_id: str | None) -> CodeStatus | None:
-        """A code layer's render status, or a Python object's build status (ADR 0051)."""
+        """A code layer's render status, a Python object's build status (ADR 0051), or what Run on a
+        helper found (ADR 0058)."""
         if layer_id is None:
             return None
+        helper = name_of(layer_id)
+        if helper is not None:
+            return self.helper_actions.status(helper)
         if self._is_python(layer_id):
             project = self.window.project
             spec = project.layer(layer_id).spec
@@ -719,7 +780,12 @@ class CodePage(Page):
         return self.window.code.status(layer_id)
 
     def _code_of(self, layer_id: str | None) -> str | None:
-        """The applied code of a code layer (None: no such code layer)."""
+        """The applied code of a code layer, a Python object or a helper (None: no such thing)."""
+        helper = name_of(layer_id)
+        if helper is not None:
+            project = self.window.project
+            found = None if project is None else next((h for h in project.helpers if h.name == helper), None)
+            return None if found is None else found.code
         for layer in self._layers():
             if layer.id == layer_id:
                 return str(layer.spec.params.get("code", ""))
@@ -731,7 +797,8 @@ class CodePage(Page):
         return code is not None and self.editor.text() != code
 
     def dirty_layers(self) -> set[str]:
-        ids = {x.id for x in self._layers() if self.drafts.dirty(x.id, self._code_of(x.id))}
+        """The keys (layer ids, ``helper:<name>``) with text that was not applied."""
+        ids = {key for key in self._keys() if self.drafts.dirty(key, self._code_of(key))}
         if self.layer_id is not None and self.is_dirty():
             ids.add(self.layer_id)
         return ids
@@ -792,6 +859,8 @@ class CodePage(Page):
         """Keep the editor on a code layer that exists, and the selection on it while the page shows."""
         if self.preset_id is not None:
             return  # a preset is being looked at: leave it until the user chooses a layer
+        if name_of(self.layer_id) is not None and self._code_of(self.layer_id) is not None:
+            return  # a helper is open: it has nothing to do with the selection (ADR 0058)
         ids = [x.id for x in self._layers()]
         selection = getattr(self.window, "selection", None)
         selected = selection.layer_id if selection is not None else None
@@ -826,16 +895,51 @@ class CodePage(Page):
         row = self.chosen_row()
         return row[1] if row is not None and row[0] == "preset" else None
 
+    def chosen_helper(self) -> str | None:
+        """The name of the helper chosen in the explorer, or None."""
+        row = self.chosen_row()
+        return name_of(row[1]) if row is not None and row[0] == "helper" else None
+
+    def open_item(self, key: str) -> None:
+        """Show a layer or a helper in the editor (a layer is selected too, so the page follows it)."""
+        if name_of(key) is None:
+            self.window.selection.select_layer(key)
+        self.show_layer(key)
+
+    def open_when_ready(self, key: str) -> None:
+        """Open ``key`` now if it exists, else as soon as the edit adding it lands."""
+        if self._code_of(key) is not None:
+            self._open_pending = None
+            self.open_item(key)
+        else:
+            self._open_pending = key
+
+    def rekey(self, old: str, new: str) -> None:
+        """A helper is renamed: what the page keeps under its old key (the editor, its tab, its
+        draft) moves to the new one."""
+        if old in self.open_ids:
+            self.open_ids[self.open_ids.index(old)] = new
+        if self.layer_id == old:
+            self.layer_id = new
+        self.drafts.move(old, new)
+
+    def run_item(self, key: str) -> None:
+        self.open_item(key)
+        self.run()
+
+    def save_item_as_preset(self, key: str) -> None:
+        self.open_item(key)
+        self.save_as_preset()
+
     def _on_chosen(self, source: str, key: str) -> None:
-        if source == "layer":
-            self.window.selection.select_layer(key)  # the page follows the selection
-            self.show_layer(key)
+        if source in ("layer", "helper"):
+            self.open_item(key)  # a layer is selected, and the page follows the selection
         else:
             self.show_preset(key)
 
     def _on_opened(self, source: str, key: str) -> None:
-        """Double-click or Enter: a layer takes the keyboard, a preset is added to the project."""
-        if source == "layer":
+        """Double-click or Enter: a layer or a helper takes the keyboard, a preset is added."""
+        if source in ("layer", "helper"):
             self.editor.setFocus()
         else:
             self.add_preset_to_project()
@@ -845,8 +949,7 @@ class CodePage(Page):
             return
         layer_id = self.tabs.tabData(index)
         if layer_id and layer_id != self.layer_id:
-            self.window.selection.select_layer(layer_id)
-            self.show_layer(layer_id)
+            self.open_item(layer_id)
 
     def _on_tab_moved(self, _from: int, _to: int) -> None:
         self.open_ids = [self.tabs.tabData(i) for i in range(self.tabs.count())]
@@ -857,28 +960,29 @@ class CodePage(Page):
             self.open_ids.remove(layer_id)
             if layer_id == self.layer_id:
                 neighbour = self.open_ids[min(index, len(self.open_ids) - 1)]
-                self.window.selection.select_layer(neighbour)
-                self.show_layer(neighbour)
+                self.open_item(neighbour)
             self._refresh_tabs()
 
+    def _tab_icon(self, key: str) -> str:
+        if name_of(key) is not None:
+            return "helper"
+        return "py-object" if self._is_python(key) else "py-scene"
+
     def _refresh_tabs(self) -> None:
-        layers = {x.id: x for x in self._layers()}
-        self.open_ids = [i for i in self.open_ids if i in layers]
+        present = set(self._keys())
+        self.open_ids = [i for i in self.open_ids if i in present]
         dirty = self.dirty_layers()
         self._loading_tabs = True
         try:
             while self.tabs.count() > len(self.open_ids):
                 self.tabs.removeTab(self.tabs.count() - 1)
             for index, layer_id in enumerate(self.open_ids):
-                text = layers[layer_id].label + ("  ●" if layer_id in dirty else "")
+                text = self._label_of(layer_id) + ("  ●" if layer_id in dirty else "")
                 if index >= self.tabs.count():
                     self.tabs.addTab(text)
                 else:
                     self.tabs.setTabText(index, text)
-                self.tabs.setTabIcon(
-                    index,
-                    icons.icon("py-object" if layers[layer_id].spec.type in PYTHON_TYPES else "py-scene"),
-                )
+                self.tabs.setTabIcon(index, icons.icon(self._tab_icon(layer_id)))
                 self.tabs.setTabData(index, layer_id)
                 self.tabs.setTabToolTip(
                     index, "Unapplied changes: Run applies them" if layer_id in dirty else ""
@@ -930,9 +1034,11 @@ class CodePage(Page):
             self.window.statusBar().showMessage("Create or open a project first.", 5000)
             return
         payload = {"from": "preset", "id": preset.id, "name": preset.name, "kind": preset.kind}
-        self.window.importer.place(payload)
+        self.window.importer.place(payload)  # a helper preset becomes a helper (ADR 0058)
         if edit_copy:
             self.close_preset()  # the new layer is selected, so the page follows it
+            if preset.kind == "helper" and self.window.importer.last_helper:
+                self.open_when_ready(key_of(self.window.importer.last_helper))
 
     def export_preset(self) -> None:
         preset_id = self.preset_id or self.chosen_preset()
@@ -988,11 +1094,10 @@ class CodePage(Page):
         layer_id = self.layer_id
         if layer_id is None or self.window.project is None:
             return
-        layer = self.window.project.layer(layer_id)
-        name = self.ask_name(layer.label)
+        name = self.ask_name(self._label_of(layer_id))
         if name is None:
             return
-        kind = "object" if self._is_python(layer_id) else "scene"
+        kind = "helper" if name_of(layer_id) else "object" if self._is_python(layer_id) else "scene"
         outcome = self.window.importer.store_preset(name.strip(), kind, self.editor.text())
         words = {
             "added": "Saved as a preset",
@@ -1058,6 +1163,9 @@ class CodePage(Page):
         self.history_keeper.project_changed()
         self._refresh_list()
         self.values.refresh(self.window.project)
+        if self._open_pending is not None and self._code_of(self._open_pending) is not None:
+            self.open_when_ready(self._open_pending)  # a helper just added (ADR 0058)
+            return
         if self.layer_id is None:
             self._ensure_layer()
             return
@@ -1088,6 +1196,14 @@ class CodePage(Page):
             self._refresh_output()
             self._refresh_status()
             self._refresh_running()
+
+    def _on_helper_status(self, key: str) -> None:
+        """Run on a helper started or reported (ADR 0058); the code importing helpers may say more."""
+        self.history_keeper.status_changed(key)
+        self._refresh_list()
+        self._refresh_output()
+        self._refresh_status()
+        self._refresh_running()
 
     def _on_text_changed(self) -> None:
         if self._loading:
@@ -1125,9 +1241,31 @@ class CodePage(Page):
         self.syntax_label.show()
 
     def apply_fix(self) -> None:
-        """Insert the one-line fix a hint offers (for example the Manim import) at the top."""
-        if self._fix and self.layer_id is not None and self.preset_id is None:
+        """Insert the one-line fix a hint offers (for example the Manim import) at the top, or run
+        the helper the code needs that is not trusted yet."""
+        if self._fix_helper:
+            self.helper_actions.run_applied(self._fix_helper)
+        elif self._fix and self.layer_id is not None and self.preset_id is None:
             self.editor.replace_text(self._fix + chr(10) + self.editor.text())
+
+    def _show_helper_hint(self) -> None:
+        """The code imports a helper that may not run yet: say so, with a button that runs it."""
+        self._fix_helper = ""
+        if self.layer_id is None or self.preset_id is not None:
+            return
+        names = self.helper_actions.untrusted_needed(self.editor.text(), exclude=self.layer_id)
+        if not names:
+            return
+        name = names[0]
+        others = f" (and {', '.join(names[1:])})" if len(names) > 1 else ""
+        self.hint_label.setText(
+            f"The helper {name}{others} is not trusted yet: code importing it cannot run until it is "
+            "allowed on this computer. Run helper runs it once and allows it."
+        )
+        self.hint_label.show()
+        self._fix, self._fix_helper = "", name
+        self.fix_button.setText(f"Run helper {name}")
+        self.fix_button.show()
 
     def _show_hint(self, error_type: str, message: str, traceback: str) -> None:
         source = self.editor.text()
@@ -1203,6 +1341,10 @@ class CodePage(Page):
         if trimmed != self.editor.text():
             self.editor.replace_text(trimmed)  # one step of the editor's own undo
         text = self.editor.text()
+        helper = name_of(layer_id)
+        if helper is not None:  # apply, trust and test-import it (ADR 0058)
+            self.helper_actions.run(helper, text)
+            return
         self.window.trust.trust([text])  # code the user applies here is theirs (ADR 0019)
         self.history_keeper.ran(layer_id, text)
         python = self._is_python(layer_id)
@@ -1235,8 +1377,7 @@ class CodePage(Page):
         layer_id = self.layer_id
         if layer_id is None or self.window.project is None:
             return
-        layer = self.window.project.layer(layer_id)
-        stem = code_files.safe_stem(layer.label, layer.id)
+        stem = code_files.safe_stem(self._label_of(layer_id), name_of(layer_id) or layer_id)
         start = self.window.default_folder() / f"{stem}.py"
         name, _ = QFileDialog.getSaveFileName(self.widget, "Save Code", str(start), "Python (*.py)")
         if not name:
@@ -1266,8 +1407,11 @@ class CodePage(Page):
     def convert(self) -> None:
         """Convert to layers (P10.3, ADR 0053): the window records the scene in another process and
         replaces the layer by its objects, or says why it stays code."""
-        if self.layer_id is not None and not self._is_python(self.layer_id) and not self.is_dirty():
-            self.window.convert_code_layer(self.layer_id)
+        layer_id = self.layer_id
+        if layer_id is None or name_of(layer_id) is not None:
+            return
+        if not self._is_python(layer_id) and not self.is_dirty():
+            self.window.convert_code_layer(layer_id)
 
     def revert(self) -> None:
         """Drop the unapplied text: show the layer's code again."""
@@ -1335,6 +1479,10 @@ class CodePage(Page):
         if source is None:
             row = self.chosen_row()
             source, key = row if row is not None else ("", "")
+        if source == "helper":
+            return self.helper_actions.row_menu(key or "", self.explorer)
+        if source == "helpers":  # the Helpers section's header
+            return self.helper_actions.section_menu(self.explorer)
         menu = QMenu(self.explorer)
         if source == "layer":
             for text, slot, tip in (
@@ -1359,6 +1507,9 @@ class CodePage(Page):
         else:
             menu.addAction("New code layer", self.new_layer)
             menu.addAction("New Python object", lambda: self.new_python_object())
+            menu.addAction("New helper...", self.helper_actions.new_helper).setToolTip(
+                "Add a helper: plain Python (functions, constants, data) your code imports by its name"
+            )
             menu.addSeparator()
             menu.addAction("Add file...", self.add_code_file)
             menu.addAction("Import folder...", self.import_code_folder)
@@ -1370,17 +1521,23 @@ class CodePage(Page):
     list_menu = row_menu
 
     def _on_row_menu(self, source: str, key: str, where: QPoint) -> None:
-        self.row_menu(source if source != "section" else "", key).exec(where)
+        if source == "section":
+            source = "helpers" if key == "helpers" else ""
+        self.row_menu(source, key).exec(where)
 
     def rename_item(self) -> None:
         if self.chosen_preset() is not None or self.preset_id is not None:
             self.rename_preset()
+        elif self.chosen_helper() is not None:
+            self.helper_actions.rename(self.chosen_helper())
         else:
             self.rename_layer()
 
     def delete_item(self) -> None:
         if self.chosen_preset() is not None or self.preset_id is not None:
             self.delete_preset()
+        elif self.chosen_helper() is not None:
+            self.helper_actions.delete(self.chosen_helper())
         else:
             self.delete_layer()
 
@@ -1451,7 +1608,8 @@ class CodePage(Page):
         """Show the scene only as far as the statement under the cursor: the layer gets the shortened
         code (one undo step) and the editor keeps the whole text; Run shows all of it again."""
         layer_id = self.layer_id
-        if layer_id is None or self.preset_id is not None or self._is_python(layer_id):
+        unfit = layer_id is None or self._is_python(layer_id) or name_of(layer_id) is not None
+        if unfit or self.preset_id is not None:
             self.window.statusBar().showMessage("Run to cursor works on a scene", 5000)
             return
         if self.window.builds.busy:
@@ -1504,9 +1662,16 @@ class CodePage(Page):
             self._refresh_output()
 
     def go_to_error(self) -> None:
-        """Move the cursor to the line the render error points at."""
-        if self.error_label.line:
-            self.editor.go_to_line(self.error_label.line)
+        """Move the cursor to the line the render error points at; an error raised in a helper opens
+        that helper first (ADR 0058)."""
+        helper, line = self.error_label.helper, self.error_label.line
+        if helper is not None and key_of(helper) != self.layer_id:
+            if self._code_of(key_of(helper)) is None:
+                self.window.statusBar().showMessage(f"The project has no helper {helper} any more", 5000)
+                return
+            self.open_item(key_of(helper))
+        if line:
+            self.editor.go_to_line(line)
 
     # -- find, go to, quick open, output, settings (P12.5) ---------------------------------------
 
@@ -1539,6 +1704,8 @@ class CodePage(Page):
         for layer in self._layers():
             detail = "Python object" if layer.spec.type in PYTHON_TYPES else "Scene"
             items.append(quick_open.QuickItem("layer", layer.id, layer.label, detail))
+        for name in self.helper_actions.names():
+            items.append(quick_open.QuickItem("helper", key_of(name), name, "Helper"))
         for preset in self.window.code_presets.presets():
             items.append(
                 quick_open.QuickItem(
@@ -1595,7 +1762,7 @@ class CodePage(Page):
         if self.window.builds.busy:
             return True
         status = self.status(self.layer_id)
-        return status is not None and status.state in ("queued", "rendering")
+        return status is not None and status.state in ("queued", "rendering", "checking")
 
     def _refresh_running(self) -> None:
         """The progress bar under the toolbar and the Run button say that it is still working."""
@@ -1672,12 +1839,17 @@ class CodePage(Page):
         if not dirty:
             self._moved = False
         layer = next((x for x in self._layers() if x.id == self.layer_id), None)
-        self.title_label.setText("" if layer is None else layer.label)
+        helper = name_of(self.layer_id)
+        if helper is not None and self._code_of(self.layer_id) is not None:
+            self.title_label.setText(f"{helper}  (helper)")
+        else:
+            self.title_label.setText("" if layer is None else layer.label)
         self.dirty_label.setVisible(dirty)
         self.notice.setVisible(self._moved)  # _moved is false while clean
         editing = self.layer_id is not None and self.preset_id is None
         self.save_code_button.setEnabled(self.layer_id is not None)
-        self.convert_button.setEnabled(editing and not dirty and not self._is_python(self.layer_id))
+        scene = editing and not self._is_python(self.layer_id) and helper is None
+        self.convert_button.setEnabled(scene and not dirty)
         self.revert_button.setEnabled(dirty and self.preset_id is None)
         self._refresh_list()
         self._refresh_tabs()
@@ -1708,17 +1880,21 @@ class CodePage(Page):
             self.kind_label.setText("")
             self.trust_label.setText("")
             return
-        self.kind_label.setText("Python object" if self._is_python(self.layer_id) else "Manim scene")
+        helper = name_of(self.layer_id) is not None
+        kind = "Helper" if helper else "Python object" if self._is_python(self.layer_id) else "Manim scene"
+        self.kind_label.setText(kind)
         status = self.status(self.layer_id)
         state = "" if status is None else status.state
         self.trust_label.setText(
             {
                 "untrusted": "Not run yet - Ctrl+Enter to allow",
                 "error": "Error",
-                "ready": "Ready",
+                "ready": "Imported" if helper else "Ready",
                 "built": "Built",
                 "rendering": "Rendering...",
                 "queued": "Waiting...",
+                "checking": "Testing...",
+                "trusted": "Allowed",
             }.get(state, "")
         )
 
@@ -1746,9 +1922,17 @@ class CodePage(Page):
             text, colour = "Not rendered yet", colours.muted
         elif status.state == "error":
             text, colour = "Error", colours.error_text
-            self.error_label.show_error(status.error, error_line("error", status.line))
+            in_helper = status.where.removeprefix("helper:") if status.where.startswith("helper:") else None
+            if in_helper is not None and key_of(in_helper) == self.layer_id:
+                # in the helper being edited: its own line, like a layer's
+                self.error_label.show_error(status.error, error_line("error", status.helper_line))
+                line = self.error_label.line
+            elif in_helper is not None:  # in a helper the code imports: the link opens it there
+                self.error_label.show_error(status.error, error_line("error", status.helper_line), in_helper)
+            else:
+                self.error_label.show_error(status.error, error_line("error", status.line))
+                line = self.error_label.line
             self.error_label.show()
-            line = self.error_label.line
             self._show_hint(status.error_type, status.error, status.traceback)
             if dirty:
                 text += " (from the last run)"
@@ -1757,6 +1941,18 @@ class CodePage(Page):
             took = self.durations.get(self.layer_id or "")
             if took is not None and took >= 0.05 and status.state in ("ready", "built"):
                 text += f" (took {took:.2f} s)"
+        helper = name_of(self.layer_id)
+        if helper is not None and status is not None:  # who imports it, what it defines and printed
+            about = [self.helper_actions.used_by(helper), self.helper_actions.defines(self._base)]
+            text += " - " + "; ".join(part for part in about if part)
+            printed = getattr(status, "output", "").rstrip()
+            if printed and status.state != "error":
+                self.trace_label.setText("It printed:\n" + printed)
+                self.trace_label.show()
+        elif self.layer_id is not None and self.window.project is not None and self.window.project.helpers:
+            used = helpers.needed(self.window.project, self._base)
+            if used:
+                text += f" - imports the helper{'s' if len(used) > 1 else ''} {', '.join(used)}"
         partial = self._partial
         if partial is not None and partial[0] == self.layer_id and partial[1] == self._code_of(self.layer_id):
             text += f" - showing the scene up to line {partial[2]}; Run shows all of it"
@@ -1767,6 +1963,7 @@ class CodePage(Page):
         self.editor.set_error_line(None if dirty else line)  # an edited text's lines have moved
         has_error = failed is not None or (status is not None and status.state == "error")
         self.output_toggle.setText("Output  (error)" if has_error else "Output")
+        self._show_helper_hint()  # a helper the code imports that may not run yet (ADR 0058)
 
     def _sections(self) -> list[Section]:
         layers = self._layers()
@@ -1789,7 +1986,8 @@ class CodePage(Page):
                 "This project",
                 tuple(project_rows),
                 empty="No code yet - add a layer, a file or a preset",
-            )
+            ),
+            Section("helpers", "Helpers", self.helper_actions.rows(dirty), empty=NO_HELPERS),  # ADR 0058
         ]
         presets = self.window.code_presets.presets()
         for origin, title in PRESET_ORIGINS:
@@ -1816,7 +2014,7 @@ class CodePage(Page):
         signature = tuple((s.key, s.rows) for s in sections)
         if signature != self._signature or force:
             self._signature = signature
-            current = ("preset", self.preset_id) if self.preset_id else ("layer", self.layer_id)
+            current = ("preset", self.preset_id) if self.preset_id else (self._source(), self.layer_id)
             self.explorer.blockSignals(True)  # follow the layer without rebuilding under a click
             try:
                 self.explorer.set_sections(sections, current if current[1] else None)
@@ -1827,6 +2025,10 @@ class CodePage(Page):
             self.explorer.blockSignals(True)
             try:
                 if self.layer_id is not None:
-                    self.explorer.select("layer", self.layer_id)
+                    self.explorer.select(self._source(), self.layer_id)
             finally:
                 self.explorer.blockSignals(False)
+
+    def _source(self) -> str:
+        """The explorer's source for the key in the editor: ``helper`` or ``layer``."""
+        return "helper" if name_of(self.layer_id) is not None else "layer"

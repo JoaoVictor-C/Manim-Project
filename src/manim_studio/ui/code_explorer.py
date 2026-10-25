@@ -1,10 +1,11 @@
 """The Code workspace's explorer (P12.5): a tree of what can be edited or used.
 
-Sections (this project's code layers and Python objects, then the preset library: built in, yours,
-from the internet) hold rows. The tree knows nothing about the project or the library: the page gives
-it ``Section`` lists and hears back which row was opened, which was asked for a menu, and which was
-dragged. Rows drag out as ``code_drag`` payloads, so they can be dropped on the timeline, the canvas
-and the layers list.
+Sections (this project's code layers and Python objects, its helpers (ADR 0058), then the preset
+library: built in, yours, from the internet) hold rows. The tree knows nothing about the project or
+the library: the page gives it ``Section`` lists and hears back which row was opened, which was
+asked for a menu, and which was dragged. Rows drag out as ``code_drag`` payloads, so they can be
+dropped on the timeline, the canvas and the layers list - except helpers, which are imported by code
+and have no place or time.
 """
 
 from __future__ import annotations
@@ -22,15 +23,16 @@ SOURCE_ROLE = Qt.ItemDataRole.UserRole + 1
 KIND_ROLE = Qt.ItemDataRole.UserRole + 2
 NAME_ROLE = Qt.ItemDataRole.UserRole + 3
 
-KIND_BADGE = {"object": "obj", "scene": "scene"}
+KIND_BADGE = {"object": "obj", "scene": "scene", "helper": "helper"}
+ICONS = {"object": "py-object", "scene": "py-scene", "helper": "helper"}
 
 
 @dataclass(frozen=True)
 class Row:
-    key: str  # a layer id, or a preset id
+    key: str  # a layer id, a preset id, or "helper:<name>" for a helper of the project
     label: str
-    kind: str  # "object" or "scene"
-    source: str  # "layer" or "preset"
+    kind: str  # "object", "scene" or "helper"
+    source: str  # "layer", "helper" or "preset"
     tip: str = ""
     dirty: bool = False  # unapplied changes (layers)
     state: str = ""  # "", "error", "untrusted", "running" - shown as a marker after the name
@@ -47,7 +49,7 @@ class Section:
 
 
 class CodeExplorer(QTreeWidget):
-    opened = Signal(str, str)  # source ("layer" | "preset"), key: double-click or Enter
+    opened = Signal(str, str)  # source ("layer" | "helper" | "preset"), key: double-click or Enter
     chosen = Signal(str, str)  # source, key: the current row changed
     menuRequested = Signal(str, str, QPoint)  # source, key ("" for a section header), global position
     filesDropped = Signal(list)  # .py files dragged in from the desktop
@@ -181,12 +183,13 @@ class CodeExplorer(QTreeWidget):
         item.setData(0, SOURCE_ROLE, row.source)
         item.setData(0, KIND_ROLE, row.kind)
         item.setData(0, NAME_ROLE, row.label)
-        item.setIcon(0, icons.icon("py-object" if row.kind == "object" else "py-scene"))
+        item.setIcon(0, icons.icon(ICONS.get(row.kind, "py-scene")))
         badge = KIND_BADGE.get(row.kind, row.kind)
         item.setToolTip(0, row.tip or f"{row.label} ({badge})")
-        item.setFlags(
-            Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled
-        )
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        if row.kind != "helper":  # a helper is a module: nothing to drop on the timeline or the canvas
+            flags |= Qt.ItemFlag.ItemIsDragEnabled
+        item.setFlags(flags)
         if row.state == "error":
             item.setForeground(0, QBrush(QColor(colours.error_text)))
         elif row.dirty or row.state == "untrusted":
@@ -225,6 +228,8 @@ class CodeExplorer(QTreeWidget):
         item = self.currentItem()
         if item is None or item.parent() is None or item.data(0, KEY_ROLE) is None:
             return
+        if item.data(0, KIND_ROLE) == "helper":
+            return  # helpers are imported by code, not placed (ADR 0058)
         mime = code_drag.encode(
             item.data(0, SOURCE_ROLE),
             item.data(0, KEY_ROLE),

@@ -39,7 +39,7 @@ from . import theme
 
 SOURCES = {"run": "Run", "live": "Live", "open": "Opened"}
 NO_WORKING = "No earlier version of this code worked yet: run it first"
-NO_LAYER = "Open a code layer or a Python object first"
+NO_LAYER = "Open a code layer, a Python object or a helper first"
 
 
 def describe(version: Version, editor_text: str, now: float | None = None) -> str:
@@ -91,7 +91,7 @@ class HistoryKeeper:
         """The document changed: layers that left must begin again when they come back, and a Python
         object's build (computed from the document itself) says whether its code works."""
         present = {x.id: x for x in self.page._layers()}
-        self._begun &= set(present)
+        self._begun &= set(self.page._keys())  # layers and helpers (ADR 0058)
         for layer_id in self.history.layer_ids():
             layer = present.get(layer_id)
             if layer is not None and layer.spec.type in PYTHON_TYPES:
@@ -101,7 +101,7 @@ class HistoryKeeper:
         """Another project was opened: the chains of layers it does not have are dropped, and every
         layer begins again when it is opened (so a reused id with other text gets a new chain)."""
         self._begun.clear()
-        self.history.drop_unused({x.id for x in self.page._layers()})
+        self.history.drop_unused(set(self.page._keys()))
 
     def check(self, layer_id: str, *, code_status: bool = False) -> None:
         """Learn from the layer's status whether its applied code works. A code layer's render status
@@ -155,12 +155,11 @@ class HistoryKeeper:
             return None
         if self.dialog is not None:
             self.dialog.close()
-        layer = page.window.project.layer(layer_id)
         self.dialog = CodeHistoryDialog(
             lambda: self.history.versions(layer_id),
             page.editor.text,
             self.put,
-            title=layer.label,
+            title=page._label_of(layer_id),
             parent=page.widget,
         )
         page.editor.textChanged.connect(self.dialog.refresh_diff)

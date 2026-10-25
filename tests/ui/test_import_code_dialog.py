@@ -44,13 +44,49 @@ def test_impossible_kinds_are_disabled_with_the_reason(qt_app) -> None:
     assert "(detected)" in dialog.radios[ci.OBJECT].text()
 
 
-def test_a_file_that_is_neither_is_unchecked_and_blocks_import(qt_app) -> None:
-    dialog = ImportCodeDialog([ImportItem("print(1)\n", "plain.py")])
+def test_a_file_that_does_not_parse_is_unchecked_and_blocks_import(qt_app) -> None:
+    dialog = ImportCodeDialog([ImportItem("def build(:\n", "broken.py")])
     assert not dialog.states[0].include and "Not importable" in dialog.detected_label.text()
     assert not ok_enabled(dialog) and "Nothing is checked" in dialog.message.text()
     dialog.list.item(0).setCheckState(Qt.CheckState.Checked)
     assert not ok_enabled(dialog)  # checked but impossible: the reason is shown
-    assert "neither" in dialog.message.text()
+    assert "SyntaxError" in dialog.message.text()
+
+
+def test_a_file_that_is_neither_an_object_nor_a_scene_is_a_helper(qt_app) -> None:
+    dialog = ImportCodeDialog([ImportItem("def double(x):\n    return 2 * x\n", "Grid Tools.py")])
+    state = dialog.states[0]
+    assert state.include and state.as_ == ci.HELPER and state.name == "grid_tools"
+    assert "(detected)" in dialog.radios[ci.HELPER].text() and "Helper" in dialog.detected_label.text()
+    assert not dialog.radios[ci.OBJECT].isEnabled() and not dialog.radios[ci.SCENE].isEnabled()
+    assert dialog.place_box.isHidden() and dialog.trust.isVisibleTo(dialog)  # no time or place
+    assert ok_enabled(dialog)
+    dialog.radios[ci.PRESET].setChecked(True)  # a preset is named like the others: a title
+    assert dialog.states[0].name == "Grid Tools" and not dialog.trust.isVisibleTo(dialog)
+    dialog.radios[ci.HELPER].setChecked(True)
+    assert dialog.states[0].name == "grid_tools"
+
+
+def test_a_helper_needs_a_python_name(qt_app) -> None:
+    dialog = ImportCodeDialog([ImportItem("X = 1\n", "x.py")])
+    for bad, why in (("2 grids", "Python name"), ("json", "standard library"), ("numpy", "editor uses")):
+        dialog.name_edit.setText(bad)
+        dialog.name_edit.textEdited.emit(bad)
+        assert not ok_enabled(dialog) and why in dialog.message.text()
+
+
+def test_an_object_or_a_scene_can_still_become_a_helper(qt_app) -> None:
+    dialog = ImportCodeDialog([ImportItem(OBJECT, "wheel.py")])
+    assert dialog.radios[ci.HELPER].isEnabled() and dialog.states[0].as_ == ci.OBJECT
+    dialog.radios[ci.HELPER].setChecked(True)
+    choice = dialog.choices()[0]
+    assert (choice.as_, choice.name) == (ci.HELPER, "wheel") and ok_enabled(dialog)
+
+
+def test_without_a_project_a_helper_file_becomes_a_helper_preset(qt_app) -> None:
+    dialog = ImportCodeDialog([ImportItem("X = 1\n", "consts.py")], has_project=False)
+    assert dialog.states[0].as_ == ci.PRESET and not dialog.radios[ci.HELPER].isEnabled()
+    assert ci.presets_of(dialog.choices()[0]) == [("Consts", "helper", "X = 1\n")]
 
 
 def test_changing_the_kind_to_a_preset_hides_the_placement(qt_app) -> None:

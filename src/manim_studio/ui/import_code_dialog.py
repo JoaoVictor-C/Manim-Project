@@ -1,8 +1,9 @@
 """The import window (P12.4): choose what each code file becomes before anything is added.
 
 Opens for files chosen with Add code file, a folder of presets, files dragged from the desktop and
-presets downloaded from the internet. Every item shows what it was detected as (a Python object or a
-Manim scene) and is preselected as that; the user can change it to anything that is possible, set the
+presets downloaded from the internet. Every item shows what it was detected as (a Python object, a
+Manim scene, or a helper when it has neither a build(p) nor a Scene - a module the project's code
+imports, ADR 0058) and is preselected as that; the user can change it to anything that is possible, set the
 name, which scenes of a file to take, when and where it appears, whether it may run at once, and
 whether to keep a copy in the preset library. Nothing here runs the code.
 """
@@ -31,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import code_import
-from ..core.code_import import AS_LABELS, OBJECT, PRESET, SCENE, ImportChoice, ImportItem
+from ..core.code_import import AS_LABELS, HELPER, OBJECT, PRESET, SCENE, ImportChoice, ImportItem
 from . import theme
 from .code_editor import CodeEditor
 
@@ -50,6 +51,8 @@ class _State:
     y: float = 0.0
     trust: bool = False
     also_preset: bool = False
+    title: str = ""  # the name suggested for a layer or preset ("Grid Tools")
+    module: str = ""  # the name suggested for a helper, a Python name ("grid_tools")
 
 
 class ImportCodeDialog(QDialog):
@@ -75,9 +78,10 @@ class ImportCodeDialog(QDialog):
             as_ = found or PRESET
             if (not has_project or prefer_preset) and found:
                 as_ = PRESET
+            module = code_import.helper_name(item.filename or item.origin or inspection.suggested_name)
             state = _State(
                 item,
-                inspection.suggested_name,
+                module if as_ == HELPER else inspection.suggested_name,
                 as_,
                 list(inspection.scenes[:1]),
                 include=found is not None,
@@ -86,6 +90,8 @@ class ImportCodeDialog(QDialog):
                 auto_position=position is None,
                 x=0.0 if position is None else position[0],
                 y=0.0 if position is None else position[1],
+                title=inspection.suggested_name,
+                module=module,
             )
             self.states.append(state)
         self._row = -1
@@ -140,7 +146,7 @@ class ImportCodeDialog(QDialog):
         kind_box = QGroupBox("Add it as")
         kind_row = QVBoxLayout(kind_box)
         self.radios: dict[str, QRadioButton] = {}
-        for key in (OBJECT, SCENE, PRESET):
+        for key in (OBJECT, SCENE, HELPER, PRESET):
             radio = QRadioButton(AS_LABELS[key])
             radio.toggled.connect(lambda on, k=key: on and self._on_kind(k))
             self.radios[key] = radio
@@ -190,8 +196,8 @@ class ImportCodeDialog(QDialog):
             "and asks. Tick this only for code you wrote or have read."
         )
         self.trust.toggled.connect(self._on_edit)
-        place.addRow("", self.trust)
         column.addWidget(self.place_box)
+        column.addWidget(self.trust)
 
         self.params_label = QLabel("")
         self.params_label.setWordWrap(True)
@@ -237,8 +243,15 @@ class ImportCodeDialog(QDialog):
     def _on_kind(self, key: str) -> None:
         if self._loading or self._row < 0:
             return
-        self.states[self._row].as_ = key
         self._store()
+        state = self.states[self._row]
+        # A helper is named like a Python module ("grid_tools"), a layer or preset like a title: the
+        # suggested name follows the kind until the user types their own.
+        if key == HELPER and state.name == state.title:
+            state.name = state.module
+        elif key != HELPER and state.as_ == HELPER and state.name == state.module:
+            state.name = state.title
+        state.as_ = key
         self._load()
 
     def _on_edit(self, *_args) -> None:
@@ -332,7 +345,8 @@ class ImportCodeDialog(QDialog):
         multi = len(inspection.scenes) > 1 and state.as_ in (SCENE, PRESET)
         self.scene_list.setVisible(multi)
         self.also_preset.setVisible(state.as_ != PRESET)
-        self.place_box.setVisible(state.as_ != PRESET)
+        self.place_box.setVisible(state.as_ not in (PRESET, HELPER))  # a helper has no time or place
+        self.trust.setVisible(state.as_ != PRESET)
         self.time.setEnabled(not self.auto_time.isChecked())
         self.x.setEnabled(not self.auto_position.isChecked())
         self.y.setEnabled(not self.auto_position.isChecked())

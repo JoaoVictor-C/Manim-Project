@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Helpers** (ADR 0058): reusable Python kept in the project - functions, classes, constants, data - that code
+  layers, Python objects and other helpers import by name (`from grid_tools import make_grid`). The Code page lists
+  them in a **Helpers** section and edits them in tabs like layers; **Run** applies a helper, allows it to run and
+  test-imports it in a separate process (what it printed, or its error at its line); **New helper**, **Rename**
+  (the imports of it are rewritten and keep their trust), **Delete** (says who imports it and asks), **Duplicate**,
+  **Export** (`<name>.py`) and **Save as preset**. A `.py` file with neither a `build(p)` nor a Scene is offered as
+  a helper in the import window; presets can be helpers; **Extract selection to helper...** moves whole top-level
+  functions and classes into a new helper and imports them back. An error raised in a helper links to its line, and
+  code that imports a helper not allowed yet offers a **Run helper** button. Projects save helpers in an optional
+  `helpers` list; `render --trust-code` trusts them too.
 - **Panel buttons** on the page bar (Layers, Properties, Timeline) hide and show those panels on every page that
   has them - View > Timeline is new - and are remembered; **Full Screen** (`F11`, View > Full Screen, a button on the
   bar) shows the animation alone, filling the screen, with a video player's controls (seek bar and times, start / back /

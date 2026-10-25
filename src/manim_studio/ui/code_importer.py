@@ -1,7 +1,8 @@
 """Bringing code into the project (P12): files, pasted text, downloaded presets and drags.
 
 The window shows ``ImportCodeDialog`` for what is about to be added; this carries out the answer:
-layers (Python objects and code layers, one undo step per choice) and library presets. Dragging a
+layers (Python objects and code layers, one undo step per choice), helpers (ADR 0058) and library
+presets. Dragging a
 preset or a code layer onto the timeline or the canvas skips the window and adds it where it was
 dropped. Nothing here runs the code: it stays untrusted unless the user allows it.
 """
@@ -10,12 +11,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..core import code_export, code_files, code_import
+from pydantic import ValidationError
+
+from ..core import code_export, code_files, code_import, edits
 from ..core.code_export import ExportEntry, ExportOptions
 from ..core.code_import import ImportChoice, ImportItem
+from ..core.trust import HELPER_KEY
 from . import online_presets_dialog
 from .conflict_dialog import ConflictAsker
 from .export_code_dialog import ExportCodeDialog
@@ -40,6 +45,7 @@ class CodeImporter:
         self.ask_online: Callable[[], list[ImportItem] | None] = self._online_dialog
         # Hook for the question about a file that exists: a ConflictAsker (called with the file name).
         self.conflicts: Callable[..., Callable[[str], str | None]] = self._asker
+        self.last_helper = ""  # the name the last helper added got (it may differ from the one asked)
 
     # -- asking -----------------------------------------------------------------------------
 
@@ -105,14 +111,27 @@ class CodeImporter:
     def apply(self, choices: list[ImportChoice]) -> str:
         """Add what was chosen; returns the status line."""
         window = self.window
-        layers = presets = 0
+        layers = presets = added_helpers = 0
         problems = []
         decide = self.conflicts("", "preset")
+        decide_helper = self.conflicts("", "helper")
         for choice in choices:
             why = code_import.validate(choice)
             if why is not None:
                 problems.append(f"{choice.name}: {why}")
                 continue
+            if choice.as_ == code_import.HELPER:  # a module of the project (ADR 0058)
+                outcome, why = self.add_helper(
+                    choice.name.strip(),
+                    code_import.code_for(choice.item),
+                    trust=choice.trust,
+                    decide=decide_helper,
+                )
+                if outcome == "cancelled":
+                    return self._say("Import cancelled")
+                if why:
+                    problems.append(f"{choice.name}: {why}")
+                added_helpers += outcome in ("added", "replaced", "copied")
             online = choice.item.origin.startswith("http")
             for name, kind, code in code_import.presets_of(choice):
                 outcome = self.store_preset(
@@ -126,8 +145,8 @@ class CodeImporter:
                 if outcome == "cancelled":
                     return self._say("Import cancelled")
                 presets += outcome not in ("skipped", "same")
-            if choice.as_ != code_import.PRESET:
-                made = code_import.layers_of(choice)
+            made = code_import.layers_of(choice)
+            if made:
                 window.layers.add_code_layers(
                     made, appear=choice.appear, position=choice.position, trust=choice.trust
                 )
@@ -135,6 +154,8 @@ class CodeImporter:
         parts = []
         if layers:
             parts.append(f"{layers} layer{'s' if layers != 1 else ''}")
+        if added_helpers:
+            parts.append(f"{added_helpers} helper{'s' if added_helpers != 1 else ''}")
         if presets:
             parts.append(f"{presets} preset{'s' if presets != 1 else ''}")
         message = ("Added " + " and ".join(parts)) if parts else "Nothing was added"
@@ -177,6 +198,62 @@ class CodeImporter:
         self.window.codePresetsChanged.emit()
         return outcome
 
+    # -- helpers (ADR 0058) -------------------------------------------------------------------
+
+    def add_helper(
+        self,
+        name: str,
+        code: str,
+        *,
+        trust: bool = False,
+        decide: Callable[[str], str | None] | None = None,
+    ) -> tuple[str, str]:
+        """Add a helper to the project as one undo step; when one has the name already, ask: replace
+        its code, skip this one or keep both (the new one gets a free name). Returns ``(outcome,
+        problem)``: outcome ``added``, ``replaced``, ``copied``, ``skipped``, ``same``, ``cancelled``
+        or ``failed`` (then ``problem`` says why). ``self.last_helper`` is the name it got."""
+        window = self.window
+        project = window.project
+        self.last_helper = ""
+        if project is None:
+            return "failed", "create or open a project first"
+        existing = [h.name for h in project.helpers]
+        outcome, final = "added", name
+        if name in existing:
+            if project.helper(name).code == code:
+                self.last_helper = name
+                return "same", ""
+            choice = (decide or self.conflicts("", "helper"))(name)
+            if choice is None:
+                return "cancelled", ""
+            if choice == "skip":
+                return "skipped", ""
+            if choice == "replace":
+                outcome = "replaced"
+            else:
+                outcome, final = "copied", code_import.helper_name(name, existing)
+        if outcome == "replaced":
+            op, label = partial(edits.update_helper, name=final, code=code), "Replace helper"
+        else:
+            op, label = partial(edits.add_helper, name=final, code=code), "Add helper"
+        try:
+            window.builds.submit(op, label)
+        except (edits.EditError, ValidationError) as error:
+            return "failed", str(error)
+        if trust:
+            self.trust_helper(final)
+        self.last_helper = final
+        return outcome, ""
+
+    def trust_helper(self, name: str) -> None:
+        """Let helper ``name`` run here (its current code), and let what imports it run again."""
+        window = self.window
+        project = window.project
+        if project is None or name not in {h.name for h in project.helpers}:
+            return
+        window.code.trust_layers(project, [f"{HELPER_KEY}{name}"])  # failed renders are tried again
+        window.reload_media()  # Python objects importing it are built now
+
     # -- dragging ---------------------------------------------------------------------------
 
     def place(
@@ -197,12 +274,26 @@ class CodeImporter:
         preset = window.code_presets.get(str(payload.get("id")))
         if preset is None:
             return self._say(f"The preset {name} is not in the library any more")
+        if preset.kind == "helper":  # a module, not a layer: it has no time or place (ADR 0058)
+            return self.add_helper_preset(preset)
         type_name = "Python" if preset.kind == "object" else "Code"
         # The editor's own presets are trusted like its starter code; yours and downloaded ones are not.
         window.layers.add_code_layers(
             [(preset.name, type_name, preset.code)], appear=t, position=position, trust=preset.builtin
         )
         return self._say(f"Added {preset.name}")
+
+    def add_helper_preset(self, preset) -> str:
+        """Add a preset of kind ``helper`` to the project as a helper, named like a Python module;
+        the editor's own presets are trusted, yours and downloaded ones are not."""
+        project = self.window.project
+        if project is None:
+            return self._say("Create or open a project first")
+        name = code_import.helper_name(preset.name, [h.name for h in project.helpers])
+        outcome, why = self.add_helper(name, preset.code, trust=preset.builtin)
+        if outcome == "failed":
+            return self._say(f"Add helper {name}: {why}")
+        return self._say(f"Added the helper {self.last_helper}: import it with `import {self.last_helper}`")
 
     def _say(self, message: str) -> str:
         if message:
@@ -224,6 +315,8 @@ class CodeImporter:
                     out.append(
                         ExportEntry(layer.id, layer.label, kind, str(layer.spec.params.get("code", "")))
                     )
+            for helper in project.helpers:  # written as <name>.py, so it imports again by its name
+                out.append(ExportEntry(f"{HELPER_KEY}{helper.name}", helper.name, "helper", helper.code))
         for preset in window.code_presets.presets():
             out.append(
                 ExportEntry(preset.id, preset.name, preset.kind, preset.code, "preset", preset.description)

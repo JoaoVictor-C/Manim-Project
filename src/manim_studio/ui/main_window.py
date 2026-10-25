@@ -1196,6 +1196,7 @@ class MainWindow(QMainWindow):
             self.export_dialog.close()
         self.builds.client.stop()
         self.code.stop()
+        self.pages.pages["code"].helper_actions.checker.stop()  # a helper being test-imported (ADR 0058)
         self.scene_importer.stop()
         if self.render_ahead is not None:
             self.render_ahead.stop()

@@ -1,7 +1,8 @@
 """The preset library (P12.2, ADR 0056): ready-made code to start from - pure, no Qt, no Manim.
 
-A preset is a named piece of code: a Python object (``PARAMS`` + ``build(p)``, ADR 0051) or a Manim
-scene (a code layer, ADR 0019). Three kinds are listed together:
+A preset is a named piece of code: a Python object (``PARAMS`` + ``build(p)``, ADR 0051), a Manim
+scene (a code layer, ADR 0019) or a helper (a module the project's code imports, ADR 0058). Three
+origins are listed together:
 
 * **built-in** presets come with the editor (``python_templates``); they are never saved and
   cannot be changed or removed;
@@ -32,7 +33,7 @@ from . import python_templates
 from .code_files import inspect
 
 FORMAT = 1
-KINDS = ("object", "scene")
+KINDS = ("object", "scene", "helper")  # a helper: a module the project's code imports (ADR 0058)
 SAVED_ORIGINS = ("user", "online")  # what is saved in the file; "builtin" never is
 
 
@@ -52,7 +53,7 @@ class Preset:
 
     id: str
     name: str
-    kind: str  # "object" | "scene"
+    kind: str  # "object" | "scene" | "helper"
     code: str
     origin: str  # "builtin" | "user" | "online"
     description: str = ""
@@ -95,12 +96,12 @@ class PresetLibrary:
     ) -> Preset:
         """Save a new preset and return it. A name already used (in any letter case, by any preset)
         gets a suffix: ``Name (2)``. Raises ``ValueError`` for an empty name, a kind that is not
-        ``object``/``scene`` or an origin that is not ``user``/``online``, and ``OSError`` when the
+        ``object``/``scene``/``helper`` or an origin that is not ``user``/``online``, and ``OSError`` when the
         file cannot be written (the library is then as it was)."""
         if not name.strip():
             raise ValueError("a preset needs a name")
         if kind not in KINDS:
-            raise ValueError(f"a preset's kind is 'object' or 'scene', not {kind!r}")
+            raise ValueError(f"a preset's kind is 'object', 'scene' or 'helper', not {kind!r}")
         if origin not in SAVED_ORIGINS:
             raise ValueError(f"a saved preset's origin is 'user' or 'online', not {origin!r}")
         before = list(self._saved)

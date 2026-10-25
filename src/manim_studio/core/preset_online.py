@@ -51,7 +51,7 @@ DESCRIPTION_LIMIT = 300
 
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 _REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
-_KINDS = ("object", "scene")
+_KINDS = ("object", "scene", "helper")
 _GITHUB_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 _GIST_ID = re.compile(r"^[0-9A-Fa-f]{6,}$")
 
@@ -68,7 +68,7 @@ class OnlineEntry:
 
     name: str
     url: str
-    kind_hint: str = ""  # "object" | "scene" | "" (unknown)
+    kind_hint: str = ""  # "object" | "scene" | "helper" | "" (unknown)
     description: str = ""
     size: int | None = None
     source: str = ""  # the link the user typed

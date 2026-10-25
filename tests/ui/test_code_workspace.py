@@ -487,7 +487,8 @@ def test_python_files_have_the_python_icon_in_the_explorer_and_the_tabs(window) 
     choose(code, 2)
     projects = code.explorer.topLevelItem(0)
     assert all(not projects.child(i).icon(0).isNull() for i in range(projects.childCount()))
-    builtin_section = code.explorer.topLevelItem(1)
+    tops = [code.explorer.topLevelItem(i) for i in range(code.explorer.topLevelItemCount())]
+    builtin_section = next(top for top in tops if top.data(0, Qt.ItemDataRole.UserRole) == "builtin")
     assert not builtin_section.child(0).icon(0).isNull()
     assert all(not code.tabs.tabIcon(i).isNull() for i in range(code.tabs.count()))
     from manim_studio.ui import icons

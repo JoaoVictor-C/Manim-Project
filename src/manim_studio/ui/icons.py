@@ -54,6 +54,7 @@ NAMES: dict[str, str] = {
     # ships with QtAwesome), blue for a Python object and yellow for a Manim scene
     "py-object": "mdi6.language-python",
     "py-scene": "mdi6.language-python",
+    "helper": "mdi6.function-variant",  # a helper: a module the code imports (ADR 0058)
     "sidebar": "mdi6.dock-left",
     "panel": "mdi6.dock-bottom",
     "outline": "mdi6.vector-selection",
@@ -72,8 +73,13 @@ NAMES: dict[str, str] = {
     "player-mute": "mdi6.volume-off",
 }
 
-# icons drawn in another theme colour than the text: Record's red dot, the Python logos
-TINTS: dict[str, str] = {"record": "danger", "py-object": "py_object", "py-scene": "py_scene"}
+# icons drawn in another theme colour than the text: Record's red dot, the Python logos, the helpers
+TINTS: dict[str, str] = {
+    "record": "danger",
+    "py-object": "py_object",
+    "py-scene": "py_scene",
+    "helper": "success",
+}
 
 
 @cache

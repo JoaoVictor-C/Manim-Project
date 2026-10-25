@@ -31,12 +31,52 @@ def test_an_object_is_preselected_as_an_object_and_cannot_be_a_scene() -> None:
     assert options[ci.OBJECT] is None and "Scene" in options[ci.SCENE]
 
 
-def test_neither_gives_the_reason_for_every_option() -> None:
+def test_neither_an_object_nor_a_scene_is_a_helper() -> None:
     inspection = item("print(1)\n").inspection
-    assert ci.detected(inspection) is None
-    assert all(reason for reason in ci.possible(inspection).values())
+    options = ci.possible(inspection)
+    assert ci.detected(inspection) == ci.HELPER
+    assert options[ci.HELPER] is None and options[ci.PRESET] is None
+    assert "build" in options[ci.OBJECT] and "Scene" in options[ci.SCENE]
+    assert ci.preset_kind(inspection) == "helper"
+
+
+def test_code_that_does_not_parse_gives_the_reason_for_every_option() -> None:
     syntax = item("def build(:\n").inspection
-    assert "SyntaxError" in ci.possible(syntax)[ci.OBJECT]
+    assert ci.detected(syntax) is None
+    assert all("SyntaxError" in reason for reason in ci.possible(syntax).values())
+
+
+def test_any_code_that_parses_can_be_a_helper() -> None:
+    assert ci.possible(item(OBJECT).inspection)[ci.HELPER] is None
+    assert ci.possible(item(SCENE).inspection)[ci.HELPER] is None
+
+
+def test_a_helper_choice_makes_no_layer_and_a_helper_preset_when_asked() -> None:
+    choice = ImportChoice(item(BOM + "X = 1\n"), "consts", ci.HELPER)
+    assert ci.layers_of(choice) == [] and ci.presets_of(choice) == []
+    both = ImportChoice(item("X = 1\n"), "consts", ci.HELPER, also_preset=True)
+    assert ci.presets_of(both) == [("consts", "helper", "X = 1\n")]
+    assert ci.presets_of(ImportChoice(item("X = 1\n"), "Consts", ci.PRESET)) == [
+        ("Consts", "helper", "X = 1\n")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("text", "existing", "expected"),
+    [
+        ("grid_tools.py", (), "grid_tools"),
+        ("Grid Tools.py", (), "grid_tools"),
+        ("C:/files/My-Colours.py", (), "my_colours"),
+        ("3d shapes", (), "helper_3d_shapes"),
+        ("math.py", (), "math_helper"),
+        ("json", (), "json_helper"),
+        ("grid", ("grid",), "grid_helper"),
+        ("grid", ("grid", "grid_helper"), "grid_2"),
+        ("", (), "helper"),
+    ],
+)
+def test_helper_names_are_python_names_that_hide_nothing(text, existing, expected) -> None:
+    assert ci.helper_name(text, existing) == expected
 
 
 def test_the_byte_order_mark_is_dropped_from_the_code() -> None:
@@ -81,7 +121,9 @@ def test_presets_are_made_for_preset_choices_and_when_asked_for() -> None:
         (ImportChoice(item(OBJECT), "A", ci.SCENE), "Scene"),
         (ImportChoice(item(SCENE), "A", ci.OBJECT), "build"),
         (ImportChoice(item(SCENE), "A", ci.SCENE, scenes=("Nope",)), "Nope"),
-        (ImportChoice(item("print(1)\n"), "A", ci.PRESET), "neither"),
+        (ImportChoice(item("def build(:\n"), "A", ci.PRESET), "SyntaxError"),
+        (ImportChoice(item("print(1)\n"), "2a", ci.HELPER), "Python name"),
+        (ImportChoice(item("print(1)\n"), "json", ci.HELPER), "standard library"),
     ],
 )
 def test_invalid_choices_say_why(choice: ImportChoice, expected: str) -> None:
@@ -93,6 +135,8 @@ def test_valid_choices_pass() -> None:
         ImportChoice(item(OBJECT), "A", ci.OBJECT),
         ImportChoice(item(OBJECT), "A", ci.PRESET),
         ImportChoice(item(TWO), "A", ci.SCENE, scenes=("Spin",)),
+        ImportChoice(item("print(1)\n"), "A", ci.PRESET),
+        ImportChoice(item("print(1)\n"), "printer_tools", ci.HELPER),
     ):
         assert ci.validate(choice) is None
 

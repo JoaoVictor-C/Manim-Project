@@ -136,7 +136,47 @@ Drag a row of the explorer - a preset or a layer - onto:
 - the **Layers list**: it is added at the playhead.
 
 A preset becomes a Python object or a code layer; a layer becomes a copy of itself (code, values,
-keys and clips). Each is one undo step.
+keys and clips). Each is one undo step. Helpers are not dragged: they have no time or place.
+
+## Helpers
+
+A **helper** is plain Python kept in the project - functions, classes, constants, data, not
+necessarily Manim - that code layers, Python objects and other helpers import by its name:
+
+```python
+from grid_tools import make_grid
+```
+
+The explorer lists them in the **Helpers** section, under the project's layers; the section's
+right-click menu has *New helper...*, *Add file...* and *Extract selection to helper...*, and
+*New helper...* is also in the explorer's menu. A helper opens in a tab like a layer, with the same
+unapplied-changes dot and **Revert**. Its name is a Python name (letters, digits and `_`) that does
+not hide a module of Python, Manim or numpy, or another module on your computer.
+
+- **Run** (`Ctrl+Enter`) on a helper applies its text (one undo step), allows it to run on this
+  computer, and imports it once in a separate process: the output says *Imported without errors*
+  (with anything it printed) or shows its error at its line. It also says which code imports it and
+  what it defines.
+- A helper does not get Manim's names for free: write `from manim import *` (or
+  `import numpy as np`) at its top when it needs them.
+- **Trust**: a helper is code, so it runs only once allowed, like a code layer. Code that imports a
+  helper not allowed yet says so under the editor, with a **Run helper** button that allows it; an
+  opened project asks about its helpers with its other code.
+- **Errors**: an error raised inside a helper shows as *helper grid_tools, line 4*; clicking it opens
+  the helper at that line.
+- A helper row's menu has **Open**, **Run**, **Rename...** (the code importing it is rewritten to the
+  new name), **Duplicate**, **Save as preset...**, **Export...** (written as `<name>.py`, so it imports
+  again by its name) and **Delete** (while code imports it you are told which, and asked first).
+- **Import**: a `.py` file with neither a `build(p)` nor a Scene is offered as a *Helper* in the import
+  window (any file can be made one); its name is made from the file name. When the project already has
+  a helper with that name you are asked: replace its code, skip, or keep both under another name.
+- **Presets** can be helpers too: *Add to project* (or *Edit a copy*) adds the preset as a helper.
+- **Extract selection to helper...** (Editor menu, or the editor's right-click menu) moves the
+  selected top-level functions and classes - or the one the cursor is in - into a new helper and
+  writes `from <helper> import ...` at the top of the code. The helper is one undo step; the change
+  to the code is one step of the editor's own undo and is applied by Run. It refuses, saying why, a
+  selection that is not whole functions and classes, the scene of a code layer, a Python object's
+  `build`, and a function that uses a name that stays in the code.
 
 ## See also
 
