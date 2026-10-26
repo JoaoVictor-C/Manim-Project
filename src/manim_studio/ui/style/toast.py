@@ -29,6 +29,7 @@ MAX_TOASTS = 4
 WIDTH = 360
 MARGIN = (24, 44)  # from the right and the bottom edge of the window
 DEFAULT_MS = 4500
+READY = "Ready"  # the idle line: said in the status bar, never as a toast
 
 _BAD = re.compile(
     r"\b(fail|failed|error|cannot|can't|could not|couldn't|not applied|refused|invalid|unable)\b", re.I
@@ -216,7 +217,7 @@ class LumenStatusBar(QStatusBar):
 
     def showMessage(self, text: str, timeout: int = 0) -> None:
         super().showMessage(text, timeout)
-        if self.toasts is not None and timeout > 0 and text.strip():
+        if self.toasts is not None and timeout > 0 and text.strip() and text != READY:
             self.toasts.show(text, timeout=timeout)
 
 

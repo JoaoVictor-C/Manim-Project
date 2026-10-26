@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 import manim as m
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QTransform
 from PySide6.QtWidgets import QWidget
 
 from ...core.code.code_frame import CodeFrame
@@ -42,6 +42,26 @@ BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
 DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
+DOT_GAP = 18  # the dotted pasteboard (Lumen, ADR 0063)
+SHADOW_PX = 22  # how far the frame's shadow reaches
+
+
+def refresh_colours() -> None:
+    """Read the overlay colours from the current theme again (the paint code reads these module names, so
+    switching Ink and Paper restyles the handles and guides without rebuilding the canvas)."""
+    c = theme.THEME
+    g = globals()
+    g["OUTLINE_COLOR"] = theme.qcolor(c.outline)
+    g["MOTION_COLOR"] = theme.qcolor(c.motion_path)
+    g["PASTEBOARD_DIM"] = theme.qcolor(c.pasteboard_dim)
+    g["FRAME_BORDER"] = theme.qcolor(c.frame_border)
+    g["BADGE"] = theme.qcolor(c.badge)
+    g["BADGE_TEXT"] = theme.qcolor(c.badge_text)
+    g["GUIDE_COLOR"] = theme.qcolor(c.guide)
+    g["DROP_COLOR"] = theme.qcolor(c.accent)
+
+
+theme.signals.themeChanged.connect(lambda _name: refresh_colours())
 DROP_PX = 10.0  # the drop cross's arm
 PARAM_HANDLE_PX = 9.0  # parameter handles: round, drawn size (ADR 0043)
 CLEAR_OF_MIDDLE_PX = 14.0  # parameter handles nearer an object's middle or pivot than this are hidden
@@ -62,6 +82,8 @@ class Outline:
 
 class CanvasWidget(QWidget):
     """Letterboxed view of the Manim frame at the current time."""
+
+    _decor_key: tuple | None = None  # what the cached pasteboard decoration was drawn for
 
     resized = Signal()
     view_changed = Signal()  # zoom or pan: the window renders again and updates the readout
@@ -557,6 +579,7 @@ class CanvasWidget(QWidget):
                 painter.fillRect(band, Qt.GlobalColor.black if self.presenting else PASTEBOARD_DIM)
         if self.presenting:
             return
+        self._paint_pasteboard_dots(painter, frame, widget)
         pen = QPen(FRAME_BORDER, 1)
         pen.setCosmetic(True)
         painter.setPen(pen)
@@ -564,6 +587,56 @@ class CanvasWidget(QWidget):
         # Half a pixel inside, so a frame exactly as wide or tall as the widget (Fit) keeps
         # its border on the far edges too: a 1 px line at x = width lies outside (P6d.4).
         painter.drawRect(frame.adjusted(0.5, 0.5, -0.5, -0.5))
+
+    def _paint_pasteboard_dots(self, painter: QPainter, frame: QRectF, widget: QRectF) -> None:
+        """A faint dot grid on the pasteboard and a soft shadow under the frame (Lumen, ADR 0063), drawn once
+        into a pixmap and reused until the size, the frame or the theme changes."""
+        key = (
+            self.width(),
+            self.height(),
+            frame.toRect().getRect(),
+            theme.THEME.name,
+            self.devicePixelRatioF(),
+        )
+        if self._decor_key != key:
+            self._decor_key = key
+            self._decor = self._decoration(frame, widget)
+        painter.drawPixmap(0, 0, self._decor)
+
+    def _decoration(self, frame: QRectF, widget: QRectF) -> QPixmap:
+        c = theme.THEME
+        ratio = self.devicePixelRatioF()
+        pixmap = QPixmap((widget.size() * ratio).toSize())
+        pixmap.setDevicePixelRatio(ratio)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        outside = QPainterPath()
+        outside.addRect(widget)
+        inside = QPainterPath()
+        inside.addRect(frame)
+        painter.setClipPath(outside.subtracted(inside))
+        shadow = theme.qcolor(c.shadow)
+        shadow.setAlpha(max(1, int(shadow.alpha() * 0.07)))
+        for i in range(SHADOW_PX, 0, -2):  # overlapping rings: darkest next to the frame
+            ring = QPainterPath()
+            box = frame.adjusted(-i, -i + 6, i, i + 6)
+            ring.addRoundedRect(box, i, i)
+            painter.fillPath(ring, shadow)
+        dot = theme.qcolor(c.line_strong)
+        dot.setAlpha(110)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(dot)
+        y = DOT_GAP / 2
+        while y < widget.bottom():
+            x = DOT_GAP / 2
+            while x < widget.right():
+                if not frame.contains(x, y):
+                    painter.drawRect(QRectF(x - 0.5, y - 0.5, 1.2, 1.2))
+                x += DOT_GAP
+            y += DOT_GAP
+        painter.end()
+        return pixmap
 
     def _paint_motion(self, painter: QPainter) -> None:
         """The motion path: dashed through the keys, a square per key, its tangent handles."""
