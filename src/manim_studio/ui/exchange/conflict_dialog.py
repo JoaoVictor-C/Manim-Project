@@ -11,15 +11,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtWidgets import (
-    QCheckBox,
-    QDialog,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QCheckBox, QDialog, QLabel, QPushButton, QWidget
+
+from ..code.dialog_frame import DialogFrame, ghost, primary
 
 REPLACE, SKIP, COPY = "replace", "skip", "copy"
 
@@ -32,16 +26,15 @@ class ConflictDialog(QDialog):
         self.setWindowTitle(f"{what.capitalize()} already exists")
         self.setMinimumWidth(420)
         self.answer: str | None = None
-        layout = QVBoxLayout(self)
         where = f" in {folder}" if folder else ""
+        frame = DialogFrame(self, "error", f"{what.capitalize()} already exists", tone="warn")
         text = QLabel(
             f"<b>{_escape(filename)}</b> already exists{_escape(where)}.<br>What should happen to it?"
         )
         text.setWordWrap(True)
-        layout.addWidget(text)
+        frame.body.addWidget(text)
         self.all_box = QCheckBox(f"Do this for all the remaining {what}s that already exist")
-        layout.addWidget(self.all_box)
-        row = QHBoxLayout()
+        frame.body.addWidget(self.all_box)
         self.buttons: dict[str, QPushButton] = {}
         for key, label, tip in (
             (REPLACE, "Replace", f"Overwrite the existing {what}"),
@@ -52,14 +45,16 @@ class ConflictDialog(QDialog):
             button.setToolTip(tip)
             button.clicked.connect(lambda _=False, k=key: self._choose(k))
             self.buttons[key] = button
-            row.addWidget(button)
         self.buttons[COPY].setDefault(True)
-        cancel = QPushButton("Cancel")
+        cancel = ghost(QPushButton("Cancel"))
         cancel.setToolTip("Stop here; files already written stay")
         cancel.clicked.connect(self.reject)
-        row.addStretch(1)
-        row.addWidget(cancel)
-        layout.addLayout(row)
+        # the actions at the right, the suggested one (Keep both) last; Cancel stays apart at the left
+        frame.add_footer(cancel)
+        frame.footer.addStretch(1)
+        for key in (SKIP, REPLACE, COPY):
+            frame.add_footer(self.buttons[key])
+        primary(self.buttons[COPY])
 
     def _choose(self, key: str) -> None:
         self.answer = key

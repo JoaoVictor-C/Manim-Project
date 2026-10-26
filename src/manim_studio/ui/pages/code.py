@@ -49,23 +49,21 @@ from functools import partial
 from pathlib import Path
 
 from pydantic import ValidationError
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QScrollArea,
-    QSplitter,
     QStackedWidget,
-    QTabBar,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -81,13 +79,14 @@ from ...core.engine.standalone import standalone_scene
 from ...core.exchange import code_files
 from ...core.model.schema import CODE_TYPES, PYTHON_TYPES
 from ..code import quick_open
-from ..code.chapters import ChapterActions
+from ..code.chapters import ChapterActions, ChaptersPanel
+from ..code.code_chrome import CodeTabs, ProgressLine, RunButton, ToggleChip
 from ..code.code_drafts import Drafts, error_line, error_text, moved_on
 from ..code.code_editor import CodeEditor
 from ..code.code_explorer import CodeExplorer, Row, Section
 from ..code.code_helpers import EMPTY as NO_HELPERS
 from ..code.code_helpers import HelperActions, key_of, name_of
-from ..code.code_history_dialog import HistoryKeeper
+from ..code.code_history_dialog import HistoryKeeper, HistoryPanel
 from ..code.find_bar import FindBar
 from ..code.params_definition import ParamsDefinitionPanel
 from ..code.snippet_dialog import SnippetDialog
@@ -96,11 +95,24 @@ from ..panels.values_panel import ValuesPanel
 from ..services.code_render import CodeStatus
 from ..session import code_drag
 from ..style import icons, theme
+from ..style.card import Card, Chip, gutter_splitter, page_margins
 from ..style.render_activity import spinner
 from . import Page, Shared
 
 LIVE_PAUSE_MS = 800  # the pause in typing after which Live applies
 SYNTAX_PAUSE_MS = 800  # the pause in typing after which a syntax error is marked
+OUTPUT_HEIGHT = 232  # px: the output card at most (the mock-up's bottom row)
+CHAPTERS_HEIGHT = 260  # px: the chapters card at most, under the preview
+PRESET_BADGES = {"builtin": "built in", "user": "mine", "online": "downloaded"}
+STATE_CHIPS = {  # the preview card's chip: (text, tone) for the layer's state
+    "ready": ("Ready", "ok"),
+    "built": ("Built", "ok"),
+    "error": ("Error", "bad"),
+    "rendering": ("Rendering", "accent"),
+    "queued": ("Waiting", "neutral"),
+    "checking": ("Testing", "accent"),
+    "untrusted": ("Not run yet", "warn"),
+}
 HINT = "Select a code layer or a Python object, or add one with the New button."
 PRESET_ORIGINS = (
     ("builtin", "Presets — built in"),
@@ -127,7 +139,7 @@ class ErrorLine(QLabel):
         self.setWordWrap(True)
         self.setTextFormat(Qt.TextFormat.RichText)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.setFont(theme.mono_font())
+        self.setFont(theme.font("label"))  # Lumen: the error is a sentence; the traceback is in mono
         self.line: int | None = None
         self.helper: str | None = None
         self.plain = ""
@@ -141,12 +153,12 @@ class ErrorLine(QLabel):
             where = f"helper {helper}, line {line}" if line else f"helper {helper}"
             self.plain = f"{where}: {message}"
             link = f"<u>{html.escape(where)}</u>"
-            text = f'<span style="color:{theme.css(colours.outline)}">{link}</span>: {text}'
+            text = f'<span style="color:{theme.css(colours.accent_text)}">{link}</span>: {text}'
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             self.setToolTip("Open the helper at this line")
         elif line:
             link = f"<u>line {line}</u>"
-            text = f'<span style="color:{theme.css(colours.outline)}">{link}</span>: {text}'
+            text = f'<span style="color:{theme.css(colours.accent_text)}">{link}</span>: {text}'
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             self.setToolTip("Go to this line")
         else:
@@ -180,6 +192,18 @@ class _DropFilter(QObject):
                 self.callback(files)
                 return True
         return False
+
+
+class _Relay(QObject):
+    """Calls ``callback`` on a signal, and is disconnected when its parent widget goes."""
+
+    def __init__(self, callback, parent: QObject) -> None:
+        super().__init__(parent)
+        self.callback = callback
+
+    @Slot(str)
+    def fire(self, _name: str = "") -> None:
+        self.callback()
 
 
 class CodePage(Page):
@@ -224,12 +248,16 @@ class CodePage(Page):
         self._holding = False  # an apply from here that must not replace the editor's text
         self._partial: tuple[str, str, int] | None = None  # layer id, code, last line of a Run to cursor
 
-        self.split = QSplitter(Qt.Orientation.Horizontal)
-        self.split.setChildrenCollapsible(False)
+        # Lumen (P17.4d): three columns of cards - the explorer | the editor over the output | the preview
+        # over the chapters - with the window showing through the gutters between them.
+        self.split = gutter_splitter(Qt.Orientation.Horizontal)
+        self.split.setObjectName("codePage")
         self.split.addWidget(self._build_sidebar())
         self.split.addWidget(self._build_centre())
+        self.split.addWidget(self._build_right())
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(1, 1)
+        self.split.setStretchFactor(2, 1)
         self.helper_actions = HelperActions(self)  # helpers: Run, New, Rename... (ADR 0058)
         self.chapter_actions = ChapterActions(self)  # Analyse scene, Split into chapters (ADR 0061)
         self._open_pending: str | None = None  # a key to open once the edit adding it lands
@@ -251,26 +279,44 @@ class CodePage(Page):
         window.document.changed.connect(self._on_changed)
         window.code.statusChanged.connect(self._on_status)
         window.codePresetsChanged.connect(lambda: self._refresh_list(force=True))
+        self._theme_relay = _Relay(self._on_theme, self.split)  # gone with the page's widgets
+        theme.signals.themeChanged.connect(self._theme_relay.fire)
         self._set_editor("", 0)
         self._after_change()
-        return self.split
+        page = QWidget()
+        page.setObjectName("codePageRoot")
+        root = QVBoxLayout(page)
+        page_margins(root)  # the gutter around the cards, none above (the top bar is there)
+        root.addWidget(self.split)
+        return page
 
     # -- building -------------------------------------------------------------------------------
 
-    def _button(self, text: str, tip: str, slot, icon: str | None = None) -> QPushButton:
+    def _button(self, text: str, tip: str, slot, icon: str | None = None, role: str = "") -> QPushButton:
         button = QPushButton(icons.icon(icon), text) if icon else QPushButton(text)
         button.setToolTip(tip)
         button.clicked.connect(slot)
+        if role:
+            button.setProperty("role", role)
+        button.setProperty("size", "sm")
+        return button
+
+    def _icon_button(self, text: str, tip: str, slot, icon: str) -> QPushButton:
+        """A 26 px ghost button showing only its icon (its name is for screen readers and tooltips)."""
+        button = self._button("", tip, slot, icon, role="ghost")
+        button.setAccessibleName(text)
+        button.setFixedSize(26, 26)
+        button.setProperty("iconOnly", True)
         return button
 
     def _build_sidebar(self) -> QWidget:
-        left = QWidget()
-        column = QVBoxLayout(left)
-        heading = QLabel("Explorer")
-        heading.setProperty("role", "section")
+        card = Card("Explorer")
+        self.explorer_card = card
         self.filter = QLineEdit()
+        self.filter.setObjectName("codeFilter")
         self.filter.setClearButtonEnabled(True)
         self.filter.setPlaceholderText("Filter layers, helpers and presets")
+        self.filter.addAction(icons.icon("search", tint="faint"), QLineEdit.ActionPosition.LeadingPosition)
         self.explorer = CodeExplorer()
         self.filter.textChanged.connect(self.explorer.set_filter)
         self.explorer.chosen.connect(self._on_chosen)
@@ -284,7 +330,10 @@ class CodePage(Page):
             "or add a .py file",
             lambda: None,
             "add",
+            role="primary",
         )
+        self.new_button.setIcon(icons.icon("add", tint="on_accent"))
+        self.new_button.setProperty("menu", True)
         self.new_menu = QMenu(self.new_button)
         self.new_actions: dict[str, QAction] = {}
         self.new_actions["layer"] = self.new_menu.addAction("Code layer (a Manim scene)", self.new_layer)
@@ -313,117 +362,136 @@ class CodePage(Page):
         )
         self.new_button.setMenu(self.new_menu)
         self.import_folder_button = self._button(
-            "Import…",
+            "Import",
             "Import a folder: add every .py file in it to your presets (a window asks about each)",
             self.import_code_folder,
+            role="ghost",
         )
         self.online_button = self._button(
-            "Online…",
+            "Online",
             "Get presets from the internet: paste a link to a .py file, a GitHub folder or gist, "
             "or an index.json",
             self.get_online,
+            role="ghost",
         )
         self.export_folder_button = self._button(
-            "Export…",
+            "Export",
             "Write layers and presets as .py files; asks about files that already exist",
             self.export_code_folder,
+            role="ghost",
         )
-        self.rename_button = self._button(
+        self.rename_button = self._icon_button(
             "Rename",
             "Rename the chosen layer, helper or preset (F2, or double-click a layer)",
             self.rename_item,
+            "rename",
         )
-        self.delete_button = self._button(
+        self.delete_button = self._icon_button(
             "Delete",
             "Delete the chosen layer or helper (Delete; Ctrl+Z brings it back) or preset (asks first)",
             self.delete_item,
             "delete",
         )
-        grid = QVBoxLayout()
-        for pair in (
-            (self.new_button, self.import_folder_button),
-            (self.online_button, self.export_folder_button),
-            (self.rename_button, self.delete_button),
-        ):
-            row = QHBoxLayout()
-            for button in pair:
-                row.addWidget(button)
-            grid.addLayout(row)
-        column.addWidget(heading)
-        column.addWidget(self.filter)
+        for widget in (self.rename_button, self.delete_button, self.new_button):
+            card.add_action(widget)
+
+        body = QWidget()
+        column = QVBoxLayout(body)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        top = QVBoxLayout()
+        top.setContentsMargins(10, 10, 10, 4)
+        top.addWidget(self.filter)
+        column.addLayout(top)
         column.addWidget(self.explorer, 1)
-        column.addLayout(grid)
-        return left
+        footer = QFrame()
+        footer.setObjectName("explorerFooter")
+        row = QHBoxLayout(footer)
+        row.setContentsMargins(8, 8, 8, 8)
+        row.setSpacing(4)
+        for button in (self.import_folder_button, self.online_button, self.export_folder_button):
+            button.setMinimumWidth(0)
+            row.addWidget(button, 1)
+        column.addWidget(footer)
+        card.set_body(body)
+        return card
 
     def _build_centre(self) -> QWidget:
         centre = QWidget()
         stack = QVBoxLayout(centre)
-        stack.setSpacing(2)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.setSpacing(theme.GUTTER)
         self.editor = CodeEditor()
         self.preview_editor = CodeEditor()
-        self.tabs = QTabBar()
+        for editor in (self.editor, self.preview_editor):
+            editor.setProperty("embedded", True)  # it is the card's body: no frame of its own
+        self.tabs = CodeTabs()
         self.tabs.setObjectName("codeTabs")
         self.tabs.setTabsClosable(True)
         self.tabs.setMovable(True)
         self.tabs.setExpanding(False)
         self.tabs.setDocumentMode(True)
+        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        self.tabs.setUsesScrollButtons(True)
         self.tabs.currentChanged.connect(self._on_tab)
         self.tabs.tabCloseRequested.connect(self._close_tab)
         self.tabs.tabMoved.connect(self._on_tab_moved)
 
-        bar = QHBoxLayout()
         self.title_label = QLabel("")
-        self.title_label.setProperty("role", "section")
-        self.dirty_label = QLabel("Unapplied")
+        self.title_label.setObjectName("codeTitle")
+        self.dirty_label = Chip("Unapplied", "warn")
         self.dirty_label.setObjectName("codeDirty")
-        self.dirty_label.setStyleSheet(f"color: {theme.css(theme.THEME.warning)};")
+        self.dirty_label.setToolTip(
+            "The editor has changes that were not run: Run applies them, Revert drops them"
+        )
         self.revert_button = self._button(
             "Revert",
             "Drop the changes that were not run and show the layer's code again",
             self.revert,
             "revert",
         )
-        self.run_button = self._button(
-            "Run", "Apply the code to the layer and run it (Ctrl+Enter)", self.run, "play"
-        )
+        self.run_button = RunButton(icons.icon("play", tint="on_accent"), "Run")
+        self.run_button.setToolTip("Apply the code to the layer and run it (Ctrl+Enter)")
+        self.run_button.clicked.connect(self.run)
         self.cancel_button = self._button(
             "Cancel",
             "Stop rendering this scene (the picture keeps what it had; Run renders it again)",
             self.cancel_run,
+            "stop",
+            role="danger",
         )
         self.cancel_button.hide()
-        self.convert_button = self._button(
+        self.convert_button = self._icon_button(
             "Convert",
             "Convert to layers: turn this code layer's scene into layers and clips you can edit, in its "
             "place (ADR 0053); a scene with updaters, cameras or custom animations stays code and the "
             "report says why",
             self.convert,
+            "convert",
         )
         self.convert_button.setObjectName("convertToLayers")
-        self.save_code_button = self._button(
-            "Save…", "Save the code shown in the editor as a standalone Python file", self.save_code
+        self.save_code_button = self._icon_button(
+            "Save…",
+            "Save the code shown in the editor as a standalone Python file",
+            self.save_code,
+            "save-file",
         )
         self.outline_button = QToolButton()
-        self.outline_button.setIcon(icons.icon("outline"))
+        self.outline_button.setIcon(icons.icon("outline", tint="muted"))
         self.outline_button.setCheckable(True)
+        self.outline_button.setProperty("icon", True)
+        self.outline_button.setAccessibleName("Selection outline")
         self.outline_button.setToolTip(
             "Draw the selection outline and handles over the picture (off: only the picture shows)"
         )
         self.outline_button.toggled.connect(self._on_outline_toggled)
-        self.progress = QProgressBar()
+        self.progress = ProgressLine()
         self.progress.setObjectName("codeProgress")
-        self.progress.setRange(0, 0)  # busy: it does not know how long
-        self.progress.setTextVisible(False)
-        self.progress.setFixedHeight(7)
-        self.progress.setStyleSheet(
-            f"QProgressBar#codeProgress {{ background: transparent; border: none; }}"
-            f"QProgressBar#codeProgress::chunk {{ background: {theme.css(theme.THEME.accent)}; }}"
-        )
-        self.limit_button = QPushButton("∞  No time limit")
+        self.limit_button = QPushButton("∞  No limit")
         self.limit_button.setObjectName("noTimeLimit")
         self.limit_button.setCheckable(True)
         self.limit_button.setToolTip(
-            "Let a run take as long as it needs. Off: a scene's render is stopped after "
+            "No time limit: let a run take as long as it needs. Off: a scene's render is stopped after "
             f"{limits.RENDER_LIMIT:g} s and a Python object's build after 30 s, so an endless loop cannot "
             "hang the editor. Cancel still stops a render"
         )
@@ -433,32 +501,37 @@ class CodePage(Page):
         self._elapsed_timer.setInterval(100)
         self._elapsed_timer.timeout.connect(self._refresh_running)
         self.editor_menu_button = QToolButton()
-        self.editor_menu_button.setText("Editor")
-        self.editor_menu_button.setToolTip("Find, go to, settings and saving")
+        self.editor_menu_button.setIcon(icons.icon("editor-settings", tint="muted"))
+        self.editor_menu_button.setProperty("icon", True)
+        self.editor_menu_button.setAccessibleName("Editor settings")
+        self.editor_menu_button.setToolTip("Editor: find, go to, settings and saving")
         self.editor_menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.editor_menu = self._build_editor_menu()
         self.editor_menu_button.setMenu(self.editor_menu)
-        bar.addWidget(self.title_label)
-        bar.addWidget(self.dirty_label)
-        bar.addStretch(1)
-        for widget in (
-            self.revert_button,
-            self.convert_button,
-            self.cancel_button,
-            self.limit_button,
-            self.run_button,
-            self.save_code_button,
-            self.outline_button,
-            self.editor_menu_button,
-        ):
-            bar.addWidget(widget)
+        self.live_chip = ToggleChip("Live")
+        self.live_chip.setObjectName("codeLive")
+        self.live_chip.setToolTip(self.live_action.toolTip())
+        self.live_chip.toggled.connect(self.live_action.setChecked)
+        self.live_action.toggled.connect(self.live_chip.setChecked)
+
+        bar = QFrame()
+        bar.setObjectName("codeBar")
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 4, 8, 4)
+        row.setSpacing(6)
+        # The state chips, then the quieter tools; Revert and Run sit at the right of the tabs (below).
+        for widget in (self.dirty_label, self.live_chip, self.limit_button):
+            row.addWidget(widget)
+        row.addStretch(1)
+        for widget in (self.convert_button, self.save_code_button, self.outline_button):
+            row.addWidget(widget)
 
         self.notice = QLabel(
             "The layer's code changed in the project (undo, redo or Properties) while you were editing. "
             "Your text is kept: Revert shows the project's code, Run replaces it."
         )
+        self.notice.setObjectName("codeNotice")
         self.notice.setWordWrap(True)
-        self.notice.setStyleSheet(f"color: {theme.css(theme.THEME.warning)};")
 
         self.editor.runRequested.connect(self.run)
         self.editor.textChanged.connect(self._on_text_changed)
@@ -493,24 +566,73 @@ class CodePage(Page):
         self.views.addWidget(editing)
         self.views.addWidget(self.preset_view)
 
+        self.sidebar_button = QToolButton()
+        self.sidebar_button.setIcon(icons.icon("sidebar", tint="muted"))
+        self.sidebar_button.setProperty("icon", True)
+        self.sidebar_button.setAccessibleName("Explorer")
+        self.sidebar_button.setCheckable(True)
+        self.sidebar_button.setChecked(True)
+        self.sidebar_button.setToolTip("Hide or show the explorer (Ctrl+B)")
+        self.sidebar_button.toggled.connect(self._on_sidebar_toggled)
+        strip = QFrame()
+        strip.setObjectName("codeTabStrip")
+        tab_row = QHBoxLayout(strip)
+        tab_row.setContentsMargins(8, 6, 8, 0)
+        tab_row.setSpacing(6)
+        tab_row.addWidget(self.sidebar_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        tab_row.addWidget(self.tabs, 1, Qt.AlignmentFlag.AlignBottom)
+        for widget in (self.revert_button, self.cancel_button, self.run_button, self.editor_menu_button):
+            tab_row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self.output_toggle = QToolButton()
+        self.output_toggle.setText("Output")
+        self.output_toggle.setIcon(icons.icon("panel", tint="faint"))
+        self.output_toggle.setCheckable(True)
+        self.output_toggle.setChecked(True)
+        self.output_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.output_toggle.setToolTip("Show or hide the render output (Ctrl+J)")
+
+        self.editor_card = Card(header=False)
+        self.editor_card.setObjectName("editorCard")
+        body = QWidget()
+        column = QVBoxLayout(body)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        column.addWidget(strip)
+        column.addWidget(bar)
+        column.addWidget(self.progress)
+        column.addWidget(self.notice)
+        column.addWidget(self.views, 1)
+        column.addWidget(self._build_status())
+        self.editor_card.set_body(body)
+
+        self.output_card = Card(header=False)
+        self.output_card.set_body(self._build_output())
+        self.output_card.setMaximumHeight(OUTPUT_HEIGHT)
+        self.output_toggle.toggled.connect(self._on_output_toggled)
+        stack.addWidget(self.editor_card, 1)
+        stack.addWidget(self.output_card)
+        return centre
+
+    def _build_output(self) -> QWidget:
+        """The bottom card: what the run said (an error as a sentence, the traceback, a hint with a fix),
+        the object's values, its parameters and the history of the code."""
         self.state_label = QLabel("")
         self.state_label.setWordWrap(True)
         self.state_label.setObjectName("codeState")
         self.error_label = ErrorLine()
         self.error_label.setObjectName("codeError")
         self.error_label.clicked.connect(self.go_to_error)
-        self.output_toggle = QToolButton()
-        self.output_toggle.setText("Output")
-        self.output_toggle.setIcon(icons.icon("panel"))
-        self.output_toggle.setCheckable(True)
-        self.output_toggle.setChecked(True)
-        self.output_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.output_toggle.setToolTip("Show or hide the render output (Ctrl+J)")
-        output_page = QWidget()
-        output_lines = QVBoxLayout(output_page)
-        output_lines.setContentsMargins(0, 0, 0, 0)
-        output_lines.addWidget(self.state_label)
-        output_lines.addWidget(self.error_label)
+        self.error_type_chip = Chip("", "bad")
+        self.error_type_chip.setObjectName("codeErrorType")
+        self.error_type_chip.hide()
+        error_row = QHBoxLayout()
+        error_row.setSpacing(8)
+        error_row.addWidget(self.error_type_chip, 0, Qt.AlignmentFlag.AlignTop)
+        error_row.addWidget(self.error_label, 1)
+        self.hint_title = QLabel("")
+        self.hint_title.setObjectName("codeHintTitle")
+        self.hint_title.setWordWrap(True)
         self.hint_label = QLabel("")
         self.hint_label.setWordWrap(True)
         self.hint_label.setObjectName("codeHint")
@@ -520,6 +642,28 @@ class CodePage(Page):
         self.fix_button.setObjectName("codeFix")
         self.fix_button.clicked.connect(self.apply_fix)
         self.fix_button.hide()
+        self.goto_error_button = self._button(
+            "Go to line", "Put the cursor on the line the error points at", self.go_to_error, role="ghost"
+        )
+        self.goto_error_button.setObjectName("codeGoToError")
+        self.goto_error_button.hide()
+        self.hint_card = QFrame()
+        self.hint_card.setObjectName("codeHintCard")
+        self.hint_card.setMinimumWidth(200)
+        self.hint_card.setMaximumWidth(320)
+        card_column = QVBoxLayout(self.hint_card)
+        card_column.setContentsMargins(14, 12, 14, 12)
+        card_column.setSpacing(4)
+        card_column.addWidget(self.hint_title)
+        card_column.addWidget(self.hint_label)
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 6, 0, 0)
+        actions.setSpacing(6)
+        actions.addWidget(self.fix_button)
+        actions.addWidget(self.goto_error_button)
+        actions.addStretch(1)
+        card_column.addLayout(actions)
+        self.hint_card.hide()
         self.trace_label = QLabel("")
         self.trace_label.setObjectName("codeTrace")
         self.trace_label.setFont(theme.mono_font())
@@ -531,9 +675,21 @@ class CodePage(Page):
         self.syntax_label.hide()
         self._fix = ""
         self._fix_helper = ""  # the helper the fix button runs (a helper not trusted yet, ADR 0058)
-        for widget in (self.hint_label, self.fix_button, self.trace_label, self.syntax_label):
-            output_lines.addWidget(widget)
+
+        output_page = QWidget()
+        output_page.setObjectName("codeOutputPage")
+        sides = QHBoxLayout(output_page)
+        sides.setContentsMargins(14, 12, 14, 12)
+        sides.setSpacing(14)
+        output_lines = QVBoxLayout()
+        output_lines.setSpacing(8)
+        output_lines.addWidget(self.state_label)
+        output_lines.addLayout(error_row)
+        output_lines.addWidget(self.trace_label)
+        output_lines.addWidget(self.syntax_label)
         output_lines.addStretch(1)
+        sides.addLayout(output_lines, 1)
+        sides.addWidget(self.hint_card, 0, Qt.AlignmentFlag.AlignTop)
         output_scroll = QScrollArea()
         output_scroll.setWidgetResizable(True)
         output_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -543,55 +699,95 @@ class CodePage(Page):
         )
         self.output = QTabWidget()  # the bottom panel: what the run said, and the object's values
         self.output.setObjectName("codePanel")
+        self.output.setDocumentMode(True)
         self.output.tabBar().setUsesScrollButtons(False)  # a few short tabs: no arrows to make room for
+        self.output.tabBar().setDrawBase(False)
         self.output.addTab(output_scroll, "Output")
         self.output.addTab(self.values, "Values")
         self.params_panel = ParamsDefinitionPanel(self.editor)  # P13.4: define PARAMS with a form
         self.output.addTab(self.params_panel, "Parameters")
-        self.output.setMaximumHeight(240)
-        self.output_toggle.toggled.connect(self._on_output_toggled)
+        self.history_panel = HistoryPanel(self.history_keeper)
+        self.output.addTab(self.history_panel, "History")
+        self.output.currentChanged.connect(self._on_output_tab)
+        hide = QToolButton()
+        hide.setObjectName("codeOutputHide")
+        hide.setIcon(icons.icon("collapse", tint="muted"))
+        hide.setProperty("icon", True)
+        hide.setToolTip("Hide the output (Ctrl+J)")
+        hide.setAccessibleName("Hide the output")
+        hide.clicked.connect(lambda: self.output_toggle.setChecked(False))
+        self.output.setCornerWidget(hide, Qt.Corner.TopRightCorner)
+        return self.output
 
-        self.sidebar_button = QToolButton()
-        self.sidebar_button.setIcon(icons.icon("sidebar"))
-        self.sidebar_button.setCheckable(True)
-        self.sidebar_button.setChecked(True)
-        self.sidebar_button.setToolTip("Hide or show the explorer (Ctrl+B)")
-        self.sidebar_button.toggled.connect(self._on_sidebar_toggled)
-        tab_row = QHBoxLayout()
-        tab_row.addWidget(self.sidebar_button)
-        tab_row.addWidget(self.tabs, 1)
-        stack.addLayout(tab_row)
-        stack.addLayout(bar)
-        stack.addWidget(self.progress)
-        stack.addWidget(self.notice)
-        stack.addWidget(self.views, 1)
-        stack.addWidget(self.output_toggle, 0, Qt.AlignmentFlag.AlignLeft)
-        stack.addWidget(self.output)
-        stack.addLayout(self._build_status())
-        return centre
+    def _build_right(self) -> QWidget:
+        """The preview card (the shared viewer goes in it, see ``place``) over the chapters card."""
+        right = QWidget()
+        column = QVBoxLayout(right)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(theme.GUTTER)
+        self.preview_card = Card("Preview", clip=True)
+        self.preview_chip = Chip("", "neutral")
+        self.preview_chip.setObjectName("codePreviewState")
+        self.preview_chip.hide()
+        self.preview_card.add_title_widget(self.preview_chip)
+        slot = QWidget()
+        self._viewer_slot = QVBoxLayout(slot)
+        self._viewer_slot.setContentsMargins(0, 0, 0, 0)
+        self._viewer_slot.setSpacing(0)
+        self.preview_card.set_body(slot)
+        self.chapters_card = Card("Chapters")
+        self.chapters_panel = ChaptersPanel()
+        self.chapters_card.add_title_widget(self.chapters_panel.count_chip)
+        analyse = self._button(
+            "Analyse",
+            "Analyse the scene: where it can be cut into chapters that render separately",
+            lambda: self.chapter_actions.analyse(),
+            role="ghost",
+        )
+        split = self._button(
+            "Split",
+            "Split into chapters: one layer per chapter; every frame is checked against the full render",
+            lambda: self.chapter_actions.split(),
+        )
+        self.chapters_card.add_action(analyse)
+        self.chapters_card.add_action(split)
+        self.chapters_card.set_body(self.chapters_panel)
+        self.chapters_card.setMaximumHeight(CHAPTERS_HEIGHT)
+        column.addWidget(self.preview_card, 1)
+        column.addWidget(self.chapters_card)
+        return right
 
     def _build_preset_view(self) -> QWidget:
         view = QWidget()
+        view.setObjectName("presetView")
         column = QVBoxLayout(view)
         column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
         self.preset_title = QLabel("")
-        self.preset_title.setProperty("role", "section")
+        self.preset_title.setFont(theme.font("heading"))
         self.preset_note = QLabel("")
         self.preset_note.setWordWrap(True)
+        self.preset_note.setProperty("role", "muted")
         row = QHBoxLayout()
+        row.setSpacing(6)
         self.preset_add_button = self._button(
-            "Add to project", "Add this preset to the project at the playhead", self.add_preset_to_project
+            "Add to project",
+            "Add this preset to the project at the playhead",
+            self.add_preset_to_project,
+            "add",
+            role="primary",
         )
+        self.preset_add_button.setIcon(icons.icon("add", tint="on_accent"))
         self.preset_copy_button = self._button(
             "Edit a copy",
             "Add this preset to the project and open it here to change it (the preset stays as it is)",
             partial(self.add_preset_to_project, True),
         )
         self.preset_export_button = self._button(
-            "Export…", "Write this preset as a .py file", self.export_preset
+            "Export…", "Write this preset as a .py file", self.export_preset, role="ghost"
         )
         self.close_preset_button = self._button(
-            "Close", "Go back to the layer you were editing", self.close_preset
+            "Close", "Go back to the layer you were editing", self.close_preset, role="ghost"
         )
         for button in (
             self.preset_add_button,
@@ -601,30 +797,47 @@ class CodePage(Page):
         ):
             row.addWidget(button)
         row.addStretch(1)
-        column.addWidget(self.preset_title)
-        column.addWidget(self.preset_note)
-        column.addLayout(row)
+        head = QFrame()
+        head.setObjectName("presetHead")
+        head_column = QVBoxLayout(head)
+        head_column.setContentsMargins(14, 10, 14, 10)
+        head_column.setSpacing(6)
+        head_column.addWidget(self.preset_title)
+        head_column.addWidget(self.preset_note)
+        head_column.addLayout(row)
+        column.addWidget(head)
         column.addWidget(self.preview_editor, 1)
         return view
 
-    def _build_status(self) -> QHBoxLayout:
-        row = QHBoxLayout()
+    def _build_status(self) -> QWidget:
+        strip = QFrame()
+        strip.setObjectName("codeStatusStrip")
+        strip.setFixedHeight(28)
+        row = QHBoxLayout(strip)
+        row.setContentsMargins(14, 0, 8, 0)
+        row.setSpacing(12)
         self.cursor_label = QLabel("")
+        self.cursor_label.setFont(theme.font("caption", kind="mono"))
         self.kind_label = QLabel("")
         self.indent_label = QLabel("")
         self.trust_label = QLabel("")
+        self.error_count_label = QLabel("")
+        self.error_count_label.setObjectName("codeErrorCount")
+        self.error_count_label.hide()
         for label in (self.cursor_label, self.indent_label, self.kind_label, self.trust_label):
             label.setProperty("role", "hint")
-            label.setStyleSheet(f"color: {theme.css(theme.THEME.muted)};")
         encoding = QLabel("UTF-8")
-        encoding.setStyleSheet(f"color: {theme.css(theme.THEME.muted)};")
         row.addWidget(self.cursor_label)
         row.addWidget(self.indent_label)
         row.addWidget(encoding)
         row.addStretch(1)
+        row.addWidget(self.error_count_label)
+        row.addWidget(self.title_label)
+        self.title_label.hide()  # the tab names the layer; the label keeps its text for other front-ends
         row.addWidget(self.kind_label)
         row.addWidget(self.trust_label)
-        return row
+        row.addWidget(self.output_toggle)
+        return strip
 
     def _build_editor_menu(self) -> QMenu:
         menu = QMenu(self.editor_menu_button)
@@ -745,8 +958,7 @@ class CodePage(Page):
     # -- the page protocol ----------------------------------------------------------------
 
     def place(self, shared: Shared) -> None:
-        self.split.insertWidget(2, shared.viewer)
-        self.split.setStretchFactor(2, 1)
+        self._viewer_slot.insertWidget(0, shared.viewer, 1)  # in the preview card
         selection = getattr(self.window, "selection", None)
         if selection is not None and not self._selection_connected:  # created after the pages
             self._selection_connected = True
@@ -756,8 +968,9 @@ class CodePage(Page):
         if not self._sized:
             self._sized = True
             total = max(self.split.width(), 1200)
-            side = 230
-            self.split.setSizes([side, total * 45 // 100, total - side - total * 45 // 100])
+            side = 268 if total >= 1360 else 236
+            right = min(440, max(360, total * 30 // 100))
+            self.split.setSizes([side, total - side - right, right])
         self.window.canvas.set_overlays(self.outline_button.isChecked())
         self._refresh_list(force=True)
         self._ensure_layer()
@@ -1238,6 +1451,7 @@ class CodePage(Page):
             self._refresh_output()
             self._refresh_status()
             self._refresh_running()
+            self._refresh_chapters()
 
     def _on_helper_status(self, key: str) -> None:
         """Run on a helper started or reported (ADR 0058); the code importing helpers may say more."""
@@ -1279,7 +1493,6 @@ class CodePage(Page):
             return
         self.editor.set_syntax_problem((problem.line, problem.column, problem.end_line, problem.end_column))
         self.syntax_label.setText(f"Line {problem.line}: {problem.message}")
-        self.syntax_label.setStyleSheet(f"color: {theme.css(theme.THEME.error_text)};")
         self.syntax_label.show()
 
     def apply_fix(self) -> None:
@@ -1305,9 +1518,11 @@ class CodePage(Page):
             "allowed on this computer. Run helper runs it once and allows it."
         )
         self.hint_label.show()
+        self.hint_title.setText(f"Allow the helper {name}?")
         self._fix, self._fix_helper = "", name
         self.fix_button.setText(f"Run helper {name}")
         self.fix_button.show()
+        self._sync_hint_card()
 
     def _show_hint(self, error_type: str, message: str, traceback: str) -> None:
         source = self.editor.text()
@@ -1319,6 +1534,9 @@ class CodePage(Page):
                 tip += "  Did you mean: " + ", ".join(found.suggestions) + "?"
             self.hint_label.setText(tip)
             self.hint_label.show()
+            self.hint_title.setText(
+                f"Did you mean {' or '.join(found.suggestions[:2])}?" if found.suggestions else "A hint"
+            )
         else:
             self.hint_label.hide()
         self.fix_button.setVisible(bool(self._fix))
@@ -1853,7 +2071,7 @@ class CodePage(Page):
         limits.set_unlimited(unlimited)
         adapter.forget_python_builds()  # a build stopped by the old limit is built again
         self.window.prefs.set_option("code_no_time_limit", unlimited)
-        self.limit_button.setText("∞  No time limit" + ("  (on)" if unlimited else ""))
+        self.limit_button.setAccessibleName("No time limit: " + ("on" if unlimited else "off"))
         widget = getattr(self, "widget", None)  # the saved option is applied while the page is built
         if widget is not None and widget.isVisible():
             self.window.statusBar().showMessage(
@@ -1864,8 +2082,20 @@ class CodePage(Page):
             )
 
     def _on_output_toggled(self, shown: bool) -> None:
-        self.output.setVisible(shown)
+        self.output_card.setVisible(shown)  # the card and the panel in it
         self.window.prefs.set_option("code_output_open", shown)
+
+    def _on_output_tab(self, index: int) -> None:
+        if self.output.widget(index) is self.history_panel:
+            self.history_panel.refresh()
+
+    def _on_theme(self) -> None:
+        """Another theme: redo what is written with colours in it (the error's link)."""
+        self._refresh_output()
+
+    def _sync_hint_card(self) -> None:
+        """The hint card shows while it has something to say or a button to press."""
+        self.hint_card.setVisible(not self.hint_label.isHidden() or not self.fix_button.isHidden())
 
     def apply_settings(self, settings) -> None:
         """Show ``settings`` in both editors and in the menu."""
@@ -1916,19 +2146,25 @@ class CodePage(Page):
         self._refresh_status()
         self._refresh_running()
         self._refresh_values()
+        self._refresh_chapters()
+        if self.output.currentWidget() is self.history_panel:
+            self.history_panel.refresh()
+
+    def _refresh_chapters(self) -> None:
+        """The chapters card: where the scene in the editor can be cut, read from its last render."""
+        editing = self.preset_id is None and not self.is_dirty()
+        self.chapters_panel.show_analysis(self.chapter_actions.quiet_analysis() if editing else None)
 
     def _refresh_values(self) -> None:
         """The Values tab follows the layer in the editor (only a Python object has values)."""
         project = self.window.project
         self.values.show_layer(project, self.layer_id)
         python = self._is_python(self.layer_id)
-        self.output.setTabEnabled(1, python)
-        if not python and self.output.currentIndex() == 1:
+        if not python and self.output.currentIndex() in (1, 2):  # before Qt moves it to the next tab
             self.output.setCurrentIndex(0)
+        self.output.setTabEnabled(1, python)
         self.params_panel.set_active(python and self.preset_id is None)
         self.output.setTabEnabled(2, python)
-        if not python and self.output.currentIndex() == 2:
-            self.output.setCurrentIndex(0)
 
     def _refresh_status(self) -> None:
         """The strip under the editor: cursor, indent, what the layer is and whether it may run."""
@@ -1938,12 +2174,22 @@ class CodePage(Page):
         if self.layer_id is None:
             self.kind_label.setText("")
             self.trust_label.setText("")
+            self.preview_chip.hide()
             return
         helper = name_of(self.layer_id) is not None
         kind = "Helper" if helper else "Python object" if self._is_python(self.layer_id) else "Manim scene"
         self.kind_label.setText(kind)
         status = self.status(self.layer_id)
         state = "" if status is None else status.state
+        chip = STATE_CHIPS.get(state)
+        if chip is not None:
+            text, tone = chip
+            if state == "ready" and status.frames:
+                text = f"Ready · {status.frames} frames"
+            self.preview_chip.setText(text)
+            if self.preview_chip.property("tone") != tone:
+                self.preview_chip.set_tone(tone)
+        self.preview_chip.setVisible(chip is not None)
         self.trust_label.setText(
             {
                 "untrusted": "Not run yet - Ctrl+Enter to allow",
@@ -1964,6 +2210,7 @@ class CodePage(Page):
         dirty = self.is_dirty()
         line = None
         self.error_label.hide()
+        self.error_type_chip.hide()
         self.hint_label.hide()
         self.fix_button.hide()
         self.trace_label.hide()
@@ -1992,6 +2239,8 @@ class CodePage(Page):
                 self.error_label.show_error(status.error, error_line("error", status.line))
                 line = self.error_label.line
             self.error_label.show()
+            self.error_type_chip.setText(status.error_type)
+            self.error_type_chip.setVisible(bool(status.error_type))
             self._show_hint(status.error_type, status.error, status.traceback)
             if dirty:
                 text += " (from the last run)"
@@ -2018,11 +2267,21 @@ class CodePage(Page):
         if dirty and status is not None and status.state != "error":
             text += " - the editor has changes that were not run (Ctrl+Enter)"
         self.state_label.setText(text)
-        self.state_label.setStyleSheet(f"color: {theme.css(colour)};")
+        tone = "bad" if colour == colours.error_text else ""
+        if self.state_label.property("tone") != tone:
+            self.state_label.setProperty("tone", tone)
+            self.state_label.style().unpolish(self.state_label)
+            self.state_label.style().polish(self.state_label)
         self.editor.set_error_line(None if dirty else line)  # an edited text's lines have moved
         has_error = failed is not None or (status is not None and status.state == "error")
-        self.output_toggle.setText("Output  (error)" if has_error else "Output")
+        self.output_toggle.setAccessibleName("Output (error)" if has_error else "Output")  # the strip says "1 error"
+        self.error_count_label.setText("1 error")
+        self.error_count_label.setVisible(has_error)
+        target = self.error_label.line
+        self.goto_error_button.setText(f"Go to line {target}" if target else "Go to line")
+        self.goto_error_button.setVisible(bool(target) and not self.error_label.isHidden() and not failed)
         self._show_helper_hint()  # a helper the code imports that may not run yet (ADR 0058)
+        self._sync_hint_card()
 
     def _sections(self) -> list[Section]:
         layers = self._layers()
@@ -2033,6 +2292,7 @@ class CodePage(Page):
             state = {"rendering": "running", "checking": "running"}.get(
                 status.state if status is not None else "", status.state if status is not None else ""
             )
+            badge = "built" if state in ("ready", "built") else ""
             state = state if state in ("error", "untrusted", "running", "queued") else ""
             kind = "object" if layer.spec.type in PYTHON_TYPES else "scene"
             tip = {
@@ -2041,7 +2301,9 @@ class CodePage(Page):
             }.get(state, "")
             if layer.id in dirty:
                 tip = "Unapplied changes: Run applies them"
-            project_rows.append(Row(layer.id, layer.label, kind, "layer", tip, layer.id in dirty, state))
+            project_rows.append(
+                Row(layer.id, layer.label, kind, "layer", tip, layer.id in dirty, state, badge=badge)
+            )
         sections = [
             Section(
                 "project",
@@ -2063,6 +2325,7 @@ class CodePage(Page):
                     match=" ".join(
                         [p.description, *p.tags, p.kind, "mine" if p.origin == "user" else p.origin]
                     ),
+                    badge=PRESET_BADGES.get(p.origin, ""),
                 )
                 for p in presets
                 if p.origin == origin

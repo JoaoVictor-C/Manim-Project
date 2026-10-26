@@ -30,6 +30,7 @@ from ...core.exchange import preset_online
 from ...core.exchange.code_import import ImportItem
 from ...core.exchange.preset_online import OnlineEntry, OnlineError
 from ..code.code_editor import CodeEditor
+from ..code.dialog_frame import DialogFrame, ghost
 
 SOURCES_OPTION = "code_online_sources"
 MAX_SOURCES = 20
@@ -100,11 +101,10 @@ class OnlinePresetsDialog(QDialog):
         self._jobs: list[_Job] = []  # kept alive until they report
         self._busy = False
 
-        layout = QVBoxLayout(self)
-        note = QLabel(HINT)
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        frame = DialogFrame(self, "import", "Get presets online", HINT)
+        layout = frame.body
         row = QHBoxLayout()
+        row.setSpacing(8)
         self.link = QComboBox()
         self.link.setEditable(True)
         self.link.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -114,7 +114,7 @@ class OnlinePresetsDialog(QDialog):
         self.link.lineEdit().returnPressed.connect(self.fetch_list)
         self.fetch_button = QPushButton("Find presets")
         self.fetch_button.clicked.connect(self.fetch_list)
-        self.forget_button = QPushButton("Forget link")
+        self.forget_button = ghost(QPushButton("Forget link"))
         self.forget_button.setToolTip("Remove this link from the saved ones")
         self.forget_button.clicked.connect(self.forget)
         row.addWidget(self.link, 1)
@@ -123,6 +123,7 @@ class OnlinePresetsDialog(QDialog):
         layout.addLayout(row)
 
         split = QSplitter(Qt.Orientation.Horizontal)
+        split.setHandleWidth(16)
         self.list = QListWidget()
         self.list.setObjectName("onlineItems")
         self.list.currentRowChanged.connect(self._on_row)
@@ -144,7 +145,7 @@ class OnlinePresetsDialog(QDialog):
 
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        layout.addWidget(self.status)
+        self.status.setProperty("role", "muted")
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -152,7 +153,8 @@ class OnlinePresetsDialog(QDialog):
         self.import_button.setText("Download and import…")
         self.buttons.accepted.connect(self.download_checked)
         self.buttons.rejected.connect(self.reject)
-        layout.addWidget(self.buttons)
+        frame.add_footer(self.status, 1)
+        frame.add_buttons(self.buttons)
         self._refresh()
 
     # -- running work off the interface thread -----------------------------------------------

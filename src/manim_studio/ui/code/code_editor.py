@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import replace
 
-from PySide6.QtCore import QEvent, QRect, QSize, QStringListModel, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, QStringListModel, Qt, Signal, Slot
 from PySide6.QtGui import (
     QColor,
     QKeyEvent,
@@ -38,6 +38,7 @@ from PySide6.QtWidgets import QCompleter, QPlainTextEdit, QTextEdit, QToolTip, Q
 from ...core.assist import completion, snippets
 from ..session.editor_settings import MAX_FONT_SIZE, MIN_FONT_SIZE, EditorSettings, clamp
 from ..style import theme
+from . import code_chrome  # noqa: F401 - its stylesheet rules give the completion popup the menu look
 from .code_drafts import clamp_line
 from .code_syntax import NORMAL, scan_line
 
@@ -56,8 +57,19 @@ class PythonHighlighter(QSyntaxHighlighter):
 
     def __init__(self, document: QTextDocument) -> None:
         super().__init__(document)
-        colours = theme.THEME
         self.formats: dict[str, QTextCharFormat] = {}
+        self._build_formats()
+        theme.signals.themeChanged.connect(self.on_theme)
+
+    @Slot(str)
+    def on_theme(self, _name: str = "") -> None:
+        """Another theme: colour the text again in its syntax colours."""
+        self._build_formats()
+        self.rehighlight()
+
+    def _build_formats(self) -> None:
+        colours = theme.THEME
+        self.formats = {}
         for kind, token in (
             ("keyword", colours.syntax_keyword),
             ("string", colours.syntax_string),
@@ -110,6 +122,9 @@ class CodeEditor(QPlainTextEdit):
         self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.activated[str].connect(self._complete_with)
+        popup = self._completer.popup()  # the menu look (Lumen): rounded, raised, the accent on the choice
+        popup.setObjectName("codeCompletion")
+        popup.setFont(theme.mono_font())
         self._snippet_stops: list[tuple[QTextCursor, QTextCursor]] = []  # places Tab still visits
         self._syntax: tuple[int, int, int, int] | None = None  # line, column, end line, end column
         self._search_selections: list[QTextEdit.ExtraSelection] = []
@@ -792,7 +807,7 @@ class CodeEditor(QPlainTextEdit):
         if not self._settings.line_numbers:
             return 0
         digits = max(3, len(str(self.blockCount())))
-        return 12 + self.fontMetrics().horizontalAdvance("9") * digits
+        return 28 + self.fontMetrics().horizontalAdvance("9") * digits  # the numbers and 16 px after them
 
     def _update_margin(self, *_args) -> None:
         self.setViewportMargins(self.gutter_width(), 0, 0, 0)
@@ -814,25 +829,39 @@ class CodeEditor(QPlainTextEdit):
         self._gutter.setGeometry(QRect(area.left(), area.top(), self.gutter_width(), area.height()))
 
     def paint_gutter(self, rect: QRect) -> None:
+        """Line numbers on the editor's own colour (Lumen): faint, the current one in the text colour, the
+        error's in the error colour; the current and the error line carry their tint into the gutter with a
+        2 px bar at the left (accent, danger)."""
         colours = theme.THEME
         painter = QPainter(self._gutter)
-        painter.fillRect(rect, theme.qcolor(colours.panel))
-        current = self.textCursor().blockNumber()
+        painter.fillRect(rect, theme.qcolor(colours.field))
+        current = self.textCursor().blockNumber() if self._settings.highlight_line else -1
         block = self.firstVisibleBlock()
         top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
         height = self.fontMetrics().height()
+        width = self._gutter.width()
         while block.isValid() and top <= rect.bottom():
             number = block.blockNumber()
             if block.isVisible() and top + height >= rect.top():
-                if number + 1 == self._error_line:
+                line_height = round(self.blockBoundingRect(block).height())
+                error = number + 1 == self._error_line
+                if error or number == current:
+                    tint, bar = (
+                        (colours.code_error_line, colours.danger)
+                        if error
+                        else (colours.code_line, colours.accent)
+                    )
+                    painter.fillRect(0, top, width, line_height, theme.qcolor(tint))
+                    painter.fillRect(0, top, 2, line_height, theme.qcolor(bar))
+                if error:
                     colour = colours.error_text
                 else:
-                    colour = colours.text if number == current else colours.muted
+                    colour = colours.text if number == self.textCursor().blockNumber() else colours.faint
                 painter.setPen(theme.qcolor(colour))
                 painter.drawText(
                     0,
                     top,
-                    self._gutter.width() - 6,
+                    width - 12,
                     height,
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                     str(number + 1),

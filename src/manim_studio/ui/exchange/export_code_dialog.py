@@ -24,11 +24,11 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
-    QVBoxLayout,
     QWidget,
 )
 
 from ...core.exchange.code_export import ExportEntry, ExportOptions
+from ..code.dialog_frame import DialogFrame, ghost
 
 GROUP_TITLES = {"project": "In this project", "preset": "Presets"}
 
@@ -48,8 +48,13 @@ class ExportCodeDialog(QDialog):
         self.resize(520, 560)
         options = options or ExportOptions()
         self.entries = entries
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Write these as .py files:"))
+        frame = DialogFrame(
+            self,
+            "export",
+            "Export code",
+            "Write these as .py files. A file that already exists is asked about when it is written.",
+        )
+        layout = frame.body
         self.list = QListWidget()
         self.list.setObjectName("exportItems")
         self.list.itemChanged.connect(self._refresh)
@@ -75,8 +80,8 @@ class ExportCodeDialog(QDialog):
                 self._rows.append(entry)
         layout.addWidget(self.list, 1)
         row = QHBoxLayout()
-        all_button = QPushButton("Select all")
-        none_button = QPushButton("Select none")
+        all_button = ghost(QPushButton("Select all"))
+        none_button = ghost(QPushButton("Select none"))
         all_button.clicked.connect(lambda: self._set_all(True))
         none_button.clicked.connect(lambda: self._set_all(False))
         row.addWidget(all_button)
@@ -108,14 +113,15 @@ class ExportCodeDialog(QDialog):
         layout.addWidget(self.manifest)
         self.message = QLabel("")
         self.message.setWordWrap(True)
-        layout.addWidget(self.message)
+        self.message.setProperty("role", "message")
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Export")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
-        layout.addWidget(self.buttons)
+        frame.add_footer(self.message, 1)
+        frame.add_buttons(self.buttons)
         self._refresh()
 
     def _set_all(self, on: bool) -> None:

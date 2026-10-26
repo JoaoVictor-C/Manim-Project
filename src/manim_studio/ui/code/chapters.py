@@ -12,18 +12,37 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
-from PySide6.QtGui import QFontDatabase
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QPlainTextEdit, QVBoxLayout
+from PySide6.QtCore import QObject, QRectF, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtGui import QFont, QFontMetricsF, QPainter, QPen
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPlainTextEdit,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ...core.code import scene_analysis, scene_split
 from ...core.code.code_cache import CodeClip
 from ...core.code.scene_analysis import Analysis
 from ...core.editing import edits
 from ...core.model.schema import CODE_TYPES
+from ..style import theme
+from ..style.card import Chip
+from .code_chrome import chip_font, paint_chip
+from .dialog_frame import DialogFrame
 
 if TYPE_CHECKING:
     from ..pages.code import CodePage
+
+
+EMPTY = "Run the scene: its chapters - the parts that can render separately - are listed here."
 
 
 class ReportDialog(QDialog):
@@ -33,9 +52,10 @@ class ReportDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(720, 460)
+        frame = DialogFrame(self, "chapters", title, "Where this scene can be cut into chapters")
         self.report = QPlainTextEdit(text)
         self.report.setReadOnly(True)
-        self.report.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+        self.report.setFont(theme.mono_font())
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         self.split_button = buttons.addButton("Split into chapters", QDialogButtonBox.ButtonRole.AcceptRole)
         self.split_button.setEnabled(can_split)
@@ -45,9 +65,141 @@ class ReportDialog(QDialog):
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.report)
-        layout.addWidget(buttons)
+        frame.body.addWidget(self.report)
+        frame.add_buttons(buttons)
+
+
+NUMBER_ROLE = Qt.ItemDataRole.UserRole
+DETAIL_ROLE = Qt.ItemDataRole.UserRole + 1
+CHIP_ROLE = Qt.ItemDataRole.UserRole + 2
+
+
+def _clock(seconds: float) -> str:
+    whole = max(0, int(seconds))
+    return f"{whole // 60}:{whole % 60:02d}"
+
+
+def chapter_rows(analysis: Analysis | None) -> list[tuple[int, str, str, str]]:
+    """(number, title, detail, chip) for each chapter of ``analysis``: the first statement names it, the
+    detail says its lines and times, the chip its frames."""
+    if analysis is None or not analysis.ok or not analysis.chapters:
+        return []
+    rows = []
+    fps = analysis.fps or 1
+    for number, chapter in enumerate(analysis.chapters, 1):
+        statements = analysis.statements[chapter.first : chapter.end]
+        if not statements:
+            continue
+        first, last = statements[0].first_line, statements[-1].last_line
+        end_frame = chapter.end_frame if chapter.end_frame is not None else analysis.total_frames
+        start = chapter.start_time if chapter.start_time else chapter.start_frame / fps
+        end = start + (end_frame - chapter.start_frame) / fps
+        detail = f"lines {first} – {last} · {_clock(start)} – {_clock(end)}"
+        frames = end_frame - chapter.start_frame
+        rows.append((number, statements[0].text, detail, f"{frames} frames"))
+    return rows
+
+
+class _ChapterDelegate(QStyledItemDelegate):
+    """A chapter as a raised row: its number in the accent, the first statement, lines and times, frames."""
+
+    def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
+        return QSize(option.rect.width(), 52)
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        colours = theme.THEME
+        rect = QRectF(option.rect).adjusted(0, 0, 0, -6)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        painter.setPen(QPen(theme.qcolor(colours.accent_line if selected else colours.line), 1))
+        painter.setBrush(theme.qcolor(colours.accent_soft if selected else colours.raised))
+        painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), theme.RADIUS_ROW, theme.RADIUS_ROW)
+        number = theme.font("label", kind="mono")
+        number.setBold(True)
+        painter.setFont(number)
+        painter.setPen(theme.qcolor(colours.accent_text))
+        painter.drawText(
+            QRectF(rect.left() + 12, rect.top(), 20, rect.height()),
+            Qt.AlignmentFlag.AlignVCenter,
+            str(index.data(NUMBER_ROLE)),
+        )
+        right = rect.right() - 10
+        chip = str(index.data(CHIP_ROLE) or "")
+        if chip:
+            width = QFontMetricsF(chip_font()).horizontalAdvance(chip) + 14
+            box = QRectF(right - width, rect.center().y() - 9, width, 18)
+            paint_chip(painter, box, chip)
+            right = box.left() - 8
+        left = rect.left() + 36
+        title = theme.font("label")
+        title.setWeight(QFont.Weight.DemiBold)
+        painter.setFont(title)
+        painter.setPen(theme.qcolor(colours.text))
+        text = painter.fontMetrics().elidedText(
+            str(index.data(Qt.ItemDataRole.DisplayRole) or ""), Qt.TextElideMode.ElideRight, int(right - left)
+        )
+        painter.drawText(QRectF(left, rect.top() + 6, right - left, 18), Qt.AlignmentFlag.AlignVCenter, text)
+        painter.setFont(theme.font("caption"))
+        painter.setPen(theme.qcolor(colours.faint))
+        detail = painter.fontMetrics().elidedText(
+            str(index.data(DETAIL_ROLE) or ""), Qt.TextElideMode.ElideRight, int(right - left)
+        )
+        painter.drawText(
+            QRectF(left, rect.top() + 24, right - left, 16), Qt.AlignmentFlag.AlignVCenter, detail
+        )
+        painter.restore()
+
+
+class ChaptersPanel(QWidget):
+    """The Chapters card's body (ADR 0061): the chapters the last render of the scene allows, or why none."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("chaptersPanel")
+        self.count_chip = Chip("", "neutral")
+        self.count_chip.hide()
+        self.list = QListWidget()
+        self.list.setObjectName("codeChapters")
+        self.list.setItemDelegate(_ChapterDelegate(self.list))
+        self.list.setFrameShape(QListWidget.Shape.NoFrame)
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.empty = QLabel(EMPTY)
+        self.empty.setObjectName("chaptersEmpty")
+        self.empty.setWordWrap(True)
+        self.empty.setProperty("role", "hint")
+        column = QVBoxLayout(self)
+        column.setContentsMargins(10, 8, 10, 8)
+        column.setSpacing(4)
+        column.addWidget(self.empty)
+        column.addWidget(self.list, 1)
+        self.rows: list[tuple[int, str, str, str]] = []
+        self.show_analysis(None)
+
+    def show_analysis(self, analysis: Analysis | None) -> None:
+        rows = chapter_rows(analysis)
+        if analysis is not None and analysis.ok and not rows:
+            note = "No cut point: the scene is one chapter." if analysis.total_frames else EMPTY
+        elif analysis is not None and not analysis.ok:
+            note = f"Not analysed: {analysis.problem}"
+        else:
+            note = EMPTY
+        self.empty.setText(note)
+        self.empty.setVisible(not rows)
+        self.list.setVisible(bool(rows))
+        self.count_chip.setText(str(len(rows)))
+        self.count_chip.setVisible(bool(rows))
+        if rows == self.rows:
+            return
+        self.rows = rows
+        self.list.clear()
+        for number, title, detail, chip in rows:
+            item = QListWidgetItem(title)
+            item.setData(NUMBER_ROLE, number)
+            item.setData(DETAIL_ROLE, detail)
+            item.setData(CHIP_ROLE, chip)
+            item.setToolTip(f"Chapter {number}: {title} ({detail})")
+            self.list.addItem(item)
 
 
 class _Check(QRunnable):
@@ -147,6 +299,36 @@ class ChapterActions:
     def __init__(self, page: CodePage) -> None:
         self.page = page
         self.verifier: ChapterVerifier | None = None
+        self._quiet: tuple[tuple, Analysis | None] | None = None  # (what it was read from, the analysis)
+
+    def quiet_analysis(self) -> Analysis | None:
+        """The analysis of the scene in the editor for the Chapters card, or None - saying nothing when there
+        is none (the commands below explain why). Read again only when the code or its render changed."""
+        page, window = self.page, self.window
+        project = window.project
+        layer_id = page.layer_id
+        layer = None if project is None else next((x for x in project.layers if x.id == layer_id), None)
+        if layer is None or layer.spec is None or layer.spec.type not in CODE_TYPES:
+            return None
+        status = page.status(layer_id)
+        if status is None or status.state != "ready":
+            return None
+        code = str(layer.spec.params.get("code", ""))
+        key = (layer.id, code, status.frames)
+        if self._quiet is not None and self._quiet[0] == key:
+            return self._quiet[1]
+        try:
+            clip = window.code.cache.open(window.evaluator.code_key(layer))
+        except (OSError, ValueError, KeyError):
+            clip = None
+        result = None
+        if clip is not None:
+            try:
+                result = scene_analysis.analyse(code, clip.probes, clip.fps, clip.frame_count)
+            except (SyntaxError, ValueError):
+                result = None
+        self._quiet = (key, result)
+        return result
 
     @property
     def window(self):
