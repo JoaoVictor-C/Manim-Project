@@ -7,6 +7,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import time
 from pathlib import Path
 
 import pytest
@@ -100,11 +101,12 @@ def test_recent_projects_are_cards_with_their_name_and_path(qt_app, tmp_path) ->
 def test_a_thumbnail_is_chosen_by_name_and_edited_text_says_when(qt_app, tmp_path) -> None:
     path = tmp_path / "x.json"
     path.write_text("{}", encoding="utf-8")
-    mtime = path.stat().st_mtime
-    assert welcome.edited_text(path, mtime + 100) == "Edited today"
-    assert welcome.edited_text(path, mtime + 86400 * 1.5) == "Edited yesterday"
-    assert welcome.edited_text(path, mtime + 86400 * 4) == "Edited 4 days ago"
-    assert welcome.edited_text(path, mtime + 86400 * 9) == "Edited last week"
+    noon = time.mktime((2026, 3, 10, 12, 0, 0, 0, 0, -1))  # local noon: whole days away stay whole days
+    os.utime(path, (noon, noon))
+    assert welcome.edited_text(path, noon + 3600) == "Edited today"
+    assert welcome.edited_text(path, noon + 86400) == "Edited yesterday"
+    assert welcome.edited_text(path, noon + 86400 * 4) == "Edited 4 days ago"
+    assert welcome.edited_text(path, noon + 86400 * 9) == "Edited last week"
     assert welcome.edited_text(tmp_path / "gone.json") == ""
 
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import math
 import time
 import zlib
+from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
@@ -182,7 +183,8 @@ def edited_text(path: Path, now: float | None = None) -> str:
         modified = path.stat().st_mtime
     except OSError:
         return ""
-    days = int((time.time() if now is None else now) // 86400 - modified // 86400)
+    today = date.fromtimestamp(time.time() if now is None else now)  # calendar days, in local time
+    days = (today - date.fromtimestamp(modified)).days
     if days <= 0:
         return "Edited today"
     if days == 1:
@@ -597,7 +599,7 @@ class WelcomePanel(QWidget):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        width = self.width()
+        width = self.width() - 14  # room for the scroll bar
         self._margin = max(28, min(80, round(width * 0.055)))
         self.content.layout().setContentsMargins(
             self._margin, 36 if self.height() > 560 else 20, self._margin, 26
