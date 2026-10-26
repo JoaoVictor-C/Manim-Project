@@ -25,17 +25,17 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 from PySide6.QtCore import QLineF, QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QMenu, QWidget
 
 from ...core.editing import edits
 from ...core.model.schema import Easing, Layer, Project
 from ..session.document import Document
 from ..session.selection import Selection
-from ..style import theme
-from . import curve_editor, graph_model
+from . import curve_editor, graph_model, paint
 from .graph_model import BY_NAME, Curve, Point, ValueView
 from .model import TimeScale
+from .paint import colour
 
 RULER = 20.0  # px: the time strip at the top (click to scrub)
 AXIS = 56.0  # px: the value labels on the left
@@ -291,16 +291,18 @@ class GraphEditor(QWidget):
         return cache
 
     def paintEvent(self, event) -> None:
-        colours = theme.THEME
+        """Lumen (P17.4b): hairline grid, mono labels; the focused curve drawn thick in a gradient with a
+        soft fill under it, the others thin in their colours; keys as rounded diamonds."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), theme.qcolor(colours.track))
+        painter.fillRect(self.rect(), colour("track"))
         rect = self.plot_rect()
-        painter.fillRect(QRectF(0, 0, self.width(), RULER), theme.qcolor(colours.ruler))
-        muted = theme.qcolor(colours.muted)
+        painter.fillRect(QRectF(0, 0, self.width(), RULER), colour("ruler"))
+        painter.fillRect(QRectF(0, RULER - 1, self.width(), 1), colour("line"))
         layer = self.layer
         if layer is None:
-            painter.setPen(muted)
+            painter.setFont(paint.font("body"))
+            painter.setPen(colour("muted"))
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "Select an object to see its keyframes")
             self._draw_playhead(painter, rect)
             painter.end()
@@ -312,33 +314,34 @@ class GraphEditor(QWidget):
         focus = self.focus_curve()
         order = sorted(self.curves(), key=lambda c: focus is not None and c.name == focus.name)
         for curve in order:  # the focused curve on top
-            pen = QPen(theme.qcolor(getattr(colours, curve.token)), 2.5 if curve is focus else 1.5)
-            if not layer.tracks.get(curve.prop):
-                pen.setStyle(Qt.PenStyle.DashLine)
+            keyed = bool(layer.tracks.get(curve.prop))
+            ink = colour(curve.token)
+            if curve is focus and keyed:
+                self._draw_main_curve(
+                    painter, rect, cache.polylines[curve.name], cache.lines[curve.name], ink
+                )
+                continue
+            pen = QPen(ink, 1.6)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            if not keyed:
+                pen.setStyle(Qt.PenStyle.CustomDashLine)
+                pen.setDashPattern([4, 4])
                 pen.setWidthF(1.0)
+            elif focus is not None:  # behind the focused one: quieter
+                ink.setAlphaF(0.75)
+                pen.setColor(ink)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawLines(cache.lines[curve.name])
         selected = self.highlighted()
-        painter.setPen(QPen(theme.qcolor(colours.key_edge), 1))
         for point in self.points():
             hot = (point.curve, point.t) in selected
-            token = colours.key_selected if hot else getattr(colours, BY_NAME[point.curve].token)
-            painter.setBrush(theme.qcolor(token))
-            size = KEY_PX + (1.5 if hot else 0.0)
-            painter.drawPolygon(
-                QPolygonF(
-                    [
-                        QPointF(point.x, point.y - size),
-                        QPointF(point.x + size, point.y),
-                        QPointF(point.x, point.y + size),
-                        QPointF(point.x - size, point.y),
-                    ]
-                )
-            )
+            fill = colour("key_selected" if hot else BY_NAME[point.curve].token)
+            paint.paint_key(painter, QPointF(point.x, point.y), KEY_PX + (1.0 if hot else 0.5), fill, hot)
         painter.restore()
         if not any(layer.tracks.get(c.prop) for c in self.curves()):
-            painter.setPen(muted)
+            painter.setFont(paint.font("body"))
+            painter.setPen(colour("muted"))
             painter.drawText(
                 rect.adjusted(0, 8, 0, 0),
                 Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
@@ -347,40 +350,81 @@ class GraphEditor(QWidget):
         self._draw_playhead(painter, rect)
         painter.end()
 
+    @staticmethod
+    def _draw_main_curve(painter: QPainter, rect: QRectF, polyline, lines, ink: QColor) -> None:
+        """The focused curve: a soft fill down to the plot's foot, then a 3 px stroke running from its
+        colour into the accent's second end."""
+        if len(polyline) >= 2:
+            area = QPolygonF([QPointF(x, y) for x, y in polyline])
+            area.append(QPointF(polyline[-1][0], rect.bottom()))
+            area.append(QPointF(polyline[0][0], rect.bottom()))
+            wash = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+            top, foot = QColor(ink), QColor(ink)
+            top.setAlphaF(0.16)
+            foot.setAlphaF(0.02)
+            wash.setColorAt(0.0, top)
+            wash.setColorAt(1.0, foot)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(wash))
+            painter.drawPolygon(area)
+        stroke = QLinearGradient(rect.topLeft(), rect.topRight())
+        stroke.setColorAt(0.0, ink)
+        end = colour("accent_2")
+        stroke.setColorAt(
+            1.0,
+            QColor(
+                (ink.red() + end.red()) // 2, (ink.green() + end.green()) // 2, (ink.blue() + end.blue()) // 2
+            ),
+        )
+        pen = QPen(QBrush(stroke), 3.0)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLines(lines)
+
     def _draw_grid(self, painter: QPainter, rect: QRectF) -> None:
-        colours = theme.THEME
-        grid, muted = QPen(theme.qcolor(colours.grid), 1), theme.qcolor(colours.muted)
+        grid, faint = colour("line"), colour("faint")
+        mono = paint.font("caption", kind="mono", weight=QFont.Weight.Normal)
+        painter.setFont(mono)
         t0, t1 = self.t_of(rect.left()), self.t_of(rect.right())
         step = graph_model.nice_step(1 / self.scale.px_per_second)
         for t in graph_model.ticks(t0, t1, step):
-            x = self.x_of(t)
-            painter.setPen(grid)
-            painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
-            painter.setPen(muted)
-            painter.drawText(QPointF(x + 3, RULER - 6), f"{t:g} s")
+            x = round(self.x_of(t))
+            painter.fillRect(QRectF(x, rect.top(), 1, rect.height()), grid)
+            painter.fillRect(QRectF(x, RULER - 6, 1, 5), colour("line_strong"))
+            painter.setPen(faint)
+            painter.drawText(QPointF(x + 4, RULER - 7), f"{t:g} s")
+        painter.fillRect(QRectF(rect.left(), rect.bottom(), rect.width(), 1), colour("line_strong"))
         curve = self.focus_curve()
         if curve is None or curve.name not in self.ranges:
             return
         lo, hi = self.value_of(curve, rect.bottom()), self.value_of(curve, rect.top())
         step = graph_model.nice_step((hi - lo) / rect.height(), 36.0)
-        painter.setPen(theme.qcolor(getattr(colours, curve.token)))
-        painter.drawText(QRectF(2, 2, AXIS + 80, RULER - 4), Qt.AlignmentFlag.AlignVCenter, curve.label)
+        painter.setFont(paint.font("caption", weight=QFont.Weight.DemiBold))
+        painter.setPen(colour(curve.token))
+        painter.drawText(QRectF(6, 1, AXIS + 80, RULER - 2), Qt.AlignmentFlag.AlignVCenter, curve.label)
+        painter.setFont(mono)
         for value in graph_model.ticks(lo, hi, step):
-            y = self.y_of(curve, value)
-            painter.setPen(grid)
-            painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
-            painter.setPen(muted)
+            y = round(self.y_of(curve, value))
+            painter.fillRect(QRectF(rect.left(), y, rect.width(), 1), grid)
+            painter.setPen(faint)
             painter.drawText(
-                QRectF(0, y - 8, AXIS - 6, 16),
+                QRectF(0, y - 8, AXIS - 8, 16),
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                 f"{round(value, 6):g}",
             )
 
     def _draw_playhead(self, painter: QPainter, rect: QRectF) -> None:
+        """The playhead as on the timeline: 2 px in the accent's gradient with a soft glow."""
         x = self.x_of(self.playhead())
         if rect.left() <= x <= rect.right():
-            painter.setPen(QPen(theme.qcolor(theme.THEME.playhead), 1.5))
-            painter.drawLine(QPointF(x, 0), QPointF(x, rect.bottom()))
+            glow = colour("accent_2", 0.12)
+            painter.fillRect(QRectF(x - 2, 0, 4, rect.bottom()), glow)
+            gradient = QLinearGradient(QPointF(x, 0), QPointF(x, rect.bottom()))
+            gradient.setColorAt(0.0, colour("accent_2"))
+            gradient.setColorAt(1.0, colour("accent"))
+            painter.fillRect(QRectF(x - 1, 0, 2, rect.bottom()), QBrush(gradient))
 
     # -- hits ----------------------------------------------------------------------------
 
