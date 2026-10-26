@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QPlainTextEdit, QPushButton, QWidget
 
 from ... import plugins
 from ...core.engine import adapter
+from ..style import icons, theme
+from ..style.dialog_chrome import DialogFrame
 
 
 def report() -> str:
@@ -41,24 +43,34 @@ def startup_message() -> str | None:
     return f"{count} plugin{'s' if count > 1 else ''} could not load: see Help > Plugins"
 
 
+def summary() -> str:
+    """The dialog's one-line description: how many loaded and how many did not."""
+    loaded, problems = len(plugins.loaded), len(plugins.problems)
+    if not loaded and not problems:
+        return "No plugins are installed. They load when the editor starts."
+    parts = [f"{loaded} loaded"]
+    if problems:
+        parts.append(f"{problems} could not load")
+    return ", ".join(parts).capitalize() + ". Changes need a restart."
+
+
 class PluginsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Plugins")
-        self.resize(640, 360)
+        self.resize(640, 400)
+        self.frame = DialogFrame(
+            self, "plugin", "Plugins", summary(), tone="warn" if plugins.problems else "accent"
+        )
         self.text = QPlainTextEdit(report())
         self.text.setReadOnly(True)
-        self.open_folder = QPushButton("Open Plugin Folder")
+        self.text.setFont(theme.mono_font())
+        self.frame.body.addWidget(self.text, 1)
+        self.open_folder = self.frame.add_left(QPushButton("Open Plugin Folder"))
+        self.open_folder.setIcon(icons.icon("folder"))
         self.open_folder.clicked.connect(self._open_folder)
-        close = QPushButton("Close")
+        close = self.frame.add_button("Close", "primary")
         close.clicked.connect(self.accept)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.open_folder)
-        buttons.addStretch(1)
-        buttons.addWidget(close)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.text, 1)
-        layout.addLayout(buttons)
 
     def _open_folder(self) -> None:
         folder = plugins.folders()[0] if plugins.folders() else plugins.DEFAULT_FOLDER
