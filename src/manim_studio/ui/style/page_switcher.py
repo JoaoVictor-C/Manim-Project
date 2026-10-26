@@ -9,6 +9,7 @@ In a narrow window the top bar asks for ``set_compact(True)`` and only the icons
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, QVariantAnimation, Signal
@@ -148,8 +149,7 @@ class PageSwitcher(QWidget):
         return self.sizeHint()
 
     def _slide_to(self, target: QRectF) -> None:
-        if self._animation is not None:
-            self._animation.stop()
+        self._stop_animation()
         if not motion.enabled() or not self.isVisible():
             self._indicator = QRectF(target)
             return
@@ -159,8 +159,19 @@ class PageSwitcher(QWidget):
         animation.setStartValue(QRectF(self._indicator))
         animation.setEndValue(QRectF(target))
         animation.valueChanged.connect(self._on_slide)
+        animation.finished.connect(self._forget_animation)
         self._animation = animation
         animation.start(QVariantAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    def _forget_animation(self) -> None:
+        """A finished animation deletes itself (DeleteWhenStopped): drop our reference to the dead object."""
+        self._animation = None
+
+    def _stop_animation(self) -> None:
+        animation, self._animation = self._animation, None
+        if animation is not None:
+            with contextlib.suppress(RuntimeError):  # already deleted
+                animation.stop()
 
     def _on_slide(self, value: object) -> None:
         self._indicator = QRectF(value)

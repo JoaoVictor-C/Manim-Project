@@ -382,3 +382,20 @@ def test_the_status_bar_shows_whether_the_project_is_saved_and_its_name(window) 
     assert indicator.state.text() == "Unsaved" and not indicator.dot.saved
     window.document.undo_stack.setClean()
     assert indicator.state.text() == "Saved" and indicator.dot.saved
+
+
+def test_the_switcher_survives_a_click_after_its_slide_has_finished(qt_app, monkeypatch) -> None:
+    """The slide deletes itself when it stops; the next click must not touch the dead animation."""
+    monkeypatch.delenv("MANIM_STUDIO_MOTION", raising=False)
+    switcher = PageSwitcher()
+    for name in ("Compose", "Animate", "Code"):
+        switcher.addTab(QIcon(), name)
+    switcher.show()
+    switcher.setCurrentIndex(1)
+    assert switcher._animation is not None
+    QTest.qWait(400)  # the slide ends and deletes itself
+    assert switcher._animation is None
+    switcher.setCurrentIndex(2)
+    switcher.setCurrentIndex(0)  # a second change while the first is still sliding
+    QTest.qWait(400)
+    assert switcher.currentIndex() == 0 and switcher._animation is None
