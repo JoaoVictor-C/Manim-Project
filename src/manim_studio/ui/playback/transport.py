@@ -231,9 +231,10 @@ def install_transport_rules() -> None:
     """The round button paints itself: no padding or minimum height from the general button rule."""
 
     def rules(c: theme.Colours) -> str:
+        size = PlayButton.SIZE
         return (
-            "QPushButton#playButton { padding: 0px; min-height: 0px; min-width: 0px; border: 0;"
-            " background: transparent; }"
+            f"QPushButton#playButton {{ padding: 0px; min-height: {size}px; min-width: {size}px;"
+            " border: 0; background: transparent; }"
         )
 
     theme.register_rules(rules)
