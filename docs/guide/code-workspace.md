@@ -28,6 +28,39 @@ while you type. While the code is being applied, built or rendered, a progress b
 toolbar and **Run** reads *Running...* and waits: when they go, the object or scene is ready to use.
 While it works Run also shows the seconds it has taken, and afterwards how long the last run took.
 
+You can tell a scene is rendering from any page: a turning spinner and a line (*Rendering Orbit, 340 frames,
+12 s*) appear at the right of the status bar - click it to open that layer - and as a badge on the picture; on
+the Code page the layer's explorer row and tab turn a spinner too. The line names the others that wait.
+
+A scene's render is stopped after 120 seconds (a Python object's build after 30) so an endless loop cannot hang
+the editor. A scene that really needs longer - a long simulation, a lot of LaTeX - can use **No time limit**,
+next to Run: it is remembered, applies to every run until you turn it off, and the status line says *no time
+limit* while it is on. **Cancel** still stops a render; a Python object's build has no Cancel, so keep the
+switch off while you are testing a loop.
+
+## Long scenes: chapters
+
+A scene is rendered from its first frame to its last, so editing anything in it renders all of it. When it
+is made of **phases** - something appears, plays, and is removed before the next thing - the Editor menu can cut
+it into **chapters** that render and cache on their own, so editing one phase renders that phase only.
+
+- **Analyse scene...** reads the code and what the last render recorded, and lists where the scene can be cut
+  and why it cannot be cut elsewhere (something is still on screen, a later statement uses an object an earlier
+  phase made or changed, a tracker is still running, ...), with how much of the scene the biggest chapter is.
+  Render the scene (Run) first; it works from what that render recorded.
+- **Split into chapters...** replaces the layer by one layer per chapter (one undo step). Each chapter is the
+  scene's setup plus its own statements, started where the whole scene had got to. When they have rendered,
+  Studio compares every frame with the full render; if any pixel differs, or a chapter fails, **the split is
+  undone** and the status bar says which frame. Code that uses unseeded random numbers or the clock may differ
+  and is refused this way.
+- **Move selection to a new layer** (select statements of `construct` first) gives them a layer of their own
+  with the same look; the two render separately. Use it for two objects on screen at the same time that do not
+  depend on each other. Names one part uses that only the other defines are reported: those statements would
+  fail.
+
+A comment, a blank line or spacing is not an edit: a scene whose code only changed that way is not rendered
+again.
+
 **Values** is a second tab next to **Output**, for a Python object: one field per parameter its `PARAMS`
 declares, so you can try values while you read the code. It is the same state as Properties - a value changed
 in either shows in the other, and each change is one undo step. Add or rename a parameter in `PARAMS` and the

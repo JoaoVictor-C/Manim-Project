@@ -13,7 +13,8 @@ its place. Rules:
 * one job per layer: newer code replaces a queued job, and kills a running one
   (single-use processes make killing the normal way to cancel);
 * only trusted code is queued; other layers report ``untrusted``;
-* a job that takes longer than ``timeout_s`` is killed and reported as an error;
+* a job that takes longer than ``timeout_s`` is killed and reported as an error, unless the user lifted
+  the time limits (``core.limits``, ADR 0059);
 * an error stays attached to that code until the code changes (or ``retry``).
 
 The editor keeps showing the previous frames, or the placeholder, until a
@@ -33,9 +34,9 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
 from ..code_runner import Job
-from ..core import error_hints, helpers
+from ..core import error_hints, helpers, limits
 from ..core.code_cache import CodeCache
-from ..core.evaluator import code_key
+from ..core.evaluator import code_key, start_frame, start_time
 from ..core.schema import CODE_TYPES, Project
 from ..core.trust import TrustStore, code_of
 from ..logging_config import get_logger
@@ -107,7 +108,7 @@ class CodeRenderService(QObject):
         trust: TrustStore,
         *,
         max_spares: int = 2,
-        timeout_s: float = 120.0,
+        timeout_s: float = limits.RENDER_LIMIT,
         program: str = sys.executable,
         args: list[str] | None = None,
         parent: QObject | None = None,
@@ -139,6 +140,19 @@ class CodeRenderService(QObject):
     def status(self, layer_id: str) -> CodeStatus | None:
         return self._status.get(layer_id)
 
+    def active(self) -> list[tuple[str, str, float]]:
+        """What the service is busy with, for the activity indicator: ``(layer id, state, seconds)``,
+        the layers rendering first (longest running first), then those waiting. ``seconds`` is how long
+        a render has been going and 0 for one that waits."""
+        now = time.monotonic()
+        running = [
+            (s.layer_id, "rendering", now - s.since)
+            for s in self._spares
+            if s.job is not None and not s.done and not s.cancelled and s.layer_id is not None
+        ]
+        running.sort(key=lambda item: -item[2])
+        return running + [(layer_id, "queued", 0.0) for layer_id, _ in self._queue]
+
     def sync(self, project: Project) -> None:
         """Bring renders in line with ``project`` (call after every change, undo and open)."""
         if self._stopped:
@@ -158,7 +172,16 @@ class CodeRenderService(QObject):
             wanted[layer.id] = key
             code = str(layer.spec.params.get("code", ""))
             jobs[layer.id] = Job(
-                key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, pairs, trusted
+                key,
+                code,
+                canvas.width_px,
+                canvas.height_px,
+                canvas.fps,
+                canvas.frame_height,
+                pairs,
+                trusted,
+                start_frame(layer),
+                start_time(layer),
             )
         self._wanted = wanted
         self._runnable = any(self.trust.is_trusted(job.code) for job in jobs.values())
@@ -374,6 +397,8 @@ class CodeRenderService(QObject):
         if not busy:
             self._watchdog.stop()
             return
+        if limits.unlimited():  # No time limit (ADR 0059): only Cancel stops a render
+            return
         for spare in busy:
             if time.monotonic() - spare.since > self.timeout_s:
                 status = CodeStatus(
@@ -405,6 +430,9 @@ class NoCodeRenderer(QObject):
 
     def status(self, layer_id: str) -> CodeStatus | None:
         return None
+
+    def active(self) -> list[tuple[str, str, float]]:
+        return []
 
     def sync(self, project: Project) -> None:
         pass

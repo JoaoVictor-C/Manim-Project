@@ -12,16 +12,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QDrag
 from PySide6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem, QWidget
 
 from . import code_drag, icons, theme
+from .render_activity import INTERVAL_MS, spinner
 
 KEY_ROLE = Qt.ItemDataRole.UserRole
 SOURCE_ROLE = Qt.ItemDataRole.UserRole + 1
 KIND_ROLE = Qt.ItemDataRole.UserRole + 2
 NAME_ROLE = Qt.ItemDataRole.UserRole + 3
+STATE_ROLE = Qt.ItemDataRole.UserRole + 4
 
 KIND_BADGE = {"object": "obj", "scene": "scene", "helper": "helper"}
 ICONS = {"object": "py-object", "scene": "py-scene", "helper": "helper"}
@@ -35,7 +37,7 @@ class Row:
     source: str  # "layer", "helper" or "preset"
     tip: str = ""
     dirty: bool = False  # unapplied changes (layers)
-    state: str = ""  # "", "error", "untrusted", "running" - shown as a marker after the name
+    state: str = ""  # "", "error", "untrusted", "queued", "running" - shown as a marker after the name
     match: str = ""  # more words the filter looks in (a preset's description, tags and kind)
 
 
@@ -72,6 +74,9 @@ class CodeExplorer(QTreeWidget):
         self._filter = ""
         self._sections: list[Section] = []
         self._collapsed: set[str] = set()
+        self._spin_timer = QTimer(self)  # turns the spinner of the rows that are rendering (ADR 0059)
+        self._spin_timer.setInterval(INTERVAL_MS)
+        self._spin_timer.timeout.connect(self._spin)
         self.itemExpanded.connect(lambda item: self._remember(item, False))
         self.itemCollapsed.connect(lambda item: self._remember(item, True))
 
@@ -155,12 +160,30 @@ class CodeExplorer(QTreeWidget):
                 top.addChild(note)
             top.setExpanded(section.key not in self._collapsed or bool(self._filter))
         self.blockSignals(False)
+        self._spin_timer.start() if self._running_items() else self._spin_timer.stop()
         if current is not None:
             item = self._find(*current)
             if item is not None:
                 self.blockSignals(True)
                 self.setCurrentItem(item)
                 self.blockSignals(False)
+
+    def _running_items(self) -> list[QTreeWidgetItem]:
+        found = []
+        for top in self._tops():
+            for i in range(top.childCount()):
+                if top.child(i).data(0, STATE_ROLE) == "running":
+                    found.append(top.child(i))
+        return found
+
+    def _spin(self) -> None:
+        items = self._running_items()
+        if not items:
+            self._spin_timer.stop()
+            return
+        glyph = spinner()
+        for item in items:
+            item.setText(0, f"{item.data(0, NAME_ROLE)}  {glyph}")
 
     def _matches(self, row: Row) -> bool:
         if not self._filter:
@@ -177,12 +200,17 @@ class CodeExplorer(QTreeWidget):
             marks.append("!")
         elif row.state == "untrusted":
             marks.append("?")
+        elif row.state == "running":
+            marks.append(spinner())
+        elif row.state == "queued":
+            marks.append("…")
         label = f"{row.label}  {' '.join(marks)}" if marks else row.label
         item = QTreeWidgetItem([label])
         item.setData(0, KEY_ROLE, row.key)
         item.setData(0, SOURCE_ROLE, row.source)
         item.setData(0, KIND_ROLE, row.kind)
         item.setData(0, NAME_ROLE, row.label)
+        item.setData(0, STATE_ROLE, row.state)
         item.setIcon(0, icons.icon(ICONS.get(row.kind, "py-scene")))
         badge = KIND_BADGE.get(row.kind, row.kind)
         item.setToolTip(0, row.tip or f"{row.label} ({badge})")
@@ -194,6 +222,8 @@ class CodeExplorer(QTreeWidget):
             item.setForeground(0, QBrush(QColor(colours.error_text)))
         elif row.dirty or row.state == "untrusted":
             item.setForeground(0, QBrush(QColor(colours.warning)))
+        elif row.state in ("running", "queued"):
+            item.setForeground(0, QBrush(QColor(colours.accent)))
         return item
 
     def _remember(self, item: QTreeWidgetItem, collapsed: bool) -> None:

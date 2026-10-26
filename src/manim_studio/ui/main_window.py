@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, library, parts, recovery, shape, shift_timing, subtitles
+from ..core import adapter, audio, edits, library, limits, parts, recovery, shape, shift_timing, subtitles
 from ..core.code_cache import code_hash
 from ..core.edits import Edit, EditKind
 from ..core.evaluator import Evaluator
@@ -74,6 +74,7 @@ from .presenter import Presenter
 from .presets_browser import PresetsBrowser
 from .preview_client import make_preview
 from .properties_panel import PropertiesPanel
+from .render_activity import RenderActivity
 from .render_ahead import RenderAhead
 from .scene_import import ImportReport, SceneImporter
 from .selection import Selection
@@ -107,6 +108,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Manim Studio")
         self.resize(1280, 820)
         self.prefs = Preferences()  # how the editor was left (ADR 0044)
+        limits.set_unlimited(bool(self.prefs.option("code_no_time_limit", False)))  # ADR 0059
         self._page_restored = False  # the last page returns once, when the first project opens
         # The document always exists (so the Edit menu can bind to its undo stack);
         # ``project`` is None until a file is opened.
@@ -254,6 +256,10 @@ class MainWindow(QMainWindow):
         if app is not None:  # coming back from another program: files may have changed (ADR 0027)
             app.applicationStateChanged.connect(self._on_application_state)
         self.statusBar().showMessage(startup_message() or self._library_message() or START_HINT)
+        self.render_activity = RenderActivity(self.code, self._layer_label, self)  # ADR 0059
+        self.render_activity.layerRequested.connect(self.edit_code)
+        self.render_activity.textChanged.connect(self.canvas.set_busy)
+        self.statusBar().addPermanentWidget(self.render_activity)
 
     # -- menu ------------------------------------------------------------------
 
@@ -869,6 +875,10 @@ class MainWindow(QMainWindow):
                     15000,
                 )
         self._restore_last_page()  # the first project of this run (ADR 0044)
+
+    def _layer_label(self, layer_id: str) -> str:
+        layer = next((layer for layer in self.document.project.layers if layer.id == layer_id), None)
+        return layer.label if layer is not None else layer_id
 
     def edit_code(self, layer_id: str) -> None:
         """Show a layer's code on the Code page (a Python object's Edit code, ADR 0051)."""

@@ -29,6 +29,7 @@ from ..render.preview import PreviewView, preview_camera
 from ..render.qt_paths import vmobject_path
 from . import code_drag, motion_overlay, param_handles, theme, viewport
 from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
+from .render_activity import spinner
 
 OUTLINE_COLOR = theme.qcolor(theme.THEME.outline)
 MOTION_COLOR = theme.qcolor(theme.THEME.motion_path)  # the motion path (ADR 0026)
@@ -81,6 +82,10 @@ class CanvasWidget(QWidget):
         self.last_render_ms = 0.0
         self._t = 0.0  # the time last drawn (F frames the selection as it is then)
         self.selected_layer: str | None = None  # whose outline to draw
+        self.busy_text = ""  # what code is rendering, as a badge on the picture (ADR 0059)
+        self._busy_timer = QTimer(self)
+        self._busy_timer.setInterval(100)
+        self._busy_timer.timeout.connect(self.update)
         self.show_overlays = True  # outlines, handles and motion paths; off on the Code page (P12)
         self.presenting = False  # full screen: what lies outside the frame is black, no border (P12)
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
@@ -440,6 +445,8 @@ class CanvasWidget(QWidget):
                 painter.drawText(pos + QPointF(14, -10), text)
             if self.camera_turned:
                 self._paint_turned_notice(painter)
+            if self.busy_text:
+                self._paint_busy(painter)
         if self.drop_point is not None:
             self._paint_drop(painter)
         painter.end()
@@ -454,6 +461,31 @@ class CanvasWidget(QWidget):
         painter.drawLine(QPointF(x - DROP_PX, y), QPointF(x + DROP_PX, y))
         painter.drawLine(QPointF(x, y - DROP_PX), QPointF(x, y + DROP_PX))
         painter.drawEllipse(self.drop_point, DROP_PX / 2, DROP_PX / 2)
+        painter.restore()
+
+    def set_busy(self, text: str) -> None:
+        """Show (or clear, with '') the badge that says code is rendering behind the picture."""
+        if text == self.busy_text:
+            return
+        self.busy_text = text
+        self._busy_timer.start() if text else self._busy_timer.stop()
+        self.update()
+
+    def _paint_busy(self, painter: QPainter) -> None:
+        """A spinner and a line at the top right: a code layer is still rendering (ADR 0059)."""
+        painter.save()
+        metrics = painter.fontMetrics()
+        text = metrics.elidedText(
+            f"{spinner()}  {self.busy_text}", Qt.TextElideMode.ElideRight, max(40, self.width() - 36)
+        )
+        width = metrics.horizontalAdvance(text) + 20
+        box = QRectF(self.width() - width - 8, 8, width, metrics.height() + 10)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(BADGE)
+        painter.drawRoundedRect(box, 6, 6)
+        painter.setPen(DROP_COLOR)
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
         painter.restore()
 
     def _paint_turned_notice(self, painter: QPainter) -> None:

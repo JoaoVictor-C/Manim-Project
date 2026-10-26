@@ -7,6 +7,20 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Chapters: edit one phase, re-render one phase** (ADR 0061). A scene made of phases that clear the screen
+  between them can be cut into chapters that render and cache separately. *Editor > Analyse scene...* says where
+  (and why not elsewhere); *Split into chapters...* replaces the layer by one layer per chapter, renders them
+  and compares every frame with the full render, **undoing the split itself if one pixel differs**; *Move
+  selection to a new layer* gives the selected statements a layer of their own. The renderer records what it
+  needs while it renders (about 1% of the time).
+- **Faster code renders, whatever the scene:** frames are compressed while the next one is drawn (16-34% faster
+  at full size) and a comment, a blank line or spacing no longer counts as an edit (the cache key is now made
+  from the code's tokens; existing cached renders are made again once).
+- **Code runs show that they run** (ADR 0059): while a code layer renders, a spinner and a line (*Rendering Orbit,
+  340 frames, 12 s*) sit at the right of the status bar on every page (click it to open the layer), as a
+  badge on the picture, on the layer's explorer row and tab, and on **Run**, whose progress bar is thicker.
+  **No time limit** (Code page, next to Run, remembered) lifts the limits that stop a long run - 120 s for a
+  scene's render, 20 s for the build worker, 30 s for a Python object's build - and **Cancel** still stops it.
 - **Helpers** (ADR 0058): reusable Python kept in the project - functions, classes, constants, data - that code
   layers, Python objects and other helpers import by name (`from grid_tools import make_grid`). The Code page lists
   them in a **Helpers** section and edits them in tabs like layers; **Run** applies a helper, allows it to run and

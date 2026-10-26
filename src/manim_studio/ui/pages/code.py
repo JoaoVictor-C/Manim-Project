@@ -79,6 +79,7 @@ from ...core import (
     edits,
     error_hints,
     helpers,
+    limits,
     live_guard,
     outline,
     python_object,
@@ -88,6 +89,7 @@ from ...core.code_history import CodeHistory
 from ...core.schema import CODE_TYPES, PYTHON_TYPES
 from ...core.standalone import standalone_scene
 from .. import code_drag, icons, quick_open, theme
+from ..chapters import ChapterActions
 from ..code_drafts import Drafts, error_line, error_text, moved_on
 from ..code_editor import CodeEditor
 from ..code_explorer import CodeExplorer, Row, Section
@@ -98,6 +100,7 @@ from ..code_render import CodeStatus
 from ..find_bar import FindBar
 from ..params_definition import ParamsDefinitionPanel
 from ..properties_panel import _first_error, set_param, set_python_code
+from ..render_activity import spinner
 from ..snippet_dialog import SnippetDialog
 from ..values_panel import ValuesPanel
 from . import Page, Shared
@@ -234,6 +237,7 @@ class CodePage(Page):
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(1, 1)
         self.helper_actions = HelperActions(self)  # helpers: Run, New, Rename... (ADR 0058)
+        self.chapter_actions = ChapterActions(self)  # Analyse scene, Split into chapters (ADR 0061)
         self._open_pending: str | None = None  # a key to open once the edit adding it lands
 
         if not window.prefs.option("code_output_open", True):
@@ -241,6 +245,7 @@ class CodePage(Page):
         if not window.prefs.option("code_sidebar_open", True):
             self.sidebar_button.setChecked(False)
         self.outline_button.setChecked(bool(window.prefs.option("code_canvas_outline", False)))
+        self.limit_button.setChecked(bool(window.prefs.option("code_no_time_limit", False)))
         window.builds.pendingChanged.connect(self._refresh_running)
         self._shortcuts()
         self._drops = _DropFilter(self._import_dropped, self.split)
@@ -415,10 +420,23 @@ class CodePage(Page):
         self.progress.setObjectName("codeProgress")
         self.progress.setRange(0, 0)  # busy: it does not know how long
         self.progress.setTextVisible(False)
-        self.progress.setFixedHeight(4)
+        self.progress.setFixedHeight(7)
+        self.progress.setStyleSheet(
+            f"QProgressBar#codeProgress {{ background: transparent; border: none; }}"
+            f"QProgressBar#codeProgress::chunk {{ background: {theme.css(theme.THEME.accent)}; }}"
+        )
+        self.limit_button = QPushButton("∞  No time limit")
+        self.limit_button.setObjectName("noTimeLimit")
+        self.limit_button.setCheckable(True)
+        self.limit_button.setToolTip(
+            "Let a run take as long as it needs. Off: a scene's render is stopped after "
+            f"{limits.RENDER_LIMIT:g} s and a Python object's build after 30 s, so an endless loop cannot "
+            "hang the editor. Cancel still stops a render"
+        )
+        self.limit_button.toggled.connect(self._on_limit_toggled)
         self.progress.hide()
         self._elapsed_timer = QTimer(self.progress)  # the seconds on Run while it works
-        self._elapsed_timer.setInterval(200)
+        self._elapsed_timer.setInterval(100)
         self._elapsed_timer.timeout.connect(self._refresh_running)
         self.editor_menu_button = QToolButton()
         self.editor_menu_button.setText("Editor")
@@ -433,6 +451,7 @@ class CodePage(Page):
             self.revert_button,
             self.convert_button,
             self.cancel_button,
+            self.limit_button,
             self.run_button,
             self.save_code_button,
             self.outline_button,
@@ -629,6 +648,20 @@ class CodePage(Page):
             "Move the selected top-level functions and classes (or the one at the cursor) into a new helper "
             "and import them back"
         )
+        menu.addSeparator()
+        self.analyse_action = menu.addAction("Analyse scene…", lambda: self.chapter_actions.analyse())
+        self.analyse_action.setToolTip("Where this scene can be cut into chapters that render separately")
+        self.split_action = menu.addAction("Split into chapters…", lambda: self.chapter_actions.split())
+        self.split_action.setToolTip(
+            "Replace the layer by one layer per chapter; every frame is checked against the full render"
+        )
+        self.move_action = menu.addAction(
+            "Move selection to a new layer", lambda: self.chapter_actions.move_selection()
+        )
+        self.move_action.setToolTip(
+            "Give the selected statements of construct a layer of their own: the two render separately"
+        )
+        menu.addSeparator()
         self.run_to_cursor_action = menu.addAction("Run to cursor", self.run_to_cursor)
         self.run_to_cursor_action.setToolTip("Show the scene only as far as the statement under the cursor")
         self.live_action = menu.addAction("Live: run Python objects while typing")
@@ -991,6 +1024,8 @@ class CodePage(Page):
                 self.tabs.removeTab(self.tabs.count() - 1)
             for index, layer_id in enumerate(self.open_ids):
                 text = self._label_of(layer_id) + ("  ●" if layer_id in dirty else "")
+                if layer_id in self._starts:
+                    text += f"  {spinner()}"
                 if index >= self.tabs.count():
                     self.tabs.addTab(text)
                 else:
@@ -1783,7 +1818,9 @@ class CodePage(Page):
         if self.layer_id is not None:
             self._track(self.layer_id, running)
         self.progress.setVisible(running)
-        self.run_button.setText(f"Running… {self.elapsed():.1f} s" if running else "Run")
+        self.run_button.setText(f"{spinner()}  Running… {self.elapsed():.1f} s" if running else "Run")
+        if self._starts:  # the tabs of the layers that render turn a spinner too (ADR 0059)
+            self._refresh_tabs()
         self.run_button.setEnabled(self.layer_id is not None and self.preset_id is None and not running)
         self.cancel_button.setVisible(running and self._is_cancellable())
 
@@ -1816,6 +1853,21 @@ class CodePage(Page):
         """Seconds the run of the layer in the editor has been going (0 when it is not running)."""
         start = self._starts.get(self.layer_id or "")
         return 0.0 if start is None else self.now() - start
+
+    def _on_limit_toggled(self, unlimited: bool) -> None:
+        """No time limit (ADR 0059): lift the limits of runs, or put them back."""
+        limits.set_unlimited(unlimited)
+        adapter.forget_python_builds()  # a build stopped by the old limit is built again
+        self.window.prefs.set_option("code_no_time_limit", unlimited)
+        self.limit_button.setText("∞  No time limit" + ("  (on)" if unlimited else ""))
+        widget = getattr(self, "widget", None)  # the saved option is applied while the page is built
+        if widget is not None and widget.isVisible():
+            self.window.statusBar().showMessage(
+                "Runs may take as long as they need: Cancel is the only way to stop one"
+                if unlimited
+                else f"Time limits are back: a render stops after {limits.RENDER_LIMIT:g} s",
+                6000,
+            )
 
     def _on_output_toggled(self, shown: bool) -> None:
         self.output.setVisible(shown)
@@ -1984,7 +2036,10 @@ class CodePage(Page):
         project_rows = []
         for layer in layers:
             status = self.status(layer.id)
-            state = status.state if status is not None and status.state in ("error", "untrusted") else ""
+            state = {"rendering": "running", "checking": "running"}.get(
+                status.state if status is not None else "", status.state if status is not None else ""
+            )
+            state = state if state in ("error", "untrusted", "running", "queued") else ""
             kind = "object" if layer.spec.type in PYTHON_TYPES else "scene"
             tip = {
                 "error": "Has an error: see the output",

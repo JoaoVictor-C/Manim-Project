@@ -558,7 +558,8 @@ def _file_error(message: str, source: str) -> Hint:
 def _timeout(message: str) -> Hint:
     return _make(
         "It ran for too long and was stopped. An endless loop is the usual cause (a `while` whose condition "
-        "never becomes false); otherwise there may be simply too much to draw - try fewer objects or a shorter scene."  # noqa: E501
+        "never becomes false); otherwise there may be simply too much to draw - try fewer objects or a shorter scene. "  # noqa: E501
+        "A scene that really needs longer can run with 'No time limit' on the Code page."
     )
 
 

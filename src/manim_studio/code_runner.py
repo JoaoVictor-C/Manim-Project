@@ -51,6 +51,12 @@ class Job:
     # Written to the job line only when there are some, so a job without helpers reads as before.
     helpers: tuple[tuple[str, str], ...] = ()
     trusted_helpers: tuple[str, ...] = ()
+    # A chapter of a longer scene (ADR 0061): the scene clock starts at this frame, as it had when the whole
+    # scene reached the same point. Written to the job line only when not 0.
+    start_frame: int = 0
+    # The exact value of the whole scene's clock at that frame (it adds up frame by frame, so it is not
+    # frame / fps to the last bit, and a wait computed from it can round the other way). None: frame / fps.
+    start_time: float | None = None
 
     @classmethod
     def from_json(cls, line: str) -> Job:
@@ -63,6 +69,10 @@ class Job:
         data = dict(self.__dict__)
         if not self.helpers:
             del data["helpers"], data["trusted_helpers"]
+        if not self.start_frame:
+            del data["start_frame"]
+        if self.start_time is None:
+            del data["start_time"]
         return json.dumps(data)
 
 
@@ -114,6 +124,8 @@ def _render(job: Job, cache, progress: Callable[[int], None] | None) -> int:
     import manim as m
     from manim.renderer.cairo_renderer import CairoRenderer
 
+    from .scene_probe import ProbeRecorder, statement_starts
+
     scene_class = _scene_class(job.code, job.helpers)
     writer = cache.writer(job.key, job.width, job.height, job.fps)
 
@@ -153,7 +165,13 @@ def _render(job: Job, cache, progress: Callable[[int], None] | None) -> int:
     }
     try:
         with m.tempconfig(options):
-            scene_class(renderer=CapturingRenderer()).render()
+            renderer = CapturingRenderer()
+            # a chapter starts where the whole scene was (ADR 0061), on the same clock to the last bit
+            renderer.time = job.start_time if job.start_time is not None else job.start_frame / job.fps
+            scene = scene_class(renderer=renderer)
+            starts = statement_starts(job.code, scene_class.__name__)
+            with ProbeRecorder(scene, starts, lambda: writer.frame_count, writer.probes):
+                scene.render()
     except CodeError:
         writer.abort()
         raise

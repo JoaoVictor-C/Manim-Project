@@ -250,7 +250,16 @@ def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
             print(f"rendering code layer {layer.id}...", flush=True)
         code = str(layer.spec.params.get("code", ""))
         job = Job(
-            key, code, canvas.width_px, canvas.height_px, canvas.fps, canvas.frame_height, pairs, trusted
+            key,
+            code,
+            canvas.width_px,
+            canvas.height_px,
+            canvas.fps,
+            canvas.frame_height,
+            pairs,
+            trusted,
+            int(layer.spec.params.get("start_frame", 0) or 0),
+            (float(t) if (t := layer.spec.params.get("start_time")) is not None else None),
         )
         try:
             render_code(job, evaluator.code_cache)

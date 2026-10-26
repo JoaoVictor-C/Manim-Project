@@ -26,6 +26,7 @@ from pathlib import Path
 import shiboken6
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
+from ..core import limits
 from ..logging_config import get_logger
 
 log = get_logger(__name__)
@@ -62,7 +63,7 @@ class WorkerProcess(WorkerClient):
         self,
         cache_dir: Path,
         *,
-        timeout_s: float = 20.0,
+        timeout_s: float = limits.BUILD_LIMIT,
         program: str = sys.executable,
         args: list[str] | None = None,
         parent: QObject | None = None,
@@ -106,6 +107,8 @@ class WorkerProcess(WorkerClient):
         spec = json.loads(spec_json)
         # A Python object's helpers (ADR 0058) ride in its warm key: sent beside the spec.
         extra = {name: spec.pop(name) for name in ("helpers", "trusted_helpers") if name in spec}
+        if limits.unlimited():  # the user lifted the time limits (ADR 0059): the worker obeys too
+            extra["no_limit"] = True
         line = json.dumps({"id": request_id, "spec": spec, **extra}) + "\n"
         self._requests.append(_Request(request_id, line))
         if self._ready:
@@ -198,7 +201,7 @@ class WorkerProcess(WorkerClient):
         self.availableChanged.emit(False)
 
     def _check_timeout(self) -> None:
-        if not (self._ready and self._requests):
+        if not (self._ready and self._requests) or limits.unlimited():
             return
         if time.monotonic() - self._head_since <= self._timeout_s:
             return

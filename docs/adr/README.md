@@ -87,3 +87,5 @@ need one.
 | [0056](0056-smart-morph-matching.md) | Smart morph matching: pieces, holes and start points paired by the editor | Accepted |
 | [0057](0057-code-workspace.md) | The Code workspace: presets, an import window, safe online sources and drag and drop | Accepted |
 | [0058](0058-helpers.md) | Helpers: reusable Python modules in the project, imported by name by code layers and Python objects | Accepted |
+| [0059](0059-run-activity-and-time-limits.md) | Code runs show that they run (status bar, canvas, explorer) and their time limits can be lifted | Accepted |
+| [0061](0061-incremental-code-layers.md) | Incremental code layers: cheaper renders, chapters that are proved against the full render, layers you declare | Accepted |

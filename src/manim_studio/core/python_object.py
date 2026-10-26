@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Literal
 
+from . import limits
+
 PYTHON_TYPE = "Python"
 MAX_CODE = 64 * 1024  # characters of source a Python object may hold
 FILENAME = "<python object>"  # what tracebacks name the user's code (to find its lines)
@@ -365,8 +367,12 @@ def time_limit(seconds: float) -> Iterator[None]:
     code (``FILENAME``), so an endless loop in the code - or one calling Manim - is stopped. It
     cannot stop a single call that never returns into Python (a huge numpy computation, a sleep).
     The editor's build worker, which is killed when a build takes too long (ADR 0015), covers
-    those for code applied in the editor.
+    those for code applied in the editor. With the user's **No time limit** switch on (ADR 0059) the
+    code runs without a deadline.
     """
+    if limits.unlimited():
+        yield
+        return
     deadline = time.perf_counter() + seconds
     previous = sys.gettrace()
 

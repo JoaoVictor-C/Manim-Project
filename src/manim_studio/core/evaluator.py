@@ -1249,7 +1249,20 @@ def code_key(project: Project, layer: Layer, helpers_digest: str | None = None) 
         adapter.MANIM_VERSION,
         # empty without helpers: the key it always had (ADR 0058)
         helpers.digest(project) if helpers_digest is None else helpers_digest,
+        start_frame(layer),
+        start_time(layer),
     )
+
+
+def start_frame(layer: Layer) -> int:
+    """The frame a code layer's scene clock starts at: 0, or where its chapter began (ADR 0061)."""
+    return int(layer.spec.params.get("start_frame", 0) or 0)
+
+
+def start_time(layer: Layer) -> float | None:
+    """The exact clock value at that frame (``start_frame / fps`` when it was not recorded)."""
+    value = layer.spec.params.get("start_time")
+    return None if value is None else float(value)
 
 
 def layer_transform(layer: Layer, t: float) -> Transform2D:

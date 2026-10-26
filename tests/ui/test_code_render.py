@@ -18,6 +18,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from manim_studio.core import limits
 from manim_studio.core.evaluator import code_key
 from manim_studio.core.schema import Canvas, Helper, Layer, Project, Spec
 from manim_studio.core.trust import TrustStore
@@ -257,3 +258,27 @@ def test_a_warm_spare_renders_real_code_in_about_a_second(qt_app, tmp_path) -> N
         assert svc.cache.open(code_key(edited, edited.layer("c"))).frame_count == CANVAS.fps
     finally:
         svc.stop()
+
+
+def test_no_time_limit_lets_a_long_render_go_on(service, qt_app) -> None:
+    limits.set_unlimited(True)
+    service.timeout_s = 0.5
+    service.sync(trusted(service, project(c="SLEEP long")))
+    wait_until(qt_app, lambda: service.status("c").state == "rendering")
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 1.5:  # three times the limit
+        qt_app.processEvents()
+        time.sleep(0.02)
+    assert service.status("c").state == "rendering"
+    ((layer_id, state, seconds),) = service.active()
+    assert (layer_id, state) == ("c", "rendering") and seconds >= 1.0
+    assert service.cancel("c")  # Cancel is how a render without a limit stops
+    assert service.status("c").state == "cancelled" and service.active() == []
+    limits.set_unlimited(False)
+
+
+def test_active_lists_what_renders_then_what_waits(service, qt_app) -> None:
+    service.sync(trusted(service, project(a="SLEEP a", b="SLEEP b", c="SLEEP c")))
+    wait_until(qt_app, lambda: len([s for s in service._spares if s.job is not None]) == 2)
+    states = [state for _id, state, _s in service.active()]
+    assert states == ["rendering", "rendering", "queued"]

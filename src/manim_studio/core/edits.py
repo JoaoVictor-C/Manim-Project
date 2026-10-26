@@ -134,6 +134,80 @@ def add_layer(
     return _replace_layers(project, layers)
 
 
+def split_code_layer(project: Project, layer_id: str, chapters: list[tuple[str, int, float, str]]) -> Edit:
+    """Replace a code layer by one layer per chapter (ADR 0061), in one undo step.
+
+    ``chapters`` are ``(code, start frame, clock value at that frame, name)``, in order, the first at frame 0.
+    Each new layer is the old one with another code, a ``start_frame`` and a ``start_time`` (its scene clock
+    starts there, to the last bit of the whole scene's): it keeps the transform, keys
+    and opacity, starts at the old start plus ``start_frame / fps``, and ends where the next begins (a held
+    last frame must not draw over the next chapter); the last one ends where the old layer did.
+    """
+    layer = _layer(project, layer_id)
+    if layer.spec is None or layer.spec.type != "Code":
+        raise EditError(f"{layer.label!r} is not a code layer")
+    if project.children(layer_id) or layer.is_child:
+        raise EditError(f"{layer.label!r} has parts or belongs to another object")
+    if len(chapters) < 2 or chapters[0][1] != 0:
+        raise EditError("a split needs at least two chapters, the first at frame 0")
+    fps = project.canvas.fps
+    start, end = project.lifetime(layer_id)
+    out_end = None if math.isinf(end) else end
+    taken = {x.id for x in project.layers} | {c.id for c in project.audio}
+    taken |= {c.id for c in project.subtitles} | {m.id for m in project.markers}
+    new_layers = []
+    for number, (code, frame, clock, name) in enumerate(chapters):
+        new_id = _free_id("Code", taken)
+        taken.add(new_id)
+        following = start + chapters[number + 1][1] / fps if number + 1 < len(chapters) else out_end
+        data = layer.model_dump(by_alias=True)
+        params = {**data["spec"]["params"], "code": code}
+        if frame:
+            params["start_frame"] = frame
+            params["start_time"] = clock
+        else:
+            params.pop("start_frame", None)
+            params.pop("start_time", None)
+        data.update(
+            id=new_id,
+            name=f"{layer.label} - {name}",
+            spec={**data["spec"], "params": params},
+            lifetime={"in": start + frame / fps, "out": following},
+        )
+        new_layers.append(Layer.model_validate(data))
+    layers = []
+    for existing in project.layers:
+        if existing.id == layer_id:
+            layers.extend(new_layers)
+        else:
+            layers.append(existing)
+    return _replace_layers(project, layers)
+
+
+def move_code_to_new_layer(project: Project, layer_id: str, kept: str, moved: str, name: str = "") -> Edit:
+    """Give some of a scene's statements a layer of their own (ADR 0061), in one undo step: the layer
+    keeps the code ``kept``, and a copy of it - same transform, keys, opacity and lifetime - right above
+    it runs ``moved``. The two cache and render separately from then on."""
+    layer = _layer(project, layer_id)
+    if layer.spec is None or layer.spec.type != "Code":
+        raise EditError(f"{layer.label!r} is not a code layer")
+    if project.children(layer_id) or layer.is_child:
+        raise EditError(f"{layer.label!r} has parts or belongs to another object")
+    new_id = new_layer_id(project, "Code")
+    data = layer.model_dump(by_alias=True)
+    data.update(id=new_id, name=name or f"{layer.label} (moved)")
+    data["spec"]["params"] = {**data["spec"]["params"], "code": moved}
+    original = layer.model_dump(by_alias=True)
+    original["spec"]["params"] = {**original["spec"]["params"], "code": kept}
+    layers = []
+    for existing in project.layers:
+        if existing.id == layer_id:
+            layers += [Layer.model_validate(original), Layer.model_validate(data)]
+        else:
+            layers.append(existing)
+    return _replace_layers(project, layers)
+
+
 def remove_layer(project: Project, layer_id: str) -> Edit:
     """Delete a layer with its parts, and morph clips that turn another layer into one of them
     (and what is drawn from it: objects on a deleted graph, traces of it, connectors to it)."""

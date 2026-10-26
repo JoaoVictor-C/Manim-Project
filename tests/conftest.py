@@ -156,3 +156,13 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         for item in items:
             if "latex" in item.keywords:
                 item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _time_limits_on():
+    """The No time limit switch (ADR 0059) is a process-wide flag: every test starts with limits on."""
+    from manim_studio.core import limits
+
+    limits.set_unlimited(False)
+    yield
+    limits.set_unlimited(False)

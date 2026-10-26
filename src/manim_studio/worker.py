@@ -52,9 +52,13 @@ def main(argv: list[str] | None = None) -> int:
 
 def reply(request: dict) -> dict:
     """Build one request's spec; the answer to send back."""
-    from .core import adapter
+    from .core import adapter, limits
     from .core.schema import PYTHON_TYPES, Spec
 
+    unlimited = bool(request.get("no_limit"))  # the editor's No time limit switch (ADR 0059)
+    if unlimited != limits.unlimited():
+        limits.set_unlimited(unlimited)
+        adapter.forget_python_builds()  # a build the old limit stopped may now finish
     started = time.perf_counter()
     try:
         spec = Spec.model_validate(request["spec"])

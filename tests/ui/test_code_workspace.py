@@ -18,6 +18,7 @@ from manim_studio.core import python_templates
 from manim_studio.core.schema import Canvas, Layer, Project, Spec
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.quick_open import QuickItem
+from manim_studio.ui.render_activity import FRAMES
 from ui.code_page_helpers import choose, list_texts, project_ids
 
 pytestmark = pytest.mark.ui
@@ -411,7 +412,8 @@ def test_a_progress_bar_shows_while_the_layer_renders_and_run_waits(window) -> N
     assert not code.progress.isVisibleTo(code.widget) and code.run_button.text() == "Run"
     set_status(window, "orbit", CodeStatus("rendering", frames=3))
     assert code.is_running() and code.progress.isVisibleTo(code.widget)
-    assert code.run_button.text().startswith("Running\u2026") and not code.run_button.isEnabled()
+    assert code.run_button.text().lstrip(FRAMES + " ").startswith("Running\u2026")
+    assert not code.run_button.isEnabled()
     set_status(window, "orbit", CodeStatus("ready", frames=20))
     assert not code.is_running() and not code.progress.isVisibleTo(code.widget)
     assert code.run_button.text() == "Run" and code.run_button.isEnabled()
@@ -507,7 +509,8 @@ def test_run_shows_the_seconds_while_it_works_and_how_long_it_took(window) -> No
     set_status(window, "orbit", CodeStatus("rendering", frames=1))
     clock[0] = 103.5
     code._refresh_running()
-    assert code.run_button.text() == "Running\u2026 3.5 s" and code.elapsed() == pytest.approx(3.5)
+    assert code.run_button.text().lstrip(FRAMES + " ") == "Running\u2026 3.5 s"
+    assert code.elapsed() == pytest.approx(3.5)
     clock[0] = 104.25
     set_status(window, "orbit", CodeStatus("ready", frames=20))
     assert code.durations["orbit"] == pytest.approx(4.25) and code.elapsed() == 0.0
