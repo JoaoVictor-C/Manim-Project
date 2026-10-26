@@ -57,7 +57,7 @@ def builtin_presets() -> dict[str, library.Preset]:
 
 def thumb_background() -> str:
     """The colour behind a thumbnail's square: a tile one step above the grid's field."""
-    return theme.THEME.panel
+    return theme.THEME.surface_3
 
 
 def is_user_preset(preset: library.Preset) -> bool:

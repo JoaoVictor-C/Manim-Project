@@ -194,7 +194,7 @@ INK = Colours(
     key="#ffd166",
     key_selected="#ffffff",
     key_edge="#000000a0",
-    frame_border="#ffffff26",
+    frame_border="#596077",
     pasteboard_dim="#07080daa",
     outline="#7dd3fc",
     motion_path="#ffb020",
@@ -270,7 +270,7 @@ PAPER = Colours(
     key="#d99a00",
     key_selected="#171a2b",
     key_edge="#00000060",
-    frame_border="#14182d33",
+    frame_border="#9aa1b8",
     pasteboard_dim="#d9dde9aa",
     outline="#2563eb",
     motion_path="#b45309",
@@ -534,8 +534,8 @@ QToolButton:disabled {{ color: {c.disabled}; }}
 QToolButton[role="outlined"] {{ border-color: {css(c.line_strong)}; background: {c.surface_3}; }}
 QToolButton::menu-indicator {{ image: none; width: 0; }}
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
-    background: {c.field}; border: 1px solid {css(c.line)}; border-radius: {r}px; padding: 4px {s + 4}px;
-    selection-background-color: {c.accent}; selection-color: {c.on_accent}; min-height: 20px;
+    background: {c.field}; border: 1px solid {css(c.line)}; border-radius: {r}px; padding: 2px {s + 4}px;
+    selection-background-color: {c.accent}; selection-color: {c.on_accent};
 }}
 QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {{ border-color: {css(c.line_strong)}; }}
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
@@ -613,6 +613,17 @@ QTabBar#pageBar::tab {{
 QTabBar#pageBar::tab:selected {{ color: {c.text}; border-top-color: {c.accent}; }}
 QTabBar#pageBar::tab:hover {{ color: {c.text}; }}
 QFrame#card {{ background: {c.panel}; border: 1px solid {css(c.line)}; border-radius: {rc}px; }}
+QFrame#cardHeader {{ background: transparent; border: 0; }}
+QFrame#cardRule {{ background: {css(c.line)}; border: 0; }}
+QFrame#pill {{ background: {css(mix(c.raised, c.window, 0.08) + "e6")}; border: 1px solid {css(c.line_strong)}; border-radius: 18px; }}
+QLabel[chip="true"] {{
+    background: {c.raised}; border: 1px solid {css(c.line)}; border-radius: 11px; padding: 2px 9px;
+    color: {c.muted}; font-size: 11px; font-weight: 500;
+}}
+QLabel[chip="true"][tone="accent"] {{ background: {css(c.accent_soft)}; border-color: {css(c.accent_line)}; color: {c.accent_text}; }}
+QLabel[chip="true"][tone="ok"] {{ color: {c.success}; }}
+QLabel[chip="true"][tone="warn"] {{ color: {c.warning}; }}
+QLabel[chip="true"][tone="bad"] {{ color: {c.error_text}; }}
 QLabel[role="section"] {{ color: {c.muted}; font-weight: 650; }}
 QLabel[role="readout"] {{ color: {c.text}; }}
 QLabel[role="title"] {{ color: {c.text}; font-size: 22px; font-weight: 650; }}
