@@ -106,7 +106,7 @@ def test_the_audio_page_is_registered_with_its_icon_and_shortcut_hint(window) ->
 def test_the_page_shows_the_viewer_timeline_and_properties_and_parks_the_layers(window, page) -> None:
     for view in (window.viewer, window.timeline, window.properties):
         assert page.widget.isAncestorOf(view) and view.isVisible()
-    assert window.layers.parentWidget() is window.pages.parking and not window.layers.isVisible()
+    assert window.layers_card.parentWidget() is window.pages.parking and not window.layers.isVisible()
     assert page.widget.isAncestorOf(page.sounds) and page.sounds.isVisible() and page.cues.isVisible()
     window.show_page("compose")
     assert not page.widget.isAncestorOf(window.viewer) and window.layers.isVisible()

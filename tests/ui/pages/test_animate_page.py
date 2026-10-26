@@ -113,7 +113,7 @@ def test_animate_is_the_second_page_with_the_viewer_properties_graph_and_timelin
     page = window.pages.pages["animate"]
     for view in (window.viewer, window.properties, window.timeline, graph(window)):
         assert page.widget.isAncestorOf(view) and view.isVisible()
-    assert window.layers.parentWidget() is window.pages.parking
+    assert window.layers_card.parentWidget() is window.pages.parking
     sizes = page.outer.sizes()
     assert sizes[1] >= sizes[2]  # the graph is the large middle part
     window.show_page("compose")  # the graph stays with its page

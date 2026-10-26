@@ -416,7 +416,7 @@ def window(qt_app, tmp_path):
     path = tmp_path / "multi.json"
     path.write_text(project().model_dump_json(by_alias=True), encoding="utf-8")
     win = MainWindow()
-    win.resize(1200, 760)
+    win.resize(1400, 760)
     win.show()
     win.load(path)
     qt_app.processEvents()

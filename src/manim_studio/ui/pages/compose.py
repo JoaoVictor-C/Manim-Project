@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, Qt
-from PySide6.QtWidgets import QSplitter, QWidget
+from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
+from ..style import theme
+from ..style.card import gutter_splitter, page_margins
 from . import Page, Shared
 
 REAL_WIDTH = 600  # a splitter narrower than this has not been laid out in its window yet
@@ -14,7 +16,7 @@ def side_widths(total: int) -> tuple[int, int]:
     """Layers and Properties widths for a page ``total`` pixels wide (P6d.4): about a fifth
     and a quarter of it, within limits, so the canvas keeps the rest on a small screen."""
     layers = min(max(round(total * 0.2), 240), 280)  # 240: the Layers buttons as icons (P6d.4)
-    properties = min(max(round(total * 0.25), 300), 340)  # 300: Properties' own minimum
+    properties = min(max(round(total * 0.25), 316), 340)  # 316: the Properties card's own minimum
     return layers, properties
 
 
@@ -27,7 +29,11 @@ class _FirstLayout(QObject):
         splitter.installEventFilter(self)
 
     def eventFilter(self, watched, event) -> bool:
-        if event.type() == QEvent.Type.Resize and watched.width() >= REAL_WIDTH:
+        if (
+            event.type() in (QEvent.Type.Resize, QEvent.Type.Show)
+            and watched.width() >= REAL_WIDTH
+            and watched.isVisible()
+        ):
             watched.removeEventFilter(self)
             self.then()
         return False
@@ -40,12 +46,15 @@ class ComposePage(Page):
     tooltip = "Build the scene: objects, the canvas, the timeline and properties (Ctrl+1)"
 
     def build(self) -> QWidget:
-        self.outer = QSplitter(Qt.Orientation.Horizontal)
-        self.centre = QSplitter(Qt.Orientation.Vertical)
+        self.outer = gutter_splitter(Qt.Orientation.Horizontal)
+        self.centre = gutter_splitter(Qt.Orientation.Vertical)
         self.outer.addWidget(self.centre)
-        self.outer.setChildrenCollapsible(False)
         self._first_layout = _FirstLayout(self.outer, self._size_sides)
-        return self.outer
+        root = QWidget()
+        column = QVBoxLayout(root)
+        page_margins(column)
+        column.addWidget(self.outer)
+        return root
 
     def place(self, shared: Shared) -> None:
         self.centre.insertWidget(0, shared.viewer)
@@ -69,6 +78,11 @@ class ComposePage(Page):
         super().apply_pending()
 
     def _size_sides(self) -> None:
-        total = max(self.outer.width(), 1200) if self.outer.width() < REAL_WIDTH else self.outer.width()
+        if self.outer.width() >= REAL_WIDTH:
+            total = self.outer.width()
+        else:  # not laid out yet (the welcome is up): the window's own width, at least a laptop's
+            total = max(self.window.width() - 2 * theme.GUTTER, 1200)
+        total -= 2 * self.outer.handleWidth()  # the gutters take their share of the width
+        total = max(total, 1)
         layers, properties = side_widths(total)
         self.outer.setSizes([layers, total - layers - properties, properties])

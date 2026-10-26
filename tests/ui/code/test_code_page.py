@@ -96,7 +96,7 @@ def test_the_page_is_registered_after_compose_with_the_viewer_beside_the_editor(
     code = page(window)
     assert code.widget.isAncestorOf(window.viewer) and window.viewer.isVisible()
     assert code.widget.isAncestorOf(code.editor) and code.editor.isVisible()
-    for view in (window.timeline, window.layers, window.properties):
+    for view in (window.timeline_card, window.layers_card, window.properties_card):
         assert view.parentWidget() is window.pages.parking
     assert window.pages.bar.tabText(2) == "Code" and not window.pages.bar.tabIcon(2).isNull()  # Shift+3
     assert menu_action(window.menuBar(), "View", "Pages", "Code")

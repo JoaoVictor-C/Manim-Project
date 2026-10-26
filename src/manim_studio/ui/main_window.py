@@ -24,13 +24,10 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QFileDialog,
-    QHBoxLayout,
     QInputDialog,
     QMainWindow,
     QMessageBox,
-    QPushButton,
     QSlider,
-    QStackedLayout,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -69,6 +66,7 @@ from .panels.presets_browser import PresetsBrowser
 from .panels.properties_panel import PropertiesPanel
 from .playback.audio_player import make_audio_player
 from .playback.presenter import Presenter
+from .playback.transport import PlayButton, TransportPill, float_at_bottom
 from .services.code_render import make_code_renderer
 from .services.preview_client import make_preview
 from .services.render_ahead import RenderAhead
@@ -83,12 +81,16 @@ from .shell import shortcuts_help
 from .shell.autosave import Autosave
 from .shell.clipboard_actions import ClipboardActions
 from .shell.new_project_dialog import NewProjectDialog
+from .shell.palette import CommandPalette, collect_items
 from .shell.plugins_dialog import PluginsDialog, startup_message
 from .shell.shortcuts_help import ShortcutsDialog
+from .shell.topbar import TopBar
 from .shell.welcome import EXAMPLE, WelcomePanel
 from .style import icons, theme
+from .style.card import Card, Chip
 from .style.elided_label import ElidedLabel
 from .style.render_activity import RenderActivity
+from .style.toast import LumenStatusBar, ToastHost
 from .timeline.view import TimelineView
 
 log = get_logger(__name__)
@@ -114,6 +116,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Manim Studio")
         self.resize(1280, 820)
+        self.status = LumenStatusBar(self)  # messages also arrive as toasts (ADR 0063)
+        self.setStatusBar(self.status)
+        self.toasts = ToastHost(self)
+        self.status.toasts = self.toasts
         self.prefs = Preferences()  # how the editor was left (ADR 0044)
         limits.set_unlimited(bool(self.prefs.option("code_no_time_limit", False)))  # ADR 0059
         self._page_restored = False  # the last page returns once, when the first project opens
@@ -158,26 +164,34 @@ class MainWindow(QMainWindow):
         self.canvas.view_changed.connect(self.refresh)
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.valueChanged.connect(self._on_slider)
-        self.play_button = QPushButton(icons.icon("play"), "Play")
+        self.play_button = PlayButton()
+        self.play_button.setIcon(
+            icons.icon("play")
+        )  # (drawn by the button itself; kept as its accessible icon)
         self.play_button.clicked.connect(self.toggle_play)
         self.time_label = ElidedLabel("0.00 s", minimum=170)  # shortened, not cut, in a narrow window
-        self.time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.time_label.setFont(theme.font("caption", kind="mono"))
+        self.time_label.setProperty("role", "hint")
 
-        controls = QHBoxLayout()
-        controls.addWidget(self.play_button)
-        controls.addWidget(self.slider, 1)
-        controls.addWidget(self.time_label)
-        self.stage = QWidget()  # the canvas with its transport
+        self.stage = QWidget()  # the canvas, with the transport floating over its bottom (ADR 0063)
         layout = QVBoxLayout(self.stage)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.canvas, 1)
-        layout.addLayout(controls)
-        # What the pages show: the stage, or the welcome until a project is open (ADR 0041, 0044).
-        self.viewer = QWidget()
-        self.viewer_stack = QStackedLayout(self.viewer)
+        self.transport = TransportPill(
+            self.play_button,
+            self.slider,
+            to_start=lambda: self.seek(0.0),
+            to_end=self._seek_to_end,
+            set_loop=self._set_loop,
+            set_speed=self.set_play_speed,
+            parent=self.stage,
+        )
+        self._transport_placer = float_at_bottom(self.stage, self.transport)
+        # What the pages show: the stage; the welcome stands in for the pages until a project is open
+        # (ADR 0041, 0044, 0063).
+        self.viewer = self.stage
         self.welcome = WelcomePanel()
-        self.viewer_stack.addWidget(self.stage)
-        self.viewer_stack.addWidget(self.welcome)
-        self.viewer_stack.setCurrentWidget(self.welcome)
 
         self.timeline = TimelineView()
         self.timeline.set_document(self.document)
@@ -209,7 +223,27 @@ class MainWindow(QMainWindow):
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
         # The workspace pages share the views above (ADR 0041); Compose is the first.
-        self.pages = PageHost(Shared(self.viewer, self.timeline, self.layers, self.properties), self)
+        # The shared views sit in cards (Lumen, ADR 0063); the pages place the cards.
+        self.viewer_card = Card("Stage", clip=True)
+        self.viewer_card.set_body(self.viewer)
+        self.scene_chip = Chip("")  # the scene's size and frame rate
+        self.viewer_card.add_title_widget(self.scene_chip)
+        self.viewer_card.add_action(self.time_label)
+        self.timeline_card = Card("Timeline")
+        self.timeline_card.set_body(self.timeline)
+        self.layers_card = Card("Layers")
+        self.layers_card.set_body(self.layers)
+        self.properties_card = Card("Properties")
+        self.properties_card.set_body(self.properties)
+        self.pages = PageHost(
+            Shared(self.viewer_card, self.timeline_card, self.layers_card, self.properties_card), self
+        )
+        self.pages.set_welcome(self.welcome)
+        self.topbar = TopBar(self)  # the real menu bar, with the page switcher and the daily tools
+        self.setMenuBar(self.topbar)
+        self.pages.attach_topbar(self.topbar)
+        self.topbar.exportRequested.connect(self.show_export_dialog)
+        self.topbar.paletteRequested.connect(self.show_palette)
         self.presenter = Presenter(self)  # the animation alone, full screen (P12)
         for page in (
             ComposePage,
@@ -257,6 +291,7 @@ class MainWindow(QMainWindow):
         self.timeline.browse_presets = self.show_presets_browser
         self.presets_browser: PresetsBrowser | None = None  # made on the first Browse Presets
         self._build_menu()
+        self.pages.show_welcome(True)
         self._wire_welcome()
         self._restore_preferences()
         app = QApplication.instance()
@@ -326,6 +361,8 @@ class MainWindow(QMainWindow):
         redo = self.document.undo_stack.createRedoAction(self, "&Redo")
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addActions([undo, redo])
+        self.undo_action, self.redo_action = undo, redo
+        self.topbar.bind_history(undo, redo)
         edit_menu.addSeparator()
         self.clipboard.add_to(edit_menu)
         edit_menu.addSeparator()  # groups (U6, ADR 0050)
@@ -431,11 +468,11 @@ class MainWindow(QMainWindow):
             action.setToolTip(page.tooltip)
             action.triggered.connect(lambda _=False, n=name: self.show_page(n))
             pages_menu.addAction(action)
-        self.panel_toggles: dict[QWidget, QAction] = {}
+        self.panel_toggles: dict[QWidget, QAction] = {}  # by the card and by the panel inside it
         for title, panel, glyph in (
-            ("&Layers", self.layers, "sidebar"),
-            ("P&roperties", self.properties, "sidebar-right"),
-            ("&Timeline", self.timeline, "panel"),
+            ("&Layers", self.layers_card, "sidebar"),
+            ("P&roperties", self.properties_card, "sidebar-right"),
+            ("&Timeline", self.timeline_card, "panel"),
         ):
             name = title.replace("&", "")
             toggle = QAction(title, self, checkable=True, checked=True)
@@ -443,6 +480,7 @@ class MainWindow(QMainWindow):
             toggle.toggled.connect(lambda on, p=panel: self.pages.set_visible(p, on))
             view_menu.addAction(toggle)
             self.panel_toggles[panel] = toggle
+            self.panel_toggles[panel.body()] = toggle
             button = QToolButton()  # the same switch on the page bar
             button.setIcon(icons.icon(glyph))
             button.setCheckable(True)
@@ -453,6 +491,11 @@ class MainWindow(QMainWindow):
             toggle.toggled.connect(lambda on, b=button: _set_checked(b, on))
             self.pages.add_panel_button(panel, button)
         view_menu.addSeparator()
+        self.palette_action = QAction("Command &Palette...", self)
+        self.palette_action.setShortcut(QKeySequence("Ctrl+K"))
+        self.palette_action.setToolTip("Search every command, layer and page by name")
+        self.palette_action.triggered.connect(self.show_palette)
+        view_menu.addAction(self.palette_action)
         self.fullscreen_action = QAction("&Full Screen", self)
         self.fullscreen_action.setShortcut(QKeySequence("F11"))
         self.fullscreen_action.setToolTip(
@@ -751,9 +794,9 @@ class MainWindow(QMainWindow):
             ("half_resolution", self.half_action, False),
             ("follow_playhead", self.follow_action, True),
             ("render_ahead", self.render_ahead_action, True),
-            ("panel_layers", self.panel_toggles[self.layers], True),
-            ("panel_properties", self.panel_toggles[self.properties], True),
-            ("panel_timeline", self.panel_toggles[self.timeline], True),
+            ("panel_layers", self.panel_toggles[self.layers_card], True),
+            ("panel_properties", self.panel_toggles[self.properties_card], True),
+            ("panel_timeline", self.panel_toggles[self.timeline_card], True),
         )
 
     def present(self) -> None:
@@ -849,7 +892,8 @@ class MainWindow(QMainWindow):
     def _on_reset(self, project: Project) -> None:
         """A project was opened: rebuild everything that depends on it."""
         self._has_project = True
-        self.viewer_stack.setCurrentWidget(self.stage)  # the welcome is for an empty start
+        self.pages.show_welcome(False)  # the welcome is for an empty start
+        self._update_scene_chip(project)
         if self.statusBar().currentMessage() == START_HINT:
             self.statusBar().clearMessage()  # done: a project is open (GP)
         self.layers.setEnabled(True)
@@ -939,6 +983,7 @@ class MainWindow(QMainWindow):
         """The picture's settings changed: everything drawn starts again; the view stays where it
         was when the frame's shape did not change."""
         self.evaluator = Evaluator(project, self.code.cache)
+        self._update_scene_chip(project)
         shape = ("width_px", "height_px", "frame_height")
         same_shape = all(getattr(before.canvas, f) == getattr(project.canvas, f) for f in shape)
         view = self.canvas.view
@@ -1868,6 +1913,8 @@ class MainWindow(QMainWindow):
             f"{self.t:5.2f} s  frame {frame_index(self.t, fps):4d}  ({source})"
             f"   {self.canvas.zoom_label()}{ahead}"
         )
+        self.transport.set_time(self.t, self.project.canvas.duration)
+        self.transport.set_loop(self.loop_playback)
 
     def step(self, frames: int) -> None:
         if self.project is not None:
@@ -1945,9 +1992,37 @@ class MainWindow(QMainWindow):
             return
         self.seek(t)
 
+    def show_palette(self) -> None:
+        """Ctrl K: search every command, layer and page by name, and run the chosen one."""
+        items = collect_items(self)
+        palette = CommandPalette(items, self)
+        self.palette = palette  # (tests look at it while it is open)
+        palette.open_over(self)
+        if (
+            palette.exec() == palette.DialogCode.Accepted
+            and palette.chosen is not None
+            and palette.chosen.run
+        ):
+            palette.chosen.run()
+        self.palette = None
+
+    def _seek_to_end(self) -> None:
+        if self.project is not None:
+            self.pause()
+            self.seek(self.project.canvas.duration)
+
+    def _set_loop(self, on: bool) -> None:
+        self.loop_playback = bool(on)
+
+    def _update_scene_chip(self, project: Project | None) -> None:
+        canvas = project.canvas if project is not None else None
+        text = f"{canvas.width_px} × {canvas.height_px} · {canvas.fps:g} fps" if canvas else ""
+        self.scene_chip.setText(text)
+
     def set_play_speed(self, speed: float) -> None:
         """Play a silent scene at ``speed`` times (1 = as made); the clock restarts from here."""
         self.play_speed = max(0.05, float(speed))
+        self.transport.set_speed(self.play_speed)
         self._play_origin = (time.perf_counter(), self.t)
 
     def _on_idle(self) -> None:

@@ -539,7 +539,7 @@ QPushButton[role="link"] {{ background: transparent; border: 0; color: {c.accent
 QPushButton[role="link"]:hover {{ text-decoration: underline; }}
 QToolButton {{
     background: transparent; color: {c.text}; border: 1px solid transparent; border-radius: {r}px;
-    padding: 5px 8px;
+    padding: 4px 6px;
 }}
 QToolButton:hover {{ background: {css(c.hover)}; }}
 QToolButton:pressed {{ background: {css(c.line)}; }}

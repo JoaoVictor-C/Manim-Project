@@ -18,18 +18,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QByteArray, Qt, Signal
+from PySide6.QtCore import QByteArray, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QSplitter,
+    QStackedLayout,
     QStackedWidget,
-    QTabBar,
     QToolButton,
-    QVBoxLayout,
     QWidget,
 )
 
 from ..style import icons
+from ..style.page_switcher import PageSwitcher
 
 
 @dataclass(frozen=True)
@@ -114,7 +113,9 @@ class Page:
 
 
 class PageHost(QWidget):
-    """The window's central widget: the pages, stacked, over the page bar."""
+    """The window's central widget: the pages, stacked; or the welcome while no project is open.
+
+    The page switcher and the panel switches live in the window's top bar (``attach_topbar``)."""
 
     pageChanged = Signal(str)
 
@@ -127,45 +128,59 @@ class PageHost(QWidget):
         self.stack = QStackedWidget()
         self.parking = QWidget(self)  # views the current page does not use
         self.parking.hide()
-        self.bar = QTabBar()
-        self.bar.setObjectName("pageBar")
-        self.bar.setShape(QTabBar.Shape.RoundedSouth)
-        self.bar.setExpanding(False)
-        self.bar.setDrawBase(False)
+        self.bar = PageSwitcher()  # shown in the top bar; the pages' model (index, data, signals)
         self.bar.currentChanged.connect(self._on_tab)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.stack, 1)
-        # The bottom row: the panel buttons (left), the page tabs (centre), the window buttons (right).
-        self.panel_row = QHBoxLayout()
-        self.panel_row.setContentsMargins(6, 0, 6, 0)
+        self.root = QStackedLayout(self)
+        self.root.setContentsMargins(0, 0, 0, 0)
+        self.root.addWidget(self.stack)
+        self.welcome: QWidget | None = None
+        self.topbar = None
         self.panel_buttons: list[tuple[QWidget, QToolButton]] = []
-        left, right = QHBoxLayout(), QHBoxLayout()
-        self.left_buttons, self.right_buttons = left, right
-        self.panel_row.addLayout(left, 1)
-        self.panel_row.addWidget(self.bar, 0)
-        self.panel_row.addLayout(right, 1)
-        left.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        right.setAlignment(Qt.AlignmentFlag.AlignRight)
-        layout.addLayout(self.panel_row)
+        self._window_buttons: list[QToolButton] = []
         for view in shared.all():
             view.setParent(self.parking)
+
+    def attach_topbar(self, topbar) -> None:
+        """Put the page switcher and the panel and window buttons in ``topbar``."""
+        self.topbar = topbar
+        topbar.set_switcher(self.bar)
+        for _view, button in self.panel_buttons:
+            topbar.add_panel_button(button)
+        for button in self._window_buttons:
+            topbar.add_window_button(button)
+
+    def set_welcome(self, widget: QWidget) -> None:
+        """The widget shown instead of the pages until a project is open."""
+        self.welcome = widget
+        self.root.addWidget(widget)
+
+    def show_welcome(self, shown: bool) -> None:
+        if self.welcome is not None:
+            self.root.setCurrentWidget(self.welcome if shown else self.stack)
+        if self.topbar is not None:
+            self.topbar.set_project_mode(not shown)
+            if not shown:
+                self._sync_panel_buttons()
 
     def add_panel_button(self, view: QWidget, button: QToolButton) -> None:
         """A button that shows or hides ``view`` (a shared panel); it is shown while the current page
         has that panel."""
-        self.left_buttons.addWidget(button)
         self.panel_buttons.append((view, button))
+        if self.topbar is not None:
+            self.topbar.add_panel_button(button)
         button.setVisible(self.current is not None and view.parentWidget() is not self.parking)
 
     def add_window_button(self, button: QToolButton) -> None:
-        """A button for the window itself (full screen), at the right of the page bar."""
-        self.right_buttons.addWidget(button)
+        """A button for the window itself (full screen), in the top bar."""
+        self._window_buttons.append(button)
+        if self.topbar is not None:
+            self.topbar.add_window_button(button)
 
     def _sync_panel_buttons(self) -> None:
         for view, button in self.panel_buttons:
             button.setVisible(view.parentWidget() is not self.parking)
+        if self.topbar is not None:
+            self.topbar.refresh()  # the bar's right side changed size
 
     def add(self, page: Page) -> None:
         self.pages[page.name] = page

@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QSplitter, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 
 from ..style import icons, theme
+from ..style.card import Card, gutter_splitter, page_margins
 from ..style.elided_label import ElidedLabel
 from ..timeline import graph_model
 from ..timeline.graph_editor import GraphEditor
@@ -33,16 +34,21 @@ class AnimatePage(Page):
     def build(self) -> QWidget:
         self.graph: GraphEditor | None = None  # made on the first show: the selection exists then
         self.legend: dict[str, QLabel] = {}
-        self.outer = QSplitter(Qt.Orientation.Vertical)
-        self.top = QSplitter(Qt.Orientation.Horizontal)
-        self.panel = QWidget()
-        self.panel_layout = QVBoxLayout(self.panel)
+        self.outer = gutter_splitter(Qt.Orientation.Vertical)
+        self.top = gutter_splitter(Qt.Orientation.Horizontal)
+        self.panel = Card("Curves")
+        self.panel_body = QWidget()
+        self.panel.set_body(self.panel_body)
+        self.panel_layout = QVBoxLayout(self.panel_body)
         self.panel_layout.setContentsMargins(0, 0, 0, 0)
         self.panel_layout.setSpacing(0)
         self.outer.addWidget(self.top)
         self.outer.addWidget(self.panel)
-        self.outer.setChildrenCollapsible(False)
-        return self.outer
+        root = QWidget()
+        column = QVBoxLayout(root)
+        page_margins(column)
+        column.addWidget(self.outer)
+        return root
 
     def _make_graph(self) -> None:
         window = self.window
