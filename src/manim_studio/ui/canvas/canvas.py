@@ -46,10 +46,15 @@ DOT_GAP = 18  # the dotted pasteboard (Lumen, ADR 0063)
 SHADOW_PX = 22  # how far the frame's shadow reaches
 
 
+_colours_for = theme.THEME.name
+
+
 def refresh_colours() -> None:
     """Read the overlay colours from the current theme again (the paint code reads these module names, so
     switching Ink and Paper restyles the handles and guides without rebuilding the canvas)."""
+    global _colours_for
     c = theme.THEME
+    _colours_for = c.name
     g = globals()
     g["OUTLINE_COLOR"] = theme.qcolor(c.outline)
     g["MOTION_COLOR"] = theme.qcolor(c.motion_path)
@@ -447,6 +452,8 @@ class CanvasWidget(QWidget):
         return Outline(path, path.boundingRect(), anchor, box, snaps)
 
     def paintEvent(self, event) -> None:
+        if _colours_for != theme.THEME.name:  # the theme was applied without a change signal (at start)
+            refresh_colours()
         painter = QPainter(self)
         painter.fillRect(self.rect(), theme.qcolor(theme.THEME.window))
         if self._image is not None and self._canvas is not None:
