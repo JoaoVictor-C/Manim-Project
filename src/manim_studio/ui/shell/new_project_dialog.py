@@ -4,18 +4,15 @@ How should the Transform clips you add match their pieces? **Smart** (the defaul
 in-between frames; **Classic** is Manim's own Transform, so the project's Python export stays
 readable code. It can be changed later in Properties (Scene > New morphs), and it changes no
 clip that exists.
+
+Drawn as a Lumen dialog (ADR 0063): an icon header, the two answers as option cards, the actions at the right.
 """
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QLabel,
-    QRadioButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QButtonGroup, QDialog, QLabel, QRadioButton, QWidget
+
+from ..style.dialog_chrome import DialogFrame, OptionCard
 
 SMART = "smart"
 CLASSIC = "classic"
@@ -26,10 +23,12 @@ class NewProjectDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("New project")
         self.setMinimumWidth(460)
-        layout = QVBoxLayout(self)
-        intro = QLabel("How should morphs (Transform clips) match their pieces in this project?")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        self.frame = DialogFrame(
+            self,
+            "add",
+            "New project",
+            "How should morphs (Transform clips) match their pieces in this project?",
+        )
 
         self.smart_button = QRadioButton("Smart - cleaner in-between frames (recommended)")
         self.smart_button.setToolTip(
@@ -42,27 +41,27 @@ class NewProjectDialog(QDialog):
             "Manim's own Transform: pieces and points paired in order.\n"
             "The project's Python export stays plain, readable Manim code."
         )
-        layout.addWidget(self.smart_button)
-        smart_note = QLabel("The Python export becomes an exact replay of the editor.")
-        smart_note.setWordWrap(True)
-        smart_note.setContentsMargins(24, 0, 0, 0)
-        layout.addWidget(smart_note)
-        layout.addWidget(self.classic_button)
-        classic_note = QLabel("Manim's own Transform: the export stays plain Manim code.")
-        classic_note.setWordWrap(True)
-        classic_note.setContentsMargins(24, 0, 0, 0)
-        layout.addWidget(classic_note)
+        self.group = QButtonGroup(self)  # the radios sit in different cards, so they need a group
+        self.group.addButton(self.smart_button)
+        self.group.addButton(self.classic_button)
+        self.smart_card = OptionCard(
+            self.smart_button, "The Python export becomes an exact replay of the editor."
+        )
+        self.classic_card = OptionCard(
+            self.classic_button, "Manim's own Transform: the export stays plain Manim code."
+        )
+        self.frame.body.addWidget(self.smart_card)
+        self.frame.body.addWidget(self.classic_card)
         hint = QLabel("You can change this later in Properties (Scene > New morphs).")
         hint.setWordWrap(True)
-        layout.addWidget(hint)
+        hint.setProperty("role", "hint")
+        self.frame.body.addWidget(hint)
 
         (self.classic_button if remembered == CLASSIC else self.smart_button).setChecked(True)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.cancel_button = self.frame.add_button("Cancel")
+        self.ok_button = self.frame.add_button("Create project", "primary")
+        self.cancel_button.clicked.connect(self.reject)
+        self.ok_button.clicked.connect(self.accept)
 
     def choice(self) -> str:
         return CLASSIC if self.classic_button.isChecked() else SMART

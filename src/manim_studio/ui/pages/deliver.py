@@ -1,10 +1,13 @@
-"""The Deliver page (P6b.5, ADR 0041, ADR 0042): render settings, a queue of exports and the Python scene.
+"""The Deliver page (P6b.5, ADR 0041, ADR 0042; Lumen, ADR 0063): destinations, render settings, a queue.
 
-Left, the shared viewer. Right, top to bottom: the **render settings** (file, size, frame
-rate, range, quality, subtitles) with *Add to queue*; the **queue** of exports, run one after
-another through ``ExportJob`` (each from the project as it was when it was added); and the
-**Python scene** with a readable/exact preview and *Save as...*. The settings are the
-page's own state, not the project's; they start from the project's canvas.
+Three cards. At the left, **where is it going?**: large selectable destinations (a video for the web, a quick
+draft, Full HD, an archive master - each starts the form from a size and a quality - and the Python scene).
+In the middle, the shared viewer over the chosen destination's **settings** (file, size, frame rate, range,
+quality, subtitles, with estimate tiles) and *Render video* / *Add to queue*; for the Python destination, the
+readable/exact scene with *Save as...*. At the right, the **queue** of exports, run one after another through
+``ExportJob`` (each from the project as it was when it was added): the running job has a progress ring and the
+time left, the finished ones a check. The settings are the page's own state, not the project's; they start
+from the project's canvas.
 """
 
 from __future__ import annotations
@@ -12,22 +15,24 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QButtonGroup,
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
-    QFormLayout,
-    QGroupBox,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
-    QProgressBar,
     QPushButton,
+    QScrollArea,
     QSpinBox,
-    QSplitter,
+    QStackedWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -49,8 +54,18 @@ from ...render.options import (
     size_for_height,
 )
 from ..deliver.export_job import ExportJob
+from ..deliver.queue_view import (
+    ROW_HEIGHT,
+    BlankTextDelegate,
+    DestinationCard,
+    EstimateTile,
+    JobRow,
+    ProgressRing,
+    SlimBar,
+)
 from ..deliver.render_queue import QueueJob, RenderQueue, Status
-from ..style import theme
+from ..style import icons, theme
+from ..style.card import Card, Chip, gutter_splitter, page_margins
 from . import Page, Shared
 
 log = get_logger(__name__)
@@ -79,6 +94,71 @@ def default_output(path: Path | None, folder: Path | None = None) -> Path:
     return (path.parent if path else folder or Path.cwd()) / "out" / f"{name}.mp4"
 
 
+class Destination:
+    """A card of the left column: what to make, and the settings it starts the form from."""
+
+    def __init__(
+        self,
+        key: str,
+        title: str,
+        summary: str,
+        icon: str,
+        gradient: tuple[str, str] | None,
+        size: str | None = None,
+        crf: int | None = None,
+    ) -> None:
+        self.key, self.title, self.summary, self.icon, self.gradient = key, title, summary, icon, gradient
+        self.size, self.crf = size, crf  # None: leave the form as it is
+
+
+DESTINATIONS = (
+    Destination(
+        "web",
+        "Video for the web",
+        "Project size, MP4 (H.264)",
+        "film",
+        ("danger", "warning"),
+        "project",
+        DEFAULT_CRF,
+    ),
+    Destination(
+        "draft",
+        "Quick draft",
+        "480p, small and fast",
+        "effects",
+        ("accent_2", "accent"),
+        "480p",
+        QUALITIES["Draft"],
+    ),
+    Destination("hd", "Full HD", "1080p, high quality", "play", ("key", "warning"), "1080p", DEFAULT_CRF),
+    Destination(
+        "master",
+        "Archive master",
+        "2160p, the highest quality",
+        "export",
+        ("morph", "accent"),
+        "2160p",
+        QUALITIES["Archive"],
+    ),
+    Destination("python", "Manim Python", "A scene you can run with manim", "python", None),
+)
+BITS_PER_PIXEL = 0.05  # at crf 23: a rough figure for the size estimate (simple animation compresses well)
+
+
+def clock(seconds: float) -> str:
+    """0:07 or 1:05:09 - a duration for people."""
+    whole = round(seconds)
+    hours, rest = divmod(whole, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
+def megabytes(size: float) -> str:
+    if size < 1e6:
+        return f"{max(1, round(size / 1e3))} KB"
+    return f"{size / 1e6:.1f} MB" if size < 1e8 else f"{round(size / 1e6)} MB"
+
+
 class DeliverPage(Page):
     name = "deliver"
     title = "Deliver"
@@ -91,47 +171,124 @@ class DeliverPage(Page):
         self.queue = RenderQueue()
         self._export: ExportJob | None = None  # the running export, for queue.current
         self._rows: dict[int, QTreeWidgetItem] = {}
+        self._row_widgets: dict[int, JobRow] = {}
         self._first_progress: tuple[float, int] | None = None
+        self._pixel_rate: float | None = (
+            None  # pixels x frames rendered per second, from the last finished job
+        )
         self._default_output: str = ""
         self._fps_touched = False
         self._markers_chosen = False  # until the user picks, the range is first marker to last
         self._seen = None
         self._duration: float | None = None
         self._python_stale = True
+        self._destination = DESTINATIONS[0]
+        self._last: QueueJob | None = None  # what the queue panel shows once nothing is running
         self._python_timer = QTimer(singleShot=True, interval=PYTHON_DELAY_MS)
         self._python_timer.timeout.connect(self.refresh_python)
 
-        self.outer = QSplitter(Qt.Orientation.Horizontal)
-        self.outer.setChildrenCollapsible(False)
-        right = QSplitter(Qt.Orientation.Vertical)
-        right.setChildrenCollapsible(False)
-        right.addWidget(self._build_settings())
-        right.addWidget(self._build_queue())
-        right.addWidget(self._build_python())
-        right.setStretchFactor(0, 0)
-        right.setStretchFactor(1, 1)
-        right.setStretchFactor(2, 1)
-        self.right = right
-        self.outer.addWidget(right)
-        self.outer.setStretchFactor(0, 1)
-        self.outer.setStretchFactor(1, 0)
+        self.destinations: dict[str, DestinationCard] = {}
+        self.destination_group = QButtonGroup(self.window)
+        self.destination_card = self._build_destinations()
+        self.settings_card = self._build_settings()
+        self.queue_card = self._build_queue()
+
+        self.outer = gutter_splitter(Qt.Orientation.Horizontal)  # destinations | viewer over settings | queue
+        self.centre = gutter_splitter(Qt.Orientation.Vertical)
+        self.centre.addWidget(self.settings_card)
+        self.outer.addWidget(self.destination_card)
+        self.outer.addWidget(self.centre)
+        self.outer.addWidget(self.queue_card)
+        self.outer.setStretchFactor(0, 0)
+        self.outer.setStretchFactor(1, 1)
+        self.outer.setStretchFactor(2, 0)
+        self.centre.setStretchFactor(0, 1)
+        self.centre.setStretchFactor(1, 1)
+        self.right = self.queue_card  # what the old three-part column was called
+        root = QWidget()
+        layout = QHBoxLayout(root)
+        page_margins(layout)
+        layout.addWidget(self.outer)
 
         document = self.window.document
         document.reset.connect(self._on_reset)
         document.changed.connect(self._on_changed)
         self._on_reset(document.project)
-        return self.outer
+        self.choose_destination("web", apply=False)
+        return root
 
-    def _build_settings(self) -> QGroupBox:
-        box = QGroupBox("Render settings")
-        form = QFormLayout(box)
+    def _build_destinations(self) -> Card:
+        card = Card("Where is it going?")
+        body = QWidget()
+        column = QVBoxLayout(body)
+        column.setContentsMargins(12, 12, 12, 12)
+        column.setSpacing(theme.GUTTER)
+        for destination in DESTINATIONS:
+            button = DestinationCard(
+                destination.key,
+                destination.title,
+                destination.summary,
+                destination.icon,
+                destination.gradient,
+            )
+            button.clicked.connect(lambda _=False, key=destination.key: self.choose_destination(key))
+            self.destination_group.addButton(button)
+            self.destinations[destination.key] = button
+            column.addWidget(button)
+        column.addStretch(1)
+        card.set_body(self._scrolling(body))
+        card.setMinimumWidth(240)
+        return card
+
+    @staticmethod
+    def _scrolling(content: QWidget) -> QScrollArea:
+        """``content`` in a frameless, transparent scroll area: a small window scrolls, nothing squeezes."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(content)
+        content.setAutoFillBackground(False)
+        scroll.viewport().setAutoFillBackground(False)
+        return scroll
+
+    def _build_settings(self) -> Card:
+        card = Card("Video for the web")
+        self.preset_chip = Chip("Preset")
+        self.preset_chip.setFixedHeight(22)
+        card.add_title_widget(self.preset_chip)
+        self.settings_stack = QStackedWidget()
+        self.settings_stack.addWidget(self._build_video_settings())
+        self.settings_stack.addWidget(self._build_python())
+        card.set_body(self.settings_stack)
+        return card
+
+    def _label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setProperty("role", "muted")
+        return label
+
+    def _build_video_settings(self) -> QWidget:
+        self.tile_length = EstimateTile("Length")
+        self.tile_time = EstimateTile("Render time")
+        self.tile_size = EstimateTile("File size")
+        self.tile_sound = EstimateTile("Sound")
+        tiles = QGridLayout()
+        tiles.setSpacing(10)
+        for index, tile in enumerate((self.tile_length, self.tile_time, self.tile_size, self.tile_sound)):
+            tiles.addWidget(tile, index // 2, index % 2)
+        tiles.setColumnStretch(0, 1)
+        tiles.setColumnStretch(1, 1)
+
         self.path = QLineEdit()
+        self.path.setPlaceholderText("Where to save the video")
         browse = QPushButton("Browse...")
+        browse.setIcon(icons.icon("folder"))
         browse.clicked.connect(self._browse)
         path_row = QHBoxLayout()
+        path_row.setSpacing(theme.GUTTER)
         path_row.addWidget(self.path, 1)
         path_row.addWidget(browse)
-        form.addRow("Save as", path_row)
 
         self.size = QComboBox()
         self.size.addItem("", "project")
@@ -141,18 +298,17 @@ class DeliverPage(Page):
         self.width = QSpinBox(minimum=2, maximum=16384, singleStep=2)
         self.height = QSpinBox(minimum=2, maximum=16384, singleStep=2)
         size_row = QHBoxLayout()
+        size_row.setSpacing(theme.GUTTER)
         size_row.addWidget(self.size, 1)
         size_row.addWidget(self.width)
         size_row.addWidget(QLabel("x"))
         size_row.addWidget(self.height)
-        form.addRow("Size", size_row)
         self.size.currentIndexChanged.connect(self._on_size_choice)
         self.width.valueChanged.connect(self._refresh_summary)
         self.height.valueChanged.connect(self._refresh_summary)
 
         self.fps = QSpinBox(minimum=1, maximum=240, suffix=" fps")
         self.fps.valueChanged.connect(self._on_fps_edited)
-        form.addRow("Frame rate", self.fps)
 
         self.range = QComboBox()
         for label, key in (
@@ -165,17 +321,16 @@ class DeliverPage(Page):
         self.start = QDoubleSpinBox(decimals=3, singleStep=0.1, suffix=" s")
         self.end = QDoubleSpinBox(decimals=3, singleStep=0.1, suffix=" s")
         times_row = QHBoxLayout()
-        times_row.addWidget(self.start)
+        times_row.setSpacing(theme.GUTTER)
+        times_row.addWidget(self.start, 1)
         times_row.addWidget(QLabel("to"))
-        times_row.addWidget(self.end)
+        times_row.addWidget(self.end, 1)
         self.marker_from, self.marker_to = QComboBox(), QComboBox()
         markers_row = QHBoxLayout()
+        markers_row.setSpacing(theme.GUTTER)
         markers_row.addWidget(self.marker_from, 1)
         markers_row.addWidget(QLabel("to"))
         markers_row.addWidget(self.marker_to, 1)
-        form.addRow("Range", self.range)
-        form.addRow("", times_row)
-        form.addRow("", markers_row)
         for widget in (self.start, self.end):
             widget.valueChanged.connect(self._refresh_summary)
         for combo in (self.marker_from, self.marker_to):
@@ -187,102 +342,216 @@ class DeliverPage(Page):
             self.quality.addItem(f"{label} (crf {crf})", crf)
         self.quality.setCurrentIndex(self.quality.findData(DEFAULT_CRF))
         self.quality.currentIndexChanged.connect(self._refresh_summary)
-        form.addRow("Quality", self.quality)
 
         self.subtitles = QComboBox()
         for key, label in SUBTITLE_LABELS:
             self.subtitles.addItem(label, key)
-        form.addRow("Subtitles", self.subtitles)
+
+        form = QGridLayout()
+        form.setHorizontalSpacing(theme.GUTTER * 2)
+        form.setVerticalSpacing(4)
+        form.setColumnStretch(0, 1)
+        form.setColumnStretch(1, 1)
+        form.addWidget(self._label("Quality"), 0, 0)
+        form.addWidget(self.quality, 1, 0)
+        form.addWidget(self._label("Frame rate"), 0, 1)
+        form.addWidget(self.fps, 1, 1)
+        form.addWidget(self._label("Size"), 2, 0, 1, 2)
+        form.addLayout(size_row, 3, 0, 1, 2)
+        form.addWidget(self._label("Range"), 4, 0, 1, 2)
+        form.addWidget(self.range, 5, 0, 1, 2)
+        form.addLayout(times_row, 6, 0, 1, 2)
+        form.addLayout(markers_row, 7, 0, 1, 2)
+        form.addWidget(self._label("Subtitles"), 8, 0, 1, 2)
+        form.addWidget(self.subtitles, 9, 0, 1, 2)
+        form.addWidget(self._label("Save to"), 10, 0, 1, 2)
+        form.addLayout(path_row, 11, 0, 1, 2)
 
         self.summary = QLabel()
         self.summary.setProperty("role", "readout")
+        self.summary.setWordWrap(True)
         self.error = QLabel()
         self.error.setWordWrap(True)
-        self.error.setStyleSheet(f"color: {theme.THEME.danger};")
+        self.error.setProperty("role", "error")
         self.add_button = QPushButton("Add to queue")
-        self.add_button.setDefault(True)
         self.add_button.clicked.connect(self.add_to_queue)
-        bottom = QHBoxLayout()
-        bottom.addWidget(self.summary, 1)
-        bottom.addWidget(self.add_button)
-        form.addRow(bottom)
-        form.addRow(self.error)
-        return box
+        self.render_button = QPushButton(icons.icon("export"), "Render video")
+        self.render_button.setProperty("role", "primary")
+        self.render_button.setDefault(True)
+        self.render_button.setToolTip("Add this export to the queue and start the queue")
+        self.render_button.clicked.connect(self.render_now)
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        actions.addWidget(self.render_button, 1)
+        actions.addWidget(self.add_button)
+        note = QLabel("Rendering never changes your project and keeps the editor usable.")
+        note.setProperty("role", "hint")
+        note.setWordWrap(True)
 
-    def _build_queue(self) -> QGroupBox:
-        box = QGroupBox("Render queue")
-        layout = QVBoxLayout(box)
-        self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Video", "Render", "Status"])
-        self.tree.setRootIsDecorated(False)
-        self.tree.setUniformRowHeights(True)
-        self.tree.setMinimumHeight(90)
-        self.tree.header().setStretchLastSection(True)
-        self.tree.setColumnWidth(0, 150)
-        self.tree.setColumnWidth(1, 170)
-        self.tree.itemSelectionChanged.connect(self._update_buttons)
-        self.tree.itemDoubleClicked.connect(lambda item, _col: self.open_folder())
-        layout.addWidget(self.tree, 1)
+        content = QWidget()
+        column = QVBoxLayout(content)
+        column.setContentsMargins(20, 16, 20, 16)
+        column.setSpacing(14)
+        column.addLayout(tiles)
+        column.addLayout(form)
+        column.addWidget(self.summary)
+        column.addWidget(self.error)
+        column.addLayout(actions)
+        column.addWidget(note)
+        column.addStretch(1)
+        return self._scrolling(content)
 
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 1)
-        self.bar.setValue(0)
+    def _build_queue(self) -> Card:
+        card = Card("Queue")
+        self.queue_chip = Chip("", "accent")
+        self.queue_chip.setFixedHeight(22)
+        self.queue_chip.setVisible(False)
+        card.add_title_widget(self.queue_chip)
+        self.clear_button = QPushButton("Clear finished")
+        self.clear_button.setProperty("role", "ghost")
+        self.clear_button.clicked.connect(self.clear_finished)
+        card.add_action(self.clear_button)
+
+        self.now = QFrame()
+        self.now.setObjectName("queueNow")
+        self.now.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.now_ring = ProgressRing(44)
+        self.now_title = QLabel("Nothing is rendering")
+        self.now_title.setProperty("role", "rowName")
         self.queue_status = QLabel("Add an export, then start the queue.")
         self.queue_status.setWordWrap(True)
-        layout.addWidget(self.bar)
-        layout.addWidget(self.queue_status)
+        self.queue_status.setProperty("role", "rowDetail")
+        self.bar = SlimBar()
+        self.bar.setRange(0, 1)
+        self.bar.setValue(0)
+        words = QVBoxLayout()
+        words.setSpacing(2)
+        words.addWidget(self.now_title)
+        words.addWidget(self.queue_status)
+        head = QHBoxLayout()
+        head.setSpacing(12)
+        head.addWidget(self.now_ring)
+        head.addLayout(words, 1)
+        inner = QVBoxLayout(self.now)
+        inner.setContentsMargins(14, 14, 14, 14)
+        inner.setSpacing(12)
+        inner.addLayout(head)
+        inner.addWidget(self.bar)
+
+        self.tree = QTreeWidget()
+        self.tree.setObjectName("queueTree")
+        self.tree.setHeaderLabels(["Video", "Render", "Status"])
+        self.tree.setHeaderHidden(True)
+        self.tree.setColumnHidden(1, True)
+        self.tree.setColumnHidden(2, True)
+        self.tree.setRootIsDecorated(False)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setItemDelegate(BlankTextDelegate(self.tree))
+        self.tree.setFrameShape(QFrame.Shape.NoFrame)
+        self.tree.setMinimumHeight(90)
+        self.tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.tree.itemSelectionChanged.connect(self._update_buttons)
+        self.tree.itemDoubleClicked.connect(lambda item, _col: self.open_folder())
 
         self.start_button = QPushButton("Start queue")
+        self.start_button.setProperty("role", "primary")
         self.cancel_button = QPushButton("Cancel")
         self.remove_button = QPushButton("Remove")
-        self.clear_button = QPushButton("Clear finished")
-        self.open_button = QPushButton("Open folder")
+        self.open_button = QPushButton(icons.icon("folder"), "")
+        self.open_button.setToolTip("Open the folder of the selected video")
+        self.open_button.setAccessibleName("Open folder")
         self.start_button.clicked.connect(self.start_queue)
         self.cancel_button.clicked.connect(self.cancel_selected)
         self.remove_button.clicked.connect(self.remove_selected)
-        self.clear_button.clicked.connect(self.clear_finished)
         self.open_button.clicked.connect(self.open_folder)
         buttons = QHBoxLayout()
-        for button in (self.start_button, self.cancel_button, self.remove_button, self.clear_button):
-            buttons.addWidget(button)
-        buttons.addStretch(1)
+        buttons.setSpacing(theme.GUTTER)
+        buttons.addWidget(self.cancel_button)
+        buttons.addWidget(self.remove_button)
         buttons.addWidget(self.open_button)
-        layout.addLayout(buttons)
-        self._update_buttons()
-        return box
+        buttons.addStretch(1)
+        buttons.addWidget(self.start_button)
 
-    def _build_python(self) -> QGroupBox:
-        box = QGroupBox("Python scene")
-        layout = QVBoxLayout(box)
+        body = QWidget()
+        column = QVBoxLayout(body)
+        column.setContentsMargins(12, 12, 12, 12)
+        column.setSpacing(10)
+        column.addWidget(self.now)
+        column.addWidget(self.tree, 1)
+        column.addLayout(buttons)
+        card.set_body(body)
+        card.setMinimumWidth(300)
+        self._update_buttons()
+        return card
+
+    def _build_python(self) -> QWidget:
         self.python_kind = QLabel()
         self.python_kind.setProperty("role", "section")
+        self.python_kind.setWordWrap(True)
         self.python_reasons = QLabel()
         self.python_reasons.setWordWrap(True)
+        self.python_reasons.setProperty("role", "muted")
         self.python_code = QPlainTextEdit()
         self.python_code.setReadOnly(True)
         self.python_code.setFont(theme.mono_font())
         self.python_code.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.python_code.setMinimumHeight(90)
         self.python_save = QPushButton("Save as...")
+        self.python_save.setIcon(icons.icon("save"))
         self.python_save.clicked.connect(self.save_python)
         row = QHBoxLayout()
         row.addWidget(self.python_kind, 1)
         row.addWidget(self.python_save)
+        body = QWidget()
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
         layout.addLayout(row)
         layout.addWidget(self.python_reasons)
         layout.addWidget(self.python_code, 1)
-        return box
+        return body
+
+    # -- destinations ------------------------------------------------------------------------
+
+    def choose_destination(self, key: str, *, apply: bool = True) -> None:
+        """Pick a card: it starts the form from its size and quality (the Python card shows the scene)."""
+        destination = next(d for d in DESTINATIONS if d.key == key)
+        self._destination = destination
+        self.destinations[key].setChecked(True)
+        self.settings_card.set_title(destination.title)
+        python = key == "python"
+        self.settings_stack.setCurrentIndex(1 if python else 0)
+        self.preset_chip.setVisible(not python)
+        if python:
+            if self._python_stale:
+                self.refresh_python()
+            return
+        if apply and destination.size is not None:
+            index = self.size.findData(destination.size)
+            if index >= 0:
+                self.size.setCurrentIndex(index)
+            if destination.crf is not None:
+                self.quality.setCurrentIndex(self.quality.findData(destination.crf))
+        self._refresh_summary()
+
+    def _matches_destination(self) -> bool:
+        destination = self._destination
+        if destination.size is None:
+            return True
+        return self.size.currentData() == destination.size and self.quality.currentData() == destination.crf
 
     # -- page lifecycle -----------------------------------------------------------------
 
     def place(self, shared: Shared) -> None:
-        self.outer.insertWidget(0, shared.viewer)
+        self.centre.insertWidget(0, shared.viewer)
 
     def on_show(self) -> None:
-        if not getattr(self, "_sized", False):  # first show: the settings column at its natural width
+        if not getattr(self, "_sized", False):  # first show: the side cards at their natural widths
             self._sized = True
             total = max(self.outer.width(), 1200)
-            self.outer.setSizes([total - 520, 520])
+            self.outer.setSizes([280, total - 280 - 360, 360])
+            height = max(self.centre.height(), 700)
+            self.centre.setSizes([int(height * 0.42), int(height * 0.58)])
         self._follow_default_output()
         if self._python_stale:
             self.refresh_python()
@@ -461,10 +730,35 @@ class DeliverPage(Page):
             first, last = frame_window(canvas, options)
         except OptionsError as error:
             self.summary.setText(str(error))
+            for tile in (self.tile_length, self.tile_time, self.tile_size):
+                tile.set_value("-")
             return
         seconds = (last - first) / canvas.fps
         size = f"{canvas.width_px}x{canvas.height_px} at {canvas.fps} fps"
         self.summary.setText(f"{last - first} frames, {seconds:.2f} s - {size}")
+        self._show_estimates(project, options, canvas, last - first)
+        edited = not self._matches_destination()
+        self.preset_chip.setText("Edited" if edited else "Preset")
+        self.preset_chip.set_tone("accent" if edited else "neutral")
+
+    def _show_estimates(self, project: Project, options: RenderOptions, canvas, frames: int) -> None:
+        """The tiles over the form: how long the video is, a guess at the render time (from the last export of
+        this session; none before) and the file size (a rough figure from the quality), and its sound."""
+        seconds = frames / canvas.fps
+        pixels = canvas.width_px * canvas.height_px
+        self.tile_length.set_value(f"{clock(seconds)} - {frames} frames", f"{seconds:.2f} s")
+        if self._pixel_rate:
+            self.tile_time.set_value(
+                f"about {clock(frames * pixels / self._pixel_rate)}", "From your last render"
+            )
+        else:
+            self.tile_time.set_value("-", "Known after the first render")
+        bits = BITS_PER_PIXEL * 2 ** ((23 - options.crf) / 6)
+        self.tile_size.set_value(
+            f"about {megabytes(frames * pixels * bits / 8)}", "A rough guess from the quality"
+        )
+        sounds = len(project.audio)
+        self.tile_sound.set_value(f"{sounds} sound{'s' if sounds != 1 else ''}" if sounds else "None")
 
     def _browse(self) -> None:
         name, _ = QFileDialog.getSaveFileName(
@@ -499,6 +793,11 @@ class DeliverPage(Page):
         self._update_buttons()  # a running queue picks it up when the others are done
         return job
 
+    def render_now(self) -> None:
+        """Render video: queue this export and start the queue."""
+        if self.add_to_queue() is not None:
+            self.start_queue()
+
     def start_queue(self) -> None:
         if self.queue.start() is not None:
             self._launch(self.queue.current)
@@ -526,6 +825,7 @@ class DeliverPage(Page):
         self._export = export
         self.bar.setRange(0, 0)  # busy until the first frame
         self.queue_status.setText(f"Starting the renderer for {job.output.name}...")
+        self._last = None
         self._update_row(job)
         self._update_buttons()
         log.info("deliver: rendering %s (%s)", job.output, job.summary)
@@ -547,13 +847,26 @@ class DeliverPage(Page):
             text += f" - about {max(0.0, (total - frame) / rate):.0f} s left"
         self.queue_status.setText(text)
         self._update_row(job)
+        self._show_now()
         self._status_message(text)
 
     def _on_finished(self, job: QueueJob, path: str, warning: str) -> None:
         if job.status is not Status.RENDERING:  # a late signal from a cancelled job
             return
+        self._measure(job)
         self.queue.finish(job, Path(path), warning)
         self._after_job(job, f"Exported to {path}" + (f"\n{warning}" if warning else ""))
+
+    def _measure(self, job: QueueJob) -> None:
+        """Remember how fast this export went (pixels x frames per second) for the render-time estimate."""
+        if self._first_progress is None:
+            return
+        started, first = self._first_progress
+        elapsed, frames = time.monotonic() - started, job.frame - first
+        if elapsed > 0.2 and frames > 0:
+            canvas = apply_options(job.project, job.options).canvas
+            self._pixel_rate = frames * canvas.width_px * canvas.height_px / elapsed
+            self._refresh_summary()
 
     def _on_failed(self, job: QueueJob, message: str) -> None:
         if job.status is not Status.RENDERING:
@@ -568,6 +881,7 @@ class DeliverPage(Page):
         self.bar.setRange(0, 1)
         self.bar.setValue(1 if job.status is Status.DONE else 0)
         self.queue_status.setText(text)
+        self._last = job
         self._update_row(job)
         self._launch_next()
         self._update_buttons()
@@ -587,6 +901,7 @@ class DeliverPage(Page):
             self.bar.setRange(0, 1)
             self.bar.setValue(0)
             self.queue_status.setText("Cancelled. A video already at that path was left as it was.")
+        self._last = job
         self._update_row(job)
         self._launch_next()
         self._update_buttons()
@@ -594,13 +909,13 @@ class DeliverPage(Page):
     def remove_selected(self) -> None:
         job = self.selected()
         if job is not None and self.queue.remove(job):
-            self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(self._rows.pop(job.id)))
+            self._drop_row(job)
             self._update_buttons()
 
     def clear_finished(self) -> None:
         for job in [j for j in self.queue.jobs if j.finished]:
             self.queue.remove(job)
-            self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(self._rows.pop(job.id)))
+            self._drop_row(job)
         self._update_buttons()
 
     def open_folder(self) -> None:
@@ -621,7 +936,17 @@ class DeliverPage(Page):
         item = QTreeWidgetItem(self.tree)
         item.setData(0, Qt.ItemDataRole.UserRole, job.id)
         self._rows[job.id] = item
+        row = JobRow()
+        self._row_widgets[job.id] = row
+        self.tree.setItemWidget(item, 0, row)
+        item.setSizeHint(0, QSize(120, ROW_HEIGHT))
         self._update_row(job)
+
+    def _drop_row(self, job: QueueJob) -> None:
+        self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(self._rows.pop(job.id)))
+        self._row_widgets.pop(job.id, None)
+        if self._last is job:
+            self._last = None
 
     def status_text(self, job: QueueJob) -> str:
         if job.status is Status.RENDERING:
@@ -641,6 +966,18 @@ class DeliverPage(Page):
         item.setText(1, job.summary)
         item.setText(2, self.status_text(job))
         item.setToolTip(2, job.message or item.text(2))
+        row = self._row_widgets.get(job.id)
+        if row is not None:
+            state = {
+                Status.QUEUED: "queued",
+                Status.DONE: "done",
+                Status.FAILED: "failed",
+                Status.CANCELLED: "cancelled",
+            }.get(job.status, "running" if job.total else "starting")
+            fraction = job.frame / job.total if job.total else 0.0
+            row.show_job(
+                job.output.name, f"{self.status_text(job)} - {job.summary}", state, fraction, str(job.output)
+            )
 
     def _update_buttons(self) -> None:
         job = self.selected()
@@ -650,6 +987,32 @@ class DeliverPage(Page):
         self.remove_button.setEnabled(job is not None and job.status is not Status.RENDERING)
         self.clear_button.setEnabled(any(j.finished for j in self.queue.jobs))
         self.open_button.setEnabled(job is not None and job.result is not None)
+        running, waiting = self.queue.current is not None, len(self.queue.queued)
+        self.queue_chip.setVisible(running or bool(waiting))
+        self.queue_chip.setText("1 running" if running else f"{waiting} queued")
+        self.queue_chip.set_tone("accent" if running else "neutral")
+        self._show_now()
+
+    def _show_now(self) -> None:
+        """The panel above the list: the running job with its ring and the time left, else the last one."""
+        job = self.queue.current or self._last
+        running = job is not None and job.status is Status.RENDERING
+        if job is None:
+            self.now_ring.set_state("idle")
+            self.now_title.setText("Nothing is rendering")
+        else:
+            self.now_title.setText(job.output.name)
+            if running:
+                fraction = job.frame / job.total if job.total else 0.0
+                self.now_ring.set_state("running" if job.total else "starting", fraction)
+            else:
+                self.now_ring.set_state(
+                    {Status.DONE: "done", Status.FAILED: "failed"}.get(job.status, "cancelled")
+                )
+        if self.now.property("running") != running:
+            self.now.setProperty("running", running)
+            self.now.style().unpolish(self.now)
+            self.now.style().polish(self.now)
 
     def _status_message(self, text: str) -> None:
         bar = self.window.statusBar()

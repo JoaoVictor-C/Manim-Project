@@ -1,4 +1,9 @@
-"""The Audio page (P6b.4, ADR 0041): sounds and subtitles as tables, a level meter, the shared viewer.
+"""The Audio page (P6b.4, ADR 0041; Lumen, ADR 0063): the mix as lanes, sounds and subtitles as tables, the
+narration, a master level strip, the shared viewer and Properties.
+
+Cards: **Mix** (``MixLanes`` - narration, sounds and subtitles on a ruler with waveforms - over the master
+level strip), **Sounds** and **Subtitles** (the tables) in the left column; **Narration** (the shared
+``NarrationPanel``, as it is) in the middle; the viewer over Properties at the right; the timeline below.
 
 A *sounds* table (name, file, start, trim, duration, gain, fades) and a *subtitles* table (start, end,
 text) read the document snapshot and edit it in place: a cell's text becomes an ``Edit`` through
@@ -18,17 +23,16 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QRectF, QSize, Qt
-from PySide6.QtGui import QKeySequence, QPainter, QPen, QShortcut
+from PySide6.QtGui import QKeySequence, QPainter, QPainterPath, QPen, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSplitter,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -37,14 +41,43 @@ from PySide6.QtWidgets import (
 from ...core.editing import edits, tables
 from ...core.model.schema import AudioClip, Cue
 from ...core.sound import audio, levels
+from ...core.voice import narration as speech
 from ..panels.narration_panel import NARRATION_COLUMNS, NarrationPanel, cue_cell
 from ..style import icons, theme
+from ..style.card import Card, Chip, gutter_splitter, page_margins
 from . import Page, Shared
+from .mix_lanes import MixLanes, stamp
 
 ZONES = ((levels.FLOOR_DB, -18.0, "success"), (-18.0, -6.0, "warning"), (-6.0, 0.0, "danger"))
 SCALE_DB = (-60, -40, -20, -10, -6, 0)
+LEFT_MIN, NARRATION_MIN = 340, 300  # px: the least the left column and the Narration card are given
+
+
+def _rules(c: theme.Colours) -> str:
+    return f"""
+QTableView {{
+    background: transparent; border: 0; outline: 0; gridline-color: transparent;
+    alternate-background-color: {theme.mix(c.panel, c.raised, 0.55)};
+}}
+QTableView::item {{ padding: 2px 8px; border: 0; }}
+QTableView::item:selected {{ background: {theme.css(c.accent_soft)}; color: {c.text}; }}
+QTableCornerButton::section {{ background: {c.raised}; border: 0; }}
+QTableView QScrollBar::handle:vertical {{ min-height: 14px; }}
+QFrame#masterStrip {{ background: {c.raised}; border: 1px solid {theme.css(c.line)}; border-radius: 14px; }}
+QFrame#masterStrip QLabel {{ background: transparent; }}
+"""
+
+
+theme.register_rules(_rules)
 MISSING_FILE = "file not found"
 UNREADABLE_FILE = "cannot read the file"
+
+
+class CompactTable(QTableView):
+    """A table that may shrink to its header and one row (a small window gives the Mix card the room)."""
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(80, 56)
 
 
 class RowsModel(QAbstractTableModel):
@@ -163,7 +196,7 @@ class LevelBars(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.level = levels.SILENCE
-        self.setMinimumSize(160, 62)
+        self.setMinimumSize(96, 46)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
     def sizeHint(self) -> QSize:
@@ -171,13 +204,19 @@ class LevelBars(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         colours = theme.THEME
         scale_h = 14
         bar_h = max(8.0, (self.height() - scale_h - 6) / 2)
         x0, width = 18.0, max(1.0, self.width() - 26.0)
+        painter.setFont(theme.mono_font(7))
         for row, side in enumerate("LR"):
-            top = 2 + row * (bar_h + 2)
-            painter.fillRect(QRectF(x0, top, width, bar_h), theme.qcolor(colours.track))
+            top = 2 + row * (bar_h + 3)
+            track = QPainterPath()
+            track.addRoundedRect(QRectF(x0, top, width, bar_h), 4, 4)
+            painter.fillPath(track, theme.qcolor(colours.surface_3))
+            painter.save()
+            painter.setClipPath(track)
             for low, high, token in ZONES:  # the RMS, zone by zone
                 reach = min(self.level.rms_db[row], high)
                 if reach > low:
@@ -186,38 +225,47 @@ class LevelBars(QWidget):
                         QRectF(left, top, width * (levels.fraction(reach) - levels.fraction(low)), bar_h),
                         theme.qcolor(getattr(colours, token)),
                     )
+            painter.restore()
             peak = self.level.peak_db[row]
             if peak > levels.FLOOR_DB:
                 painter.setPen(QPen(theme.qcolor(colours.text), 2))
                 px = x0 + width * levels.fraction(peak)
                 painter.drawLine(int(px), int(top), int(px), int(top + bar_h))
-            painter.setPen(theme.qcolor(colours.muted))
+            painter.setPen(theme.qcolor(colours.faint))
             painter.drawText(QRectF(0, top, x0 - 4, bar_h), Qt.AlignmentFlag.AlignCenter, side)
-        painter.setPen(theme.qcolor(colours.muted))
-        base = 2 + 2 * (bar_h + 2)
+        painter.setPen(theme.qcolor(colours.faint))
+        base = 2 + 2 * (bar_h + 3)
         for db in SCALE_DB:
             px = x0 + width * levels.fraction(db)
             painter.drawText(QRectF(px - 16, base, 32, scale_h), Qt.AlignmentFlag.AlignCenter, str(db))
         painter.end()
 
 
-class LevelMeter(QWidget):
-    """The mix's level at the playhead: bars and a readout (``readout()``)."""
+class LevelMeter(QFrame):
+    """The master strip: the mix's level at the playhead, bars and a readout (``readout()``)."""
 
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("masterStrip")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.level = levels.SILENCE
-        title = QLabel("Level at the playhead")
+        title = QLabel("Master level")
         title.setProperty("role", "section")
         self.bars = LevelBars()
         self.label = QLabel()
         self.label.setObjectName("levelReadout")
         self.label.setFont(theme.mono_font())
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(theme.SPACE * 2, theme.SPACE, theme.SPACE * 2, theme.SPACE)
-        layout.addWidget(title)
-        layout.addWidget(self.bars)
-        layout.addWidget(self.label)
+        self.label.setProperty("role", "muted")
+        words = QVBoxLayout()
+        words.setSpacing(theme.SPACE)
+        words.addWidget(title)
+        words.addWidget(self.label)
+        words.addStretch(1)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(12)
+        layout.addLayout(words)
+        layout.addWidget(self.bars, 1)
         self.set_level(levels.SILENCE)
 
     def set_level(self, level: levels.Level) -> None:
@@ -265,14 +313,20 @@ class AudioPage(Page):
         self.cues.selectionModel().currentRowChanged.connect(self._cue_row_chosen)
         self.cues.clicked.connect(self._cue_clicked)
         self.import_sound_button = self._button("Import", "open", "Import a sound at the playhead")
-        self.delete_sound_button = self._button("Delete", "delete", "Delete the selected sound")
-        self.play_button = self._button("Play from here", "play", "Play the video from the playhead")
-        self.add_cue_button = self._button("Add at playhead", "add", "A subtitle at the playhead (Ctrl+T)")
-        self.delete_cue_button = self._button("Delete", "delete", "Delete the selected subtitle")
-        self.import_srt_button = self._button(
-            "Import .srt", "open", "Replace the subtitles with an .srt file"
+        self.delete_sound_button = self._button(
+            "Delete", "delete", "Delete the selected sound", icon_only=True
         )
-        self.export_srt_button = self._button("Export .srt", "export", "Write the subtitles to an .srt file")
+        self.play_button = self._button("Play", "play", "Play the video from the playhead")
+        self.add_cue_button = self._button("Add", "add", "Add a subtitle at the playhead (Ctrl+T)")
+        self.delete_cue_button = self._button(
+            "Delete", "delete", "Delete the selected subtitle", icon_only=True
+        )
+        self.import_srt_button = self._button(
+            "Import .srt", "open", "Replace the subtitles with an .srt file", icon_only=True
+        )
+        self.export_srt_button = self._button(
+            "Export .srt", "export", "Write the subtitles to an .srt file", icon_only=True
+        )
         self.import_sound_button.clicked.connect(lambda: self.window.import_audio())
         self.delete_sound_button.clicked.connect(self.delete_sound)
         self.play_button.clicked.connect(lambda: self.window.play())
@@ -286,49 +340,50 @@ class AudioPage(Page):
             delete.activated.connect(slot)
         self.meter = LevelMeter()
 
-        self.tables = QSplitter(Qt.Orientation.Vertical)
-        self.tables.setChildrenCollapsible(False)  # the Narration section never shrinks to nothing
-        self.tables.addWidget(
-            self._box(
-                "Sounds",
-                self.sounds,
-                (self.import_sound_button, self.delete_sound_button, self.play_button),
-            )
-        )
         self.narration = NarrationPanel(self.window)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(self.narration)
-        scroll.setMinimumHeight(120)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.tables.addWidget(
-            self._box(
-                "Subtitles",
-                self.cues,
-                (
-                    self.add_cue_button,
-                    self.delete_cue_button,
-                    self.import_srt_button,
-                    self.export_srt_button,
-                ),
-            )
+        self.lanes = MixLanes(lambda: self.window.project, lambda: self.window.t)
+        self.lanes.seekRequested.connect(self._seek_from_lanes)
+        self.lanes.soundClicked.connect(self._pick_sound)
+        self.lanes.cueClicked.connect(self._pick_cue)
+
+        self.mix_card = self._mix_card()
+        self.sounds_card = self._table_card(
+            "Sounds", self.sounds, (self.import_sound_button, self.delete_sound_button, self.play_button)
         )
-        self.tables.addWidget(scroll)
-        self.centre = QSplitter(Qt.Orientation.Vertical)  # the viewer (placed), the meter
-        self.centre.addWidget(self.meter)
-        self.top = QSplitter(Qt.Orientation.Horizontal)  # tables | viewer and meter | Properties (placed)
+        self.cues_card = self._table_card(
+            "Subtitles",
+            self.cues,
+            (self.add_cue_button, self.delete_cue_button, self.import_srt_button, self.export_srt_button),
+        )
+        self.tables = gutter_splitter(Qt.Orientation.Vertical)  # Mix over Sounds over Subtitles
+        for card in (self.mix_card, self.sounds_card, self.cues_card):
+            self.tables.addWidget(card)
+        self.tables.setStretchFactor(0, 3)
+        self.tables.setStretchFactor(1, 2)
+        self.tables.setStretchFactor(2, 2)
+        self.tables.setMinimumWidth(LEFT_MIN)
+
+        self.narration_card = self._narration_card()
+        self.centre = gutter_splitter(Qt.Orientation.Vertical)  # the viewer over Properties (both placed)
+        self.right = self.centre
+        self.top = gutter_splitter(
+            Qt.Orientation.Horizontal
+        )  # Mix and tables | Narration | viewer, Properties
         self.top.addWidget(self.tables)
+        self.top.addWidget(self.narration_card)
         self.top.addWidget(self.centre)
-        self.top.setChildrenCollapsible(False)
-        self.outer = QSplitter(Qt.Orientation.Vertical)
+        self.outer = gutter_splitter(Qt.Orientation.Vertical)  # all of that over the timeline (placed)
         self.outer.addWidget(self.top)
-        self.outer.setChildrenCollapsible(False)
-        return self.outer
+        root = QWidget()
+        layout = QHBoxLayout(root)
+        page_margins(layout)
+        layout.addWidget(self.outer)
+        return root
 
     # -- building --------------------------------------------------------------------------
 
     def _table(self, model: RowsModel) -> QTableView:
-        view = QTableView()
+        view = CompactTable()
         view.setModel(model)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -338,39 +393,68 @@ class AudioPage(Page):
             | QAbstractItemView.EditTrigger.AnyKeyPressed
         )
         view.setAlternatingRowColors(True)
+        view.setShowGrid(False)
+        view.setFrameShape(QFrame.Shape.NoFrame)
         view.setWordWrap(False)
         view.verticalHeader().hide()
-        view.verticalHeader().setDefaultSectionSize(26)
+        view.verticalHeader().setDefaultSectionSize(30)
         view.horizontalHeader().setHighlightSections(False)
         view.horizontalHeader().setMinimumSectionSize(56)
-        view.setMinimumHeight(90)
+        view.setMinimumHeight(56)
         return view
 
-    def _button(self, text: str, icon: str, tip: str) -> QPushButton:
-        button = QPushButton(icons.icon(icon), text)
+    def _button(self, text: str, icon: str, tip: str, *, icon_only: bool = False) -> QPushButton:
+        button = QPushButton(icons.icon(icon), "" if icon_only else text)
         button.setToolTip(tip)
         button.setAccessibleName(text)
+        button.setProperty("role", "ghost")
         return button
 
-    def _box(self, title: str, view: QTableView, buttons: tuple[QPushButton, ...]) -> QGroupBox:
-        box = QGroupBox(title)
-        layout = QVBoxLayout(box)
-        layout.setContentsMargins(theme.SPACE * 2, theme.SPACE * 4, theme.SPACE * 2, theme.SPACE * 2)
-        row = QHBoxLayout()
+    def _mix_card(self) -> Card:
+        card = Card("Mix")
+        self.time_chip = Chip(stamp(0.0))
+        self.time_chip.setFixedHeight(22)
+        self.time_chip.setFont(theme.mono_font())
+        card.add_title_widget(self.time_chip)
+        body = QWidget()
+        column = QVBoxLayout(body)
+        column.setContentsMargins(10, 8, 10, 10)
+        column.setSpacing(8)
+        column.addWidget(self.lanes, 1)
+        column.addWidget(self.meter)
+        card.set_body(body)
+        return card
+
+    def _table_card(self, title: str, view: QTableView, buttons: tuple[QPushButton, ...]) -> Card:
+        card = Card(title)
         for button in buttons:
-            row.addWidget(button)
-        row.addStretch(1)
-        layout.addLayout(row)
-        layout.addWidget(view, 1)
-        return box
+            card.add_action(button)
+        card.set_body(view)
+        return card
+
+    def _narration_card(self) -> Card:
+        card = Card("Narration")
+        self.stale_chip = Chip("", "warn")
+        self.stale_chip.setFixedHeight(22)
+        self.stale_chip.setVisible(False)
+        card.add_title_widget(self.stale_chip)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.narration)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.narration.setAutoFillBackground(False)
+        scroll.viewport().setAutoFillBackground(False)
+        card.set_body(scroll)
+        card.setMinimumWidth(NARRATION_MIN)
+        return card
 
     def place(self, shared: Shared) -> None:
         self.centre.insertWidget(0, shared.viewer)
-        self.top.insertWidget(2, shared.properties)
+        self.centre.insertWidget(1, shared.properties)
         self.outer.insertWidget(1, shared.timeline)
         self.centre.setStretchFactor(0, 1)
-        self.centre.setStretchFactor(1, 0)
-        for i, stretch in enumerate((0, 1, 0)):
+        self.centre.setStretchFactor(1, 1)
+        for i, stretch in enumerate((1, 0, 0)):
             self.top.setStretchFactor(i, stretch)
         self.outer.setStretchFactor(0, 1)
         self.outer.setStretchFactor(1, 0)  # the timeline keeps its height
@@ -407,11 +491,12 @@ class AudioPage(Page):
         if not self._wired:
             self._connect()
             width, height = max(self.top.width(), 1200), max(self.outer.height(), 700)
-            tables_w, properties_w = int(width * 0.46), 300  # first show: the tables get the room
-            self.top.setSizes([tables_w, max(width - tables_w - properties_w, 300), properties_w])
+            narration_w, properties_w = 470, 320  # first show: the mix and the tables get the rest
+            self.top.setSizes([width - narration_w - properties_w, narration_w, properties_w])
             self.outer.setSizes([int(height * 0.74), int(height * 0.26)])
-            room = int(height * 0.74)  # the left column: sounds and subtitles are short, narration needs room
-            self.tables.setSizes([int(room * 0.2), int(room * 0.3), int(room * 0.5)])
+            room = int(height * 0.74)  # the left column: the mix, then the two tables
+            self.tables.setSizes([int(room * 0.5), int(room * 0.24), int(room * 0.26)])
+            self.centre.setSizes([int(room * 0.45), int(room * 0.55)])
         self._active = True
         self.refresh()
 
@@ -431,13 +516,45 @@ class AudioPage(Page):
         self._sync_selection()
         self.refresh_meter()
         self.narration.refresh()
+        self.lanes.refresh()
+        self._refresh_stale()
 
     def _on_changed(self, *_args) -> None:
         self.refresh()
 
-    def _on_playhead(self, _t: float) -> None:
+    def _on_playhead(self, t: float) -> None:
         if self._active:
             self.refresh_meter()
+            self.time_chip.setText(stamp(t))
+            self.lanes.update()
+
+    def _refresh_stale(self) -> None:
+        """The Narration card's chip: how many subtitles speak an old text or voice."""
+        project = self.window.project
+        stale = (
+            sum(1 for cue in project.subtitles if speech.state(project, cue) == speech.STALE)
+            if project
+            else 0
+        )
+        self.stale_chip.setText(f"{stale} stale")
+        self.stale_chip.setVisible(stale > 0)
+
+    def _seek_from_lanes(self, t: float) -> None:
+        self.window.pause()
+        self.window.seek(t)
+
+    def _pick_sound(self, sound_id: str) -> None:
+        row = self.sounds_model.row_of(sound_id)
+        if row >= 0:
+            self.sounds.setCurrentIndex(
+                self.sounds_model.index(row, max(self.sounds.currentIndex().column(), 0))
+            )
+
+    def _pick_cue(self, cue_id: str) -> None:
+        row = self.cues_model.row_of(cue_id)
+        if row >= 0:
+            self.cues.setCurrentIndex(self.cues_model.index(row, max(self.cues.currentIndex().column(), 0)))
+            self._seek_to_cue(row)  # clicking a bar again brings the playhead back, as a row does
 
     def refresh_meter(self) -> None:
         project = self.window.project
@@ -460,6 +577,8 @@ class AudioPage(Page):
             self._syncing = False
         self._update_buttons()
         self.narration.refresh()
+        self.lanes.set_selection(selection.audio_id, selection.subtitle_id)
+        self._refresh_stale()
 
     def _select_row(self, view: QTableView, model: RowsModel, item_id: str | None) -> None:
         row = model.row_of(item_id)

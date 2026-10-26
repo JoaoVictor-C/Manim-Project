@@ -9,23 +9,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QRectF, QSize, Qt
+from PySide6.QtGui import QAction, QFontMetrics, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
     QMenuBar,
-    QPushButton,
+    QStyle,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
-    QVBoxLayout,
     QWidget,
 )
+
+from ..style import theme
+from ..style.dialog_chrome import DialogFrame
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,50 @@ def matches(row: Row, query: str) -> bool:
     return all(word in text for word in query.lower().split())
 
 
+def key_caps(keys: str) -> list[str]:
+    """The key combinations in a ``Keys`` cell, or [] when it is a sentence about the mouse ("Drag on empty
+    canvas (Shift: add)") that should be drawn as plain text."""
+    parts = [part.strip() for part in keys.split(", ") if part.strip()]
+    return parts if parts and all(" " not in part for part in parts) else []
+
+
+class KeysDelegate(QStyledItemDelegate):
+    """Draws each key combination as a small rounded keycap (mono type, a hairline) instead of plain text."""
+
+    def paint(self, painter, option, index) -> None:
+        caps = key_caps(str(index.data() or ""))
+        if not caps:
+            super().paint(painter, option, index)
+            return
+        colours = theme.THEME
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, theme.qcolor(colours.accent_soft))
+        font = theme.mono_font(8)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        x, height = option.rect.left() + 6, 18
+        top = option.rect.center().y() - height // 2
+        for cap in caps:
+            width = metrics.horizontalAdvance(cap) + 12
+            box = QRectF(x, top, width, height)
+            painter.setBrush(theme.qcolor(colours.raised))
+            painter.setPen(QPen(theme.qcolor(colours.line_strong), 1))
+            painter.drawRoundedRect(box, 5, 5)
+            painter.setPen(theme.qcolor(colours.muted))
+            painter.drawText(box, Qt.AlignmentFlag.AlignCenter, cap)
+            x += width + 4
+        painter.restore()
+
+    def sizeHint(self, option, index) -> QSize:
+        caps = key_caps(str(index.data() or ""))
+        if not caps:
+            return super().sizeHint(option, index)
+        metrics = QFontMetrics(theme.mono_font(8))
+        return QSize(sum(metrics.horizontalAdvance(cap) + 16 for cap in caps) + 10, 26)
+
+
 class ShortcutsDialog(QDialog):
     """The table: Where, What, Keys; a search field filters it."""
 
@@ -117,6 +163,12 @@ class ShortcutsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Keyboard Shortcuts")
         self.rows = rows
+        self.frame = DialogFrame(
+            self,
+            "keyboard",
+            "Keyboard shortcuts",
+            "Every shortcut of the menus and every mouse gesture of the canvas and the timeline.",
+        )
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search: a word, a key (Ctrl, Shift+1, Delete...)")
         self.search.setClearButtonEnabled(True)
@@ -124,9 +176,12 @@ class ShortcutsDialog(QDialog):
         self.table = QTableWidget(len(rows), 3)
         self.table.setHorizontalHeaderLabels(["Where", "What", "Keys"])
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(30)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setShowGrid(False)
         self.table.setWordWrap(False)
+        self.table.setItemDelegateForColumn(2, KeysDelegate(self.table))
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -136,17 +191,13 @@ class ShortcutsDialog(QDialog):
                 item = QTableWidgetItem(text)
                 item.setToolTip(text)
                 self.table.setItem(index, column, item)
-        self.count = QLabel()
-        close = QPushButton("Close")
+        self.frame.body.addWidget(self.search)
+        self.frame.body.addWidget(self.table, 1)
+        self.count = self.frame.add_left(QLabel())
+        self.count.setProperty("role", "hint")
+        close = self.frame.add_button("Close", "primary")
         close.clicked.connect(self.close)
-        bottom = QHBoxLayout()
-        bottom.addWidget(self.count, 1)
-        bottom.addWidget(close)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.search)
-        layout.addWidget(self.table, 1)
-        layout.addLayout(bottom)
-        self.resize(760, 560)
+        self.resize(760, 600)
         self._filter("")
 
     def visible_rows(self) -> list[Row]:

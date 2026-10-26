@@ -21,15 +21,16 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QProgressBar,
     QPushButton,
     QToolButton,
-    QVBoxLayout,
     QWidget,
 )
 
 from ...core.model.schema import Project
+from ..style import theme
+from ..style.dialog_chrome import DialogFrame
 from .export_job import ExportJob
+from .queue_view import SlimBar
 
 
 class ExportDialog(QDialog):
@@ -52,41 +53,45 @@ class ExportDialog(QDialog):
         self.result_path: Path | None = None
         self._first_progress: tuple[float, int] | None = None
 
+        self.frame = DialogFrame(
+            self,
+            "export",
+            "Export video",
+            "Renders the scene as it is now, to an MP4. You can keep editing while it runs.",
+        )
         self.path = QLineEdit(str(default_output))
         browse = QToolButton(text="...")
+        browse.setToolTip("Choose where to save the video")
+        browse.setProperty("role", "outlined")
         browse.clicked.connect(self._browse)
         self.status = QLabel("Choose where to save the video.")
         self.status.setWordWrap(True)
-        self.bar = QProgressBar()
+        self.status.setProperty("role", "muted")
+        self.bar = SlimBar(6)
         self.bar.setRange(0, 1)
         self.bar.setValue(0)
-        self.export_button = QPushButton("Export")
-        self.export_button.setDefault(True)
-        self.export_button.clicked.connect(self.start)
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.cancel)
-        self.cancel_button.setEnabled(False)
-        self.open_button = QPushButton("Open folder")
+        self.open_button = self.frame.add_left(QPushButton("Open folder"))
         self.open_button.clicked.connect(self.open_folder)
         self.open_button.setEnabled(False)
-        close = QPushButton("Close")
+        close = self.frame.add_button("Close")
         close.clicked.connect(self.close)
+        self.cancel_button = self.frame.add_button("Cancel")
+        self.cancel_button.clicked.connect(self.cancel)
+        self.cancel_button.setEnabled(False)
+        self.export_button = self.frame.add_button("Export", "primary", icon="export")
+        self.export_button.clicked.connect(self.start)
 
+        label = QLabel("Save as")
+        label.setProperty("role", "section")
         path_row = QHBoxLayout()
-        path_row.addWidget(QLabel("Save as"))
+        path_row.setSpacing(theme.GUTTER)
         path_row.addWidget(self.path, 1)
         path_row.addWidget(browse)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.open_button)
-        buttons.addStretch(1)
-        for button in (self.export_button, self.cancel_button, close):
-            buttons.addWidget(button)
-        layout = QVBoxLayout(self)
-        layout.addLayout(path_row)
-        layout.addWidget(self.bar)
-        layout.addWidget(self.status)
-        layout.addLayout(buttons)
-        self.resize(520, 160)
+        self.frame.body.addWidget(label)
+        self.frame.body.addLayout(path_row)
+        self.frame.body.addWidget(self.bar)
+        self.frame.body.addWidget(self.status)
+        self.resize(560, 280)
 
     @property
     def running(self) -> bool:
