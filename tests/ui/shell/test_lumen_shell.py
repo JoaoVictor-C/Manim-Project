@@ -370,3 +370,15 @@ def test_reduce_motion_is_remembered_and_stops_the_animations(window) -> None:
     finally:
         window.reduce_motion_action.setChecked(False)
     assert not window.prefs.toggle("reduce_motion", True) and not motion._reduced
+
+
+# -- the status bar ------------------------------------------------------------------------------------
+
+
+def test_the_status_bar_shows_whether_the_project_is_saved_and_its_name(window) -> None:
+    indicator = window.saved_indicator
+    assert indicator.name.text() == "scene.json" and indicator.state.text() == "Saved"
+    window.document.undo_stack.push(QUndoCommand("Test edit"))
+    assert indicator.state.text() == "Unsaved" and not indicator.dot.saved
+    window.document.undo_stack.setClean()
+    assert indicator.state.text() == "Saved" and indicator.dot.saved

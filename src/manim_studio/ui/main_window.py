@@ -90,6 +90,7 @@ from .style import icons, motion, theme
 from .style.card import Card, Chip
 from .style.elided_label import ElidedLabel
 from .style.render_activity import RenderActivity
+from .style.saved_indicator import SavedIndicator
 from .style.toast import LumenStatusBar, ToastHost
 from .timeline.view import TimelineView
 
@@ -118,6 +119,8 @@ class MainWindow(QMainWindow):
         self.resize(1280, 820)
         self.status = LumenStatusBar(self)  # messages also arrive as toasts (ADR 0063)
         self.setStatusBar(self.status)
+        self.saved_indicator = SavedIndicator()
+        self.status.insertWidget(0, self.saved_indicator)
         self.toasts = ToastHost(self)
         self.status.toasts = self.toasts
         self.prefs = Preferences()  # how the editor was left (ADR 0044)
@@ -1893,6 +1896,7 @@ class MainWindow(QMainWindow):
         name = self.path.name if self.path else "untitled"
         dirty = "" if self.document.undo_stack.isClean() else " *"
         self.setWindowTitle(f"Manim Studio - {name}{dirty}")
+        self.saved_indicator.set_state(name, not dirty)
 
     def default_folder(self) -> Path:
         """Where a never-saved project and its exports are suggested (GP, ``places``)."""
