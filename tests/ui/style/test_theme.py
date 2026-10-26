@@ -203,3 +203,69 @@ def test_a_colour_swatch_labels_itself_legibly() -> None:
     readable_on = theme.readable_on
     assert readable_on("#ffff00") == "black" and readable_on("#0f172a") == "white"
     assert readable_on("#FFFFFF") == "black"
+
+
+# -- Lumen (P17.1, ADR 0063): two token sets, bundled type, themed icons -------------------------------------
+
+
+@pytest.mark.parametrize("name", sorted(theme.THEMES))
+def test_every_set_has_legible_text_surfaces_and_an_accent_that_carries_white(name) -> None:
+    c = theme.THEMES[name]
+    for surface in (c.window, c.panel, c.raised, c.field, c.surface_3):
+        assert theme.contrast(c.text, surface) >= 7.0, (name, surface)
+        assert theme.contrast(c.muted, surface) >= 4.5, (name, surface)
+    for surface in (c.panel, c.field):
+        assert theme.contrast(c.accent_text, surface) >= 4.5, (name, surface)
+        assert theme.contrast(c.error_text, surface) >= 4.5, (name, surface)
+        assert theme.contrast(c.warning, surface) >= 4.5, (name, surface)
+    assert theme.contrast(c.on_accent, c.accent) >= 4.5
+    for bar in ("content", "emphasis", "motion", "morph", "sound", "cue"):
+        assert theme.contrast(c.bar_text, getattr(c, bar)) >= 4.5, (name, bar)
+
+
+@pytest.mark.parametrize("name", sorted(theme.THEMES))
+def test_every_set_has_valid_tokens_and_a_syntax_palette_that_reads_on_the_field(name) -> None:
+    c = theme.THEMES[name]
+    for token in theme.token_names():
+        assert re.fullmatch(r"#[0-9a-f]{6}([0-9a-f]{2})?", getattr(c, token)), (name, token)
+    for token in ("syntax_keyword", "syntax_string", "syntax_number", "syntax_comment", "syntax_manim"):
+        assert theme.contrast(getattr(c, token), c.field) >= 4.5, (name, token)
+
+
+def test_the_bundled_fonts_load_and_are_the_families_in_use(qt_app) -> None:
+    families = theme.load_fonts()
+    assert families["ui"] == "Inter" and families["mono"] == "JetBrains Mono"
+    assert theme.font("heading").pixelSize() == 14 and theme.font("title").family() == "Inter"
+    assert theme.mono_font().family() == "JetBrains Mono"
+    for name in theme.FONT_FILES:
+        assert (theme.FONT_DIR / name).is_file(), name
+
+
+def test_switching_the_theme_changes_the_palette_the_stylesheet_and_the_icons_then_back(qt_app) -> None:
+    from PySide6.QtGui import QIcon
+
+    def ink(mode=QIcon.Mode.Normal):
+        image = icons.icon("delete").pixmap(24, 24, mode).toImage()
+        return max((image.pixelColor(x, y) for x in range(24) for y in range(24)), key=lambda c: c.alpha())
+
+    seen = []
+    theme.signals.themeChanged.connect(seen.append)
+    try:
+        dark_icon = ink()
+        theme.set_theme(qt_app, "paper")
+        assert theme.THEME is theme.PAPER and seen == ["paper"]
+        assert qt_app.palette().color(QPalette.ColorRole.Window) == theme.qcolor(theme.PAPER.panel)
+        assert theme.PAPER.accent in qt_app.styleSheet()
+        assert ink().lightness() < dark_icon.lightness()  # the same icon object now draws dark on light
+        with pytest.raises(KeyError):
+            theme.set_theme(qt_app, "nope")
+    finally:
+        theme.set_theme(qt_app, "ink")
+        theme.signals.themeChanged.disconnect(seen.append)
+    assert theme.THEME is theme.INK and seen == ["paper", "ink"]
+
+
+def test_mix_moves_between_two_tokens() -> None:
+    assert theme.mix("#000000", "#ffffff", 0.0) == "#000000"
+    assert theme.mix("#000000", "#ffffff", 1.0) == "#ffffff"
+    assert theme.mix("#000000", "#ffffff", 0.5) == "#808080"

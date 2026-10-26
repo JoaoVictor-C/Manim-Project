@@ -1,15 +1,16 @@
-"""The editor's icons (P6a, ADR 0040): semantic names drawn as Phosphor glyphs.
+"""The editor's icons (P6a, ADR 0040; Lumen, ADR 0063): semantic names drawn as Phosphor glyphs.
 
-QtAwesome provides the glyphs as an icon font; it is imported on the first icon,
-so commands that never open a window never load it. Icons are tinted with the
-theme's text colour, and its disabled colour when their widget is disabled.
+QtAwesome provides the glyphs as an icon font; it is imported on the first icon, so commands that never
+open a window never load it. An icon is a ``QIcon`` with an engine that draws the glyph at the moment it is
+painted, in the colours of the theme *then*, so a theme switch needs no one to set the icons again. Icons are
+tinted with the theme's text colour (muted for the ones that sit quietly), and its disabled colour when their
+widget is disabled.
 """
 
 from __future__ import annotations
 
-from functools import cache
-
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import QRect, QSize
+from PySide6.QtGui import QIcon, QIconEngine, QPainter, QPixmap
 
 from . import theme
 
@@ -81,18 +82,57 @@ TINTS: dict[str, str] = {
     "helper": "success",
 }
 
+_drawn: dict[tuple, QIcon] = {}  # (theme, name, tint) -> the glyph in that colour
 
-@cache
-def icon(name: str) -> QIcon:
-    """The icon for a semantic ``name`` (KeyError for a name not in NAMES)."""
+
+def _glyph(name: str, tint: str | None = None) -> QIcon:
     import qtawesome as qta  # the icon fonts load here, once
 
     colours = theme.THEME
-    ink = theme.qcolor(getattr(colours, TINTS.get(name, "text")))
-    glyph = NAMES[name]
-    return qta.icon(
-        glyph if "." in glyph else f"ph.{glyph}",
-        color=ink,
-        color_disabled=theme.qcolor(colours.disabled),
-        color_active=ink,
-    )
+    key = (colours.name, name, tint)
+    cached = _drawn.get(key)
+    if cached is None:
+        ink = theme.qcolor(getattr(colours, tint or TINTS.get(name, "text")))
+        glyph = NAMES[name]
+        cached = qta.icon(
+            glyph if "." in glyph else f"ph.{glyph}",
+            color=ink,
+            color_disabled=theme.qcolor(colours.disabled),
+            color_active=ink,
+        )
+        _drawn[key] = cached
+    return cached
+
+
+class _ThemedEngine(QIconEngine):
+    """Draws a glyph in the colours of the theme in use when it is painted."""
+
+    def __init__(self, name: str, tint: str | None = None) -> None:
+        super().__init__()
+        self.name = name
+        self.tint = tint
+
+    def clone(self) -> QIconEngine:
+        return _ThemedEngine(self.name, self.tint)
+
+    def actualSize(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QSize:
+        return size
+
+    def pixmap(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QPixmap:
+        return _glyph(self.name, self.tint).pixmap(size, mode, state)
+
+    def paint(self, painter: QPainter, rect: QRect, mode: QIcon.Mode, state: QIcon.State) -> None:
+        painter.drawPixmap(rect, self.pixmap(rect.size(), mode, state))
+
+
+def icon(name: str, tint: str | None = None) -> QIcon:
+    """The icon for a semantic ``name`` (KeyError for a name not in NAMES); ``tint`` names a theme token to
+    draw it in instead of the usual one (``"muted"`` for an icon that sits quietly)."""
+    if name not in NAMES:
+        raise KeyError(name)
+    return QIcon(_ThemedEngine(name, tint))
+
+
+def refresh() -> None:
+    """Forget the drawn glyphs (after a theme switch the engines draw them again in the new colours)."""
+    _drawn.clear()

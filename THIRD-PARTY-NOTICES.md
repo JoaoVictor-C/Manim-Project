@@ -37,6 +37,17 @@ written (2026-10-15).
 | watchdog | 6.0.0 | Apache-2.0 |
 | audioop-lts | 0.2.2 | PSF-2.0 |
 
+## Fonts shipped with Manim Studio
+
+The interface's fonts are in `src/manim_studio/ui/style/fonts/`, each with its license next to it. All three are
+under the SIL Open Font License 1.1, which allows bundling and redistribution.
+
+| Font | License file |
+|---|---|
+| Inter (Regular, Medium, SemiBold, Bold) | `Inter-LICENSE.txt` |
+| JetBrains Mono (Regular, Medium, Bold) | `JetBrainsMono-OFL.txt` |
+| Newsreader 16pt (Regular, Italic, Medium Italic) | `Newsreader-OFL.txt` |
+
 ## Not installed with Manim Studio
 
 - **A LaTeX distribution** (MiKTeX or TeX Live) draws `MathTex` and `Tex` objects. Install

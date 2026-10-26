@@ -39,6 +39,7 @@ os.environ["MANIM_STUDIO_PRESETS"] = str(
 )
 # ... and play no sound: playback keeps the wall clock unless a test gives it a player (ADR 0034).
 os.environ["MANIM_STUDIO_AUDIO"] = "0"
+os.environ["MANIM_STUDIO_MOTION"] = "0"  # animations set their end value at once (Lumen, ADR 0063)
 # ... and generated speech goes to a throwaway folder, not the user's cache (ADR 0060).
 os.environ["MANIM_STUDIO_VOICE_CACHE"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-voices-")))
 

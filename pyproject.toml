@@ -99,6 +99,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E402"]  # Qt platform env var must be set before importing PySide6
 "src/manim_studio/ui/**" = ["N802", "N815"]  # Qt overrides and signals use camelCase
+"src/manim_studio/ui/style/theme.py" = ["E501"]  # the stylesheet and the token tables read best one rule per line
 
 [tool.ruff.lint.isort]
 known-first-party = ["manim_studio"]
