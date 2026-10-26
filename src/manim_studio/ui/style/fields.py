@@ -59,6 +59,10 @@ QPushButton#colourField {{
 QPushButton#colourField:hover {{ border-color: {theme.css(c.line_strong)}; background: {c.field}; }}
 QPushButton#colourField:focus {{ border-color: {c.accent}; }}
 QPushButton#colourField:disabled {{ color: {c.disabled}; }}
+QLabel[role="error"] {{ color: {c.error_text}; }}
+QToolButton#sectionCaret, QToolButton#fieldReset {{ padding: 0; border: 0; background: transparent; }}
+QToolButton#fieldReset:hover {{ background: {theme.css(c.hover)}; }}
+QLineEdit QToolButton {{ padding: 0; border: 0; background: transparent; }}
 QWidget[pending="true"] QLabel#sliderReadout {{ color: {c.muted}; }}
 QLabel#sliderReadout {{ color: {c.text}; }}
 """
@@ -101,19 +105,26 @@ class _Inside:
     def place(self) -> None:
         """Put the label and the unit over the ends of the text area and keep the text clear of them."""
         host, edit = self.host, self.edit
-        area = edit.geometry() if edit is not host else host.rect().adjusted(theme.SPACE + 5, 0, -9, 0)
-        left = right = 0
+        # The label and the unit sit 10 px in from the field's sides (the mock-up's padding); the text
+        # margins move the text clear of them. A line edit's text already starts 9 px in (its padding);
+        # a spin box's edit spans the whole box and starts its text about 3 px in.
+        pad = 10
+        if edit is host:
+            text_left, text_right = theme.SPACE + 5, theme.SPACE + 5
+        else:
+            text_left = edit.x() + 3
+            text_right = host.width() - (edit.x() + edit.width()) + 3
+        left, right = max(pad - text_left, 0), max(pad - text_right, 0)
         if self.label.text():
-            self.label.adjustSize()
             width = self.label.sizeHint().width()
-            self.label.setGeometry(area.left(), 0, width, host.height())
-            left = width + INSIDE_GAP
+            self.label.setGeometry(pad, 0, width, host.height())
+            left = pad + width + INSIDE_GAP - text_left
         show_unit = bool(self.unit.text()) and not self.special()
         self.unit.setVisible(show_unit)
         if show_unit:
             width = self.unit.sizeHint().width()
-            self.unit.setGeometry(area.right() - width + 1, 0, width, host.height())
-            right = width + INSIDE_GAP
+            self.unit.setGeometry(host.width() - pad - width, 0, width, host.height())
+            right = pad + width + INSIDE_GAP - text_right
         edit.setTextMargins(left, 0, right, 0)
 
 
@@ -126,7 +137,7 @@ class _ScrubBox:
     def _setup(self) -> None:
         self.setMinimumHeight(FIELD_HEIGHT)
         self.setFont(theme.font("body", kind="mono"))
-        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        # the arrows are hidden by the stylesheet (NoButtons would collapse the edit to nothing there)
         self.inside = _Inside(self, self.lineEdit(), scrub=True)
         self.inside.special = lambda: bool(self.specialValueText()) and self.value() == self.minimum()
         self.lineEdit().textChanged.connect(lambda _text: self.inside.place())
@@ -401,7 +412,7 @@ class BoolField(Field):
         self.widget.setChecked(bool(value))
 
 
-class _Diamond(QToolButton):
+class KeyDiamond(QToolButton):
     """A keyframe diamond: filled in the key colour when the property has keys, an outline when not."""
 
     SIZE = 24
@@ -451,7 +462,7 @@ class KeyToggle(Field):
 
     def __init__(self, on_commit: Commit, tooltip: str = "") -> None:
         super().__init__(on_commit)
-        button = _Diamond()
+        button = KeyDiamond()
         button.setToolTip(tooltip)
         button.setAccessibleName(tooltip or "Keyframes")
         button.toggled.connect(self.commit)
@@ -611,6 +622,7 @@ class ColorField(Field):
         self.button.setToolTip("Choose the colour")
         self.button.clicked.connect(self._pick)
         reset = QToolButton(text="x")
+        reset.setObjectName("fieldReset")
         reset.setIcon(icons.icon("close", tint="muted"))
         reset.setToolTip("Use the default colour")
         reset.setAccessibleName("Use the default colour")
@@ -669,7 +681,9 @@ class SliderBox(QWidget):
 
     def setValue(self, value: float) -> None:
         span = self._max - self._min or 1.0
-        self.slider.setValue(round((min(max(float(value), self._min), self._max) - self._min) / span * self.STEPS))
+        self.slider.setValue(
+            round((min(max(float(value), self._min), self._max) - self._min) / span * self.STEPS)
+        )
         self._show_readout()
 
     def _show_readout(self) -> None:
@@ -683,7 +697,9 @@ class SliderField(Field):
     def __init__(self, on_commit: Commit, minimum: float = 0.0, maximum: float = 1.0) -> None:
         super().__init__(on_commit)
         box = SliderBox(minimum, maximum)
-        box.slider.valueChanged.connect(lambda _v: None if box.slider.isSliderDown() else self.commit(box.value()))
+        box.slider.valueChanged.connect(
+            lambda _v: None if box.slider.isSliderDown() else self.commit(box.value())
+        )
         box.slider.sliderReleased.connect(lambda: self.commit(box.value()))
         self.widget = box
 
@@ -698,6 +714,14 @@ class SliderField(Field):
 
 
 # -- sections and captions -------------------------------------------------------------------------
+
+
+def set_error(label: QLabel, error: bool) -> None:
+    """Show ``label`` in the error colour (a stylesheet rule, so it follows the theme) or as before."""
+    if (label.property("role") == "error") != error:
+        label.setProperty("role", "error" if error else label.property("normalRole") or "")
+        label.style().unpolish(label)
+        label.style().polish(label)
 
 
 def caption(text: str) -> QLabel:
@@ -739,13 +763,15 @@ class Section(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(2 * theme.SPACE)
         self.caret = QToolButton()
+        self.caret.setObjectName("sectionCaret")
         self.caret.setAutoRaise(True)
         self.caret.setFixedSize(18, 18)
         self.caret.setIconSize(QSize(14, 14))
         self.caret.setToolTip(f"Show or hide {title}")
         self.caret.setAccessibleName(f"Collapse {title}")
         self.caret.clicked.connect(lambda: self.set_collapsed(not self._collapsed))
-        self.caret.setVisible(collapsible)
+        if not collapsible:
+            self.caret.hide()  # (showing a widget before it has a parent would open it as a window)
         self.title = _ClickLabel(title)
         font: QFont = theme.font("body")
         font.setWeight(QFont.Weight.DemiBold)

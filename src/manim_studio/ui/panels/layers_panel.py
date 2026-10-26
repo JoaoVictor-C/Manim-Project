@@ -12,20 +12,36 @@ from collections.abc import Callable
 from functools import partial
 
 from pydantic import ValidationError
-from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QKeySequence, QPainter, QPen
+from PySide6.QtCore import (
+    QEvent,
+    QModelIndex,
+    QPoint,
+    QRect,
+    QRectF,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import QAction, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
+    QSizePolicy,
     QSpinBox,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
@@ -63,8 +79,140 @@ from ..style import icons, theme
 from ..style.fields import pick_colour
 from .equation_steps_dialog import EquationStepsDialog, StepsRequest
 from .glyph_colours_dialog import ask_glyph_colours
+from .kinds import KINDS, kind_of, paint_chip
 
 ID_ROLE = Qt.ItemDataRole.UserRole
+KIND_ROLE = Qt.ItemDataRole.UserRole + 1  # the key of the layer's kind (kinds.KINDS)
+LOCKED_ROLE = Qt.ItemDataRole.UserRole + 2  # follows its parent exactly (a graph on its axes)
+MISSING_ROLE = Qt.ItemDataRole.UserRole + 3  # a part whose TeX is not found
+ROW_HEIGHT = 36  # px (Lumen): one layer row
+ROW_GAP = 1  # px above and below a row
+ROW_SIDE = 6  # px between a row and the list's sides
+CHIP = 22  # px: the kind chip
+CARET = 16  # px: the expand caret of a row with children
+
+
+def _layer_rules(c: theme.Colours) -> str:
+    return f"""
+QTreeView#layerTree {{ background: transparent; border: 0; show-decoration-selected: 0; }}
+QTreeView#layerTree::item, QTreeView#layerTree::item:hover, QTreeView#layerTree::item:selected {{
+    background: transparent; border: 0; padding: 0; margin: 0;
+}}
+QTreeView#layerTree::branch, QTreeView#layerTree::branch:selected, QTreeView#layerTree::branch:hover {{
+    background: transparent; image: none; border-image: none;
+}}
+QFrame#layersFooter {{ background: transparent; border: 0; border-top: 1px solid {theme.css(c.line)}; }}
+"""
+
+
+theme.register_rules(_layer_rules)
+
+
+class LayerDelegate(QStyledItemDelegate):
+    """Draws a layer row (Lumen): a 36 px rounded row with the kind chip, the name, a kind word for code,
+    objects and groups, a lock for a layer that follows its parent, and a caret on a row with children.
+    The selected row is tinted with the accent and ringed; the hovered one is raised."""
+
+    def __init__(self, tree: QTreeWidget) -> None:
+        super().__init__(tree)
+        self.tree = tree
+
+    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
+        return QSize(option.rect.width(), ROW_HEIGHT + 2 * ROW_GAP)
+
+    @staticmethod
+    def row_rect(rect: QRect) -> QRectF:
+        return QRectF(rect).adjusted(ROW_SIDE, ROW_GAP, -ROW_SIDE, -ROW_GAP)
+
+    def caret_rect(self, rect: QRect) -> QRectF:
+        row = self.row_rect(rect)
+        return QRectF(row.right() - 10 - CARET, row.center().y() - CARET / 2, CARET, CARET)
+
+    def name_left(self, rect: QRect) -> float:
+        return self.row_rect(rect).left() + 12 + CHIP + 9
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        c = theme.THEME
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        row = self.row_rect(option.rect)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
+        path = QPainterPath()
+        path.addRoundedRect(row.adjusted(0.5, 0.5, -0.5, -0.5), theme.RADIUS_ROW, theme.RADIUS_ROW)
+        if selected:
+            painter.fillPath(path, theme.qcolor(c.accent_soft))
+            painter.setPen(QPen(theme.qcolor(c.accent_line), 1))
+            painter.drawPath(path)
+        elif hovered:
+            painter.fillPath(path, theme.qcolor(c.raised))
+        kind = KINDS.get(index.data(KIND_ROLE) or "", KINDS["shape"])
+        chip = QRectF(row.left() + 12, row.center().y() - CHIP / 2, CHIP, CHIP)
+        paint_chip(painter, chip, kind, theme.RADIUS_SMALL, enabled)
+        left, right = self.name_left(option.rect), row.right() - 10
+        if self.tree.model().hasChildren(index):
+            caret = self.caret_rect(option.rect)
+            name = "caret-down" if self.tree.isExpanded(index) else "caret-right"
+            icons.icon(name, tint="faint").paint(painter, caret.toRect())
+            right = caret.left() - 6
+        if index.data(LOCKED_ROLE):
+            lock = QRectF(right - 14, row.center().y() - 7, 14, 14)
+            icons.icon("lock", tint="faint").paint(painter, lock.toRect())
+            right = lock.left() - 6
+        if kind.chip:
+            right = self._paint_word(painter, kind.chip, right, row)
+        font: QFont = theme.font("label")
+        painter.setFont(font)
+        missing = bool(index.data(MISSING_ROLE))
+        token = c.disabled if not enabled else c.warning if missing else c.text
+        painter.setPen(theme.qcolor(token))
+        text_rect = QRectF(left, row.top(), max(right - left, 0), row.height())
+        text = QFontMetrics(font).elidedText(
+            str(index.data(Qt.ItemDataRole.DisplayRole) or ""),
+            Qt.TextElideMode.ElideRight,
+            int(text_rect.width()),
+        )
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, text)
+        painter.restore()
+
+    @staticmethod
+    def _paint_word(painter: QPainter, word: str, right: float, row: QRectF) -> float:
+        """A small neutral chip (``group``, ``code``...) ending at ``right``; returns its left edge."""
+        c = theme.THEME
+        font = theme.font("caption")
+        font.setPixelSize(10)
+        metrics = QFontMetrics(font)
+        width = metrics.horizontalAdvance(word) + 14
+        box = QRectF(right - width, row.center().y() - 9, width, 18)
+        path = QPainterPath()
+        path.addRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 9, 9)
+        painter.fillPath(path, theme.qcolor(c.raised))
+        painter.setPen(QPen(theme.qcolor(c.line), 1))
+        painter.drawPath(path)
+        painter.setFont(font)
+        painter.setPen(theme.qcolor(c.muted))
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, word)
+        return box.left() - 6
+
+    def editorEvent(self, event, model, option: QStyleOptionViewItem, index: QModelIndex) -> bool:
+        """A click on the caret opens or closes the row."""
+        if (
+            event.type() == QEvent.Type.MouseButtonRelease
+            and model.hasChildren(index)
+            and self.caret_rect(option.rect).adjusted(-4, -4, 4, 4).contains(event.position())
+        ):
+            self.tree.setExpanded(index, not self.tree.isExpanded(index))
+            return True
+        return super().editorEvent(event, model, option, index)
+
+    def updateEditorGeometry(self, editor: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        """Renaming edits over the name, not over the chip."""
+        row = self.row_rect(option.rect)
+        left = int(self.name_left(option.rect)) - 4
+        editor.setGeometry(
+            QRect(left, int(row.top()) + 4, int(row.right()) - 8 - left, int(row.height()) - 8)
+        )
 
 
 class LayerTree(QTreeWidget):
@@ -166,9 +314,14 @@ class PartDialog(QDialog):
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setProperty("role", "primary")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setProperty("role", "ghost")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
+        self.status.setProperty("role", "muted")
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(3 * theme.SPACE)
         layout.addLayout(form)
         layout.addWidget(self.status)
         layout.addWidget(self.buttons)
@@ -326,9 +479,32 @@ class LayersPanel(QWidget):
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window: where new objects are placed
         self._select_new = False
 
+        self._collapsed_ids: set[str] = set()  # rows the user closed (they stay closed across rebuilds)
         self.list = LayerTree()
+        self.list.setObjectName("layerTree")
         self.list.setHeaderHidden(True)
-        self.list.setRootIsDecorated(True)
+        self.list.setRootIsDecorated(False)  # the caret is at the right of the row (Lumen)
+        self.list.setIndentation(26)
+        self.list.setUniformRowHeights(True)
+        self.list.setMouseTracking(True)
+        self.list.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.list.setFrameShape(QFrame.Shape.NoFrame)
+        self.delegate = LayerDelegate(self.list)
+        self.list.setItemDelegate(self.delegate)
+        self.list.itemCollapsed.connect(lambda item: self._collapsed_ids.add(item.data(0, ID_ROLE)))
+        self.list.itemExpanded.connect(lambda item: self._collapsed_ids.discard(item.data(0, ID_ROLE)))
+        self.filter = QLineEdit()
+        self.filter.setObjectName("layerFilter")
+        self.filter.setPlaceholderText("Filter layers")
+        self.filter.setClearButtonEnabled(True)
+        self.filter.setToolTip("Show only the layers whose name has this text (and what holds them)")
+        self.filter.setAccessibleName("Filter layers")
+        self.filter.setMinimumHeight(30)
+        # Click to filter: as the first field of the window it would otherwise take the keyboard at
+        # start, and keys meant for the window (Ctrl+1..5, Ctrl+D) would go to it.
+        self.filter.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.filter.addAction(icons.icon("search", tint="faint"), QLineEdit.ActionPosition.LeadingPosition)
+        self.filter.textChanged.connect(lambda _text: self.apply_filter())
         self.list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.list.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -370,10 +546,14 @@ class LayersPanel(QWidget):
         }
         self.part_button.setMenu(part_menu)
         self.part_button.setIcon(icons.icon("parts"))
-        self.part_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.part_button.setToolTip("Animate pieces of an equation as their own layers, or plot on axes")
+        self.part_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)  # Lumen: Add has the room
+        self.part_button.setToolTip(
+            "Parts: animate pieces of an equation as their own layers, or plot on axes"
+        )
+        self.part_button.setAccessibleName("Parts")
 
-        self.buttons = QHBoxLayout()
+        self.add_button.setProperty("role", "outlined")
+        self.part_button.setProperty("role", "outlined")
         for button in (
             self.add_button,
             self.part_button,
@@ -381,13 +561,28 @@ class LayersPanel(QWidget):
             self.up_button,
             self.down_button,
         ):
+            button.setMinimumHeight(26)
+        self.footer = QFrame()
+        self.footer.setObjectName("layersFooter")
+        self.buttons = QHBoxLayout(self.footer)
+        self.buttons.setContentsMargins(10, 10, 10, 10)
+        self.buttons.setSpacing(theme.SPACE)
+        self.add_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.buttons.addWidget(self.add_button, 1)
+        self.buttons.addWidget(self.part_button)
+        for button in (self.delete_button, self.up_button, self.down_button):
             self.buttons.addWidget(button)
-        self.buttons.addStretch(1)
+        top = QVBoxLayout()
+        top.setContentsMargins(10, 10, 10, 4)
+        top.addWidget(self.filter)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.addLayout(self.buttons)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addLayout(top)
+        layout.addSpacing(6)
         layout.addWidget(self.list, 1)
-        self.labelled = (self.add_button, self.part_button)  # icons only when the panel is narrow (P6d.4)
+        layout.addWidget(self.footer)
+        self.labelled = (self.add_button,)  # icons only when the panel is narrow (P6d.4)
         self._full_width = self._row_width()
 
         self.document.changed.connect(lambda *_: self.sync())
@@ -409,8 +604,8 @@ class LayersPanel(QWidget):
                 self.down_button,
             )
         ]
-        margins = self.layout().contentsMargins() if self.layout() else None
-        sides = margins.left() + margins.right() if margins else 8
+        margins = self.buttons.contentsMargins()
+        sides = margins.left() + margins.right()
         return sum(widths) + self.buttons.spacing() * (len(widths) - 1) + sides
 
     @property
@@ -518,6 +713,11 @@ class LayersPanel(QWidget):
             for root in reversed(roots):
                 self.list.addTopLevelItem(self._item(root, orphans, index))
             self.list.expandAll()
+            self._collapsed_ids &= ids
+            for item in self.items():
+                if item.data(0, ID_ROLE) in self._collapsed_ids:
+                    item.setExpanded(False)
+            self.apply_filter()
             target = selected if selected in ids else None
             if self._select_new and new:
                 every = self._select_new == "all"  # all the new objects (equation steps, P11)
@@ -535,9 +735,12 @@ class LayersPanel(QWidget):
     def _item(self, layer: Layer, orphans: dict[str, str], index: LayerIndex) -> QTreeWidgetItem:
         item = QTreeWidgetItem([layer.label])
         item.setData(0, ID_ROLE, layer.id)
+        item.setData(0, KIND_ROLE, kind_of(layer).key)
+        item.setData(0, LOCKED_ROLE, layer.locked)
         if layer.is_part:
             tip = f"{layer.id} - part {layer.part.tex!r} (occurrence {layer.part.occurrence + 1})"
             if layer.id in orphans:
+                item.setData(0, MISSING_ROLE, True)
                 item.setText(0, f"{layer.label} (not found)")
                 tip += f"\nNot drawn: {orphans[layer.id]}"
             item.setToolTip(0, tip)
@@ -552,6 +755,19 @@ class LayersPanel(QWidget):
         for child in index.children(layer.id):
             item.addChild(self._item(child, orphans, index))
         return item
+
+    def apply_filter(self) -> None:
+        """Hide the rows whose name lacks every typed word, keeping the objects that hold a match."""
+        words = self.filter.text().lower().split()
+
+        def show(item: QTreeWidgetItem) -> bool:
+            children = [show(item.child(i)) for i in range(item.childCount())]
+            match = all(w in item.text(0).lower() for w in words)
+            item.setHidden(not (match or any(children)))
+            return match or any(children)
+
+        for i in range(self.list.topLevelItemCount()):
+            show(self.list.topLevelItem(i))
 
     def _on_reset(self, _project: Project) -> None:
         self._known_ids = set()

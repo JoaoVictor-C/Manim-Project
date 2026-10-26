@@ -30,7 +30,7 @@ def steps_for(dx: float, modifiers: Qt.KeyboardModifier) -> float:
 
 
 class ScrubLabel(QLabel):
-    """``scrubStarted`` on the first move, ``scrubbed(steps)`` while dragging, ``scrubFinished`` on release."""
+    """``scrubStarted`` on the first move, ``scrubbed(steps)`` while dragging, ``scrubFinished`` last."""
 
     scrubStarted = Signal()
     scrubbed = Signal(float)  # steps from where the drag began (fractional with Shift)

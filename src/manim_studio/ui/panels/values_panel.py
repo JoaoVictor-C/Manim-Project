@@ -11,13 +11,12 @@ from __future__ import annotations
 from functools import partial
 from typing import Any
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFormLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 from ...core.code import python_object
 from ...core.engine import adapter
 from ...core.model.schema import PYTHON_TYPES, Project
-from ..style.fields import Field
+from ..style.fields import Field, Section, caption
 from .properties_panel import _first_error, _param_field, set_python_value
 
 NO_OBJECT = "Select a Python object to try its parameters here."
@@ -35,16 +34,24 @@ class ValuesPanel(QScrollArea):
         self._shown: tuple | None = None  # the parameters the fields were built for
         self.setWidgetResizable(True)
         self.setObjectName("valuesPanel")
+        self.setFrameShape(QFrame.Shape.NoFrame)
         body = QWidget()
         column = QVBoxLayout(body)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
         self.note = QLabel(NO_OBJECT)
         self.note.setWordWrap(True)
         self.note.setProperty("role", "hint")
-        self.form_host = QWidget()
-        self.form = QFormLayout(self.form_host)
-        self.form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        self.note.setContentsMargins(14, 12, 14, 12)
+        # Lumen: the parameters are a section of fields that hold their labels inside (number, text) or
+        # show them above (a list, a colour), as in Properties.
+        self.section = Section("Parameters", collapsible=False)
+        self.section.rule = False
+        self.form_host = self.section
+        self.form = self.section.body_layout
+        self.section.hide()
         column.addWidget(self.note)
-        column.addWidget(self.form_host)
+        column.addWidget(self.section)
         column.addStretch(1)
         self.setWidget(body)
 
@@ -91,22 +98,39 @@ class ValuesPanel(QScrollArea):
 
     # -- building -----------------------------------------------------------------------------
 
+    def _empty(self) -> None:
+        while self.form.count():
+            item = self.form.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.deleteLater()
+
     def _clear(self, text: str) -> None:
         self._shown = None
         self.fields = {}
-        while self.form.rowCount():
-            self.form.removeRow(0)
+        self._empty()
+        self.section.hide()
         self.note.setText(text)
         self.note.show()
 
     def _build(self, layer_id: str, params: tuple) -> None:
         self.fields = {}
-        while self.form.rowCount():
-            self.form.removeRow(0)
+        self._empty()
         for param in params:
             field = _param_field(param, self._commit(layer_id, param.name))
             self.fields[param.name] = field
-            self.form.addRow(param.title, field.widget)
+            if not field.set_label(param.title):
+                row = QWidget()
+                column = QVBoxLayout(row)
+                column.setContentsMargins(0, 0, 0, 0)
+                column.setSpacing(5)
+                column.addWidget(caption(param.title))
+                column.addWidget(field.widget)
+                self.form.addWidget(row)
+            else:
+                self.form.addWidget(field.widget)
+        self.section.show()
 
     def _commit(self, layer_id: str, name: str):
         def commit(value: Any) -> None:

@@ -11,22 +11,25 @@ hidden (ADR 0007).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Hashable
 from functools import partial
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
-    QFormLayout,
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -61,6 +64,7 @@ from ...core.model.schema import (
 )
 from ..canvas.gizmo import SHIFTS_ELSEWHERE
 from ..session.build_service import BuildService
+from ..style import theme
 from ..style.fields import (
     BoolField,
     ChoiceField,
@@ -69,14 +73,22 @@ from ..style.fields import (
     Field,
     FloatField,
     IntField,
+    KeyDiamond,
+    KeyToggle,
+    LabelledLineEdit,
     LongTextField,
     PathField,
     PointField,
+    ScrubSpinBox,
+    Section,
+    SliderField,
     TextField,
+    caption,
     pick_colour,
 )
 from ..timeline.curve_editor import ease_label, edit_curve
 from .glyph_colours_dialog import ask_glyph_colours
+from .kinds import KINDS, Kind, KindChip, kind_of
 
 CUSTOM_CURVE = "custom-curve"  # the "Custom curve..." entry of an easing list
 STYLE_KEYS = ("fill", "fill_opacity", "stroke", "stroke_width")
@@ -261,6 +273,59 @@ def _has(project: Project, layer_id: str) -> bool:
 # -- the panel ----------------------------------------------------------------------
 
 
+class TitleBlock(QWidget):
+    """The head of Properties (Lumen): the shown thing's kind chip, its name, and a line about it.
+
+    ``setText`` takes the same rich text the panel always wrote ("<b>name</b> - what it is", maybe a
+    second line in italics) and ``text`` gives it back, so callers and tests read it as before; the name
+    is shown large and the rest under it, muted."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._text = ""
+        self.chip = KindChip(32)
+        self.name = QLabel()
+        self.name.setFont(theme.font("heading"))
+        self.name.setWordWrap(True)
+        self.name.setTextFormat(Qt.TextFormat.PlainText)
+        self.detail = QLabel()
+        self.detail.setFont(theme.font("caption"))
+        self.detail.setProperty("role", "muted")
+        self.detail.setWordWrap(True)
+        self.detail.setTextFormat(Qt.TextFormat.RichText)
+        words = QVBoxLayout()
+        words.setContentsMargins(0, 0, 0, 0)
+        words.setSpacing(1)
+        words.addWidget(self.name)
+        words.addWidget(self.detail)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(14, 14, 14, 12)
+        row.setSpacing(10)
+        row.addWidget(self.chip, 0, Qt.AlignmentFlag.AlignTop)
+        row.addLayout(words, 1)
+
+    def setText(self, text: str) -> None:
+        self._text = text
+        found = re.match(r"\s*<b>(.*?)</b>(.*)", text, re.DOTALL)
+        name, rest = (found.group(1), found.group(2)) if found else (text, "")
+        rest = re.sub(r"^\s*(-\s*|<br>)", "", rest.strip())
+        self.name.setText(name)
+        self.detail.setText(rest)
+        self.detail.setVisible(bool(rest))
+
+    def text(self) -> str:
+        return self._text
+
+    def set_kind(self, kind: Kind) -> None:
+        self.chip.set_kind(kind)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.fillRect(0, self.height() - 1, self.width(), 1, theme.qcolor(theme.THEME.line))
+        painter.end()
+
+
 class PropertiesPanel(QWidget):
     message = Signal(str)
     keyMoved = Signal(str, float)  # the shown keys were retimed: layer id, new time
@@ -318,18 +383,25 @@ class PropertiesPanel(QWidget):
         # "Custom curve...": shows the curve editor; tests replace it (P2b)
         self.curve_dialog: Callable[[Easing | None], Easing | None] = lambda ease: edit_curve(self, ease)
 
-        self.title = QLabel()
-        self.title.setWordWrap(True)
+        self.sections: dict[str, Section] = {}  # the sections shown, by title
+        self._section_keys: tuple[QToolButton, list[KeyToggle]] | None = None  # Transform's diamond
+        self._collapsed: set[str] = set()  # titles of the sections the user closed (kept across selections)
+        self.title = TitleBlock()
         self.body = QWidget()
+        self.body.setObjectName("propertiesBody")
         self.body_layout = QVBoxLayout(self.body)
         self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setSpacing(0)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setMinimumWidth(300)
         scroll.setWidget(self.body)
+        self.scroll = scroll
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         layout.addWidget(self.title)
         layout.addWidget(scroll, 1)
 
@@ -374,8 +446,8 @@ class PropertiesPanel(QWidget):
             (
                 "Size",
                 [
-                    ("canvas.width_px", IntField(commit("width_px", "Scene size"), 16, 7680)),
-                    ("canvas.height_px", IntField(commit("height_px", "Scene size"), 16, 4320)),
+                    ("canvas.width_px", IntField(commit("width_px", "Scene size"), 16, 7680), "W"),
+                    ("canvas.height_px", IntField(commit("height_px", "Scene size"), 16, 4320), "H"),
                 ],
             ),
             ("Frame rate", "canvas.fps", IntField(commit("fps", "Frame rate"), 1, 240)),
@@ -405,9 +477,10 @@ class PropertiesPanel(QWidget):
         self.fit_button = QPushButton("Fit Length to Content")
         self.fit_button.setToolTip("End the scene where its last clip, key, sound or subtitle ends")
         self.fit_button.clicked.connect(self.fit_length)
-        self.body_layout.addWidget(self.fit_button)
+        self._append(self.fit_button)
         self._camera_section(generation)
         self.body_layout.addStretch(1)
+        self.title.set_kind(KINDS["scene"])
         self.title.setText("<b>Scene</b> - select a layer, a clip or a keyframe to edit it.")
         self._refresh_scene(True)
 
@@ -445,7 +518,7 @@ class PropertiesPanel(QWidget):
         self.camera_reset = QPushButton("Reset Camera")
         self.camera_reset.setToolTip("Back to the flat 2D view (handles and clicking objects return)")
         self.camera_reset.clicked.connect(self.reset_camera)
-        self.body_layout.addWidget(self.camera_reset)
+        self._append(self.camera_reset)
 
     def set_camera(self, name: str, value: float) -> None:
         """Change one of the camera's angles (one undo step)."""
@@ -727,6 +800,7 @@ class PropertiesPanel(QWidget):
         if marker is None:
             self.show_nothing()
             return
+        self.title.set_kind(KINDS["marker"])
         self.title.setText(f"<b>{marker.name or marker.id}</b> - marker at {marker.t:g} s")
         for path, field in self.fields.items():
             if not field.has_focus() or force:
@@ -737,6 +811,7 @@ class PropertiesPanel(QWidget):
         if cue is None:
             self.show_nothing()
             return
+        self.title.set_kind(KINDS["subtitle"])
         self.title.setText(f"<b>Subtitle</b> {cue.start:g} - {cue.end:g} s")
         for path, field in self.fields.items():
             if field.has_focus() and not force:
@@ -749,6 +824,7 @@ class PropertiesPanel(QWidget):
         if clip is None:
             self.show_nothing()
             return
+        self.title.set_kind(KINDS["sound"])
         self.title.setText(f"<b>{clip.name or clip.id}</b> - sound ({Path(clip.path).name})")
         for path, field in self.fields.items():
             if not field.has_focus() or force:
@@ -806,9 +882,18 @@ class PropertiesPanel(QWidget):
                 field.widget.setToolTip("Keyed: a change sets a key at the playhead frame")
             elif path in self._tips and not waiting:
                 field.widget.setToolTip(self._tips[path])
+        if self._section_keys is not None:
+            button, toggles = self._section_keys
+            button.setChecked(any(toggle.widget.isChecked() for toggle in toggles))
 
     def _update_title(self, layer: Layer) -> None:
         name = layer.label
+        if self.key_time is not None:
+            self.title.set_kind(KINDS["keys"])
+        elif self.clip_id is not None:
+            self.title.set_kind(KINDS["clip"])
+        else:
+            self.title.set_kind(kind_of(layer))
         if self.key_time is not None:
             self.title.setText(f"<b>Keys at {self.key_time:g} s</b> on {name}")
         elif self.clip_id is None and layer.is_part:
@@ -841,7 +926,9 @@ class PropertiesPanel(QWidget):
         self.characters_button = None
         self._shown_type = None
         self.scene_shown = False
+        self._section_keys = None
         self.fields.clear()
+        self.sections.clear()
         self._tips.clear()
         self._getters.clear()
         self._keys.clear()
@@ -851,24 +938,62 @@ class PropertiesPanel(QWidget):
                 widget.hide()  # deleteLater only runs once control returns to the event loop
                 widget.deleteLater()
 
-    def _section(self, title: str, rows: list[tuple[str, str, Field]]) -> None:
-        if not rows:
-            return
-        box = QGroupBox(title)
-        form = QFormLayout(box)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+    def _new_section(self, title: str) -> Section:
+        """A collapsible section; one the user closed stays closed for the next selection."""
+        section = Section(title)
+        section.set_collapsed(title in self._collapsed)
+        section.toggled.connect(
+            lambda collapsed: self._collapsed.add(title) if collapsed else self._collapsed.discard(title)
+        )
+        self.sections[title] = section
+        self.body_layout.addWidget(section)
+        return section
+
+    def _append(self, widget: QWidget) -> None:
+        """A button or a note under the last section's fields (or on its own when there is none)."""
+        last = self.body_layout.itemAt(self.body_layout.count() - 1)
+        box = last.widget() if last is not None else None
+        if isinstance(box, Section):
+            box.add_widget(widget)
+        else:
+            self.body_layout.addWidget(widget)
+
+    def _section(self, title: str, rows: list, always: bool = False) -> Section | None:
+        """A section of rows: ``(label, path, field)``, or ``(label, [(path, field[, inner label]), ...])``
+        for several fields on one row. A lone number or text field holds its label inside; any other row
+        has it above, as a caption. Keyframe diamonds (``KeyToggle``) sit at the right of their row."""
+        if not rows and not always:
+            return None
+        section = self._new_section(title)
         for label, *cells in rows:
-            # (label, path, field) or (label, [(path, field), ...]) for several fields on one row
-            cells = [tuple(cells)] if len(cells) == 2 else cells[0]
-            row = QWidget()
-            line = QHBoxLayout(row)
-            line.setContentsMargins(0, 0, 0, 0)
-            for path, field in cells:
-                line.addWidget(field.widget, 1 if len(cells) == 1 or path.startswith("base.") else 0)
+            cells = [(cells[0], cells[1])] if len(cells) == 2 else cells[0]
+            main, keys = [], []
+            for path, field, *inner in cells:
                 self.fields[path] = field
-            form.addRow(label, row if len(cells) > 1 else cells[0][1].widget)
-        self.body_layout.addWidget(box)
+                if isinstance(field, KeyToggle):
+                    keys.append(field)
+                    continue
+                if inner:
+                    field.set_label(inner[0])
+                main.append(field)
+            inside = bool(label) and len(main) == 1 and len(cells[0]) == 2 and main[0].set_label(label)
+            line = QHBoxLayout()
+            line.setContentsMargins(0, 0, 0, 0)
+            line.setSpacing(2 * theme.SPACE)
+            for field in main:
+                line.addWidget(field.widget, 1)
+            for field in keys:
+                line.addWidget(field.widget, 0, Qt.AlignmentFlag.AlignVCenter)
+            if label and not inside:
+                block = QVBoxLayout()
+                block.setContentsMargins(0, 0, 0, 0)
+                block.setSpacing(5)
+                block.addWidget(caption(label))
+                block.addLayout(line)
+                section.add_layout(block)
+            else:
+                section.add_layout(line)
+        return section
 
     def _register(self, path: str, getter: Callable[[Layer], Any]) -> None:
         self._getters[path] = getter
@@ -905,7 +1030,7 @@ class PropertiesPanel(QWidget):
             else:
                 ease_field.widget.setToolTip(f"How {prop} moves from this key to the next")
             rows.append((label, value_path, value_field))
-            rows.append(("  easing", ease_path, ease_field))
+            rows.append(("Easing", ease_path, ease_field))
         self._section("Keyframes", rows)
 
     def _ease_field(self, commit: Callable[[Any], None], path: str, keys: bool) -> ChoiceField:
@@ -986,12 +1111,7 @@ class PropertiesPanel(QWidget):
         self.characters_button.clicked.connect(
             lambda: generation == self._generation and self.colour_characters(layer_id)
         )
-        last = self.body_layout.itemAt(self.body_layout.count() - 1)
-        box = last.widget() if last is not None else None
-        if isinstance(box, QGroupBox) and isinstance(box.layout(), QFormLayout):
-            box.layout().addRow("", self.characters_button)
-        else:
-            self.body_layout.addWidget(self.characters_button)
+        self._append(self.characters_button)
 
     def colour_characters(self, layer_id: str) -> None:
         """Ask for the colour of each glyph and apply it (one undo step, ADR 0055)."""
@@ -1012,12 +1132,12 @@ class PropertiesPanel(QWidget):
         """A shape says it is frozen (no parameters: undo is the way back); an object that can be
         frozen has "Freeze to shape" (ADR 0052). Whether it can be now is said on click."""
         if layer.spec.type in SHAPE_TYPES:
-            box = QGroupBox("Shape")
+            box = self._new_section("Shape")
             note = QLabel(f"{shape.FROZEN_NOTE}: no code, no LaTeX. Undo turns it back.")
             note.setWordWrap(True)
             note.setObjectName("frozenNote")
-            QVBoxLayout(box).addWidget(note)
-            self.body_layout.addWidget(box)
+            note.setProperty("role", "muted")
+            box.add_widget(note)
             return
         if shape.kind_problem(layer) is not None or layer.spec.type in plugins.SIMULATIONS:
             return
@@ -1029,10 +1149,11 @@ class PropertiesPanel(QWidget):
             "Turn it into plain vector data as it is drawn now: it needs no code, no trust and no "
             "LaTeX, so it plays on any computer. Its parameters are gone (undo turns it back)."
         )
+        self.freeze_button.setProperty("role", "ghost")
         self.freeze_button.clicked.connect(lambda: self.freeze(layer.id))
         line.addStretch(1)
         line.addWidget(self.freeze_button)
-        self.body_layout.addWidget(box)
+        self._append(box)
 
     def _python_section(self, layer: Layer) -> None:
         """A Python object (ADR 0051): a field per parameter its PARAMS declares, read without
@@ -1049,20 +1170,22 @@ class PropertiesPanel(QWidget):
             self._register(path, getter)
             commit = self._op(path, partial(set_python_value, name=param.name), f"Change {param.name}")
             rows.append((param.title, path, _param_field(param, commit)))
-        self._section("Python object", rows)
+        self._section("Python object", rows, always=True)
         self._shown_params = params
         box = QWidget()
         line = QHBoxLayout(box)
         line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(2 * theme.SPACE)
         self.python_label = QLabel()
         self.python_label.setWordWrap(True)
         self.python_label.setObjectName("pythonStatus")
+        self.python_label.setProperty("role", "muted")
         edit = QPushButton("Edit code")
         edit.setToolTip("Open its code on the Code page")
         edit.clicked.connect(lambda: self.edit_code(layer.id))
         line.addWidget(self.python_label, 1)
         line.addWidget(edit)
-        self.body_layout.addWidget(box)
+        self._append(box)
         self._refresh_python_status(layer)
 
     def _refresh_python_status(self, layer: Layer) -> None:
@@ -1094,13 +1217,15 @@ class PropertiesPanel(QWidget):
         box = QWidget()
         line = QHBoxLayout(box)
         line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(2 * theme.SPACE)
         self.code_label = QLabel()
         self.code_label.setWordWrap(True)
+        self.code_label.setProperty("role", "muted")
         self.retry_button = QPushButton("Run again")
         self.retry_button.clicked.connect(lambda: self.retry_code(layer_id))
         line.addWidget(self.code_label, 1)
         line.addWidget(self.retry_button)
-        self.body_layout.addWidget(box)
+        self._append(box)
         self.refresh_code_status(layer_id)
 
     def refresh_code_status(self, layer_id: str) -> None:
@@ -1139,11 +1264,14 @@ class PropertiesPanel(QWidget):
         """Colour a part of an equation without making it a separate object (ADR 0049): the TeX to
         match and which occurrence; the colour button makes the part layer if needed and colours it,
         in one undo step."""
-        box = QGroupBox("Colour a part")
-        form = QFormLayout(box)
-        self.part_tex = QLineEdit()
-        self.part_tex.setPlaceholderText(r"e.g. b^2 or \pi, as it appears in the TeX")
-        self.part_occurrence = QSpinBox(minimum=1, maximum=999)
+        box = self._new_section("Colour a part")
+        self.part_tex = LabelledLineEdit()
+        self.part_tex.set_label("TeX")
+        self.part_tex.setPlaceholderText(r"e.g. b^2 or \pi, as in the TeX")
+        self.part_tex.setToolTip(r"The TeX of the part, as it appears in the equation (e.g. b^2 or \pi)")
+        self.part_occurrence = ScrubSpinBox()
+        self.part_occurrence.setRange(1, 999)
+        self.part_occurrence.set_label("Occurrence")
         self.part_occurrence.setToolTip("Which match of the TeX: 1 is the first")
         self.part_colour_button = QPushButton("Colour...")
         self.part_colour_button.setToolTip("Choose the colour of that part (it becomes a part layer)")
@@ -1151,10 +1279,12 @@ class PropertiesPanel(QWidget):
         self.part_colour_button.clicked.connect(
             lambda: generation == self._generation and self.colour_part(layer_id)
         )
-        form.addRow("TeX", self.part_tex)
-        form.addRow("Occurrence", self.part_occurrence)
-        form.addRow("", self.part_colour_button)
-        self.body_layout.addWidget(box)
+        box.add_widget(self.part_tex)
+        line = QHBoxLayout()
+        line.setSpacing(2 * theme.SPACE)
+        line.addWidget(self.part_occurrence, 1)
+        line.addWidget(self.part_colour_button, 1)
+        box.add_layout(line)
 
     def colour_part(self, parent_id: str) -> None:
         """Ask for a colour and give it to the typed part of ``parent_id`` (one undo step)."""
@@ -1176,17 +1306,16 @@ class PropertiesPanel(QWidget):
     def _pieces_section(self, layer: Layer) -> None:
         """A Text's coloured pieces (Manim's ``t2c``, ADR 0049): one row each (x stops colouring it),
         and a row to colour another piece. Every match of a piece is coloured."""
-        box = QGroupBox("Colour a piece")
-        form = QFormLayout(box)
         pieces = _pieces(layer)
+        rows = []
         for piece in pieces:
             path = f"t2c.{piece}"
             self._register(path, lambda layer, p=piece: (layer.spec.params.get("t2c") or {}).get(p))
             commit = self._op(path, partial(set_piece_colour, piece=piece), "Colour piece")
-            field = ColorField(commit)
-            self.fields[path] = field
-            form.addRow(piece, field.widget)
-        self.part_tex = QLineEdit()
+            rows.append((piece, path, ColorField(commit)))
+        box = self._section("Colour a piece", rows, always=True)
+        self.part_tex = LabelledLineEdit()
+        self.part_tex.set_label("Text")
         self.part_tex.setPlaceholderText("a word or letters of the text")
         self.part_colour_button = QPushButton("Colour...")
         self.part_colour_button.setToolTip("Choose the colour of every match of these letters")
@@ -1194,13 +1323,16 @@ class PropertiesPanel(QWidget):
         self.part_colour_button.clicked.connect(
             lambda: generation == self._generation and self.colour_piece(layer_id)
         )
-        form.addRow("Text", self.part_tex)
-        form.addRow("", self.part_colour_button)
+        line = QHBoxLayout()
+        line.setSpacing(2 * theme.SPACE)
+        line.addWidget(self.part_tex, 1)
+        line.addWidget(self.part_colour_button)
+        box.add_layout(line)
         help_text = QLabel("To colour single letters, use Colour characters... above.")
         help_text.setWordWrap(True)
         help_text.setObjectName("hint")
-        form.addRow(help_text)
-        self.body_layout.addWidget(box)
+        help_text.setProperty("role", "hint")
+        box.add_widget(help_text)
         self._shown_pieces = pieces
 
     def colour_piece(self, layer_id: str) -> None:
@@ -1221,7 +1353,7 @@ class PropertiesPanel(QWidget):
             self.message.emit(f"Colour piece: {_first_error(exc)}")
 
     def _style_section(self) -> None:
-        rows = []
+        cells = {}
         for key, label, make in (
             ("fill", "Fill", lambda c: ColorField(c)),
             ("fill_opacity", "Fill opacity", lambda c: FloatField(c, 0, 1, 0.05, 2, none_text="Default")),
@@ -1230,19 +1362,23 @@ class PropertiesPanel(QWidget):
         ):
             path = f"style.{key}"
             self._register(path, lambda layer, k=key: layer.spec.style.get(k))
-            rows.append(
-                (label, path, make(self._op(path, partial(set_style, key=key), f"Change {label.lower()}")))
-            )
+            cells[key] = (path, make(self._op(path, partial(set_style, key=key), f"Change {label.lower()}")))
+        # a colour and its amount side by side (the mock-up's row of two)
+        rows = [
+            ("Fill", [cells["fill"], (*cells["fill_opacity"], "Opacity")]),
+            ("Stroke", [cells["stroke"], (*cells["stroke_width"], "Width")]),
+        ]
         self._section("Style", rows)
 
     def _transform_section(self, layer: Layer) -> None:
         rows = []
+        toggles: list[tuple[str, KeyToggle]] = []
         keyable = keyable_props(layer)  # a graph keeps only its opacity (ADR 0024)
         for name, label, field_type in (
             ("position", "Position", lambda c: PointField(c)),
             ("scale", "Scale", lambda c: FloatField(c, 0.01, 100, 0.05, 3)),
             ("rotation", "Rotation", lambda c: FloatField(c, -3600, 3600, 1, 1, suffix=" deg")),
-            ("opacity", "Opacity", lambda c: FloatField(c, 0, 1, 0.05, 2)),
+            ("opacity", "Opacity", lambda c: SliderField(c, 0, 1)),
         ):
             if name not in keyable:
                 continue
@@ -1255,12 +1391,45 @@ class PropertiesPanel(QWidget):
             key_path = f"keys.{name}"
             self._register(key_path, lambda layer, n=name: bool(layer.tracks.get(n)))
             animate = partial(set_animated, prop=name, at=lambda: self.playhead())
-            toggle = BoolField(self._op(key_path, animate, f"Animate {label.lower()}"), "Keys")
-            toggle.widget.setToolTip(f"Keyframes for {label.lower()}: on = changes set a key at the playhead")
+            toggle = KeyToggle(
+                self._op(key_path, animate, f"Animate {label.lower()}"),
+                f"Keyframes for {label.lower()}: on = changes set a key at the playhead",
+            )
+            toggles.append((label, toggle))
             rows.append((label, [(path, field), (key_path, toggle)]))
             if name == "position":
                 rows.append(self._anchor_row())
-        self._section("Transform", rows)
+        section = self._section("Transform", rows)
+        if section is not None and toggles:
+            section.add_action(self._keys_button(toggles))
+
+    def _keys_button(self, toggles: list[tuple[str, KeyToggle]]) -> QToolButton:
+        """The section's keyframe diamond: filled while any of its properties has keys; its menu turns
+        keyframes on or off for each (the same as the diamonds beside the values)."""
+        button = KeyDiamond()
+        button.setObjectName("sectionKeys")
+        button.setToolTip("Keyframes: which of these properties are animated")
+        button.setAccessibleName("Keyframes")
+        menu = QMenu(button)
+        menu.setToolTipsVisible(True)
+        actions = []
+        for label, toggle in toggles:
+            action = menu.addAction(f"Animate {label.lower()}")
+            action.setCheckable(True)
+            action.setToolTip(toggle.widget.toolTip())
+            action.triggered.connect(lambda checked, t=toggle: t.widget.setChecked(checked))
+            actions.append((action, toggle))
+
+        def sync() -> None:
+            for action, toggle in actions:
+                with QSignalBlocker(action):
+                    action.setChecked(toggle.widget.isChecked())
+
+        menu.aboutToShow.connect(sync)
+        button.setMenu(menu)
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._section_keys = (button, [toggle for _label, toggle in toggles])
+        return button
 
     def _anchor_row(self):
         """The anchor point (ADR 0021): base only, so no Keys toggle."""

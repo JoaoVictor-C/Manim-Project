@@ -40,7 +40,7 @@ from ...core.engine import adapter
 from ...core.model.schema import Spec
 from ..session.preferences import Preferences
 from ..style import theme
-from ..style.fields import pick_colour
+from ..style.fields import SwatchButton, caption, pick_colour, set_error
 
 STEP_ROLE = Qt.ItemDataRole.UserRole  # a preview row's step index (None on a morph row)
 CHECK_DELAY_MS = 600  # typing pauses this long before lines go to the build worker
@@ -169,6 +169,8 @@ class EquationStepsDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Add steps")
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setProperty("role", "primary")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setProperty("role", "ghost")
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setToolTip(
             "Add one MathTex per step and the morphs between them (one undo step)"
         )
@@ -176,16 +178,25 @@ class EquationStepsDialog(QDialog):
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
 
+        self.text.setFont(theme.font("body", kind="mono"))
+        self.status.setProperty("normalRole", "muted")
+        self.status.setProperty("role", "muted")
         left = QVBoxLayout()
-        left.addWidget(QLabel("Steps (one LaTeX equation per line):"))
+        left.setSpacing(5)
+        left.addWidget(caption("Steps (one LaTeX equation per line):"))
         left.addWidget(self.text, 2)
+        left.addSpacing(theme.SPACE)
         left.addWidget(derive_box)
-        left.addWidget(QLabel("Preview:"))
+        left.addSpacing(theme.SPACE)
+        left.addWidget(caption("Preview:"))
         left.addWidget(self.preview, 2)
         columns = QHBoxLayout()
+        columns.setSpacing(4 * theme.SPACE)
         columns.addLayout(left, 3)
         columns.addWidget(options, 2, Qt.AlignmentFlag.AlignTop)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(3 * theme.SPACE)
         layout.addLayout(columns, 1)
         layout.addWidget(self.status)
         layout.addWidget(self.buttons)
@@ -209,7 +220,7 @@ class EquationStepsDialog(QDialog):
         return box
 
     def _colour_button(self, value: str) -> QPushButton:
-        button = QPushButton()
+        button = SwatchButton()  # Lumen: a swatch and the hex, like a colour field
         button.clicked.connect(lambda: self._pick(button))
         self._show_colour(button, value)
         return button
@@ -219,10 +230,10 @@ class EquationStepsDialog(QDialog):
         if colour is not None:
             self._show_colour(button, colour)
 
-    def _show_colour(self, button: QPushButton, value: str) -> None:
+    def _show_colour(self, button: SwatchButton, value: str) -> None:
         button.setProperty("colour", value)
         button.setText(value)
-        button.setStyleSheet(f"background: {value}; color: {theme.readable_on(value)};")
+        button.set_colour(value)
 
     # -- deriving ---------------------------------------------------------------------------------
 
@@ -339,7 +350,7 @@ class EquationStepsDialog(QDialog):
 
     def _say(self, text: str, error: bool = False) -> None:
         self.status.setText(text)
-        self.status.setStyleSheet(f"color: {theme.css(theme.THEME.error_text)};" if error else "")
+        set_error(self.status, error)
 
     def _set_ok(self, enabled: bool) -> None:
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(enabled)

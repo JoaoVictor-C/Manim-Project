@@ -120,9 +120,7 @@ def paint_chip(painter: QPainter, rect: QRectF, kind: Kind, radius: float, enabl
     if not enabled:
         painter.fillPath(path, theme.qcolor(c.panel + "99"))
     side = round(rect.width() * 0.64)
-    glyph = QRect(
-        round(rect.center().x() - side / 2), round(rect.center().y() - side / 2), side, side
-    )
+    glyph = QRect(round(rect.center().x() - side / 2), round(rect.center().y() - side / 2), side, side)
     icons.icon(kind.icon, tint="on_accent").paint(painter, glyph)
 
 

@@ -264,7 +264,9 @@ def test_properties_has_the_button_only_for_texts_and_ok_is_one_undo_step(qt_app
         panel.show_layer(layer_id)
         qt_app.processEvents()  # a layout shows new children on the next turn of the event loop
         assert panel.characters_button is not None and panel.characters_button.isVisibleTo(panel)
-        assert panel.characters_button.parent().title() == panel.project.layer(layer_id).spec.type
+        # in the object's own section (a Lumen Section now, not a group box)
+        section = panel.sections[panel.project.layer(layer_id).spec.type]
+        assert section.isAncestorOf(panel.characters_button)
     seen = []
     panel.ask_glyph_colours = lambda layer_id, current: seen.append((layer_id, current)) or [None, RED]
     panel.characters_button.click()
