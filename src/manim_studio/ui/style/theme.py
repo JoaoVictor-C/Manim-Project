@@ -666,6 +666,17 @@ def apply(app: QApplication, colours: Colours | None = None) -> QStyle:
     return style
 
 
+def resolve_appearance(name: str) -> str:
+    """``ink`` or ``paper`` for a preference that may be ``system`` (the operating system's scheme)."""
+    if name in THEMES:
+        return name
+    from PySide6.QtCore import Qt as _Qt
+    from PySide6.QtGui import QGuiApplication
+
+    hints = QGuiApplication.styleHints()
+    return "paper" if hints is not None and hints.colorScheme() == _Qt.ColorScheme.Light else "ink"
+
+
 def set_theme(app: QApplication, name: str) -> Colours:
     """Switch to the ``"ink"`` or ``"paper"`` set while running: palette, stylesheet and everything that
     paints from the tokens (listen to ``signals.themeChanged``)."""

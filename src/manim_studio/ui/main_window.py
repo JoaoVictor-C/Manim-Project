@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QDesktopServices, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -86,7 +86,7 @@ from .shell.plugins_dialog import PluginsDialog, startup_message
 from .shell.shortcuts_help import ShortcutsDialog
 from .shell.topbar import TopBar
 from .shell.welcome import EXAMPLE, WelcomePanel
-from .style import icons, theme
+from .style import icons, motion, theme
 from .style.card import Card, Chip
 from .style.elided_label import ElidedLabel
 from .style.render_activity import RenderActivity
@@ -524,6 +524,8 @@ class MainWindow(QMainWindow):
         self.render_ahead_action.setToolTip("Render frames ahead of the playhead in another process")
         self.render_ahead_action.toggled.connect(self._set_render_ahead)
         view_menu.addAction(self.render_ahead_action)
+        view_menu.addSeparator()
+        self._add_appearance_menu(view_menu)
         view_menu.addSeparator()  # the canvas view (ADR 0023)
         for text, keys, slot, tip in (
             ("Zoom &In", ("Ctrl+=", "Ctrl++"), lambda: self.canvas.zoom(ZOOM_STEP), "Zoom in on the canvas"),
@@ -786,6 +788,47 @@ class MainWindow(QMainWindow):
             action.setChecked(self.prefs.toggle(name, default))
         self.pages.restore_states({name: self.prefs.page_sizes(name) for name in self.pages.pages})
         self.pages.pageChanged.connect(self._on_page_changed)
+
+    def _add_appearance_menu(self, view_menu) -> None:
+        """View > Appearance (Ink, Paper, match the system) and Reduce motion (Lumen, ADR 0063)."""
+        menu = view_menu.addMenu("&Appearance")
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        self.appearance_actions: dict[str, QAction] = {}
+        for name, text, tip in (
+            ("ink", "&Ink (dark)", "The dark interface"),
+            ("paper", "&Paper (light)", "The light interface"),
+            ("system", "Match the &System", "Follow the operating system's light or dark setting"),
+        ):
+            action = QAction(text, self, checkable=True)
+            action.setToolTip(tip)
+            action.setActionGroup(group)
+            action.triggered.connect(lambda _=False, n=name: self.set_appearance(n))
+            menu.addAction(action)
+            self.appearance_actions[name] = action
+        self.appearance_actions[self.prefs.appearance()].setChecked(True)
+        self.reduce_motion_action = QAction("Reduce &motion", self, checkable=True)
+        self.reduce_motion_action.setToolTip("Turn the interface's small animations off")
+        self.reduce_motion_action.setChecked(self.prefs.toggle("reduce_motion", False))
+        self.reduce_motion_action.toggled.connect(self._set_reduce_motion)
+        menu.addAction(self.reduce_motion_action)
+        hints = QGuiApplication.styleHints()
+        if hints is not None:
+            hints.colorSchemeChanged.connect(lambda _scheme: self._follow_system())
+
+    def set_appearance(self, name: str) -> None:
+        """Ink, Paper or the system's scheme: remembered, and applied now."""
+        self.prefs.set_appearance(name)
+        self.appearance_actions[name].setChecked(True)
+        theme.set_theme(QApplication.instance(), theme.resolve_appearance(name))
+
+    def _follow_system(self) -> None:
+        if self.prefs.appearance() == "system":
+            theme.set_theme(QApplication.instance(), theme.resolve_appearance("system"))
+
+    def _set_reduce_motion(self, on: bool) -> None:
+        motion.set_reduced(on)
+        self.prefs.set_toggle("reduce_motion", on)
 
     def _toggles(self) -> tuple[tuple[str, QAction, bool], ...]:
         """The view toggles that are remembered: name in the file, action, default."""
@@ -2070,7 +2113,9 @@ def run(argv: list[str] | None = None) -> int:
         setup_logging()
     app = QApplication(argv)
     app.setApplicationName("Manim Studio")
-    theme.apply(app)  # the studio look (ADR 0040)
+    prefs = Preferences()
+    motion.set_reduced(prefs.toggle("reduce_motion", False))
+    theme.apply(app, theme.THEMES[theme.resolve_appearance(prefs.appearance())])  # the studio look (ADR 0040)
     adapter.configure(places.cache_folder())  # not under the folder it was started from (GP)
     window = MainWindow()
     sys.excepthook = report_exceptions(window)

@@ -333,3 +333,40 @@ def test_the_status_bar_message_also_becomes_a_toast_and_stays_readable(window) 
     assert window.toasts.active()[-1].text_label.text() == "Copied 2 layers"
     window.statusBar().showMessage("sticky")  # no timeout: a status line, not a toast
     assert window.toasts.active()[-1].text_label.text() == "Copied 2 layers"
+
+
+# -- appearance ----------------------------------------------------------------------------------------
+
+
+def test_the_appearance_menu_switches_the_theme_and_remembers_it(window, qt_app) -> None:
+    from manim_studio.ui.style import theme
+
+    assert window.appearance_actions["ink"].isChecked() and theme.THEME is theme.INK
+    try:
+        window.appearance_actions["paper"].trigger()
+        assert theme.THEME is theme.PAPER and window.prefs.appearance() == "paper"
+        window.appearance_actions["system"].trigger()
+        assert window.prefs.appearance() == "system" and theme.THEME.name in ("ink", "paper")
+    finally:
+        window.appearance_actions["ink"].trigger()
+    assert theme.THEME is theme.INK and window.prefs.appearance() == "ink"
+
+
+def test_an_unknown_appearance_falls_back_to_ink_and_system_resolves_to_a_theme(window) -> None:
+    from manim_studio.ui.style import theme
+
+    window.prefs.set_appearance("nonsense")
+    assert window.prefs.appearance() == "ink"
+    assert theme.resolve_appearance("paper") == "paper"
+    assert theme.resolve_appearance("system") in theme.THEMES
+
+
+def test_reduce_motion_is_remembered_and_stops_the_animations(window) -> None:
+    from manim_studio.ui.style import motion
+
+    try:
+        window.reduce_motion_action.setChecked(True)
+        assert window.prefs.toggle("reduce_motion", False) and motion._reduced
+    finally:
+        window.reduce_motion_action.setChecked(False)
+    assert not window.prefs.toggle("reduce_motion", True) and not motion._reduced

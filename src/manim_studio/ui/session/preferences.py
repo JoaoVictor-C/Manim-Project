@@ -147,6 +147,19 @@ class Preferences:
         self._settings.setValue(f"view/{name}", bool(value))
         self._settings.sync()
 
+    # -- appearance (Lumen, ADR 0063) -------------------------------------------------------------
+
+    APPEARANCES = ("ink", "paper", "system")
+
+    def appearance(self) -> str:
+        """``ink`` (dark, the default), ``paper`` (light) or ``system`` (follow the operating system)."""
+        value = str(self._settings.value("appearance", "ink"))
+        return value if value in self.APPEARANCES else "ink"
+
+    def set_appearance(self, name: str) -> None:
+        self._settings.setValue("appearance", name if name in self.APPEARANCES else "ink")
+        self._settings.sync()
+
     # -- remembered options (a dialog's last choices) --------------------------------------------
 
     def option(self, name: str, default):
