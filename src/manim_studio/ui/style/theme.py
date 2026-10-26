@@ -271,7 +271,7 @@ PAPER = Colours(
     key_selected="#171a2b",
     key_edge="#00000060",
     frame_border="#9aa1b8",
-    pasteboard_dim="#d9dde9aa",
+    pasteboard_dim="#d9dde9e0",
     outline="#2563eb",
     motion_path="#b45309",
     badge="#171a2b",
@@ -539,7 +539,7 @@ QPushButton[role="link"] {{ background: transparent; border: 0; color: {c.accent
 QPushButton[role="link"]:hover {{ text-decoration: underline; }}
 QToolButton {{
     background: transparent; color: {c.text}; border: 1px solid transparent; border-radius: {r}px;
-    padding: 5px 8px;
+    padding: 4px 6px;
 }}
 QToolButton:hover {{ background: {css(c.hover)}; }}
 QToolButton:pressed {{ background: {css(c.line)}; }}
@@ -664,6 +664,17 @@ def apply(app: QApplication, colours: Colours | None = None) -> QStyle:
     app.setStyleSheet(stylesheet(THEME))
     install_popup_styler(app)
     return style
+
+
+def resolve_appearance(name: str) -> str:
+    """``ink`` or ``paper`` for a preference that may be ``system`` (the operating system's scheme)."""
+    if name in THEMES:
+        return name
+    from PySide6.QtCore import Qt as _Qt
+    from PySide6.QtGui import QGuiApplication
+
+    hints = QGuiApplication.styleHints()
+    return "paper" if hints is not None and hints.colorScheme() == _Qt.ColorScheme.Light else "ink"
 
 
 def set_theme(app: QApplication, name: str) -> Colours:

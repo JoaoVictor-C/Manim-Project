@@ -39,6 +39,9 @@ NAMES: dict[str, str] = {
     "hidden": "eye-slash",
     "folder": "folder",
     "close": "x",
+    "search": "magnifying-glass",
+    "undo": "arrow-u-up-left",
+    "redo": "arrow-u-up-right",
     # workspace pages (ADR 0041)
     "compose": "layout",
     "animate": "chart-line",

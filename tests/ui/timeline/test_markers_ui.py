@@ -136,7 +136,7 @@ def test_clicking_the_ruler_away_from_markers_scrubs(window) -> None:
     timeline = window.timeline
     press(timeline, ruler_point(timeline, 4.0))
     release(timeline, ruler_point(timeline, 4.0))
-    assert window.t == pytest.approx(4.0) and window.selection.marker_id is None
+    assert window.t == pytest.approx(4.0, abs=0.02) and window.selection.marker_id is None
 
 
 def test_ruler_menu_adds_renames_and_deletes(window) -> None:

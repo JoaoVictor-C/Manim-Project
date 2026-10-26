@@ -73,7 +73,7 @@ def test_switching_pages_moves_the_views_and_parks_the_rest(window, qt_app) -> N
     qt_app.processEvents()
     assert window.page == "viewer" and extra.shown == 1
     assert extra.widget.isAncestorOf(window.viewer) and window.viewer.isVisible()
-    for view in (window.timeline, window.layers, window.properties):
+    for view in (window.timeline_card, window.layers_card, window.properties_card):
         assert view.parentWidget() is window.pages.parking and not view.isVisible()
         assert not view.isWindow()  # parked, never a floating window
     window.seek(0.5)  # the one canvas still draws on the other page
@@ -128,7 +128,7 @@ def test_side_widths_scale_with_the_window_within_limits() -> None:
     from manim_studio.ui.pages.compose import side_widths
 
     assert side_widths(1300) == (260, 325)  # a fifth and a quarter
-    assert side_widths(600) == (240, 300)  # never narrower
+    assert side_widths(600) == (240, 316)  # never narrower (the Properties card needs 316)
     assert side_widths(2560) == (280, 340)  # never wider
 
 
@@ -140,6 +140,7 @@ def test_compose_sizes_its_panels_for_the_window_it_opens_in(qt_app, width) -> N
     try:
         win.resize(width, 800)
         win.show()
+        win.pages.show_welcome(False)  # the pages stand in for the welcome once a project is open
         qt_app.processEvents()
         outer = win.pages.pages["compose"].outer
         layers, centre, properties = outer.sizes()

@@ -119,6 +119,7 @@ class Chip(QLabel):
     def __init__(self, text: str = "", tone: str = "neutral", parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
         self.setProperty("chip", True)
+        self.setFixedHeight(22)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.set_tone(tone)
 

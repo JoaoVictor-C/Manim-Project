@@ -46,7 +46,11 @@ def window(qt_app, tmp_path):
 
 def buttons(window) -> dict[str, object]:
     """The panel buttons by the panel they switch."""
-    names = {window.layers: "layers", window.properties: "properties", window.timeline: "timeline"}
+    names = {
+        window.layers_card: "layers",
+        window.properties_card: "properties",
+        window.timeline_card: "timeline",
+    }
     return {names[view]: button for view, button in window.pages.panel_buttons}
 
 
