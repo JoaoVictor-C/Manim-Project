@@ -112,6 +112,9 @@ class DialogFrame:
     def add_buttons(self, buttons: QDialogButtonBox) -> QDialogButtonBox:
         """Put the dialog's button box in the footer, the accepting button styled as the primary one."""
         buttons.setProperty("lumen", True)
+        # the platform's order puts OK first on Windows; this one ends with the accepting button (no colour
+        # here: a layout only, so it can live on the widget, which also makes the box lay itself out again)
+        buttons.setStyleSheet("QDialogButtonBox { button-layout: 1; }")
         for button in buttons.buttons():
             if buttons.buttonRole(button) in ACCEPTING:
                 primary(button)
@@ -151,7 +154,6 @@ QFrame#dialogHeader {{ background: transparent; border: 0; border-bottom: 1px so
 QFrame#dialogFooter {{ background: transparent; border: 0; border-top: 1px solid {line}; }}
 QLabel#dialogTitle {{ color: {c.text}; }}
 QLabel#dialogSubtitle {{ color: {c.muted}; }}
-QDialogButtonBox[lumen="true"] {{ button-layout: 1; }}
 QDialog[lumen="true"] QLabel#dialogSection {{ color: {c.faint}; font-size: 11px; font-weight: 650; }}
 QDialog[lumen="true"] QLabel[role="message"] {{ color: {c.warning}; }}
 """

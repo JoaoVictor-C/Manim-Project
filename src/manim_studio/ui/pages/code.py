@@ -521,7 +521,7 @@ class CodePage(Page):
         row.setSpacing(6)
         # The state chips, then the quieter tools; Revert and Run sit at the right of the tabs (below).
         for widget in (self.dirty_label, self.live_chip, self.limit_button):
-            row.addWidget(widget)
+            row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addStretch(1)
         for widget in (self.convert_button, self.save_code_button, self.outline_button):
             row.addWidget(widget)
@@ -915,6 +915,11 @@ class CodePage(Page):
         menu.addAction("Zoom in", self.editor.zoom_in, QKeySequence("Ctrl+="))
         menu.addAction("Zoom out", self.editor.zoom_out, QKeySequence("Ctrl+-"))
         menu.addAction("Reset zoom", self.editor.zoom_reset, QKeySequence("Ctrl+0"))
+        # The keys are shown in the menu, but the page's QShortcuts and the editor handle them: an action
+        # with the same key in the window's scope would make Qt call the key ambiguous and do nothing.
+        for action in menu.actions():
+            if not action.shortcut().isEmpty():
+                action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         return menu
 
     def editor_menu_at(self) -> QMenu:
@@ -2274,7 +2279,9 @@ class CodePage(Page):
             self.state_label.style().polish(self.state_label)
         self.editor.set_error_line(None if dirty else line)  # an edited text's lines have moved
         has_error = failed is not None or (status is not None and status.state == "error")
-        self.output_toggle.setAccessibleName("Output (error)" if has_error else "Output")  # the strip says "1 error"
+        self.output_toggle.setAccessibleName(
+            "Output (error)" if has_error else "Output"
+        )  # the strip says "1 error"
         self.error_count_label.setText("1 error")
         self.error_count_label.setVisible(has_error)
         target = self.error_label.line

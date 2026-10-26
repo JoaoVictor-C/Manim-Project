@@ -513,6 +513,7 @@ QFrame#explorerFooter {{ background: transparent; border: 0; border-top: 1px sol
 QFrame#presetHead {{ background: {c.panel}; border: 0; border-bottom: 1px solid {theme.css(c.line)}; }}
 #codePage QPushButton[iconOnly="true"] {{ padding: 0; border-radius: 7px; }}
 QDialog#quickOpen {{ background: {c.raised}; border: 1px solid {theme.css(c.line_strong)}; }}
+QLineEdit#codeFilter QToolButton {{ padding: 0; margin: 0; border: 0; min-width: 0; min-height: 0; }}
 QLineEdit#codeFilter {{ padding-left: 8px; border-radius: {r}px; }}
 """
 
