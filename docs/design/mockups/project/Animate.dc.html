@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Animate</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:900px">
+<div class="app">
+
+<div class="topbar">
+  <div class="mark"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-5 6-5"/></svg></div>
+  <div class="menus"><span>File</span><span>Edit</span><span>Animate</span><span>View</span><span>Arrange</span><span>Help</span></div>
+  <div class="pagebar">
+    <button><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Compose<kbd>1</kbd></button>
+    <button class="on"><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg>Animate<kbd>2</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>Code<kbd>3</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg>Audio<kbd>4</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Deliver<kbd>5</kbd></button>
+  </div>
+  <div class="grow"></div>
+  <div class="right">
+    <button class="ibtn" aria-label="Undo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button class="ibtn" aria-label="Redo"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
+    <div class="searchbtn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Search or run a command<kbd>Ctrl K</kbd></div>
+    <div class="vsep"></div>
+    <button class="ibtn on" aria-label="Layers panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Properties panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Timeline panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 14h18"/></svg></button>
+    <button class="btn primary" style="margin-left:6px"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Export</button>
+  </div>
+</div>
+
+<div class="body" style="grid-template-columns:1fr 440px;grid-template-rows:336px 1fr">
+
+  <div class="card">
+    <div class="card-h"><h3>Preview</h3><span class="chip mono">0:02.40</span><div class="grow"></div><div class="seg"><span>Fit</span><span class="on">50%</span></div></div>
+    <div class="card-b" style="position:relative">
+      <div class="stage"></div>
+      <div class="frame" style="left:50%;margin-left:-240px;top:22px;width:480px;height:270px;background:radial-gradient(400px 220px at 50% 40%, #16224a, #0b1226)">
+        <div style="position:absolute;top:34px;left:0;right:0;text-align:center;font:italic 500 22px var(--serif);color:#e9ecf6">Euler's identity</div>
+        <div style="position:absolute;top:100px;left:0;right:0;text-align:center;font:italic 400 26px var(--serif);color:#c9d3ff">e<sup style="font-size:15px">iθ</sup> = cos θ + <i>i</i> sin θ</div>
+        <div style="position:absolute;top:166px;left:0;right:0;text-align:center;font:italic 400 34px var(--serif);color:#fff">e<sup style="font-size:20px">iπ</sup> + 1 = 0</div>
+      </div>
+      <div class="pill" style="left:50%;bottom:12px;transform:translateX(-50%);padding:4px 8px 4px 4px;border-radius:18px;gap:5px">
+        <div class="play" style="width:30px;height:30px"><svg class="i sm fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+        <span class="mono" style="font-weight:600">0:02.40</span><div class="vsep"></div><span class="chip">1×</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>Curve</h3><span class="chip accent">Position X</span><div class="grow"></div><span class="chip">Ease in-out</span></div>
+    <div class="card-b" style="position:relative;padding:12px">
+      <svg viewBox="0 0 416 270" style="width:100%;height:100%">
+        <defs><linearGradient id="cg" x1="0" x2="1"><stop offset="0" stop-color="#7b6cf6"/><stop offset="1" stop-color="#4cc9f0"/></linearGradient></defs>
+        <g stroke="rgba(255,255,255,0.06)" stroke-width="1"><path d="M40 20V236M110 20V236M180 20V236M250 20V236M320 20V236M390 20V236M40 20H390M40 74H390M40 128H390M40 182H390M40 236H390"/></g>
+        <path d="M40 236H390" stroke="rgba(255,255,255,0.18)"/>
+        <path d="M40 220 C 130 220, 150 40, 240 60 S 330 190, 390 40" fill="none" stroke="url(#cg)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M40 220 C 130 220, 150 40, 240 60 S 330 190, 390 40 V236 H40Z" fill="rgba(123,108,246,0.10)"/>
+        <g stroke="rgba(255,255,255,0.35)" stroke-dasharray="3 3"><path d="M40 220L130 220M240 60L150 40M240 60L330 190M390 40L330 190"/></g>
+        <g fill="#fff" stroke="#7b6cf6" stroke-width="2"><rect x="35" y="215" width="10" height="10" rx="2.5" transform="rotate(45 40 220)"/><rect x="235" y="55" width="10" height="10" rx="2.5" transform="rotate(45 240 60)"/><rect x="385" y="35" width="10" height="10" rx="2.5" transform="rotate(45 390 40)"/></g>
+        <g fill="#7b6cf6"><circle cx="130" cy="220" r="4"/><circle cx="150" cy="40" r="4"/><circle cx="330" cy="190" r="4"/></g>
+        <g fill="#626a84" font-family="JetBrains Mono" font-size="10"><text x="40" y="254">0.0 s</text><text x="360" y="254">3.0 s</text><text x="4" y="224">-2</text><text x="8" y="44">2</text></g>
+      </svg>
+      <div style="position:absolute;right:20px;bottom:16px;display:flex;gap:6px"><span class="chip">Linear</span><span class="chip accent">Smooth</span><span class="chip">Bounce</span><span class="chip">Hold</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="grid-column:span 2">
+    <div class="card-h"><h3>Timeline</h3><span class="chip accent">Snap</span><span class="chip"><span style="width:7px;height:7px;border-radius:50%;background:var(--bad)"></span>Auto-key</span><div class="grow"></div>
+      <button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg>Add key</button>
+      <button class="btn sm"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Clip</button>
+      <div class="slider" style="flex:none;width:110px"><i style="width:55%"></i><b style="left:55%"></b></div></div>
+    <div class="card-b" style="position:relative">
+      <div class="ruler" style="width:1212px"><span style="left:0%">0s</span><span style="left:14.28%">1s</span><span style="left:28.57%">2s</span><span style="left:42.85%">3s</span><span style="left:57.14%">4s</span><span style="left:71.42%">5s</span><span style="left:85.7%">6s</span><i style="left:14.28%"></i><i style="left:28.57%"></i><i style="left:42.85%"></i><i style="left:57.14%"></i><i style="left:71.42%"></i><i style="left:85.7%"></i></div>
+      <div class="lane" style="height:38px"><div class="hd"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M6 9l6 6 6-6"/></svg><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#5b8cff,#4cc9f0)"></div><span class="nm" style="font-weight:600">e<sup>iπ</sup> + 1 = 0</span></div><div class="tr" style="background:repeating-linear-gradient(90deg, transparent 0 calc(14.2857% - 1px), var(--line) calc(14.2857% - 1px) 14.2857%)"><div class="clip" style="top:7px;left:10%;width:24%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">Write</div><div class="clip" style="top:7px;left:50%;width:12%;background:linear-gradient(180deg,#ffb066,#f08a2c)">Indicate</div><div class="clip" style="top:7px;left:86%;width:14%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">FadeOut</div></div></div>
+      <div class="lane" style="height:30px;background:rgba(255,255,255,0.015)"><div class="hd" style="padding-left:40px"><span style="color:var(--muted)">Position</span><span class="mono" style="margin-left:auto;color:var(--faint)">0.0, -1.2</span></div><div class="tr"><div style="position:absolute;left:12%;width:30%;top:14px;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:2px;opacity:0.7"></div><div class="key" style="left:12%;top:10px"></div><div class="key" style="left:42%;top:10px"></div><div class="key" style="left:60%;top:10px"></div><div style="position:absolute;left:42%;width:18%;top:14px;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:2px;opacity:0.7"></div></div></div>
+      <div class="lane" style="height:30px;background:rgba(255,255,255,0.015)"><div class="hd" style="padding-left:40px"><span style="color:var(--muted)">Scale</span><span class="mono" style="margin-left:auto;color:var(--faint)">1.00</span></div><div class="tr"><div class="key" style="left:20%;top:10px"></div><div class="key" style="left:52%;top:10px"></div><div style="position:absolute;left:20%;width:32%;top:14px;height:2px;background:var(--accent);border-radius:2px;opacity:0.5"></div></div></div>
+      <div class="lane" style="height:30px;background:rgba(255,255,255,0.015)"><div class="hd" style="padding-left:40px"><span style="color:var(--muted)">Rotation</span><span class="mono" style="margin-left:auto;color:var(--faint)">0.0°</span></div><div class="tr"></div></div>
+      <div class="lane" style="height:30px;background:rgba(255,255,255,0.015)"><div class="hd" style="padding-left:40px"><span style="color:var(--muted)">Opacity</span><span class="mono" style="margin-left:auto;color:var(--faint)">100%</span></div><div class="tr"><div class="key" style="left:0%;top:10px"></div><div class="key" style="left:10%;top:10px"></div><div class="key" style="left:86%;top:10px"></div><div class="key" style="left:100%;margin-left:-10px;top:10px"></div></div></div>
+      <div class="lane" style="height:38px"><div class="hd"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M9 6l6 6-6 6"/></svg><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#34d1a0,#4cc9f0)"></div><span class="nm" style="font-weight:500">Unit circle</span></div><div class="tr"><div class="clip" style="top:7px;left:22%;width:30%;background:linear-gradient(180deg,#4fe0b4,#22b184)">Create</div></div></div>
+      <div class="playhead" style="left:626px;"><em>0:02.40</em></div>
+    </div>
+  </div>
+</div>
+<div class="statusbar"><span class="dot"></span><span style="color:var(--muted)">Saved</span><span>Euler's identity</span><div class="grow"></div><span>Key at 2.40 s · Position X · Smooth</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

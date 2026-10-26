@@ -1,0 +1,193 @@
+/* Lumen: the Manim Studio design language. Tokens first, then components. */
+.lumen {
+  --bg: #0a0c12;
+  --surface: #11141d;
+  --surface-2: #171b27;
+  --surface-3: #1e2332;
+  --field: #0d1018;
+  --stage: #07080d;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --text: #e9ecf6;
+  --muted: #9aa2ba;
+  --faint: #626a84;
+  --accent: #7b6cf6;
+  --accent-2: #4cc9f0;
+  --accent-soft: rgba(123, 108, 246, 0.16);
+  --accent-line: rgba(123, 108, 246, 0.55);
+  --on-accent: #ffffff;
+  --ok: #3ddc97;
+  --warn: #ffb020;
+  --bad: #ff5c7a;
+  --c-content: #5b8cff;
+  --c-emphasis: #ff9f43;
+  --c-motion: #34d1a0;
+  --c-morph: #c77dff;
+  --c-sound: #ff6b8b;
+  --c-key: #ffd166;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --glow: 0 0 0 1px var(--accent-line), 0 0 24px rgba(123, 108, 246, 0.35);
+  --ui: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --serif: "Newsreader", Georgia, serif;
+  font-family: var(--ui);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+.lumen.light {
+  --bg: #e9ebf3;
+  --surface: #ffffff;
+  --surface-2: #f4f5fa;
+  --surface-3: #eceef6;
+  --field: #f1f2f8;
+  --stage: #dfe2ee;
+  --line: rgba(20, 24, 45, 0.08);
+  --line-2: rgba(20, 24, 45, 0.15);
+  --text: #171a2b;
+  --muted: #5b627c;
+  --faint: #8c93ab;
+  --accent: #5b4bea;
+  --accent-2: #0ea5d6;
+  --accent-soft: rgba(91, 75, 234, 0.12);
+  --accent-line: rgba(91, 75, 234, 0.5);
+  --ok: #12a26a;
+  --warn: #c77700;
+  --bad: #d62950;
+  --shadow: 0 10px 30px rgba(30, 36, 70, 0.16), 0 2px 6px rgba(30, 36, 70, 0.1);
+  --glow: 0 0 0 1px var(--accent-line), 0 0 18px rgba(91, 75, 234, 0.25);
+}
+.lumen *, .lumen *::before, .lumen *::after { box-sizing: border-box; }
+.lumen button { font: inherit; color: inherit; cursor: pointer; }
+.lumen .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.lumen .i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.lumen .i.fill { fill: currentColor; stroke: none; }
+.lumen .i.sm { width: 14px; height: 14px; }
+.lumen .i.lg { width: 20px; height: 20px; }
+
+/* shell */
+.lumen .app { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.lumen .topbar { height: 52px; flex: none; display: flex; align-items: center; padding: 0 14px; gap: 12px; position: relative; }
+.lumen .mark { width: 28px; height: 28px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; box-shadow: 0 4px 14px rgba(123, 108, 246, 0.4); color: #fff; }
+.lumen .menus { display: flex; gap: 2px; margin-left: 4px; }
+.lumen .menus span { padding: 5px 9px; border-radius: 7px; color: var(--muted); font-weight: 500; }
+.lumen .menus span:hover { background: var(--surface-2); color: var(--text); }
+.lumen .pagebar { position: absolute; left: 50%; transform: translateX(-50%); display: flex; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.lumen .pagebar button { all: unset; display: flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 9px; color: var(--muted); font-weight: 550; cursor: pointer; }
+.lumen .pagebar button:hover { color: var(--text); }
+.lumen .pagebar button.on { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 0 rgba(255,255,255,0.04); }
+.lumen .pagebar button.on .i { color: var(--accent); }
+.lumen .pagebar kbd { font: 10px var(--mono); color: var(--faint); margin-left: 2px; }
+.lumen .grow { flex: 1; }
+.lumen .right { display: flex; align-items: center; gap: 6px; }
+.lumen .vsep { width: 1px; height: 20px; background: var(--line-2); margin: 0 4px; }
+.lumen .searchbtn { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; width: 210px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--faint); }
+.lumen .searchbtn kbd { margin-left: auto; font: 10px var(--mono); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; color: var(--muted); }
+
+.lumen .body { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 0 8px 8px; }
+.lumen .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.lumen .card-h { height: 38px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); }
+.lumen .card-h h3 { margin: 0; font-size: 11px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lumen .card-b { flex: 1; min-height: 0; overflow: hidden; }
+.lumen .statusbar { height: 28px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: var(--faint); font-size: 11.5px; }
+.lumen .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+/* controls */
+.lumen .btn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; padding: 0 13px; border-radius: 9px; font-weight: 600; background: var(--surface-3); color: var(--text); border: 1px solid var(--line-2); cursor: pointer; white-space: nowrap; }
+.lumen .btn:hover { background: color-mix(in srgb, var(--surface-3) 80%, var(--text) 8%); }
+.lumen .btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 100%, #fff 8%), var(--accent)); color: var(--on-accent); border-color: transparent; box-shadow: 0 4px 16px rgba(123, 108, 246, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+.lumen .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.lumen .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
+.lumen .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); background: transparent; }
+.lumen .btn.sm { height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+.lumen .btn.lg { height: 38px; padding: 0 18px; border-radius: 11px; font-size: 13.5px; }
+.lumen .btn[disabled] { opacity: 0.45; }
+.lumen .ibtn { all: unset; box-sizing: border-box; width: 30px; height: 30px; border-radius: 9px; display: inline-grid; place-items: center; color: var(--muted); cursor: pointer; }
+.lumen .ibtn:hover { background: var(--surface-2); color: var(--text); }
+.lumen .ibtn.on { background: var(--accent-soft); color: var(--accent); }
+.lumen .ibtn.sm { width: 24px; height: 24px; border-radius: 7px; }
+.lumen .chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 550; white-space: nowrap; }
+.lumen .chip.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.lumen .chip.ok { color: var(--ok); }
+.lumen .chip.warn { color: var(--warn); }
+.lumen .field { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 9px; background: var(--field); border: 1px solid var(--line); color: var(--text); min-width: 0; }
+.lumen .field:hover { border-color: var(--line-2); }
+.lumen .field.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.lumen .field .lab { color: var(--faint); font-weight: 600; font-size: 11px; width: 12px; cursor: ew-resize; }
+.lumen .field .unit { color: var(--faint); margin-left: auto; font-size: 11px; }
+.lumen .field .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.lumen .swatch { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--line-2); flex: none; }
+.lumen .toggle { width: 34px; height: 20px; border-radius: 999px; background: var(--surface-3); border: 1px solid var(--line-2); position: relative; flex: none; }
+.lumen .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: all 0.15s; }
+.lumen .toggle.on { background: var(--accent); border-color: transparent; }
+.lumen .toggle.on::after { left: 16px; background: #fff; }
+.lumen .slider { height: 4px; border-radius: 2px; background: var(--surface-3); position: relative; flex: 1; }
+.lumen .slider i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.lumen .slider b { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+.lumen .seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--field); border: 1px solid var(--line); border-radius: 9px; }
+.lumen .seg span { padding: 4px 10px; border-radius: 7px; color: var(--muted); font-weight: 550; font-size: 12px; }
+.lumen .seg span.on { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+.lumen .tabs { display: flex; gap: 2px; }
+.lumen .tabs span { padding: 0 11px; height: 38px; display: flex; align-items: center; color: var(--muted); font-weight: 550; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.lumen .tabs span.on { color: var(--text); border-bottom-color: var(--accent); }
+.lumen .kbd { font: 10px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; background: var(--surface-2); }
+.lumen .section { border-bottom: 1px solid var(--line); padding: 10px 14px 14px; }
+.lumen .section-h { display: flex; align-items: center; gap: 8px; height: 22px; margin-bottom: 8px; font-weight: 650; color: var(--text); }
+.lumen .section-h .i { color: var(--faint); }
+.lumen .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lumen .label { color: var(--muted); font-size: 11.5px; margin: 8px 0 5px; }
+.lumen .tip { display: inline-flex; padding: 6px 9px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--line-2); box-shadow: var(--shadow); font-size: 11.5px; }
+.lumen .menu { display: inline-flex; flex-direction: column; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-2); box-shadow: var(--shadow); }
+.lumen .menu div { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; }
+.lumen .menu div.on { background: var(--accent-soft); color: var(--text); }
+.lumen .menu div .kbd { margin-left: auto; }
+.lumen .menu hr { border: 0; height: 1px; background: var(--line); margin: 5px 4px; }
+
+/* layers */
+.lumen .lrow { display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 10px 0 12px; margin: 1px 6px; border-radius: 10px; color: var(--text); position: relative; }
+.lumen .lrow:hover { background: var(--surface-2); }
+.lumen .lrow.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.lumen .lrow .ty { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; color: #fff; flex: none; }
+.lumen .lrow .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.lumen .lrow .acts { display: flex; gap: 2px; color: var(--faint); }
+.lumen .lrow.child { margin-left: 26px; }
+
+/* stage */
+.lumen .stage { position: absolute; inset: 0; background: radial-gradient(1200px 500px at 50% 0%, rgba(123, 108, 246, 0.07), transparent 60%), var(--stage); }
+.lumen .stage::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--line-2) 1px, transparent 1px); background-size: 22px 22px; opacity: 0.55; }
+.lumen .frame { position: absolute; background: #0f172a; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 30px 80px rgba(0, 0, 0, 0.55); border-radius: 3px; overflow: hidden; }
+.lumen .pill { position: absolute; display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 16px; background: color-mix(in srgb, var(--surface-2) 88%, transparent); backdrop-filter: blur(14px); border: 1px solid var(--line-2); box-shadow: var(--shadow); }
+.lumen .play { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 6px 18px rgba(123, 108, 246, 0.5); }
+.lumen .handle { position: absolute; width: 9px; height: 9px; border-radius: 3px; background: #fff; border: 1.5px solid var(--accent); }
+
+/* timeline */
+.lumen .tl { position: relative; height: 100%; }
+.lumen .ruler { height: 26px; border-bottom: 1px solid var(--line); position: relative; margin-left: 210px; color: var(--faint); font: 10.5px var(--mono); }
+.lumen .ruler span { position: absolute; top: 6px; transform: translateX(-50%); }
+.lumen .ruler i { position: absolute; bottom: 0; width: 1px; height: 6px; background: var(--line-2); }
+.lumen .lane { height: 34px; display: flex; border-bottom: 1px solid var(--line); }
+.lumen .lane .hd { width: 210px; flex: none; display: flex; align-items: center; gap: 9px; padding: 0 12px; border-right: 1px solid var(--line); background: var(--surface); }
+.lumen .lane .tr { flex: 1; position: relative; background: repeating-linear-gradient(90deg, transparent 0 calc(14.2857% - 1px), var(--line) calc(14.2857% - 1px) 14.2857%); }
+.lumen .clip { position: absolute; top: 5px; height: 24px; border-radius: 8px; display: flex; align-items: center; padding: 0 9px; font-weight: 600; font-size: 11.5px; color: #fff; overflow: hidden; white-space: nowrap; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.3); }
+.lumen .clip.sel { box-shadow: 0 0 0 2px #fff, 0 0 20px rgba(255, 255, 255, 0.25); }
+.lumen .key { position: absolute; top: 12px; width: 10px; height: 10px; background: var(--c-key); transform: rotate(45deg); border-radius: 2px; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45); }
+.lumen .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: linear-gradient(var(--accent-2), var(--accent)); box-shadow: 0 0 14px rgba(76, 201, 240, 0.6); z-index: 3; }
+.lumen .playhead em { position: absolute; top: 3px; left: 50%; transform: translateX(-50%); font: 600 10.5px var(--mono); background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 7px; font-style: normal; white-space: nowrap; }
+.lumen .wave { display: flex; align-items: center; gap: 2px; height: 100%; width: 100%; padding: 0 6px; }
+.lumen .wave i { flex: 1; background: var(--c-sound); opacity: 0.85; border-radius: 2px; min-width: 2px; }
+
+/* code */
+.lumen .code { font: 12.5px/1.65 var(--mono); }
+.lumen .code .ln { display: inline-block; width: 38px; text-align: right; color: var(--faint); margin-right: 16px; user-select: none; }
+.lumen .code .k { color: #c792ea; } .lumen .code .s { color: #a5e075; } .lumen .code .n { color: #f78c6c; }
+.lumen .code .c { color: #5c6585; font-style: italic; } .lumen .code .m { color: #4cc9f0; } .lumen .code .f { color: #82aaff; }
+.lumen.light .code .k { color: #7c3aed; } .lumen.light .code .s { color: #2e8b57; } .lumen.light .code .n { color: #c2410c; }
+.lumen.light .code .c { color: #8c93ab; } .lumen.light .code .m { color: #0b7fa8; } .lumen.light .code .f { color: #2f55d4; }
+.lumen .code .cur { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); display: block; }
+.lumen .code .err { background: rgba(255, 92, 122, 0.12); box-shadow: inset 2px 0 0 var(--bad); display: block; }
+.lumen .code .sq { text-decoration: underline wavy var(--bad); text-underline-offset: 3px; }
+.lumen .tab { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 10px 10px 0 0; color: var(--muted); font-weight: 550; }
+.lumen .tab.on { background: var(--field); color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }

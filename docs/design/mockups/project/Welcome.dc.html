@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welcome</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:900px">
+<div class="app" style="position:relative;background:radial-gradient(900px 600px at 78% 8%, rgba(123,108,246,.22), transparent 60%), radial-gradient(700px 500px at 5% 105%, rgba(76,201,240,.12), transparent 60%), var(--bg)">
+
+<div class="topbar">
+  <div class="mark"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-5 6-5"/></svg></div>
+  <div class="menus"><span>File</span><span>Edit</span><span>Animate</span><span>View</span><span>Arrange</span><span>Help</span></div>
+  <div class="grow"></div>
+  <div class="right"><div class="searchbtn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Search or run a command<kbd>Ctrl K</kbd></div></div>
+</div>
+
+<div style="flex:1;display:flex;padding:36px 64px 0 80px;gap:40px;min-height:0">
+  <div style="width:560px;display:flex;flex-direction:column">
+    <div class="chip accent" style="align-self:flex-start">Version 0.3</div>
+    <h1 style="margin:18px 0 0;font:500 76px/1.02 var(--serif);letter-spacing:-0.02em">Make mathematics<br><i style="background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent">move.</i></h1>
+    <p style="margin:22px 0 0;font-size:16px;line-height:1.55;color:var(--muted);max-width:470px">A visual studio for Manim. Compose a scene, shape its motion on a timeline, write code when you want it, and render a film.</p>
+    <div style="display:flex;gap:12px;margin-top:30px">
+      <button class="btn primary lg" style="height:46px;padding:0 24px;font-size:14.5px"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project<span class="kbd" style="background:rgba(255,255,255,.18);border-color:transparent;color:#fff">Ctrl N</span></button>
+      <button class="btn lg" style="height:46px;padding:0 20px;font-size:14.5px"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Open<span class="kbd">Ctrl O</span></button>
+    </div>
+    <div style="margin-top:44px;color:var(--faint);font-size:11px;font-weight:650;letter-spacing:.1em">START FROM A TEMPLATE</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px">
+      <div style="padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div style="height:62px;border-radius:9px;background:linear-gradient(135deg,#16224a,#0b1226);display:grid;place-items:center;font:italic 22px var(--serif);color:#fff">Aa</div><div style="font-weight:600;margin-top:9px">Title</div><div style="color:var(--faint);font-size:11px">Text and a line</div></div>
+      <div style="padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div style="height:62px;border-radius:9px;background:linear-gradient(135deg,#16224a,#0b1226);display:grid;place-items:center"><svg viewBox="0 0 60 36" style="width:56px"><path d="M2 18h56M30 2v32" stroke="#4cc9f0" stroke-opacity=".5"/><path d="M2 28C14 28 16 6 30 6s16 22 28 22" fill="none" stroke="#c77dff" stroke-width="2"/></svg></div><div style="font-weight:600;margin-top:9px">Graph</div><div style="color:var(--faint);font-size:11px">Axes and a curve</div></div>
+      <div style="padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div style="height:62px;border-radius:9px;background:linear-gradient(135deg,#16224a,#0b1226);display:grid;place-items:center;font:italic 18px var(--serif);color:#fff">a² + b² = c²</div><div style="font-weight:600;margin-top:9px">Proof</div><div style="color:var(--faint);font-size:11px">Steps of an equation</div></div>
+      <div style="padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div style="height:62px;border-radius:9px;background:linear-gradient(135deg,#16224a,#0b1226);display:grid;place-items:center"><svg viewBox="0 0 60 36" style="width:56px"><circle cx="30" cy="18" r="12" fill="none" stroke="#7b6cf6" stroke-opacity=".6"/><circle cx="42" cy="18" r="3" fill="#ffd166"/></svg></div><div style="font-weight:600;margin-top:9px">Physics</div><div style="color:var(--faint);font-size:11px">Code scene</div></div>
+    </div>
+  </div>
+
+  <div style="flex:1;position:relative">
+    <svg viewBox="0 0 640 520" style="position:absolute;inset:0;width:100%;height:100%">
+      <defs><linearGradient id="a" x1="0" x2="1"><stop offset="0" stop-color="#7b6cf6"/><stop offset="1" stop-color="#4cc9f0"/></linearGradient><linearGradient id="b" x1="0" x2="1"><stop offset="0" stop-color="#c77dff"/><stop offset="1" stop-color="#ff6b8b"/></linearGradient></defs>
+      <g stroke="rgba(255,255,255,0.07)"><path d="M0 260H640M320 0V520"/></g>
+      <circle cx="320" cy="260" r="170" fill="none" stroke="rgba(255,255,255,.08)"/>
+      <circle cx="320" cy="260" r="120" fill="none" stroke="rgba(255,255,255,.06)"/>
+      <path d="M10 260C90 260 110 60 200 60S300 460 400 460 530 60 630 60" fill="none" stroke="url(#a)" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M10 330C110 330 140 130 240 130S330 400 430 400 540 190 630 190" fill="none" stroke="url(#b)" stroke-width="2.5" stroke-linecap="round" opacity=".8"/>
+      <circle cx="400" cy="460" r="7" fill="#fff"/><circle cx="400" cy="460" r="16" fill="none" stroke="#fff" stroke-opacity=".3"/>
+      <text x="420" y="448" fill="#e9ecf6" font-family="Newsreader" font-style="italic" font-size="26">e</text><text x="432" y="438" fill="#e9ecf6" font-family="Newsreader" font-style="italic" font-size="15">iπ</text><text x="452" y="448" fill="#e9ecf6" font-family="Newsreader" font-style="italic" font-size="26">+ 1 = 0</text>
+    </svg>
+  </div>
+</div>
+
+<div style="padding:0 80px 26px">
+  <div style="display:flex;align-items:center;margin-bottom:12px"><span style="color:var(--faint);font-size:11px;font-weight:650;letter-spacing:.1em">RECENT</span><div class="grow"></div><span style="color:var(--muted)">Examples · Showcase · Graphs</span></div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
+    <div style="padding:10px;border-radius:16px;background:var(--surface);border:1px solid var(--line)"><div style="height:96px;border-radius:10px;background:radial-gradient(180px 90px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center;font:italic 22px var(--serif);color:#fff">e<sup style="font-size:13px">iπ</sup> + 1 = 0</div><div style="font-weight:600;margin:9px 2px 0">Euler's identity</div><div style="color:var(--faint);font-size:11px;margin:2px 2px 2px">Edited today · 7 s</div></div>
+    <div style="padding:10px;border-radius:16px;background:var(--surface);border:1px solid var(--line)"><div style="height:96px;border-radius:10px;background:radial-gradient(180px 90px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center"><svg viewBox="0 0 120 60" style="width:110px"><path d="M4 30h112M60 4v52" stroke="#4cc9f0" stroke-opacity=".4"/><path d="M4 50C30 50 34 10 60 10s30 40 56 40" fill="none" stroke="#c77dff" stroke-width="2"/></svg></div><div style="font-weight:600;margin:9px 2px 0">Sine and cosine</div><div style="color:var(--faint);font-size:11px;margin:2px 2px 2px">Edited yesterday · 12 s</div></div>
+    <div style="padding:10px;border-radius:16px;background:var(--surface);border:1px solid var(--line)"><div style="height:96px;border-radius:10px;background:radial-gradient(180px 90px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center"><svg viewBox="0 0 120 60" style="width:110px"><path d="M20 50V14l60 36z" fill="none" stroke="#34d1a0" stroke-width="2"/></svg></div><div style="font-weight:600;margin:9px 2px 0">Pythagoras</div><div style="color:var(--faint);font-size:11px;margin:2px 2px 2px">3 days ago · 1 min</div></div>
+    <div style="padding:10px;border-radius:16px;background:var(--surface);border:1px solid var(--line)"><div style="height:96px;border-radius:10px;background:radial-gradient(180px 90px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center"><svg viewBox="0 0 120 60" style="width:110px"><circle cx="60" cy="30" r="22" fill="none" stroke="#7b6cf6" stroke-opacity=".6"/><circle cx="82" cy="30" r="4" fill="#ffd166"/></svg></div><div style="font-weight:600;margin:9px 2px 0">Angular momentum</div><div style="color:var(--faint);font-size:11px;margin:2px 2px 2px">Last week · 5 min</div></div>
+    <div style="padding:10px;border-radius:16px;background:var(--field);border:1px dashed var(--line-2);display:grid;place-items:center;color:var(--muted);min-height:152px"><div style="text-align:center"><svg class="i lg" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div style="margin-top:6px">Browse…</div></div></div>
+  </div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

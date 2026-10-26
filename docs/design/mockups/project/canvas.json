@@ -1,0 +1,35 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-26T12:00:00Z" },
+  "title": "Manim Studio UI Revamp",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 1220, "w": 1440, "h": 900, "title": "Compose" },
+    "Animate.dc.html": { "x": 1520, "y": 1220, "w": 1440, "h": 900, "title": "Animate" },
+    "Code.dc.html": { "x": 0, "y": 2240, "w": 1440, "h": 900, "title": "Code" },
+    "Audio.dc.html": { "x": 1520, "y": 2240, "w": 1440, "h": 900, "title": "Audio and narration" },
+    "Deliver.dc.html": { "x": 0, "y": 3260, "w": 1440, "h": 900, "title": "Deliver" },
+    "Welcome.dc.html": { "x": 1520, "y": 3260, "w": 1440, "h": 900, "title": "Welcome" },
+    "Palette.dc.html": { "x": 0, "y": 4280, "w": 1440, "h": 900, "title": "Command palette" },
+    "Light.dc.html": { "x": 1520, "y": 4280, "w": 1440, "h": 900, "title": "Paper (light theme)" },
+    "Foundations.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1100, "title": "Foundations" },
+    "Components.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1100, "title": "Components" }
+  },
+  "order": [
+    "Foundations.dc.html",
+    "Components.dc.html",
+    "Main.dc.html",
+    "Animate.dc.html",
+    "Code.dc.html",
+    "Audio.dc.html",
+    "Deliver.dc.html",
+    "Welcome.dc.html",
+    "Palette.dc.html",
+    "Light.dc.html"
+  ],
+  "notes": {
+    "title": { "x": 0, "y": -300, "text": "Lumen: the Manim Studio interface", "kind": "title1", "maxW": 2960 }
+  },
+  "designSystems": []
+}

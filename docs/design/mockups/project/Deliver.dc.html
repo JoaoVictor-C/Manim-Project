@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deliver</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:900px">
+<div class="app">
+
+<div class="topbar">
+  <div class="mark"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-5 6-5"/></svg></div>
+  <div class="menus"><span>File</span><span>Edit</span><span>Animate</span><span>View</span><span>Arrange</span><span>Help</span></div>
+  <div class="pagebar">
+    <button><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Compose<kbd>1</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg>Animate<kbd>2</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>Code<kbd>3</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg>Audio<kbd>4</kbd></button>
+    <button class="on"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Deliver<kbd>5</kbd></button>
+  </div>
+  <div class="grow"></div>
+  <div class="right">
+    <button class="ibtn" aria-label="Undo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button class="ibtn" aria-label="Redo"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
+    <div class="searchbtn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Search or run a command<kbd>Ctrl K</kbd></div>
+  </div>
+</div>
+
+<div class="body" style="grid-template-columns:340px 1fr 380px">
+
+  <div class="card">
+    <div class="card-h"><h3>Where is it going?</h3></div>
+    <div class="card-b" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="padding:12px 14px;border-radius:14px;background:var(--accent-soft);border:1px solid var(--accent-line);display:flex;gap:12px;align-items:center"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff5c7a,#ff9f43);display:grid;place-items:center"><svg class="i lg fill" viewBox="0 0 24 24" style="color:#fff"><path d="M8 5l12 7-12 7z"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:13.5px">Video for the web</div><div style="color:var(--muted);font-size:11.5px">1920 × 1080 · 30 fps · MP4 (H.264)</div></div><svg class="i" viewBox="0 0 24 24" style="color:var(--accent)"><path d="M5 12l5 5 9-10"/></svg></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#4cc9f0,#7b6cf6);display:grid;place-items:center"><svg class="i lg" viewBox="0 0 24 24" style="color:#fff"><rect x="7" y="3" width="10" height="18" rx="2"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:13.5px">Vertical short</div><div style="color:var(--muted);font-size:11.5px">1080 × 1920 · 30 fps</div></div></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#34d1a0,#4cc9f0);display:grid;place-items:center"><svg class="i lg" viewBox="0 0 24 24" style="color:#fff"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 15l5-5 4 4 3-3 4 4"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:13.5px">Animated GIF</div><div style="color:var(--muted);font-size:11.5px">Loops · 15 fps · small</div></div></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#c77dff,#7b6cf6);display:grid;place-items:center"><svg class="i lg" viewBox="0 0 24 24" style="color:#fff"><path d="M4 4h16v16H4zM4 4l16 16M20 4L4 20"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:13.5px">Transparent video</div><div style="color:var(--muted);font-size:11.5px">WebM / MOV with alpha</div></div></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ffd166,#ff9f43);display:grid;place-items:center"><svg class="i lg" viewBox="0 0 24 24" style="color:#fff"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:13.5px">Still image</div><div style="color:var(--muted);font-size:11.5px">PNG of the current frame</div></div></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:40px;height:40px;border-radius:12px;background:var(--surface-3);display:grid;place-items:center"><svg class="i lg" viewBox="0 0 24 24" style="color:var(--muted)"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:13.5px">Manim Python</div><div style="color:var(--muted);font-size:11.5px">A scene you can run with manim</div></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>Video for the web</h3><div class="grow"></div><span class="chip">Saved preset</span></div>
+    <div class="card-b" style="padding:24px 28px;display:flex;gap:28px">
+      <div style="width:520px">
+        <div style="position:relative;height:293px;border-radius:14px;overflow:hidden;border:1px solid var(--line)">
+          <div class="stage"></div>
+          <div class="frame" style="left:20px;top:20px;width:480px;height:253px;background:radial-gradient(400px 220px at 50% 40%, #16224a, #0b1226)"><div style="position:absolute;top:36px;left:0;right:0;text-align:center;font:italic 500 22px var(--serif);color:#e9ecf6">Euler's identity</div><div style="position:absolute;top:100px;left:0;right:0;text-align:center;font:italic 400 34px var(--serif);color:#fff">e<sup style="font-size:20px">iπ</sup> + 1 = 0</div></div>
+          <span class="chip mono" style="position:absolute;right:12px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;border-color:transparent">0:07 · 210 frames</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
+          <div style="padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)"><div style="color:var(--faint);font-size:11px">Estimated time</div><div class="mono" style="font-size:18px;font-weight:700;margin-top:3px">≈ 1 min 40 s</div></div>
+          <div style="padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)"><div style="color:var(--faint);font-size:11px">File size</div><div class="mono" style="font-size:18px;font-weight:700;margin-top:3px">≈ 14 MB</div></div>
+          <div style="padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)"><div style="color:var(--faint);font-size:11px">Sound</div><div class="mono" style="font-size:18px;font-weight:700;margin-top:3px">AAC · 2 tracks</div></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="label" style="margin-top:0">Quality</div>
+        <div class="seg" style="display:flex"><span style="flex:1;text-align:center">Draft</span><span class="on" style="flex:1;text-align:center">Standard</span><span style="flex:1;text-align:center">High</span></div>
+        <div class="row2" style="margin-top:6px"><div><div class="label">Resolution</div><div class="field"><span class="v">1920 × 1080</span><svg class="i sm" viewBox="0 0 24 24" style="margin-left:auto;color:var(--faint)"><path d="M6 9l6 6 6-6"/></svg></div></div><div><div class="label">Frame rate</div><div class="field"><span class="v">30</span><span class="unit">fps</span></div></div></div>
+        <div class="label">Range</div>
+        <div class="seg" style="display:flex"><span class="on" style="flex:1;text-align:center">Whole scene</span><span style="flex:1;text-align:center">Between markers</span><span style="flex:1;text-align:center">Selection</span></div>
+        <div class="label">Save to</div>
+        <div class="field"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span class="v" style="font-family:var(--ui)">Videos / Euler's identity.mp4</span><span class="unit">Change</span></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px"><span class="toggle on"></span><span>Include subtitles as a separate .srt</span></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><span class="toggle"></span><span>Open the folder when finished</span></div>
+        <div style="display:flex;gap:10px;margin-top:24px"><button class="btn primary lg" style="flex:1"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Render video</button><button class="btn lg">Add to queue</button></div>
+        <div style="margin-top:8px;color:var(--faint);font-size:11.5px">Rendering never changes your project and keeps the editor usable.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>Queue</h3><span class="chip accent">1 running</span><div class="grow"></div><button class="btn sm ghost">Clear done</button></div>
+    <div class="card-b" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+      <div style="padding:14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--accent-line);box-shadow:0 0 24px rgba(123,108,246,.12)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <svg viewBox="0 0 44 44" style="width:44px;height:44px"><circle cx="22" cy="22" r="18" fill="none" stroke="var(--surface-3)" stroke-width="4"/><circle cx="22" cy="22" r="18" fill="none" stroke="url(#rg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="40" transform="rotate(-90 22 22)"/><defs><linearGradient id="rg" x1="0" x2="1"><stop offset="0" stop-color="#7b6cf6"/><stop offset="1" stop-color="#4cc9f0"/></linearGradient></defs><text x="22" y="26" text-anchor="middle" fill="var(--text)" font-family="JetBrains Mono" font-size="11" font-weight="700">64%</text></svg>
+          <div style="flex:1;min-width:0"><div style="font-weight:650">Euler's identity.mp4</div><div style="color:var(--muted);font-size:11.5px" class="mono">frame 134 / 210 · 41 s left</div></div>
+          <button class="ibtn sm" aria-label="Cancel"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="slider" style="margin-top:12px"><i style="width:64%"></i></div>
+      </div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:52px;height:30px;border-radius:6px;background:#0b1226;border:1px solid var(--line-2)"></div><div style="flex:1"><div style="font-weight:600">Short.mp4</div><div style="color:var(--faint);font-size:11px">Done · 8 MB · 2 min ago</div></div><svg class="i" viewBox="0 0 24 24" style="color:var(--ok)"><path d="M5 12l5 5 9-10"/></svg></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);display:flex;gap:12px;align-items:center"><div style="width:52px;height:30px;border-radius:6px;background:#0b1226;border:1px solid var(--line-2)"></div><div style="flex:1"><div style="font-weight:600">Preview.gif</div><div style="color:var(--faint);font-size:11px">Done · 2 MB · 14 min ago</div></div><svg class="i" viewBox="0 0 24 24" style="color:var(--ok)"><path d="M5 12l5 5 9-10"/></svg></div>
+      <div style="padding:12px 14px;border-radius:14px;background:var(--field);border:1px dashed var(--line-2);display:flex;gap:12px;align-items:center;color:var(--muted)"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Waiting: Euler's identity.mov (transparent)</div>
+    </div>
+  </div>
+</div>
+<div class="statusbar"><span class="dot"></span><span style="color:var(--muted)">Saved</span><span>Euler's identity</span><div class="grow"></div><span class="chip accent">Rendering 64% · 41 s left</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

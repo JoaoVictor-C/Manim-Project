@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Components</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>body{margin:0} .h{font:600 11px var(--ui);letter-spacing:.1em;color:var(--faint);margin:0 0 14px} .box{padding:22px;border-radius:18px;background:var(--surface);border:1px solid var(--line)} .rowc{display:flex;gap:12px;align-items:center;flex-wrap:wrap}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:1100px;padding:48px 56px;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;align-content:start">
+
+<div class="box">
+  <div class="h">BUTTONS</div>
+  <div class="rowc" style="margin-bottom:14px"><button class="btn primary lg">Render video</button><button class="btn lg">Add to queue</button><button class="btn lg ghost">Cancel</button></div>
+  <div class="rowc" style="margin-bottom:14px"><button class="btn primary">Run <span class="kbd" style="background:rgba(255,255,255,.18);border-color:transparent;color:#fff">Ctrl ↵</span></button><button class="btn">Revert</button><button class="btn ghost">Details</button><button class="btn danger">Delete</button></div>
+  <div class="rowc" style="margin-bottom:14px"><button class="btn sm primary">Fix it</button><button class="btn sm">Split</button><button class="btn sm ghost">Analyse</button><button class="btn" disabled>Disabled</button></div>
+  <div class="rowc"><button class="ibtn"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button><button class="ibtn on"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button><button class="ibtn"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg></button><div class="play"><svg class="i fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div></div>
+</div>
+
+<div class="box">
+  <div class="h">FIELDS</div>
+  <div class="row2" style="margin-bottom:10px"><div class="field"><span class="lab">X</span><span class="v">0.00</span></div><div class="field focus"><span class="lab" style="color:var(--accent)">Y</span><span class="v">-1.20</span></div></div>
+  <div class="field" style="margin-bottom:10px"><span class="swatch" style="background:#ffd166"></span><span class="v">#FFD166</span><span class="unit">colour</span></div>
+  <div class="field" style="margin-bottom:10px"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span style="color:var(--faint)">Filter layers</span></div>
+  <div class="field" style="margin-bottom:14px"><span class="v" style="font-family:var(--ui)">Smart (better look)</span><svg class="i sm" viewBox="0 0 24 24" style="margin-left:auto;color:var(--faint)"><path d="M6 9l6 6 6-6"/></svg></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="slider"><i style="width:62%"></i><b style="left:62%"></b></div><span class="mono" style="width:40px;text-align:right">62%</span></div>
+  <div class="rowc"><span class="toggle on"></span>Snap<span class="toggle" style="margin-left:14px"></span>Live<span style="margin-left:14px;display:inline-flex;gap:8px;align-items:center"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);display:grid;place-items:center;color:#fff"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px;stroke-width:3"><path d="M5 12l5 5 9-10"/></svg></span>Loop</span></div>
+</div>
+
+<div class="box">
+  <div class="h">NAVIGATION</div>
+  <div class="pagebar" style="position:static;transform:none;display:inline-flex;margin-bottom:16px"><button class="on"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Compose<kbd>1</kbd></button><button><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg>Animate<kbd>2</kbd></button><button><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>Code<kbd>3</kbd></button></div>
+  <div class="rowc" style="margin-bottom:14px"><div class="seg"><span>Fit</span><span class="on">75%</span><span>100%</span></div><div class="seg"><span class="on">Draft</span><span>Standard</span><span>High</span></div></div>
+  <div style="display:flex;border-bottom:1px solid var(--line);margin-bottom:14px" class="tabs"><span class="on">Properties</span><span>Clip</span><span>Scene</span></div>
+  <div class="rowc"><span class="chip">scene</span><span class="chip accent">Auto-key</span><span class="chip ok">cached</span><span class="chip warn">stale</span><span class="chip" style="color:var(--bad)">error</span></div>
+</div>
+
+<div class="box">
+  <div class="h">LIST ROWS</div>
+  <div style="margin:0 -6px">
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Euler's identity</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow sel"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></div><span class="nm">Unit circle</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#ff9f43,#ff6b8b)"><svg class="i sm" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div><span class="nm">Orbit</span><span class="chip" style="height:18px;font-size:10px">scene</span></div>
+  </div>
+</div>
+
+<div class="box">
+  <div class="h">MENU AND TOOLTIP</div>
+  <div style="display:flex;gap:18px;align-items:flex-start">
+    <div class="menu" style="min-width:230px"><div class="on"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Code layer<span class="kbd">Ctrl L</span></div><div><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg>Python object</div><div><svg class="i sm" viewBox="0 0 24 24"><path d="M7 4c-2 0-3 1-3 3v2c0 1-1 2-2 3 1 1 2 2 2 3v2c0 2 1 3 3 3"/></svg>Helper…</div><hr><div><svg class="i sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>From a file…</div></div>
+    <div><div class="tip">Run the code and render it <span class="kbd">Ctrl ↵</span></div></div>
+  </div>
+</div>
+
+<div class="box">
+  <div class="h">TIMELINE CLIPS AND KEYS</div>
+  <div style="position:relative;height:96px;background:repeating-linear-gradient(90deg,transparent 0 59px,var(--line) 59px 60px);border-radius:12px;border:1px solid var(--line)">
+    <div class="clip" style="left:8px;width:150px;top:8px;background:linear-gradient(180deg,#6f9bff,#4a78ee)">FadeIn</div>
+    <div class="clip" style="left:170px;width:110px;top:8px;background:linear-gradient(180deg,#ffb066,#f08a2c)">Indicate</div>
+    <div class="clip sel" style="left:8px;width:200px;top:40px;background:linear-gradient(180deg,#d59bff,#b25bf0)">Transform</div>
+    <div class="clip" style="left:220px;width:60px;top:40px;background:linear-gradient(180deg,#4fe0b4,#22b184)">Create</div>
+    <div class="key" style="left:100px;top:76px"></div><div class="key" style="left:170px;top:76px"></div>
+    <div class="playhead" style="left:140px;height:96px"><em>0:01.40</em></div>
+  </div>
+</div>
+
+<div class="box" style="grid-column:span 2">
+  <div class="h">DIALOG</div>
+  <div style="max-width:620px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line-2);box-shadow:var(--shadow);overflow:hidden">
+    <div style="padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px"><div style="width:34px;height:34px;border-radius:11px;background:rgba(255,176,32,.15);display:grid;place-items:center;color:var(--warn)"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18h.01"/></svg></div><div style="flex:1"><div style="font-weight:650;font-size:15px">Run code from this project?</div><div style="color:var(--muted)">2 code layers have not run on this computer yet.</div></div></div>
+    <div style="padding:16px 22px"><div class="lrow" style="margin:0 0 6px;background:var(--surface-3)"><div class="ty" style="background:linear-gradient(135deg,#ff9f43,#ff6b8b)"><svg class="i sm" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div><span class="nm">Orbit</span><span class="chip warn">uses subprocess</span></div><div style="color:var(--faint);font-size:11.5px;margin-top:8px">Running code is not sandboxed: it can read and write your files and use the network, like any program you start.</div></div>
+    <div style="padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end"><button class="btn ghost">Show code first</button><button class="btn">Don't run</button><button class="btn primary">Run it</button></div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

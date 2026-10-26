@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Code</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:900px">
+<div class="app">
+
+<div class="topbar">
+  <div class="mark"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-5 6-5"/></svg></div>
+  <div class="menus"><span>File</span><span>Edit</span><span>Animate</span><span>View</span><span>Arrange</span><span>Help</span></div>
+  <div class="pagebar">
+    <button><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Compose<kbd>1</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg>Animate<kbd>2</kbd></button>
+    <button class="on"><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>Code<kbd>3</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg>Audio<kbd>4</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Deliver<kbd>5</kbd></button>
+  </div>
+  <div class="grow"></div>
+  <div class="right">
+    <button class="ibtn" aria-label="Undo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button class="ibtn" aria-label="Redo"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
+    <div class="searchbtn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Search or run a command<kbd>Ctrl K</kbd></div>
+    <div class="vsep"></div>
+    <button class="ibtn on" aria-label="Explorer"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Output"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 14h18"/></svg></button>
+    <button class="btn primary" style="margin-left:6px"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Export</button>
+  </div>
+</div>
+
+<div class="body" style="grid-template-columns:268px 1fr 420px;grid-template-rows:1fr 232px">
+
+  <!-- Explorer -->
+  <div class="card" style="grid-row:span 2">
+    <div class="card-h"><h3>Explorer</h3><div class="grow"></div>
+      <button class="btn sm primary"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New<svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>
+    <div style="padding:10px 10px 4px"><div class="field"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span style="color:var(--faint)">Filter code and presets</span></div></div>
+    <div class="card-b" style="padding-top:8px">
+      <div style="padding:4px 14px;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.08em">THIS PROJECT</div>
+      <div class="lrow sel"><div class="ty" style="background:linear-gradient(135deg,#ffd166,#ff9f43)"><svg class="i sm" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div><span class="nm">Orbit</span><span class="chip warn" style="height:18px;font-size:10px">unapplied</span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg></div><span class="nm">Wheel</span><span class="chip ok" style="height:18px;font-size:10px">built</span></div>
+      <div style="padding:12px 14px 4px;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.08em">HELPERS</div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M7 4c-2 0-3 1-3 3v2c0 1-1 2-2 3 1 1 2 2 2 3v2c0 2 1 3 3 3M17 4c2 0 3 1 3 3v2c0 1 1 2 2 3-1 1-2 2-2 3v2c0 2-1 3-3 3"/></svg></div><span class="nm">geometry</span><span class="chip" style="height:18px;font-size:10px">3 imports</span></div>
+      <div style="padding:12px 14px 4px;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.08em">PRESETS</div>
+      <div class="lrow"><div class="ty" style="background:var(--surface-3);color:var(--muted)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 12h14M5 6h14M5 18h9"/></svg></div><span class="nm">Right triangle</span><span class="chip" style="height:18px;font-size:10px">built in</span></div>
+      <div class="lrow"><div class="ty" style="background:var(--surface-3);color:var(--muted)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 12h14M5 6h14M5 18h9"/></svg></div><span class="nm">Matrix</span><span class="chip" style="height:18px;font-size:10px">built in</span></div>
+      <div class="lrow"><div class="ty" style="background:var(--surface-3);color:var(--muted)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 12h14M5 6h14M5 18h9"/></svg></div><span class="nm">Fourier circles</span><span class="chip" style="height:18px;font-size:10px">mine</span></div>
+    </div>
+    <div style="padding:10px;border-top:1px solid var(--line);display:flex;gap:6px"><button class="btn sm ghost" style="flex:1">Import</button><button class="btn sm ghost" style="flex:1">Online</button><button class="btn sm ghost" style="flex:1">Export</button></div>
+  </div>
+
+  <!-- Editor -->
+  <div class="card" style="background:var(--field)">
+    <div style="display:flex;align-items:flex-end;gap:2px;padding:8px 10px 0;background:var(--surface);border-bottom:1px solid var(--line)">
+      <div class="tab on"><svg class="i sm" viewBox="0 0 24 24" style="color:#ffd166"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>Orbit<span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span></div>
+      <div class="tab"><svg class="i sm" viewBox="0 0 24 24" style="color:#7b6cf6"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg>Wheel</div>
+      <div class="tab"><svg class="i sm" viewBox="0 0 24 24" style="color:#34d1a0"><path d="M7 4c-2 0-3 1-3 3v2c0 1-1 2-2 3 1 1 2 2 2 3v2c0 2 1 3 3 3"/></svg>geometry</div>
+      <div class="grow"></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:0 4px 6px">
+        <span class="chip warn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5"/></svg>Unapplied</span>
+        <div class="chip"><span class="toggle" style="width:22px;height:13px"></span>Live</div>
+        <div class="chip">∞ No limit</div>
+        <button class="btn sm"><svg class="i sm" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9M3 4v5h5"/></svg>Revert</button>
+        <button class="btn sm primary"><svg class="i sm fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg>Run <span class="kbd" style="background:rgba(255,255,255,.18);border-color:transparent;color:#fff">Ctrl ↵</span></button>
+        <button class="ibtn sm" aria-label="Editor settings"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
+      </div>
+    </div>
+    <div style="height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--accent));background-size:200% 100%;opacity:.9"></div>
+    <div class="card-b code" style="padding:12px 0;position:relative">
+      <div><span class="ln">1</span><span class="k">from</span> manim <span class="k">import</span> *</div>
+      <div><span class="ln">2</span></div>
+      <div><span class="ln">3</span><span class="k">class</span> <span class="f">Orbit</span>(<span class="m">Scene</span>):</div>
+      <div><span class="ln">4</span>    <span class="k">def</span> <span class="f">construct</span>(self):</div>
+      <div><span class="ln">5</span>        sun = <span class="m">Dot</span>(color=<span class="m">YELLOW</span>)</div>
+      <div class="err"><span class="ln" style="color:var(--bad)">6</span>        planet = <span class="sq">Circl</span>(radius=<span class="n">0.2</span>)</div>
+      <div><span class="ln">7</span>        path = <span class="m">Circle</span>(radius=<span class="n">2.4</span>).set_stroke(opacity=<span class="n">0.3</span>)</div>
+      <div><span class="ln">8</span>        self.play(<span class="m">Create</span>(path), <span class="m">FadeIn</span>(sun))</div>
+      <div><span class="ln">9</span>        self.play(<span class="m">MoveAlongPath</span>(planet, path), run_time=<span class="n">4</span>)</div>
+      <div class="cur"><span class="ln" style="color:var(--text)">10</span>        planet.set_c<span style="border-left:2px solid var(--accent);margin-left:1px"></span></div>
+      <div><span class="ln">11</span></div>
+      <div><span class="ln">12</span>        <span class="c"># chapters: the orbit is one phase, the labels another</span></div>
+      <div><span class="ln">13</span>        label = <span class="m">MathTex</span>(<span class="s">r"F = G\frac{m_1 m_2}{r^2}"</span>).to_corner(<span class="m">UR</span>)</div>
+      <div><span class="ln">14</span>        self.play(<span class="m">Write</span>(label))</div>
+      <div><span class="ln">15</span>        self.wait(<span class="n">2</span>)</div>
+      <!-- completion popup -->
+      <div class="menu" style="position:absolute;left:300px;top:262px;min-width:300px;padding:5px">
+        <div class="on"><svg class="i sm" viewBox="0 0 24 24" style="color:#82aaff"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg><span class="mono">set_c<b>olor</b></span><span style="margin-left:auto;color:var(--faint);font-size:11px">method</span></div>
+        <div><svg class="i sm" viewBox="0 0 24 24" style="color:#82aaff"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg><span class="mono">set_c<b>olor_by_gradient</b></span></div>
+        <div><svg class="i sm" viewBox="0 0 24 24" style="color:#82aaff"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg><span class="mono">set_c<b>ube_…</b></span></div>
+        <hr><div style="color:var(--faint);font-size:11px">Circle.set_color(color, family=True) · Enter to accept</div>
+      </div>
+      <!-- error hint toast on the line -->
+      <div class="tip" style="position:absolute;left:420px;top:92px;border-color:rgba(255,92,122,.5);gap:8px;align-items:center"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--bad)"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16h.01"/></svg>NameError: <b>Circl</b> is not defined. Did you mean <b style="color:var(--accent)">Circle</b>?</div>
+    </div>
+    <div style="height:28px;display:flex;align-items:center;gap:14px;padding:0 14px;border-top:1px solid var(--line);background:var(--surface);color:var(--faint);font-size:11px"><span class="mono">Ln 10, Col 22</span><span>Spaces: 4</span><span>UTF-8</span><div class="grow"></div><span style="color:var(--bad)">1 error</span><span>Python 3.13</span></div>
+  </div>
+
+  <!-- Preview + chapters -->
+  <div class="card" style="grid-row:span 2">
+    <div class="card-h"><h3>Preview</h3><span class="chip ok">Ready</span><div class="grow"></div><span class="chip mono">340 frames · 12.3 s</span></div>
+    <div style="height:260px;position:relative;border-bottom:1px solid var(--line)">
+      <div class="stage"></div>
+      <div class="frame" style="left:50%;margin-left:-190px;top:30px;width:380px;height:214px;background:radial-gradient(300px 180px at 50% 45%, #16224a, #0b1226)">
+        <svg viewBox="0 0 380 214" style="width:100%;height:100%"><circle cx="190" cy="107" r="62" fill="none" stroke="#7b6cf6" stroke-opacity=".5" stroke-width="1.5"/><circle cx="190" cy="107" r="6" fill="#ffd166"/><circle cx="244" cy="76" r="5" fill="#4cc9f0"/><text x="270" y="40" fill="#fff" font-family="Newsreader" font-style="italic" font-size="14">F = G m₁m₂ / r²</text></svg>
+      </div>
+      <div class="pill" style="left:50%;bottom:10px;transform:translateX(-50%);padding:4px 8px 4px 4px;border-radius:18px"><div class="play" style="width:28px;height:28px"><svg class="i sm fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div><span class="mono" style="font-weight:600">0:01.20</span><div class="vsep"></div><span class="chip">1×</span></div>
+    </div>
+    <div class="card-h" style="border-top:0"><h3>Chapters</h3><span class="chip">3</span><div class="grow"></div><button class="btn sm ghost">Analyse</button><button class="btn sm">Split</button></div>
+    <div class="card-b" style="padding:8px 10px">
+      <div class="lrow" style="margin:0 0 6px;background:var(--surface-2);height:46px"><span class="mono" style="color:var(--accent);font-weight:700">1</span><div style="flex:1"><div style="font-weight:600">Setup and orbit</div><div style="color:var(--faint);font-size:11px">lines 3 – 11 · 0:00 – 0:06</div></div><span class="chip ok">cached</span></div>
+      <div class="lrow" style="margin:0 0 6px;background:var(--surface-2);height:46px"><span class="mono" style="color:var(--accent);font-weight:700">2</span><div style="flex:1"><div style="font-weight:600">Gravity law</div><div style="color:var(--faint);font-size:11px">lines 12 – 15 · 0:06 – 0:09</div></div><span class="chip accent"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M5 12H2M22 12h-3M7 7L5 5M19 19l-2-2M7 17l-2 2M19 5l-2 2"/></svg>rendering</span></div>
+      <div class="lrow" style="margin:0;background:var(--surface-2);height:46px"><span class="mono" style="color:var(--accent);font-weight:700">3</span><div style="flex:1"><div style="font-weight:600">Epilogue</div><div style="color:var(--faint);font-size:11px">lines 16 – 22 · 0:09 – 0:12</div></div><span class="chip">waiting</span></div>
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div class="card">
+    <div class="card-h" style="padding-left:6px"><div class="tabs"><span class="on">Output</span><span>Values</span><span>Parameters</span><span>History</span></div><div class="grow"></div><button class="ibtn sm" aria-label="Hide panel"><svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>
+    <div class="card-b" style="padding:12px 14px;display:flex;gap:14px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="chip" style="color:var(--bad);border-color:rgba(255,92,122,.4)">NameError</span><span style="font-weight:600">name 'Circl' is not defined</span></div>
+        <div class="mono" style="color:var(--muted);font-size:11.5px;line-height:1.7;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:8px 12px">File "Orbit", line 6, in construct<br>&nbsp;&nbsp;planet = Circl(radius=0.2)</div>
+      </div>
+      <div style="width:300px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent-line);padding:12px 14px;align-self:flex-start">
+        <div style="font-weight:650;margin-bottom:4px">Did you mean Circle?</div>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:10px">Manim spells it with an e at the end.</div>
+        <div style="display:flex;gap:6px"><button class="btn sm primary">Fix it</button><button class="btn sm ghost">Go to line 6</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="statusbar"><span class="dot"></span><span style="color:var(--muted)">Saved</span><span>Euler's identity</span><div class="grow"></div><span class="chip accent"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M5 12H2M22 12h-3M7 7L5 5M19 19l-2-2M7 17l-2 2M19 5l-2 2"/></svg>Rendering Orbit · chapter 2 · 140 frames · 4 s</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

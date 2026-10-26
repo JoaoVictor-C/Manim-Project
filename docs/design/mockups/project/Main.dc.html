@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compose</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="lumen {{themeClass}}" style="width:1440px;height:900px">
+<div class="app">
+
+<div class="topbar">
+  <div class="mark"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-5 6-5"/></svg></div>
+  <div class="menus"><span>File</span><span>Edit</span><span>Animate</span><span>View</span><span>Arrange</span><span>Help</span></div>
+  <div class="pagebar">
+    <button class="on"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Compose<kbd>1</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg>Animate<kbd>2</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>Code<kbd>3</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg>Audio<kbd>4</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Deliver<kbd>5</kbd></button>
+  </div>
+  <div class="grow"></div>
+  <div class="right">
+    <button class="ibtn" aria-label="Undo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button class="ibtn" aria-label="Redo"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
+    <div class="searchbtn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Search or run a command<kbd>Ctrl K</kbd></div>
+    <div class="vsep"></div>
+    <button class="ibtn on" aria-label="Layers panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Properties panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Timeline panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 14h18"/></svg></button>
+    <button class="btn primary" style="margin-left:6px"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Export</button>
+  </div>
+</div>
+
+<div class="body" style="grid-template-columns:288px 1fr 316px;grid-template-rows:1fr 286px">
+
+  <!-- Layers -->
+  <div class="card" style="grid-row:span 2">
+    <div class="card-h"><h3>Layers</h3><span class="chip">8</span><div class="grow"></div>
+      <button class="ibtn sm" aria-label="Add layer"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="ibtn sm" aria-label="Layer options"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+    </div>
+    <div style="padding:10px 10px 4px"><div class="field"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span style="color:var(--faint)">Filter layers</span></div></div>
+    <div class="card-b" style="padding-top:6px">
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Euler's identity</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 7h14M5 17h14M8 7l8 10"/></svg></div><span class="nm">e<sup>iθ</sup> = cos θ + i sin θ</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow sel"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 7h14M5 17h14M8 7l8 10"/></svg></div><span class="nm">e<sup>iπ</sup> + 1 = 0</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></div><span class="nm">Unit circle</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#5b8cff)"><svg class="i sm" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16M7 15c3 0 3-8 6-8s3 8 7 8"/></svg></div><span class="nm">Axes</span><span class="chip" style="height:18px;font-size:10px">group</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></div>
+      <div class="lrow child"><div class="ty" style="background:#34d1a0"><svg class="i sm" viewBox="0 0 24 24"><path d="M3 12h18"/></svg></div><span class="nm">x axis</span></div>
+      <div class="lrow child"><div class="ty" style="background:#34d1a0"><svg class="i sm" viewBox="0 0 24 24"><path d="M3 15c3 0 3-8 6-8s3 8 6 8 3-4 6-4"/></svg></div><span class="nm">sin(x)</span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#ff9f43,#ff6b8b)"><svg class="i sm" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div><span class="nm">Orbit</span><span class="chip" style="height:18px;font-size:10px">scene</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="8"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#ffd166,#ff9f43)"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/></svg></div><span class="nm">Wheel</span><span class="chip" style="height:18px;font-size:10px">object</span></div>
+    </div>
+    <div style="padding:10px;border-top:1px solid var(--line);display:flex;gap:8px">
+      <button class="btn sm" style="flex:1"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add object</button>
+      <button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>Presets</button>
+    </div>
+  </div>
+
+  <!-- Stage -->
+  <div class="card">
+    <div class="card-h"><h3>Stage</h3><span class="chip mono">1280 × 720</span><span class="chip mono">30 fps</span><div class="grow"></div>
+      <span class="chip">Follow playhead</span>
+      <div class="seg"><span>Fit</span><span class="on">75%</span><span>100%</span></div>
+      <button class="ibtn sm" aria-label="Full screen"><svg class="i" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+    <div class="card-b" style="position:relative">
+      <div class="stage"></div>
+      <div class="frame" style="left:81px;top:34px;width:640px;height:360px;background:radial-gradient(520px 300px at 50% 40%, #16224a, #0b1226)">
+        <div style="position:absolute;top:44px;left:0;right:0;text-align:center;font:italic 500 30px var(--serif);color:#e9ecf6">Euler's identity</div>
+        <div style="position:absolute;top:128px;left:0;right:0;text-align:center;font:italic 400 34px var(--serif);color:#c9d3ff">e<sup style="font-size:20px">iθ</sup> = cos θ + <i>i</i> sin θ</div>
+        <div style="position:absolute;top:218px;left:0;right:0;text-align:center;font:italic 400 44px var(--serif);color:#fff">e<sup style="font-size:26px">iπ</sup> + 1 = 0</div>
+      </div>
+      <div style="position:absolute;left:241px;top:238px;width:240px;height:78px;border:1.5px solid var(--accent);border-radius:4px;box-shadow:0 0 0 1px rgba(123,108,246,0.25)"></div>
+      <div class="handle" style="left:236px;top:233px"></div><div class="handle" style="left:476px;top:233px"></div><div class="handle" style="left:236px;top:311px"></div><div class="handle" style="left:476px;top:311px"></div>
+      <div class="handle" style="left:356px;top:233px"></div><div class="handle" style="left:356px;top:311px"></div>
+      <div class="chip mono" style="position:absolute;left:241px;top:322px;background:var(--accent);color:#fff;border:0">240 × 78</div>
+      <!-- tools -->
+      <div class="pill" style="left:14px;top:50%;transform:translateY(-50%);flex-direction:column;border-radius:14px">
+        <button class="ibtn on" aria-label="Select"><svg class="i" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></svg></button>
+        <button class="ibtn" aria-label="Hand"><svg class="i" viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7a6 6 0 01-6 6H10a5 5 0 01-4-2l-2-3a1.5 1.5 0 012-2l2 2"/></svg></button>
+        <button class="ibtn" aria-label="Text"><svg class="i" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></button>
+        <button class="ibtn" aria-label="Shape"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></button>
+        <button class="ibtn" aria-label="Anchor"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></button>
+      </div>
+      <!-- transport -->
+      <div class="pill" style="left:50%;bottom:16px;transform:translateX(-50%);gap:6px;padding:6px 10px 6px 6px;border-radius:22px">
+        <button class="ibtn" aria-label="Start"><svg class="i fill" viewBox="0 0 24 24"><path d="M6 5h2v14H6zM19 5v14L9 12z"/></svg></button>
+        <div class="play"><svg class="i fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+        <button class="ibtn" aria-label="End"><svg class="i fill" viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5l10 7-10 7z"/></svg></button>
+        <div class="vsep"></div>
+        <span class="mono" style="font-size:13px;font-weight:600">0:02.40</span><span class="mono" style="color:var(--faint)">/ 0:07.00</span>
+        <div class="vsep"></div>
+        <button class="ibtn sm" aria-label="Repeat"><svg class="i" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"/></svg></button>
+        <span class="chip">1×</span>
+        <button class="ibtn sm" aria-label="Volume"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inspector -->
+  <div class="card" style="grid-row:span 2">
+    <div class="card-h"><div class="tabs"><span class="on">Properties</span><span>Clip</span><span>Scene</span></div><div class="grow"></div>
+      <button class="ibtn sm" aria-label="More"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+    <div class="card-b" style="overflow:hidden">
+      <div class="section" style="padding-top:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="lrow" style="margin:0;padding:0;height:auto;width:auto;background:none"><div class="ty" style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#5b8cff,#4cc9f0)"><svg class="i" viewBox="0 0 24 24"><path d="M5 7h14M5 17h14M8 7l8 10"/></svg></div></div>
+          <div style="flex:1;min-width:0"><div style="font-weight:650;font-size:14px">e<sup>iπ</sup> + 1 = 0</div><div style="color:var(--muted);font-size:11.5px">Maths text · 3 parts</div></div>
+          <span class="chip accent">Auto-key</span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-h"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Transform<div class="grow"></div><button class="ibtn sm" aria-label="Keyframe"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg></button></div>
+        <div class="row2"><div class="field"><span class="lab">X</span><span class="v">0.00</span></div><div class="field"><span class="lab">Y</span><span class="v">-1.20</span></div></div>
+        <div class="row2" style="margin-top:8px"><div class="field"><span class="lab">S</span><span class="v">1.00</span><span class="unit">×</span></div><div class="field"><span class="lab">R</span><span class="v">0.0</span><span class="unit">deg</span></div></div>
+        <div class="label">Opacity</div>
+        <div style="display:flex;align-items:center;gap:10px"><div class="slider"><i style="width:100%"></i><b style="left:100%"></b></div><span class="mono" style="width:38px;text-align:right">100%</span></div>
+      </div>
+      <div class="section">
+        <div class="section-h"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Appearance</div>
+        <div class="row2"><div class="field"><span class="swatch" style="background:#ffffff"></span><span class="v">#FFFFFF</span></div><div class="field"><span class="lab" style="width:auto">Stroke</span><span class="v" style="margin-left:auto">0.0</span></div></div>
+        <div class="label">Colour by part</div>
+        <div style="display:flex;gap:6px"><span class="swatch" style="background:#ffffff;width:26px;height:26px"></span><span class="swatch" style="background:#ffd166;width:26px;height:26px"></span><span class="swatch" style="background:#ff6b8b;width:26px;height:26px"></span><span class="swatch" style="background:transparent;width:26px;height:26px;display:grid;place-items:center;color:var(--faint)"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      </div>
+      <div class="section" style="border-bottom:0">
+        <div class="section-h"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Text</div>
+        <div class="field" style="height:64px;align-items:flex-start;padding-top:8px"><span class="v" style="color:var(--text)">e^{i\pi} + 1 = 0</span></div>
+        <div class="row2" style="margin-top:8px"><div class="field"><span class="lab" style="width:auto">Size</span><span class="v" style="margin-left:auto">48</span></div><button class="btn">Split into parts</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card">
+    <div class="card-h"><h3>Timeline</h3>
+      <div class="chip accent"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 15a7 7 0 0014 0V5h-4v10a3 3 0 01-6 0V5H5z"/></svg>Snap</div>
+      <div class="chip"><span style="width:7px;height:7px;border-radius:50%;background:var(--bad)"></span>Auto-key</div>
+      <div class="grow"></div>
+      <button class="btn sm"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Clip</button>
+      <svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4M8 11h6"/></svg>
+      <div class="slider" style="flex:none;width:90px"><i style="width:45%"></i><b style="left:45%"></b></div>
+      <svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4M8 11h6M11 8v6"/></svg>
+    </div>
+    <div class="card-b" style="position:relative">
+      <div class="ruler" style="width:594px"><span style="left:0%">0s</span><span style="left:14.28%">1s</span><span style="left:28.57%">2s</span><span style="left:42.85%">3s</span><span style="left:57.14%">4s</span><span style="left:71.42%">5s</span><span style="left:85.7%">6s</span><i style="left:14.28%"></i><i style="left:28.57%"></i><i style="left:42.85%"></i><i style="left:57.14%"></i><i style="left:71.42%"></i><i style="left:85.7%"></i></div>
+      <div class="lane"><div class="hd"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#5b8cff,#7b6cf6)"></div><span class="nm" style="font-weight:500">Euler's identity</span></div><div class="tr"><div class="clip" style="left:0;width:14.3%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">FadeIn</div><div class="clip" style="left:85%;width:15%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">FadeOut</div></div></div>
+      <div class="lane"><div class="hd"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#5b8cff,#4cc9f0)"></div><span class="nm" style="font-weight:500">e<sup>iθ</sup> = cos θ + i sin θ</span></div><div class="tr"><div class="clip" style="left:7%;width:28%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">Write</div><div class="clip" style="left:50%;width:12%;background:linear-gradient(180deg,#ffb066,#f08a2c)">Indicate</div><div class="clip" style="left:64%;width:21%;background:linear-gradient(180deg,#d59bff,#b25bf0)">Transform</div><div class="key" style="left:36%"></div><div class="key" style="left:48%"></div></div></div>
+      <div class="lane" style="background:var(--accent-soft)"><div class="hd" style="background:transparent"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#5b8cff,#4cc9f0)"></div><span class="nm" style="font-weight:600">e<sup>iπ</sup> + 1 = 0</span></div><div class="tr"><div class="clip sel" style="left:10%;width:24%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">Write</div><div class="clip" style="left:86%;width:14%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">FadeOut</div><div class="key" style="left:40%"></div></div></div>
+      <div class="lane"><div class="hd"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M4 6h16v10H9l-5 4z"/></svg><span class="nm" style="font-weight:500;color:var(--muted)">Subtitles</span></div><div class="tr"><div class="clip" style="left:14%;width:34%;background:linear-gradient(180deg,#5d6685,#454d69)">Euler found a bridge…</div></div></div>
+      <div class="lane"><div class="hd"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--c-sound)"><path d="M4 9v6h4l5 4V5L8 9H4z"/></svg><span class="nm" style="font-weight:500;color:var(--muted)">Narration</span></div><div class="tr"><div class="clip" style="left:14%;width:46%;background:rgba(255,107,139,0.18);box-shadow:inset 0 0 0 1px rgba(255,107,139,0.5)"><div class="wave"><i style="height:30%"></i><i style="height:70%"></i><i style="height:45%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:35%"></i><i style="height:65%"></i><i style="height:95%"></i><i style="height:40%"></i><i style="height:75%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:30%"></i><i style="height:60%"></i><i style="height:90%"></i><i style="height:45%"></i><i style="height:70%"></i><i style="height:35%"></i><i style="height:80%"></i></div></div></div></div>
+      <div class="playhead" style="left:414px"><em>0:02.40</em></div>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar"><span class="dot"></span><span style="color:var(--muted)">Saved</span><span>Euler's identity</span><div class="grow"></div><span class="mono">240 × 78 px</span><span>3 layers selected: 1</span><span class="chip ok">Preview ready</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: this.props.theme === 'light' ? 'light' : '' }; }
+}
+</script>
+</body>
+</html>

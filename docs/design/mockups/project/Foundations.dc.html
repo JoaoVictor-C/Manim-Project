@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundations</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap">
+<style>body{margin:0} .sw{height:64px;border-radius:12px;border:1px solid var(--line-2);display:flex;align-items:flex-end;padding:8px 10px;font:11px var(--mono);color:var(--text)} .h{font:600 11px var(--ui);letter-spacing:.1em;color:var(--faint);margin:0 0 12px}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:1100px;padding:56px 64px;display:grid;grid-template-columns:1.1fr 1fr;gap:56px">
+
+<div>
+  <div style="font:500 44px/1.05 var(--serif);letter-spacing:-.01em">Lumen</div>
+  <p style="color:var(--muted);font-size:15px;line-height:1.55;max-width:560px;margin:12px 0 36px">The picture is the hero. The chrome is a quiet room of soft panels around it, lit by one accent that always means <i>this is where you are</i>.</p>
+
+  <div class="h">SURFACES — DEEP INK</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:28px">
+    <div class="sw" style="background:#0a0c12">bg<br>#0A0C12</div>
+    <div class="sw" style="background:#11141d">surface<br>#11141D</div>
+    <div class="sw" style="background:#171b27">surface-2<br>#171B27</div>
+    <div class="sw" style="background:#1e2332">surface-3<br>#1E2332</div>
+    <div class="sw" style="background:#0d1018">field<br>#0D1018</div>
+    <div class="sw" style="background:#07080d">stage<br>#07080D</div>
+  </div>
+
+  <div class="h">ACCENT, TEXT AND MEANING</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px">
+    <div class="sw" style="background:linear-gradient(135deg,#7b6cf6,#4cc9f0);color:#fff;font-weight:700">accent<br>#7B6CF6 → #4CC9F0</div>
+    <div class="sw" style="background:#e9ecf6;color:#111">text<br>#E9ECF6</div>
+    <div class="sw" style="background:#9aa2ba;color:#111">muted<br>#9AA2BA</div>
+    <div class="sw" style="background:#3ddc97;color:#06281a">ok<br>#3DDC97</div>
+    <div class="sw" style="background:#ffb020;color:#2b1c00">warn<br>#FFB020</div>
+    <div class="sw" style="background:#ff5c7a;color:#2b0710">bad<br>#FF5C7A</div>
+  </div>
+  <p style="color:var(--faint);font-size:12px;margin:0 0 28px">Text on surface 4.5:1 or better; muted 4.6:1; accent on dark 5.1:1. The accent is never used as decoration: selection, focus, the playhead and the one primary action.</p>
+
+  <div class="h">CLIP CATEGORIES — A SPECTRUM, NOT A RAINBOW</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:28px">
+    <div class="sw" style="background:#5b8cff;color:#fff">content</div>
+    <div class="sw" style="background:#ff9f43;color:#2b1700">emphasis</div>
+    <div class="sw" style="background:#34d1a0;color:#04261b">motion</div>
+    <div class="sw" style="background:#c77dff;color:#1f0a33">morph</div>
+    <div class="sw" style="background:#ff6b8b;color:#2c0712">sound</div>
+    <div class="sw" style="background:#ffd166;color:#2b2000">keyframe</div>
+  </div>
+
+  <div class="h">SHAPE, SPACE AND ELEVATION</div>
+  <div style="display:flex;gap:18px;align-items:flex-end">
+    <div style="text-align:center"><div style="width:72px;height:72px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"></div><div class="mono" style="margin-top:8px;color:var(--faint)">card 14</div></div>
+    <div style="text-align:center"><div style="width:72px;height:72px;border-radius:10px;background:var(--surface-3);border:1px solid var(--line-2)"></div><div class="mono" style="margin-top:8px;color:var(--faint)">row 10</div></div>
+    <div style="text-align:center"><div style="width:72px;height:72px;border-radius:9px;background:var(--field);border:1px solid var(--line-2)"></div><div class="mono" style="margin-top:8px;color:var(--faint)">control 9</div></div>
+    <div style="text-align:center"><div style="width:72px;height:72px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-2)"></div><div class="mono" style="margin-top:8px;color:var(--faint)">pill</div></div>
+    <div style="text-align:center"><div style="width:72px;height:72px;border-radius:14px;background:var(--surface-2);box-shadow:var(--shadow);border:1px solid var(--line-2)"></div><div class="mono" style="margin-top:8px;color:var(--faint)">float</div></div>
+    <div style="text-align:center"><div style="width:72px;height:72px;border-radius:14px;background:var(--surface-2);box-shadow:var(--glow)"></div><div class="mono" style="margin-top:8px;color:var(--faint)">focus</div></div>
+    <div style="flex:1"></div>
+    <div class="mono" style="color:var(--muted);line-height:1.8">4 px grid<br>gutter 8 px<br>panel padding 14<br>row 36 · control 30</div>
+  </div>
+</div>
+
+<div>
+  <div class="h" style="margin-top:6px">TYPE — INTER FOR THE INTERFACE, JETBRAINS MONO FOR CODE AND TIME, NEWSREADER FOR TITLES</div>
+  <div style="display:flex;flex-direction:column;gap:14px;padding:22px 24px;border-radius:18px;background:var(--surface);border:1px solid var(--line);margin-bottom:28px">
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Display 76</span><span style="font:500 52px/1 var(--serif);letter-spacing:-.02em">Make it move</span></div>
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Title 22</span><span style="font:650 22px var(--ui)">Euler's identity</span></div>
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Heading 14</span><span style="font:650 14px var(--ui)">Transform</span></div>
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Body 12.5</span><span style="font:400 12.5px var(--ui)">The line the cursor is on is tinted; the picture follows the code.</span></div>
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Caption 11</span><span style="font:500 11px var(--ui);color:var(--muted)">340 frames · cached</span></div>
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Section 11</span><span style="font:650 11px var(--ui);letter-spacing:.1em;color:var(--faint)">THIS PROJECT</span></div>
+    <div style="display:flex;align-items:baseline;gap:18px"><span class="mono" style="width:90px;color:var(--faint)">Mono 12.5</span><span class="mono" style="font-size:12.5px">self.play(Create(circle))  0:02.40</span></div>
+  </div>
+
+  <div class="h">MOTION — CALM, SHORT, NEVER IN THE WAY</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px">
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div class="mono" style="font-size:20px;font-weight:700">90 ms</div><div style="color:var(--muted);margin-top:4px">hover, press</div></div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div class="mono" style="font-size:20px;font-weight:700">160 ms</div><div style="color:var(--muted);margin-top:4px">page indicator, toggles</div></div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div class="mono" style="font-size:20px;font-weight:700">220 ms</div><div style="color:var(--muted);margin-top:4px">panels, toasts</div></div>
+    <div style="padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><div class="mono" style="font-size:20px;font-weight:700">ease-out</div><div style="color:var(--muted);margin-top:4px">cubic 0.2, 0.8, 0.2, 1</div></div>
+  </div>
+
+  <div class="h">PRINCIPLES</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;gap:14px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><span class="mono" style="color:var(--accent);font-weight:700">01</span><div><b>The picture is the hero.</b><div style="color:var(--muted)">Panels are cards around the stage; their chrome stays quiet so colour on the stage is the only loud thing.</div></div></div>
+    <div style="display:flex;gap:14px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><span class="mono" style="color:var(--accent);font-weight:700">02</span><div><b>One accent, always meaning "here".</b><div style="color:var(--muted)">Selection, focus, the playhead and the primary action share it; nothing else does.</div></div></div>
+    <div style="display:flex;gap:14px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><span class="mono" style="color:var(--accent);font-weight:700">03</span><div><b>Touch it, don't type it.</b><div style="color:var(--muted)">Scrub numbers, drag curves, click a colour to pick it; the keyboard has Ctrl K for everything else.</div></div></div>
+    <div style="display:flex;gap:14px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><span class="mono" style="color:var(--accent);font-weight:700">04</span><div><b>Always say what is happening.</b><div style="color:var(--muted)">Saved, rendering, stale, cached: shown where you are looking, never only on a page you left.</div></div></div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

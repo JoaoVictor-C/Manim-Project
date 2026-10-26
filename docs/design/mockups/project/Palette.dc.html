@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Command palette</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="lumen" style="width:1440px;height:900px;position:relative;overflow:hidden">
+  <!-- the page behind, as soft shapes -->
+  <div style="position:absolute;inset:0;display:grid;grid-template-columns:288px 1fr 316px;grid-template-rows:56px 1fr 286px;gap:8px;padding:8px;filter:blur(2px) saturate(.8)">
+    <div style="grid-column:span 3;border-radius:14px;background:var(--surface)"></div>
+    <div style="border-radius:14px;background:var(--surface);grid-row:span 2"></div>
+    <div style="border-radius:14px;background:var(--stage);position:relative"><div class="frame" style="left:80px;top:40px;width:560px;height:315px;background:radial-gradient(420px 260px at 50% 40%,#16224a,#0b1226)"></div></div>
+    <div style="border-radius:14px;background:var(--surface);grid-row:span 2"></div>
+    <div style="border-radius:14px;background:var(--surface)"></div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(5,6,10,.62)"></div>
+
+  <div style="position:absolute;left:50%;top:116px;transform:translateX(-50%);width:680px;border-radius:20px;background:color-mix(in srgb,var(--surface-2) 94%,transparent);border:1px solid var(--line-2);box-shadow:0 30px 90px rgba(0,0,0,.65),0 0 0 1px rgba(123,108,246,.25);overflow:hidden">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 20px;height:58px;border-bottom:1px solid var(--line)">
+      <svg class="i lg" viewBox="0 0 24 24" style="color:var(--accent)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>
+      <span style="font-size:16px">set op<span style="border-left:2px solid var(--accent);margin-left:1px"></span></span>
+      <div class="grow"></div><span class="kbd">Esc</span>
+    </div>
+    <div style="padding:8px">
+      <div style="padding:8px 12px 4px;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.1em">ACTIONS</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)"><div style="width:30px;height:30px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 000 16z" fill="currentColor"/></svg></div><div style="flex:1"><div style="font-weight:600"><b style="color:var(--accent)">Set op</b>acity…</div><div style="color:var(--faint);font-size:11.5px">Change the opacity of the selection</div></div><span class="chip">Properties</span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px"><div style="width:30px;height:30px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg></div><div style="flex:1"><div style="font-weight:600">Add <b style="color:var(--accent)">op</b>acity key at playhead</div><div style="color:var(--faint);font-size:11.5px">Animate › Keyframes</div></div><span class="kbd">K</span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px"><div style="width:30px;height:30px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg></div><div style="flex:1"><div style="font-weight:600">Show <b style="color:var(--accent)">op</b>acity curve</div><div style="color:var(--faint);font-size:11.5px">Open the graph editor on this property</div></div><span class="kbd">Ctrl 2</span></div>
+      <div style="padding:12px 12px 4px;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.1em">LAYERS</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:12px"><div class="ty" style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#5b8cff,#4cc9f0);display:grid;place-items:center"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 7h14M5 17h14M8 7l8 10"/></svg></div><div style="flex:1;font-weight:600">e<sup>iπ</sup> + 1 = 0 <span style="color:var(--faint);font-weight:400">· opacity key at 5.9 s</span></div></div>
+      <div style="padding:12px 12px 4px;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.1em">SNIPPETS AND PRESETS</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:12px"><div style="width:30px;height:30px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24" style="color:var(--c-emphasis)"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg></div><div style="flex:1;font-weight:600">Fade <b style="color:var(--accent)">op</b>acity in and out</div><span class="chip">Preset</span></div>
+    </div>
+    <div style="display:flex;gap:16px;padding:10px 20px;border-top:1px solid var(--line);color:var(--faint);font-size:11.5px"><span><span class="kbd">↑↓</span> move</span><span><span class="kbd">↵</span> run</span><span><span class="kbd">Tab</span> narrow to layers</span><div class="grow"></div><span>Type <b>&gt;</b> for actions, <b>@</b> for layers, <b>#</b> for code</span></div>
+  </div>
+
+  <!-- toasts -->
+  <div style="position:absolute;right:24px;bottom:40px;display:flex;flex-direction:column;gap:10px;width:340px">
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line-2);box-shadow:var(--shadow)"><div style="width:26px;height:26px;border-radius:50%;background:rgba(61,220,151,.18);display:grid;place-items:center;color:var(--ok)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div style="flex:1"><div style="font-weight:650">Rendered Orbit</div><div style="color:var(--muted);font-size:11.5px">340 frames in 12.3 s</div></div><span class="btn sm ghost">Undo</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
