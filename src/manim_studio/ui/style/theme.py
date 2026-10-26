@@ -478,6 +478,20 @@ def _url(path: Path) -> str:
     return "url(" + str(path).replace(chr(92), "/") + ")"
 
 
+_RULES: list = []  # functions ``(Colours) -> str``: stylesheet rules a module owns (see ``register_rules``)
+
+
+def register_rules(rules) -> None:
+    """Add a module's own stylesheet rules: ``rules(colours)`` returns QSS built from the tokens. They are
+    appended to the application stylesheet now and after every theme switch, so a widget's look follows the
+    theme without the module keeping colours of its own."""
+    if rules not in _RULES:
+        _RULES.append(rules)
+        app = QApplication.instance()
+        if app is not None and app.styleSheet():
+            app.setStyleSheet(stylesheet(THEME))
+
+
 def stylesheet(c: Colours | None = None) -> str:
     """The application stylesheet, generated from the tokens (no colour is written twice)."""
     c = c or THEME
@@ -630,7 +644,7 @@ QLabel[role="title"] {{ color: {c.text}; font-size: 22px; font-weight: 650; }}
 QLabel[role="display"] {{ color: {c.text}; font-size: 52px; font-weight: 500; }}
 QLabel[role="hint"] {{ color: {c.faint}; }}
 QLabel[role="muted"] {{ color: {c.muted}; }}
-"""
+""" + "".join(rule(c) for rule in _RULES)
 
 
 def apply(app: QApplication, colours: Colours | None = None) -> QStyle:

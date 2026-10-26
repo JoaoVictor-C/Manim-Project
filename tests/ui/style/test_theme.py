@@ -269,3 +269,18 @@ def test_mix_moves_between_two_tokens() -> None:
     assert theme.mix("#000000", "#ffffff", 0.0) == "#000000"
     assert theme.mix("#000000", "#ffffff", 1.0) == "#ffffff"
     assert theme.mix("#000000", "#ffffff", 0.5) == "#808080"
+
+
+def test_a_module_can_register_its_own_rules_and_they_follow_the_theme(qt_app) -> None:
+    def rules(c):
+        return f"QLabel#lumenProbe {{ color: {c.accent}; }}\n"
+
+    theme.register_rules(rules)
+    try:
+        assert "lumenProbe" in qt_app.styleSheet() and theme.INK.accent in qt_app.styleSheet()
+        theme.set_theme(qt_app, "paper")
+        assert theme.PAPER.accent in qt_app.styleSheet().split("lumenProbe")[1]
+    finally:
+        theme.set_theme(qt_app, "ink")
+        theme._RULES.remove(rules)
+        qt_app.setStyleSheet(theme.stylesheet())
