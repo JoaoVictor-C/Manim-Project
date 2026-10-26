@@ -24,9 +24,10 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from bench_edits import scene
-from manim_studio.core import adapter, edits
-from manim_studio.core.evaluator import layer_transform
-from manim_studio.core.schema import Keyframe
+from manim_studio.core.editing import edits
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import layer_transform
+from manim_studio.core.model.schema import Keyframe
 from manim_studio.ui.main_window import MainWindow
 
 ROOT = Path(__file__).resolve().parent.parent

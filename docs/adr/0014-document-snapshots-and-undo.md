@@ -18,11 +18,11 @@ the evaluator.
 
 - The project is an **immutable snapshot**. Edits never mutate it; they build a
   new one, sharing unchanged layers.
-- **Edit functions live in `core/edits.py`** (no Qt). They rebuild the changed
+- **Edit functions live in `core/editing/edits.py`** (no Qt). They rebuild the changed
   layer from data, so lane rules run, and the project with
   `Project.model_validate`, so project rules run. They return
   `Edit(project, kind, layer_ids)` (kinds: ADR 0013).
-- **`ui/document.py`** holds the current snapshot and a `QUndoStack`. A command
+- **`ui/session/document.py`** holds the current snapshot and a `QUndoStack`. A command
   stores `(before, after, kind, layer_ids)`; undo and redo swap snapshots and
   emit `changed(project, layer_ids, kind)`.
 - **Drags** are previewed without touching the stack and pushed as **one**
@@ -44,6 +44,6 @@ the evaluator.
 - Verified during planning: a layer rebuilt from data with an overlap raises
   `ValidationError`; `Project.model_validate` over existing layers runs the
   project validator (duplicate ids rejected).
-- `tests/ui/test_document.py`: one undo step per drag, cancel restores, undo
+- `tests/ui/session/test_document.py`: one undo step per drag, cancel restores, undo
   emits the reverse kind; edits/undo/redo in the editor keep the evaluator equal
   to a fresh one (mutation-checked: ignoring the kind makes it fail).

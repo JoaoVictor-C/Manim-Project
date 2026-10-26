@@ -13,9 +13,9 @@ from pathlib import Path
 
 from PySide6.QtGui import QGuiApplication
 
-from manim_studio.core import adapter
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec, Transform2D
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, Project, Spec, Transform2D
 from manim_studio.render import qt_paths
 from manim_studio.render.cairo_export import make_camera, render_frame
 

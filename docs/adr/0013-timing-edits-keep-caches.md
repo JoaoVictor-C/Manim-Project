@@ -28,7 +28,7 @@ and the order of clip ids on every lane is unchanged.
   all checkpoints, begun animations and proxies.
 - Morph entries are keyed by their baked start/end world transforms (ADR 0005)
   and re-begun only when those transforms actually change.
-- The kind is decided by `core/edits.py` by comparing old and new layers;
+- The kind is decided by `core/editing/edits.py` by comparing old and new layers;
   callers do not choose it. A reorder through start values is a **clip** edit.
 
 ## Consequences
@@ -44,9 +44,9 @@ and the order of clip ids on every lane is unchanged.
 - Benchmarks B11–B14 in [../logs/benchmarks.md](../logs/benchmarks.md); the
   prototype matched a freshly built evaluator pixel for pixel (max diff 0).
 - Benchmark B15 (real implementation): 15–22 ms per drag step.
-- `tests/core/test_edits.py`: a spy on `adapter.make_animation` proves timing
+- `tests/core/editing/test_edits.py`: a spy on `adapter.make_animation` proves timing
   edits never re-begin; reorder ⇒ clip; keyframed morphs rebuild only when their
   baked transforms change; all compared against a fresh evaluator.
-- `tests/core/test_properties.py::test_random_edits_match_fresh_evaluator`:
+- `tests/core/editing/test_properties.py::test_random_edits_match_fresh_evaluator`:
   random edits through the API. Mutation-checked: a classifier that calls every
   edit "timing" makes it fail with stale frames.

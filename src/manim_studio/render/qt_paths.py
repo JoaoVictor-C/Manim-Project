@@ -29,7 +29,7 @@ from PySide6.QtGui import (
     QTransform,
 )
 
-from ..core.schema import Canvas
+from ..core.model.schema import Canvas
 
 CAIRO_LINE_WIDTH_MULTIPLE = 0.01
 

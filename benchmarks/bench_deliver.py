@@ -26,13 +26,13 @@ for name in ("MANIM_STUDIO_PREVIEW", "MANIM_STUDIO_WORKER", "MANIM_STUDIO_AUDIO"
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.core.python_export import to_python  # noqa: E402
-from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec  # noqa: E402
+from manim_studio.core.engine import adapter  # noqa: E402
+from manim_studio.core.engine.python_export import to_python  # noqa: E402
+from manim_studio.core.model.schema import Canvas, Clip, Layer, Project, Spec  # noqa: E402
 from manim_studio.render.cairo_export import export_video  # noqa: E402
 from manim_studio.render.options import RenderOptions, preset_sizes  # noqa: E402
-from manim_studio.ui import theme  # noqa: E402
 from manim_studio.ui.main_window import MainWindow  # noqa: E402
+from manim_studio.ui.style import theme  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 

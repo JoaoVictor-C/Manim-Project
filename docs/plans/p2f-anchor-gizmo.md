@@ -1,6 +1,6 @@
 # P2f — Anchor (pivot) gizmo: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2f.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p2f.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 13](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.82)
 - **Evidence:** benchmark B34 in [../logs/benchmarks.md](../logs/benchmarks.md)

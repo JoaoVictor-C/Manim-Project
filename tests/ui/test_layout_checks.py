@@ -22,7 +22,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHeaderView, QLabel, QMenu, QWidget
 
 from manim_studio.ui.main_window import MainWindow
-from manim_studio.ui.new_project_dialog import NewProjectDialog
+from manim_studio.ui.shell.new_project_dialog import NewProjectDialog
 
 pytestmark = pytest.mark.ui
 

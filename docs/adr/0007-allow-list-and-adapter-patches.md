@@ -39,4 +39,4 @@ sequentially from a checkpoint, or patch them.
 
 ## Evidence
 
-- `tests/core/test_random_access.py` (parametrised over the registry).
+- `tests/core/engine/test_random_access.py` (parametrised over the registry).

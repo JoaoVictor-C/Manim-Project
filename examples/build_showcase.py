@@ -29,8 +29,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from manim_studio.core import edits, parts
-from manim_studio.core.schema import Canvas, Easing, Project, Spec
+from manim_studio.core.editing import edits
+from manim_studio.core.model import parts
+from manim_studio.core.model.schema import Canvas, Easing, Project, Spec
 
 OUT = Path(__file__).with_name("showcase.json")
 

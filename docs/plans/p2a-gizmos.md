@@ -1,6 +1,6 @@
 # P2a — Transform gizmos and keyable properties: implementation plan
 
-- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_p2a.py`
+- **Status:** ✅ Done (2026-10-09) — `tests/acceptance/test_acceptance_p2a.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 8](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **ADRs:** [0016 stopwatch rule](../adr/0016-canvas-hit-testing-and-stopwatch-rule.md) (reused),
@@ -20,7 +20,7 @@ object on the canvas, undo, redo, and animate a rotation with auto-key
   next transform item.
 - Non-uniform scale (the model's scale is one number), curve editor.
 
-## Handles (`ui/gizmo.py`, pure math; drawn by the canvas)
+## Handles (`ui/canvas/gizmo.py`, pure math; drawn by the canvas)
 
 - On the selected layer's **oriented box**: the outline's points rotated into
   the layer's frame about the pivot, their bounding box, its corners rotated
@@ -53,7 +53,7 @@ the base (S3).
 
 | step | content | acceptance |
 |---|---|---|
-| P2a.1 | `ui/gizmo.py` + handle drawing | unit tests: oriented box of rotated shapes, scale/angle from points, snapping, unwrap, degenerate (flat) shapes |
+| P2a.1 | `ui/canvas/gizmo.py` + handle drawing | unit tests: oriented box of rotated shapes, scale/angle from points, snapping, unwrap, degenerate (flat) shapes |
 | P2a.2 | scale and rotate drags | mouse tests: corners scale, knob rotates, Shift snaps, keyed layers get keys, morph refusal, undo/redo |
 | P2a.3 | keyable Properties | toggles for four properties; keyed field edit → key; refresh on seek |
 | P2a.4 | auto-key | two keys vs one at the start; off = base |

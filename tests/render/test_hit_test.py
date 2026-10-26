@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec, Transform2D
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Canvas, Clip, Layer, Project, Spec, Transform2D
 from manim_studio.render.hit_test import VISIBLE_ALPHA, hit_layers
 
 CANVAS = Canvas(width_px=960, height_px=540, duration=2.0)

@@ -1,14 +1,14 @@
 """Write ``examples/smart_transform.py``: Studio's smart morph as ONE plain Manim CE file.
 
-The smart matching (ADR 0056) is pure numpy geometry (``core/morph.py``) plus a small Manim
-animation mixin (``core/adapter.py``). This script copies both, as they are, into a single
+The smart matching (ADR 0056) is pure numpy geometry (``core/engine/morph.py``) plus a small Manim
+animation mixin (``core/engine/adapter.py``). This script copies both, as they are, into a single
 self-contained file that needs only ``manim`` and ``numpy`` - no Manim Studio - so a scene can
 use the same morph outside the editor:
 
     python scripts/gen_smart_transform.py            # rewrite examples/smart_transform.py
     python scripts/gen_smart_transform.py --check    # exit 1 when the file is out of date
 
-``tests/core/test_smart_transform_file.py`` keeps the file in step with the source.
+``tests/core/features/test_smart_transform_file.py`` keeps the file in step with the source.
 """
 
 from __future__ import annotations
@@ -121,14 +121,14 @@ class SmartMorphDemo(SmartScene):
 
 
 def body_of(module_source: str) -> str:
-    """``core/morph.py`` after its docstring and imports."""
+    """``core/engine/morph.py`` after its docstring and imports."""
     marker = "import numpy as np\n"
     return module_source.split(marker, 1)[1].lstrip("\n")
 
 
 def render() -> str:
-    import manim_studio.core.adapter as adapter
-    import manim_studio.core.morph as morph
+    import manim_studio.core.engine.adapter as adapter
+    import manim_studio.core.engine.morph as morph
 
     parts = [HEADER, body_of(inspect.getsource(morph)).rstrip("\n"), "\n\n\n"]
     parts.append('_RGBAS = ("fill_rgbas", "stroke_rgbas", "background_stroke_rgbas")\n')
@@ -137,7 +137,7 @@ def render() -> str:
     for obj in (adapter.shape_key, adapter.smart_pair, adapter._bare, adapter._faded, adapter.SmartMorph):
         parts.append(inspect.getsource(obj).rstrip("\n") + "\n\n\n")
     text = "".join(parts)
-    text = text.replace("``core/morph.py``", "the morph code above")  # a docstring, not a call
+    text = text.replace("``core/engine/morph.py``", "the morph code above")  # a docstring, not a call
     text = re.sub(r"(?<![\w/`])morph\.(?=[a-z_]+\()", "", text).rstrip("\n") + "\n" + FOOTER
     return text
 

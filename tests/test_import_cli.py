@@ -7,9 +7,10 @@ import textwrap
 
 import pytest
 
-from manim_studio import cli, scene_recorder
-from manim_studio.core.edits import insert_scene
-from manim_studio.core.schema import Clip, Layer, Lifetime, Project, Spec
+from manim_studio import cli
+from manim_studio.core.editing.edits import insert_scene
+from manim_studio.core.model.schema import Clip, Layer, Lifetime, Project, Spec
+from manim_studio.processes import scene_recorder
 
 SCENE = textwrap.dedent(
     """

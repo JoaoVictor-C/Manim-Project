@@ -48,10 +48,10 @@ Create a typical animation, save, close, reopen and export it:
 
 | finding | fix |
 |---|---|
-| every new object landed on the centre, on top of the others; Arrange then had nothing to spread | `core/placement.py`: the first object at the centre, the next below, above or beside the others where it fits |
+| every new object landed on the centre, on top of the others; Arrange then had nothing to spread | `core/engine/placement.py`: the first object at the centre, the next below, above or beside the others where it fits |
 | layers were listed as `text-1`, `mathtex-1` | `Layer.label`: a text's own words until it is renamed |
 | "Create a project..." stayed in the status bar after New and after opening a file | cleared once a project is open |
-| Manim's cache went to `.cache/manim` under the folder the editor started from; Save and Export suggested that folder for a new project | `ui/places.py`: the user's cache folder; the last project's folder, else Documents |
+| Manim's cache went to `.cache/manim` under the folder the editor started from; Save and Export suggested that folder for a new project | `ui/session/places.py`: the user's cache folder; the last project's folder, else Documents |
 | a worker torn down with the application raised in its restart (seen at script ends) | the late exit is ignored |
 | the first Text takes about 1-3 s to appear (its build in the worker; "Building text..." shows) | measured, kept: the status bar says so |
 | one keyframed preset (Pop in) makes the Python export exact | G3a |

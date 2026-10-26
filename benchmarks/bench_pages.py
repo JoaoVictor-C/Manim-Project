@@ -29,11 +29,11 @@ for name in ("MANIM_STUDIO_PREVIEW", "MANIM_STUDIO_WORKER", "MANIM_STUDIO_AUDIO"
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel, QSplitter  # noqa: E402
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.ui import theme  # noqa: E402
-from manim_studio.ui.canvas import CanvasWidget  # noqa: E402
+from manim_studio.core.engine import adapter  # noqa: E402
+from manim_studio.ui.canvas.canvas import CanvasWidget  # noqa: E402
 from manim_studio.ui.main_window import MainWindow  # noqa: E402
 from manim_studio.ui.pages import Page  # noqa: E402
+from manim_studio.ui.style import theme  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 

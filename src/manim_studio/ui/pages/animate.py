@@ -13,9 +13,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSplitter, QToolButton, QVBoxLayout, QWidget
 
-from .. import graph_model, icons, theme
-from ..elided_label import ElidedLabel
-from ..graph_editor import GraphEditor
+from ..style import icons, theme
+from ..style.elided_label import ElidedLabel
+from ..timeline import graph_model
+from ..timeline.graph_editor import GraphEditor
 from ..timeline.view import PROP_LABELS
 from . import Page, Shared
 

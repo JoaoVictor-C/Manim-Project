@@ -23,7 +23,7 @@ and carried by both Python export forms.
 
 ## Core
 
-- `core/subtitles.py`: `wrap(text, style)`, `read_srt(text) -> list[Cue]`,
+- `core/sound/subtitles.py`: `wrap(text, style)`, `read_srt(text) -> list[Cue]`,
   `write_srt(cues) -> str`, `place_cue(project, t) -> (start, end) | None`,
   `changed_spans(old, new)`.
 - `adapter.subtitle_mobject(text, style)` (cached; band + text, scaled to fit).

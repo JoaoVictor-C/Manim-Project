@@ -66,9 +66,11 @@ from PySide6.QtCore import QRectF  # noqa: E402
 from PySide6.QtGui import QImage, QPainter  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from manim_studio.core import adapter, audio, edits, frame_cache, levels, library, recovery  # noqa: E402
-from manim_studio.core.evaluator import Evaluator  # noqa: E402
-from manim_studio.core.schema import (  # noqa: E402
+from manim_studio.core.editing import edits, library  # noqa: E402
+from manim_studio.core.engine import adapter, frame_cache  # noqa: E402
+from manim_studio.core.engine.evaluator import Evaluator  # noqa: E402
+from manim_studio.core.model import recovery  # noqa: E402
+from manim_studio.core.model.schema import (  # noqa: E402
     AudioClip,
     Canvas,
     Clip,
@@ -79,10 +81,11 @@ from manim_studio.core.schema import (  # noqa: E402
     Spec,
     Transform2D,
 )
+from manim_studio.core.sound import audio, levels  # noqa: E402
 from manim_studio.render import cairo_export  # noqa: E402
 from manim_studio.render.options import RenderOptions  # noqa: E402
-from manim_studio.ui import theme  # noqa: E402
-from manim_studio.ui.document import Document  # noqa: E402
+from manim_studio.ui.session.document import Document  # noqa: E402
+from manim_studio.ui.style import theme  # noqa: E402
 from manim_studio.ui.timeline.model import TimeScale  # noqa: E402
 from manim_studio.ui.timeline.view import TimelineView  # noqa: E402
 
@@ -903,7 +906,7 @@ def render_ahead_section(project: Project, ev: Evaluator, camera: m.Camera, edit
     for i in indices if camera is not None else ():
         pixels = draw(camera, ev, frame_cache.frame_time(i, fps))
         start = time.perf_counter()
-        sizes.append(len(zlib.compress(pixels.tobytes(), 1)))  # as preview.py sends them (B41)
+        sizes.append(len(zlib.compress(pixels.tobytes(), 1)))  # as processes/preview.py sends them (B41)
         pack.append((time.perf_counter() - start) * 1000)
     mean = statistics.mean(sizes) if sizes else ASSUMED_FRAME_KB * 1024
     whole = mean * total / 2**20

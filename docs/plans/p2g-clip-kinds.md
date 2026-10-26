@@ -1,6 +1,6 @@
 # P2g — More clip kinds, clip parameters and overlay clips: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2g.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p2g.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 14](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.84)
 - **Evidence:** benchmark B35 in [../logs/benchmarks.md](../logs/benchmarks.md)

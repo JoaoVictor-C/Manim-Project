@@ -16,24 +16,24 @@ the scene by dragging.
 
 ## Decision
 
-1. **Files** (`core/code_files.py`, no Qt): reading (UTF-8 with or without a byte-order mark, at most
+1. **Files** (`core/exchange/code_files.py`, no Qt): reading (UTF-8 with or without a byte-order mark, at most
    1 MB), syntax-only inspection (`object`, `scene` or `unknown`; the scene classes, `PARAMS`, a name and a
    summary - nothing runs), Windows-safe names, and `export_files`, which writes atomically and asks
    `decide(file name)` - `replace`, `skip`, `copy` (`Name (2).py`) or `None` to cancel - only when the
    file exists. The window's `ConflictAsker` adds "do this for the rest". A preset name that is taken
    asks the same way (`CodeImporter.store_preset`); a built-in preset is never replaced.
-2. **The import window** (`core/code_import.py`, `ui/import_code_dialog.py`): for each file, what it can
+2. **The import window** (`core/exchange/code_import.py`, `ui/exchange/import_code_dialog.py`): for each file, what it can
    become - a Python object, a Manim scene (one code layer per chosen scene) or a preset only - with the
    detected kind preselected, the impossible ones disabled with the reason, and name, scenes, when and
    where it appears, "allow it to run now" (off) and "also keep as a preset". The same window serves
    files chosen, a folder (preselecting "preset only"), files dropped from the desktop and presets
    downloaded. Newlines are made plain and a byte-order mark is dropped, so the editor never shows an
    imported layer as edited.
-3. **Presets** (`core/preset_library.py`): one library of built-in (from `python_templates`, never
+3. **Presets** (`core/exchange/preset_library.py`): one library of built-in (from `python_templates`, never
    saved), yours and downloaded presets, saved as JSON beside the user's other data
    (`MANIM_STUDIO_PRESETS`), never raising on a damaged file (it is set aside as `.bad`). The old
    `python_code_templates` setting moves in once.
-4. **The internet** (`core/preset_online.py`, standard library only): `resolve(link)` understands a `.py`
+4. **The internet** (`core/exchange/preset_online.py`, standard library only): `resolve(link)` understands a `.py`
    link, a manifest (`index.json`, format 1: `{"format": 1, "presets": [{"name", "file", "description",
    "kind"}]}`, files relative to it), GitHub files, folders, repositories and gists. HTTPS only (plain
    HTTP for localhost, for tests), redirects limited and never from https to http, 1 MB per file, a
@@ -49,7 +49,7 @@ the scene by dragging.
    (`Ctrl+J`) and a status strip; every editor setting in a menu and remembered (font size, indent size,
    wrapping, line numbers, whitespace, current line, bracket pairing, trimming on run); editing commands
    (comment, duplicate, move, delete line, zoom).
-6. **Drag and drop** (`ui/code_drag.py`): explorer rows drag out as `application/x-manim-studio-code`
+6. **Drag and drop** (`ui/session/code_drag.py`): explorer rows drag out as `application/x-manim-studio-code`
    (JSON: from `preset`/`layer`, id, name, kind). The timeline (the drop time, snapped like clips), the
    canvas (the drop point in scene units) and the layers list accept them and call
    `MainWindow.place_code`; `.py` files dropped there or on the explorer or the editor call
@@ -63,7 +63,7 @@ the scene by dragging.
 - Code that arrives from the internet or a file cannot run until the user allows it, in the same way
   as code in a project they open (ADR 0019).
 - The old `list`-based page API is gone (`page.explorer` replaces `page.list`); the tests use the
-  helpers in `tests/ui/code_page_helpers.py`.
+  helpers in `tests/ui/code/code_page_helpers.py`.
 - With the 3D camera turned, a drop on the canvas sends flat scene coordinates (the canvas already turns
   object clicking off in that state).
 - No central catalogue of presets is shipped or hosted; the index format makes one possible.

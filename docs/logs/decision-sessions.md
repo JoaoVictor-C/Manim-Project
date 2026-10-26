@@ -74,7 +74,7 @@ left open, so ADRs can cite it.
   confidence **0.90**.
 - **Input:** S1 scope, measured costs (B10–B11 taken for the session, B5/B6
   invalidation, Cairo draw), schema rules, ADRs 0004/0005/0008/0009.
-- **Decisions:** immutable snapshots + `core/edits.py` + Qt `Document` with
+- **Decisions:** immutable snapshots + `core/editing/edits.py` + Qt `Document` with
   `QUndoStack` now (→ ADR 0014); clamp drag semantics with snapping; pure
   timeline geometry model + thin `QGraphicsView`; coalesced drag application;
   a new **timing** edit kind that keeps caches, with morph entries keyed by baked
@@ -633,7 +633,7 @@ left open, so ADRs can cite it.
   confidence **0.91**.
 - **Input:** the plan's Phase 6 rows, the 27 colour literals in `ui/`, the UI test
   suite's reliance on the main window; probe B54.
-- **Decisions:** tokens in `ui/theme.py` for one dark Studio set; Fusion + a token
+- **Decisions:** tokens in `ui/style/theme.py` for one dark Studio set; Fusion + a token
   palette + one generated stylesheet, applied by the app and the test fixture;
   Phosphor icons through QtAwesome; content colours never themed (-> ADR 0040). Plan:
   [../plans/p6a-design-system.md](../plans/p6a-design-system.md).
@@ -720,11 +720,11 @@ left open, so ADRs can cite it.
 
 - **Tool / profile:** Terza, `fast`; 1 iteration, 1 pass, halted on `halt_signal`,
   confidence **0.90**.
-- **Input:** ADR 0034 and 0035 (the mix, the cues), `core/edits.py`'s audio and cue
+- **Input:** ADR 0034 and 0035 (the mix, the cues), `core/editing/edits.py`'s audio and cue
   edits, the Properties panel's refusal handling, the shared `Selection`; probe B58.
 - **Decisions:** the table logic and the meter's numbers are pure core modules
-  (`core/tables.py`: cell text <-> value and the `Edit` a cell edit makes, refusals as
-  one line; `core/levels.py`: peak and RMS of a 100 ms window centred on the playhead,
+  (`core/editing/tables.py`: cell text <-> value and the `Edit` a cell edit makes, refusals as
+  one line; `core/sound/levels.py`: peak and RMS of a 100 ms window centred on the playhead,
   mixed straight from the decoded clips so it equals `audio.mix` there); Qt table models
   keyed by id, rebuilt on every document change; one new window signal
   (`playheadMoved`) drives the meter; a re-entrancy flag separates a user's row click

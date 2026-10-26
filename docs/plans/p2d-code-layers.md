@@ -1,6 +1,6 @@
 # P2d — Code layers: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2d.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p2d.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 11](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B30, B31 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -84,7 +84,7 @@ audio, OpenGL scenes, several scenes per layer.
 | step | content | acceptance |
 |---|---|---|
 | P2d.1 | schema rules, code cache (write/read/evict), `CodeFrame`, compositing, hit-test, trust store | hand-built cache composites exactly over and under mobjects; hold; transform; alpha hit; every library type builds through the evaluator |
-| P2d.2 | runner (`python -m manim_studio.code_runner`) and CLI | real render of a TracedPath scene; syntax and runtime errors report the user's line; export renders inline only when trusted |
+| P2d.2 | runner (`python -m manim_studio.processes.code_runner`) and CLI | real render of a TracedPath scene; syntax and runtime errors report the user's line; export renders inline only when trusted |
 | P2d.3 | render service with warm spares | latency to first frame with a warm spare; supersede; cancel; crash; lazy start |
 | P2d.4 | UI: library, editor, status, trust prompt, placeholder, export flag | edits through the UI; untrusted project asks and runs nothing |
 | P2d.5 | acceptance + docs | TracedPath under an equation: scrub = play, export = editor |

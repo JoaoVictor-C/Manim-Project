@@ -10,10 +10,10 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from acceptance.test_acceptance_v1 import menu_action
 from manim_studio import cli
-from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec, Transform2D
+from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, Project, Spec, Transform2D
 from manim_studio.ui.main_window import MainWindow
-from ui.test_acceptance_v1 import menu_action
 
 pytestmark = pytest.mark.ui
 

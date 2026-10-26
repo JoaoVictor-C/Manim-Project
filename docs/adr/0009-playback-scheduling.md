@@ -35,4 +35,4 @@ parallel (GIL) and would race on the evaluator's caches.
 ## Evidence
 
 - Benchmarks B7, B8 in [../logs/benchmarks.md](../logs/benchmarks.md).
-- `tests/core/test_invalidation.py::test_missing_checkpoints_drain`
+- `tests/core/engine/test_invalidation.py::test_missing_checkpoints_drain`

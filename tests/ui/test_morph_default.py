@@ -11,11 +11,11 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from manim_studio.core import edits
-from manim_studio.core.python_export import readable_problems
-from manim_studio.core.schema import Clip, Layer, Project, Spec, new_clip_params
+from manim_studio.core.editing import edits
+from manim_studio.core.engine.python_export import readable_problems
+from manim_studio.core.model.schema import Clip, Layer, Project, Spec, new_clip_params
 from manim_studio.ui.main_window import MainWindow
-from manim_studio.ui.new_project_dialog import NewProjectDialog
+from manim_studio.ui.shell.new_project_dialog import NewProjectDialog
 
 pytestmark = pytest.mark.ui
 
@@ -184,7 +184,7 @@ def test_other_edits_keep_the_projects_choice() -> None:
 
 
 def test_changing_the_setting_keeps_every_rendered_frame() -> None:
-    from manim_studio.core.frame_cache import changed_spans
+    from manim_studio.core.engine.frame_cache import changed_spans
 
     project = two_shapes()
     assert changed_spans(project, edits.set_morph_matching(project, "classic").project) == []

@@ -67,9 +67,9 @@ were compared on Indicate over a red part:
 
 ## Evidence
 
-- Tests: `tests/core/test_part_colour.py` (drawing against Manim's `set_color`, Indicate, FadeIn,
+- Tests: `tests/core/features/test_part_colour.py` (drawing against Manim's `set_color`, Indicate, FadeIn,
   nested parts, the build cache untouched, invalidation, orphans, t2c build and cache, fill beside
-  t2c), `tests/core/test_python_export.py::test_a_text_with_coloured_pieces_is_plain_t2c_code_that_builds_what_the_editor_builds`,
-  `::test_readable_t2c_code_renders_what_the_editor_shows` (slow), `tests/ui/test_part_colour_ui.py`.
+  t2c), `tests/core/engine/test_python_export.py::test_a_text_with_coloured_pieces_is_plain_t2c_code_that_builds_what_the_editor_builds`,
+  `::test_readable_t2c_code_renders_what_the_editor_shows` (slow), `tests/ui/panels/test_part_colour_ui.py`.
 - Plan: [../plans/p9-pythagoras-feedback.md](../plans/p9-pythagoras-feedback.md) (U5).
 - Source: Manim `Text._text2hash` (t2c in its cache key), `Text._text2settings` (t2c as Pango colour).

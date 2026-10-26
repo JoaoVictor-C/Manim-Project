@@ -18,7 +18,7 @@ camera), which may change between releases.
   non-ASCII paths (seen on Windows).
 - **PySide6 (Qt 6)** for the UI, in the same process as Manim — no IPC.
 - **Manim CE pinned exactly** (`manim==0.22.0`). All knowledge of Manim
-  mobject/animation classes lives in `core/adapter.py`; other modules use only
+  mobject/animation classes lives in `core/engine/adapter.py`; other modules use only
   the generic `Mobject` API.
 - **pydantic** for the document, **numpy** for transforms, **PyAV** (bundled
   with Manim) for video encoding.

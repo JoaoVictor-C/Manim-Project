@@ -54,7 +54,7 @@ share the layers' id space.
   `application/x-manim-studio+json`, and as plain text so it survives between
   instances; paste validates it with the schema. Paste never trusts code: code
   layers run only when their code hash is trusted (ADR 0019), so clipboard text
-  from another program cannot run code. The logic is pure (`core/clipboard.py`);
+  from another program cannot run code. The logic is pure (`core/editing/clipboard.py`);
   every paste is an ordinary edit through `core.edits` (kind `clip` for new layers,
   `timing` for sounds and subtitles), so undo, render-ahead and the evaluator's
   caches work unchanged.

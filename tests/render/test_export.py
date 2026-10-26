@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from manim_studio import cli
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Canvas, Clip, Layer, Project, Spec
 from manim_studio.render.cairo_export import export_video, frame_times, make_camera, render_frame
 
 TINY = Canvas(width_px=160, height_px=90, fps=10, duration=0.5, background="#202020")
@@ -137,7 +137,7 @@ def test_a_locked_output_is_saved_under_a_free_name(tmp_path, monkeypatch) -> No
 
 
 def test_cli_json_progress_and_cache_dir(tmp_path, capsys, monkeypatch) -> None:
-    from manim_studio.core import adapter
+    from manim_studio.core.engine import adapter
 
     project_file = tmp_path / "p.json"
     project_file.write_text(PROJECT.model_dump_json(by_alias=True), encoding="utf-8")

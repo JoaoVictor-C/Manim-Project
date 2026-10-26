@@ -6,8 +6,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from manim_studio.core import library
-from manim_studio.core.edits import EditError
+from manim_studio.core.editing import library
+from manim_studio.core.editing.edits import EditError
 from manim_studio.render import preset_thumbs as thumbs
 
 BACKGROUND = "#141417"

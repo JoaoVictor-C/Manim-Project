@@ -18,12 +18,12 @@ of the time" would draw other frames than the user's scene without saying so.
 ## Decision
 
 - **Run, do not parse.** The file is executed in a **separate process**
-  (`python -m manim_studio.scene_recorder`, ADR 0019: never in the editor; warmed while the user
+  (`python -m manim_studio.processes.scene_recorder`, ADR 0019: never in the editor; warmed while the user
   picks the file; killed after **60 s**) under a recorder: a subclass of the user's scene whose
   `add`, `remove`, `add_sound` and `add_subcaption` watch Manim's own, and a renderer that keeps
   the clock and draws nothing (each `play` advances once to its end, Manim's `skip_animations`).
   Everything Manim does happens - later code sees every mobject exactly as Manim leaves it.
-- **The recording is plain JSON** (`core/scene_import.py` needs no Manim): every distinct drawn
+- **The recording is plain JSON** (`core/exchange/scene_import.py` needs no Manim): every distinct drawn
   piece as shape data (`adapter.piece_data`); steps in time order - what is drawn (in Manim's
   drawing order, z-index sort included) whenever it changes between plays, user adds and removes,
   plays with each animation flattened out of AnimationGroup/Succession/LaggedStart (its start and
@@ -93,9 +93,9 @@ of the time" would draw other frames than the user's scene without saying so.
 
 ## Evidence
 
-- Tests: `tests/test_scene_recorder.py`, `tests/core/test_scene_import.py` (scenes recorded with
+- Tests: `tests/processes/test_scene_recorder.py`, `tests/core/exchange/test_scene_import.py` (scenes recorded with
   every frame Manim draws - pixels - compared with the editor's frames; hand-built recordings; a
   readable export imported back; two slow tests against a real `manim render`),
-  `tests/test_import_cli.py`, `tests/ui/test_scene_import_ui.py`. Ten guards mutation-checked.
+  `tests/test_import_cli.py`, `tests/ui/services/test_scene_import_ui.py`. Ten guards mutation-checked.
 - Benchmark B72 ([logs/benchmarks.md](../logs/benchmarks.md), `benchmarks/bench_scene_import.py`).
 - Plan: [../plans/p10-code-to-objects.md](../plans/p10-code-to-objects.md).

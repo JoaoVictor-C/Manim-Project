@@ -87,8 +87,8 @@ as one tree would rebuild every child on any child's edit and could not hold a c
 
 ## Evidence
 
-- Tests: `tests/core/test_groups.py` (drawing against a hand-built Manim reference, keyed groups,
+- Tests: `tests/core/features/test_groups.py` (drawing against a hand-built Manim reference, keyed groups,
   clips inside, no-LaTeX placeholders, lifetime, caches kept on group edits and sibling edits, morph
   and path signatures, frame-cache spans, group/ungroup baking with curved keys, cascades, clipboard,
-  export fallback, validation), `tests/ui/test_groups_ui.py`. Every guard was mutation-checked.
+  export fallback, validation), `tests/ui/panels/test_groups_ui.py`. Every guard was mutation-checked.
 - Plan: [../plans/p9-pythagoras-feedback.md](../plans/p9-pythagoras-feedback.md) (U6).

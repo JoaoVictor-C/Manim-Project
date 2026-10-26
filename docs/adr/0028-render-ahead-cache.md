@@ -14,7 +14,7 @@ as long as a frame takes.
 
 ## Decision
 
-- A long-lived **preview render process** (`python -m manim_studio.preview`)
+- A long-lived **preview render process** (`python -m manim_studio.processes.preview`)
   with its own evaluator renders frames ahead of the playhead. It starts when a
   project opens, stops with the window, and can be turned off (View → Render
   Ahead). It reads the code cache but never runs code.

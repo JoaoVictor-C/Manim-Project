@@ -30,7 +30,7 @@ updating **live while you drag** — at most 33 ms per applied drag step.
 TimelineView (Qt) ──drag──► timeline/model.py (pure: snap + clamp)
         │                              │ proposed start/duration
         ▼                              ▼
-   Document (Qt) ◄──────────── core/edits.py (pure: validated snapshot + EditKind)
+   Document (Qt) ◄──────────── core/editing/edits.py (pure: validated snapshot + EditKind)
         │ changed(project, layer_ids, kind)
         ├──► Evaluator.invalidate(project, ids, kind)
         ├──► Canvas.refresh()
@@ -39,9 +39,9 @@ TimelineView (Qt) ──drag──► timeline/model.py (pure: snap + clamp)
 
 | module | Qt? | responsibility |
 |---|---|---|
-| `core/edits.py` | no | `move_clip`, `trim_clip` → `Edit(project, kind, layer_ids)`; full validation; kind decided by diff |
-| `core/evaluator.py` | no | `invalidate(..., kind="timing")`: keep caches; morph entries keyed by baked transforms |
-| `ui/document.py` | yes | current snapshot, `QUndoStack`, `preview()` / `commit()` / `cancel()`, `changed` signal |
+| `core/editing/edits.py` | no | `move_clip`, `trim_clip` → `Edit(project, kind, layer_ids)`; full validation; kind decided by diff |
+| `core/engine/evaluator.py` | no | `invalidate(..., kind="timing")`: keep caches; morph entries keyed by baked transforms |
+| `ui/session/document.py` | yes | current snapshot, `QUndoStack`, `preview()` / `commit()` / `cancel()`, `changed` signal |
 | `ui/timeline/model.py` | no | `TimeScale` (time↔x, zoom), frame quantisation, snapping, clamp bounds |
 | `ui/timeline/view.py` | yes | `QGraphicsView`: ruler, rows, clip items, lifetime bands, playhead |
 
@@ -100,8 +100,8 @@ move one of 400 clip items and repaint).
 
 | step | deliverable | tests / acceptance | est. |
 |---|---|---|---|
-| **S1.1** ✅ | `core/edits.py`, `EditKind`, `Evaluator.invalidate(kind="timing")`, transform-keyed morph cache; ADR 0013 accepted | kind detection (incl. reorder ⇒ `clip`); invalid edits raise; **spy on `adapter.make_animation` proves timing edits never re-begin**; keyframed morph vs fresh evaluator; property test: random edits via `invalidate(kind)` == fresh evaluator | 1–2 d |
-| **S1.2** ✅ | `ui/document.py`, undo/redo commands, Edit menu; ADR 0014 accepted | preview/commit/cancel; one undo step per drag; undo/redo frames == fresh evaluator; undo of a timing drag is a timing edit | 1 d |
+| **S1.1** ✅ | `core/editing/edits.py`, `EditKind`, `Evaluator.invalidate(kind="timing")`, transform-keyed morph cache; ADR 0013 accepted | kind detection (incl. reorder ⇒ `clip`); invalid edits raise; **spy on `adapter.make_animation` proves timing edits never re-begin**; keyframed morph vs fresh evaluator; property test: random edits via `invalidate(kind)` == fresh evaluator | 1–2 d |
+| **S1.2** ✅ | `ui/session/document.py`, undo/redo commands, Edit menu; ADR 0014 accepted | preview/commit/cancel; one undo step per drag; undo/redo frames == fresh evaluator; undo of a timing drag is a timing edit | 1 d |
 | **S1.3** ✅ | `ui/timeline/model.py` | headless: time↔x round trip at several zooms; snapping priority and threshold; every clamp bound; quantisation; Alt | 1 d |
 | **S1.4** ✅ | `ui/timeline/view.py` (ruler, rows, bars, lifetime bands, playhead, zoom/scroll) | rows match layers, bars match clips, ruler click seeks, zoom keeps the time under the cursor | 2 d |
 | **S1.5** ✅ | drag move/trim wiring, coalescing, Escape; benchmark B16 (drag latency in the real widget) | `QTest` drags → expected document + exactly one undo entry; Escape restores; B16 ≤ 33 ms for Write and settled-morph drags | 1–2 d |

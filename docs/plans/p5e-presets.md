@@ -13,7 +13,7 @@ menu at the playhead (refused with a reason where it cannot apply), a theme reco
 the selection or the whole scene, a title card or lower third is inserted from
 *Add > Templates*, and the user's own presets and templates are saved and offered.
 
-## Core (`core/library.py`, pure)
+## Core (`core/editing/library.py`, pure)
 
 - `Preset`, `PresetClip`, `PresetKey`, `Theme`, `Template` models; `load_item(path)`,
   `load_library(folders)` -> items and problems; `builtin_folder()`, `user_folder()`.
@@ -21,9 +21,9 @@ the selection or the whole scene, a title card or lower third is inserted from
   reason), the hold rule, kind fallbacks, relative keys.
 - `apply_theme(project, theme, layer_ids | None) -> Edit`.
 - `preset_from_layer(layer, name, category)`, `template_from(project, root_id, name)`.
-- `insert_template(project, template, t)` via `core/clipboard.py` (P5d).
+- `insert_template(project, template, t)` via `core/editing/clipboard.py` (P5d).
 
-## Built-ins (`src/manim_studio/library/*.json`)
+## Built-ins (`src/manim_studio/data/library/*.json`)
 
 - Presets: Fade in, Pop in, Slide in from left / right / below, Typewriter, Draw,
   Grow from edge, Spin in; Indicate, Pulse (scale keys), Wiggle, Circle it, Flash;

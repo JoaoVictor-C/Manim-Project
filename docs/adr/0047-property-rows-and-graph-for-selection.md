@@ -64,9 +64,9 @@ dope sheet here would show every key twice again; one time axis is the point.
 
 ## Evidence
 
-- Tests: `tests/ui/test_property_rows.py` (real mouse events), `tests/ui/test_acceptance_p7_3.py`
+- Tests: `tests/ui/panels/test_property_rows.py` (real mouse events), `tests/acceptance/test_acceptance_p7_3.py`
   (add, move, ease and delete one property in the real window, one undo step each; Record; A),
-  `tests/ui/test_animate_page.py::test_the_graph_shows_the_properties_chosen_on_the_timeline`,
+  `tests/ui/pages/test_animate_page.py::test_the_graph_shows_the_properties_chosen_on_the_timeline`,
   `tests/ui/test_long_scene_scaling.py` (scans constant with every row expanded; a new scene per
   rebuild).
 - Benchmark: [B69](../logs/benchmarks.md) - sync with every row expanded 2.4 / 5.4 / 18.8 ms at

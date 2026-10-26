@@ -17,6 +17,6 @@ suite passes unchanged under the theme.
 
 | step | content | acceptance |
 |---|---|---|
-| P6a.1 | `ui/theme.py` (tokens, palette, stylesheet, fonts, contrast), applied by `run()` and the test fixture | contrast test, no stylesheet warnings, the UI suite under the theme |
-| P6a.2 | `ui/icons.py`; icon buttons (Layers panel, transport); every colour literal in `ui/` moved to tokens; the pending property | icons resolve, no literal outside `theme.py`, screenshots reviewed |
+| P6a.1 | `ui/style/theme.py` (tokens, palette, stylesheet, fonts, contrast), applied by `run()` and the test fixture | contrast test, no stylesheet warnings, the UI suite under the theme |
+| P6a.2 | `ui/style/icons.py`; icon buttons (Layers panel, transport); every colour literal in `ui/` moved to tokens; the pending property | icons resolve, no literal outside `theme.py`, screenshots reviewed |
 | P6a.3 | docs | README screenshot notes, architecture, CHANGELOG |

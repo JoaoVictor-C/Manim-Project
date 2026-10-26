@@ -1,6 +1,6 @@
 # P2c — Part layers (terms of an equation): implementation plan
 
-- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_p2c.py`
+- **Status:** ✅ Done (2026-10-09) — `tests/acceptance/test_acceptance_p2c.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 10](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B28, B29 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -85,7 +85,7 @@ moving a part outside its root's z slot.
 
 | step | content | acceptance |
 |---|---|---|
-| P2c.1 | schema, `core/parts.py` (resolve, brace, markers, split), adapter build with markers, edits, warm keys, classify | unit + LaTeX tests: exact glyphs, nesting, refusal, pixel identity |
+| P2c.1 | schema, `core/model/parts.py` (resolve, brace, markers, split), adapter build with markers, edits, warm keys, classify | unit + LaTeX tests: exact glyphs, nesting, refusal, pixel identity |
 | P2c.2 | evaluator: subtree checkpoints, owned glyphs, composed transforms, lifetimes | frames match hand-built Manim; export parity |
 | P2c.3 | layers tree, timeline rows, Add part dialog, Split terms | edits through the UI, one undo step each |
 | P2c.4 | canvas drill-in, part pivot, Properties part view, orphan/retarget messages | click/double-click/Esc; gizmo on a part |

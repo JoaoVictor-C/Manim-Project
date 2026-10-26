@@ -34,7 +34,7 @@ and code layers are rendered by that command into a cache keyed by canvas size a
   cue in the range: no file).
 - **Subtitles**: `burn` draws them into the video and writes an `.srt` beside it (what exports did),
   `srt` only the `.srt`, `none` neither. Without the flag the project's own burn-in setting rules.
-- **A render queue** (`ui/render_queue.py`, no Qt): jobs are *queued*, *rendering*, *done*, *failed*
+- **A render queue** (`ui/deliver/render_queue.py`, no Qt): jobs are *queued*, *rendering*, *done*, *failed*
   or *cancelled*; Start runs the queued jobs in order, one `ExportJob` at a time; Cancel works on the
   selected (or the running) job and the queue goes on; a rendering job cannot be removed; Clear
   finished drops the finished ones. **A job holds the project as it was when it was added**
@@ -66,8 +66,8 @@ and code layers are rendered by that command into a cache keyed by canvas size a
 
 ## Evidence
 
-- Tests: `tests/render/test_options.py`, `tests/ui/test_render_queue.py`,
-  `tests/ui/test_deliver_page.py`, `tests/ui/test_acceptance_p6b5.py`.
+- Tests: `tests/render/test_options.py`, `tests/ui/deliver/test_render_queue.py`,
+  `tests/ui/pages/test_deliver_page.py`, `tests/acceptance/test_acceptance_p6b5.py`.
 - B59 in [../logs/benchmarks.md](../logs/benchmarks.md); decision session 38
   ([../logs/decision-sessions.md](../logs/decision-sessions.md)); plan
   [../plans/p6b5-deliver.md](../plans/p6b5-deliver.md).

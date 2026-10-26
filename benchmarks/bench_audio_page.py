@@ -31,10 +31,11 @@ import numpy as np  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from manim_studio.core import adapter, audio, levels  # noqa: E402
-from manim_studio.core.schema import AudioClip, Canvas, Cue, Layer, Project, Spec  # noqa: E402
-from manim_studio.ui import theme  # noqa: E402
+from manim_studio.core.engine import adapter  # noqa: E402
+from manim_studio.core.model.schema import AudioClip, Canvas, Cue, Layer, Project, Spec  # noqa: E402
+from manim_studio.core.sound import audio, levels  # noqa: E402
 from manim_studio.ui.main_window import MainWindow  # noqa: E402
+from manim_studio.ui.style import theme  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SOUNDS, SOUND_SECONDS, CUES = 4, 60.0, 200

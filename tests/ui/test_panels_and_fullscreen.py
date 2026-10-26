@@ -14,9 +14,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 
-from manim_studio.core.schema import Canvas, Layer, Project, Spec
+from acceptance.test_acceptance_v1 import menu_action
+from manim_studio.core.model.schema import Canvas, Layer, Project, Spec
 from manim_studio.ui.main_window import MainWindow
-from ui.test_acceptance_v1 import menu_action
 
 pytestmark = pytest.mark.ui
 

@@ -35,7 +35,7 @@ Manim updater (ADR 0033)::
 units (not re-centred); ``point(state, params)`` gives ``(x, y)``, the point a
 traced path follows (default: the drawing's centre).
 
-Plugins are loaded once per process when ``manim_studio.core.adapter`` is
+Plugins are loaded once per process when ``manim_studio.core.engine.adapter`` is
 imported, so the editor, its helper processes, the export and exported scenes
 all know the same types. They are code you installed: they run without a
 prompt. Installing or changing a plugin needs a restart.
@@ -100,7 +100,7 @@ def is_plugin_type(name: str) -> bool:
 
 def __getattr__(name: str):
     if name == "Param":  # the editor's Param, imported lazily (the adapter loads this module)
-        from .core.adapter import Param
+        from .core.engine.adapter import Param
 
         return Param
     raise AttributeError(name)
@@ -108,7 +108,7 @@ def __getattr__(name: str):
 
 def register(object_type: ObjectType | Simulation) -> None:
     """Add an object type or a simulation: to the library, Properties and every process."""
-    from .core import adapter
+    from .core.engine import adapter
 
     if not object_type.name.isidentifier():
         raise ValueError(f"{object_type.name!r} is not a valid type name")
@@ -136,7 +136,7 @@ def register(object_type: ObjectType | Simulation) -> None:
 
 def unregister(name: str) -> None:
     """Remove a registered type (tests)."""
-    from .core import adapter
+    from .core.engine import adapter
 
     TYPES.pop(name, None)
     SIMULATIONS.pop(name, None)

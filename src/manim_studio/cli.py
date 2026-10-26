@@ -118,8 +118,8 @@ def _render(
     trust_code: bool = False,
     options=None,
 ) -> int:
-    from .core import adapter
-    from .core.schema import Project
+    from .core.engine import adapter
+    from .core.model.schema import Project
     from .render.cairo_export import export_video
     from .render.options import OptionsError, RenderOptions, apply_options, frame_window
 
@@ -146,7 +146,7 @@ def _render(
     except OptionsError as exc:
         return _fail(str(exc))
     if trust_code:  # Python objects run in this process (ADR 0051)
-        from .core import python_object
+        from .core.code import python_object
 
         python_object.trust_everything()
     warnings = _render_code_layers(sized, trust_code, mode)  # at the size being exported (ADR 0042)
@@ -170,8 +170,8 @@ def _render(
 
 def _python(project_path: Path, output: Path, scene: str | None, cache_dir: Path | None) -> int:
     """Write the project as Manim code: readable when it can be, exact otherwise (ADR 0031)."""
-    from .core.python_export import class_name, to_python
-    from .core.schema import Project
+    from .core.engine.python_export import class_name, to_python
+    from .core.model.schema import Project
 
     try:
         project = Project.model_validate_json(project_path.read_text(encoding="utf-8"))
@@ -195,8 +195,8 @@ def _import(path: Path, output: Path, scene: str | None, cache_dir: Path | None)
     """Run a Manim scene once in another process and write it as a project (ADR 0053): its objects
     as layers and clips, or the whole scene as one code layer with the reasons. Prints the report;
     exit code 0 either way, 2 when the scene cannot be run."""
-    from .core.scene_import import import_scene, scene_classes
-    from .scene_recorder import RecordError, run_recorder
+    from .core.exchange.scene_import import import_scene, scene_classes
+    from .processes.scene_recorder import RecordError, run_recorder
 
     try:
         source = path.read_text(encoding="utf-8")
@@ -227,10 +227,10 @@ def _import(path: Path, output: Path, scene: str | None, cache_dir: Path | None)
 
 def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
     """Render code layers missing from the cache (ADR 0019); warnings for those left as placeholders."""
-    from .code_runner import CodeError, Job, render_code
-    from .core import helpers
-    from .core.evaluator import Evaluator
-    from .core.schema import CODE_TYPES
+    from .core.code import helpers
+    from .core.engine.evaluator import Evaluator
+    from .core.model.schema import CODE_TYPES
+    from .processes.code_runner import CodeError, Job, render_code
 
     evaluator = Evaluator(project)
     canvas, warnings = project.canvas, []
@@ -275,8 +275,8 @@ def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
 def _untrusted_objects(project) -> list[str]:
     """Warnings for Python objects whose code may not run here (ADR 0051): they draw a placeholder;
     so do those importing a helper that may not run (ADR 0058)."""
-    from .core import helpers, python_object
-    from .core.schema import PYTHON_TYPES
+    from .core.code import helpers, python_object
+    from .core.model.schema import PYTHON_TYPES
 
     out = [
         f"Python object {layer.id!r} is drawn as a placeholder (pass --trust-code to run its code)"

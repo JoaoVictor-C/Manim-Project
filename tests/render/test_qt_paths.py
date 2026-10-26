@@ -15,8 +15,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 import pytest
 
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Clip, Layer, Project, Spec, Transform2D
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Clip, Layer, Project, Spec, Transform2D
 from manim_studio.render import qt_paths
 from manim_studio.render.cairo_export import make_camera, render_frame
 from support import CANVAS, SQUARE, TEXT

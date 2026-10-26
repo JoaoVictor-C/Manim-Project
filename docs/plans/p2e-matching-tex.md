@@ -1,6 +1,6 @@
 # P2e — TransformMatchingTex between equations: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p2e.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p2e.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 12](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B33 in [../logs/benchmarks.md](../logs/benchmarks.md)

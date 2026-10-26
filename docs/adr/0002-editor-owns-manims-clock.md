@@ -18,9 +18,9 @@ animations interpolate from that copy (`manim/animation/animation.py`).
 
 ## Decision
 
-1. A JSON **project document** (`core/schema.py`) is the single source of truth.
+1. A JSON **project document** (`core/model/schema.py`) is the single source of truth.
    Manim code is never the source.
-2. The **Evaluator** (`core/evaluator.py`) replaces `play()` and owns the clock:
+2. The **Evaluator** (`core/engine/evaluator.py`) replaces `play()` and owns the clock:
    - the state after each clip is a cached **checkpoint** (`begin()` + `finish()`
      on a copy of the previous checkpoint);
    - a clip active at `t` owns a working copy, begun once, then
@@ -46,6 +46,6 @@ animations interpolate from that copy (`manim/animation/animation.py`).
 
 ## Evidence
 
-- `tests/core/test_random_access.py`: shuffled, reversed, repeated and
+- `tests/core/engine/test_random_access.py`: shuffled, reversed, repeated and
   fresh-evaluator frames equal the sequential loop for every clip kind on
   Square, Text and MathTex, plus a three-clip checkpoint chain.

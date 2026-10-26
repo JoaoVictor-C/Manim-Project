@@ -78,13 +78,13 @@ and sheen.
 
 ## Evidence
 
-- Tests: `tests/core/test_shapes.py` (identical pixels with `np.array_equal` for a filled and
+- Tests: `tests/core/model/test_shapes.py` (identical pixels with `np.array_equal` for a filled and
   stroked circle, a square, a Text, a MathTex, the right-triangle and Matrix templates, an SVG
   a gradient with differing stroke widths, a background stroke and round joints, and Axes, under a
   transform, keys and Create/Write and other clips; save/load exact; no LaTeX: the frozen
   equation draws while an unfrozen one is the placeholder; untrusted code: the frozen object
   draws and the file has no code; the refusals; the readable export runs and the slow test
-  renders what the editor shows), `tests/ui/test_shapes_ui.py`.
+  renders what the editor shows), `tests/ui/panels/test_shapes_ui.py`.
 - Benchmark B71 ([logs/benchmarks.md](../logs/benchmarks.md), `benchmarks/bench_shapes.py`):
   Text "Hi ok" 4 pieces, 376 points, spec 52 B -> 24.9 KB; MathTex `e^{i\pi}+1=0` 7 pieces,
   488 points, 63 B -> 31.9 KB; the Matrix template (3x3) 13 pieces, 816 points, 1.4 KB -> 53.9 KB;

@@ -12,9 +12,9 @@ from pathlib import Path
 import manim as m
 import numpy as np
 
-from manim_studio.core import adapter
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Camera, Project
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Camera, Project
 from manim_studio.render.cairo_export import render_frame
 from manim_studio.render.preview import PreviewView, preview_camera
 

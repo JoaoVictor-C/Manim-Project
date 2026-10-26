@@ -64,6 +64,6 @@ the same object.
 
 ## Evidence
 
-- B67 in [../logs/benchmarks.md](../logs/benchmarks.md); `tests/core/test_python_export_keyed.py`.
+- B67 in [../logs/benchmarks.md](../logs/benchmarks.md); `tests/core/engine/test_python_export_keyed.py`.
 - Plan: [../plans/golden-path.md](../plans/golden-path.md) (G3a); design:
   [../logs/decision-sessions.md](../logs/decision-sessions.md), session 42.

@@ -44,7 +44,7 @@ rendered at alpha 0, .25, .5, .75, 1 and measured, showed what that looks like:
   with Manim's own `ReplacementTransform` / `ClockwiseTransform` on the world-space ends,
   `np.array_equal`). The other morph kinds are unchanged: TransformMatchingShapes/Tex already pair
   pieces by key (ADR 0020) and the fades cross-fade.
-- **Smart** (`core/morph.py`, numpy only, pure; `adapter.smart_pair` feeds it the drawn leaves and
+- **Smart** (`core/engine/morph.py`, numpy only, pure; `adapter.smart_pair` feeds it the drawn leaves and
   writes the result back) builds both ends as groups with the same pieces and point counts, so
   Manim's own alignment then changes nothing:
   - **pieces** are paired by an optimal assignment (Hungarian method) on their position within
@@ -116,14 +116,14 @@ rendered at alpha 0, .25, .5, .75, 1 and measured, showed what that looks like:
 
 - Measurements: B73 in [../logs/benchmarks.md](../logs/benchmarks.md);
   `benchmarks/bench_morph_quality.py` writes the contact sheets to `.cache/morph/`.
-- Tests: `tests/core/test_morph.py` (alignment of a turned, shifted, scaled, reversed square to
+- Tests: `tests/core/engine/test_morph.py` (alignment of a turned, shifted, scaled, reversed square to
   itself, corners kept, snapping, assignment against brute force, pieces by place, unpaired pieces,
-  holes, determinism, OKLab blends), `tests/core/test_morph_frames.py` (classic equals Manim's
+  holes, determinism, OKLab blends), `tests/core/engine/test_morph_frames.py` (classic equals Manim's
   Transform bit for bit, exact ends and scrubbing for smart, the B73 measures, a TeX pair, image
-  fallback, export), `tests/core/test_random_access.py::test_morph_random_access` (both choices),
-  `tests/ui/test_properties_panel.py::test_a_morph_shows_its_matching_with_a_tooltip`,
-  `tests/ui/test_timeline_view.py::test_morph_clips_offer_free_targets_only`,
-  `tests/core/test_equation_steps_layers.py`, `tests/core/test_scene_import.py`.
+  fallback, export), `tests/core/engine/test_random_access.py::test_morph_random_access` (both choices),
+  `tests/ui/panels/test_properties_panel.py::test_a_morph_shows_its_matching_with_a_tooltip`,
+  `tests/ui/timeline/test_timeline_view.py::test_morph_clips_offer_free_targets_only`,
+  `tests/core/editing/test_equation_steps_layers.py`, `tests/core/exchange/test_scene_import.py`.
 
 ## Amendment 2026-10-19: the project chooses
 

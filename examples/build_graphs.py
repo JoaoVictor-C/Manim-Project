@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from manim_studio.core import edits
-from manim_studio.core.schema import Canvas, Project, Spec
+from manim_studio.core.editing import edits
+from manim_studio.core.model.schema import Canvas, Project, Spec
 
 OUT = Path(__file__).with_name("graphs.json")
 

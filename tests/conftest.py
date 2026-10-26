@@ -12,7 +12,8 @@ import pytest
 # Tests never load the developer's own plugins (ADR 0032); set before the adapter loads them.
 os.environ["MANIM_STUDIO_PLUGINS"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-plugins-")))
 
-from manim_studio.core import adapter
+from manim_studio.core.code import python_object
+from manim_studio.core.engine import adapter
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -75,7 +76,7 @@ def qt_app():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     widgets = pytest.importorskip("PySide6.QtWidgets")
     app = widgets.QApplication.instance() or widgets.QApplication([])
-    from manim_studio.ui import theme
+    from manim_studio.ui.style import theme
 
     theme.apply(app)  # the tests drive the widgets the user sees (ADR 0040)
     return app
@@ -97,6 +98,29 @@ def _fresh_preset_library(tmp_path_factory, monkeypatch):
     monkeypatch.setenv(
         "MANIM_STUDIO_PRESETS", str(tmp_path_factory.mktemp("manim-studio-presets") / "presets.json")
     )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_python_builds(monkeypatch):
+    """What one test built, refused or trusted (``--trust-code`` in-process) is not carried to the next."""
+    monkeypatch.setattr(python_object, "_trust_everything", False)
+    adapter.forget_python_builds()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _windows_are_gone_before_the_next_test(request):
+    """A window one test closed is destroyed before the next starts: hidden but not yet deleted, it still
+    owns its shortcuts, and Qt then takes the next window's Ctrl+D for an ambiguous one."""
+    yield
+    if "ui" in request.keywords:
+        import gc
+
+        from PySide6.QtCore import QCoreApplication, QEvent
+
+        gc.collect()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+        QCoreApplication.processEvents()
 
 
 @pytest.fixture(autouse=True)
@@ -161,7 +185,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 @pytest.fixture(autouse=True)
 def _time_limits_on():
     """The No time limit switch (ADR 0059) is a process-wide flag: every test starts with limits on."""
-    from manim_studio.core import limits
+    from manim_studio.core.code import limits
 
     limits.set_unlimited(False)
     yield

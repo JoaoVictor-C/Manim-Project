@@ -1,4 +1,4 @@
-"""Write the built-in presets, themes and templates (ADR 0039) into ``src/manim_studio/library/``.
+"""Write the built-in presets, themes and templates (ADR 0039) into ``src/manim_studio/data/library/``.
 
 The JSON files are the source of truth that ships with the package; this script
 is how they were made and how to regenerate them after editing the lists below.
@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from manim_studio.core.library import BUILTIN_FOLDER, Preset, Template, Theme, item_to_json
-from manim_studio.core.schema import Clip, Layer, Spec, Transform2D
+from manim_studio.core.editing.library import BUILTIN_FOLDER, Preset, Template, Theme, item_to_json
+from manim_studio.core.model.schema import Clip, Layer, Spec, Transform2D
 
 
 def clip(kinds, duration, offset=0.0, ease=None, **params):

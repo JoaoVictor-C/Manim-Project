@@ -12,7 +12,7 @@
 into the same video as the editor's export: readable `self.play` code for a
 simple project, an exact scene (with the reasons in its header) otherwise.
 
-## Core: `core/python_export.py`
+## Core: `core/engine/python_export.py`
 
 - `readable_problems(project) -> list[str]`: why the project cannot be readable
   (empty = readable).

@@ -22,8 +22,8 @@ import manim as m
 import numpy as np
 from manim.animation.transform_matching_parts import TransformMatchingAbstractBase
 
-from manim_studio.core import adapter
-from manim_studio.core.schema import Canvas
+from manim_studio.core.engine import adapter
+from manim_studio.core.model.schema import Canvas
 from manim_studio.render.cairo_export import make_camera, render_frame
 
 adapter.configure(Path(__file__).resolve().parent.parent / ".cache" / "manim")

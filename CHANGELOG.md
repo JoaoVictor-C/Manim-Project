@@ -139,6 +139,7 @@ All notable changes to this project are documented here. The format follows
   worker first). The readable Python export writes the code once as `_build_<name>(...)`.
 
 ### Changed
+- **The code is grouped by what it does** (ADR 0062). `core/` is now `model`, `editing`, `engine`, `sound`, `code`, `assist` and `exchange`; `ui/` is `style`, `session`, `shell`, `services`, `playback`, `deliver`, `canvas`, `timeline`, `panels`, `code`, `exchange` and `pages`; the helper processes are in `processes/`; the files that ship with the package are in `data/`; the tests follow the code. No file was renamed and no code changed (the import graph, every syntax tree, the tests and a rendered project all match the old tree), so a bare `schema.py` in an older note still names one file; [docs/dev/moved-modules.md](docs/dev/moved-modules.md) maps the old paths. `manim_studio.manim_scene`, `manim_studio.plugins` and `python -m manim_studio` did not move: exported scenes and plugins keep working. `tests/test_architecture.py` now fails when an import points the wrong way. Two gaps in the tests' isolation that the new order exposed are closed (Python objects built, and trusted with `--trust-code`, by one test no longer carry into the next; a closed window is destroyed before the next test starts).
 - Documentation: README, user guide (docs/guide), refreshed architecture and contributing guides,
   link checker (`scripts/check_docs.py`) and a generated shortcuts page (`scripts/gen_shortcuts.py`).
 
@@ -162,7 +163,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   their names (Shift/Ctrl add), or all of them when none is; the five checkboxes are gone. The bar
   has a Record button (Edit > Auto-key) and A frames every key. Expanded rows are editor state; a
   collapsed timeline is as before, and a rebuild stays linear with every row expanded (B69).
-- Long scenes (P7.2, B66): the layer tree is indexed once per snapshot (`core/layer_index.py`), so the
+- Long scenes (P7.2, B66): the layer tree is indexed once per snapshot (`core/model/layer_index.py`), so the
   timeline rebuild, the Layers panel and `Evaluator.invalidate` grow linearly with the layers
   (`invalidate` 33 -> 1 ms and the timeline rebuild 99 -> 48 ms at 295 layers; the rest is Qt items);
   render-ahead evicts and asks for missing frames in O(log n) (9 ms -> 0.01 ms with 15 000 frames kept);
@@ -250,13 +251,13 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   through the real window the way a user does (`tests/ui/test_golden_path.py`, 40 actions or
   fewer, no warning logged, the video's frames checked against the editor's). What the walk
   found is fixed: new objects are placed where they cover nothing (the first at the centre, the
-  next below, above or beside the others - `core/placement.py`) instead of all on the centre;
+  next below, above or beside the others - `core/engine/placement.py`) instead of all on the centre;
   text layers are named by their words ("The Pythagorean theorem", not "text-1") in Layers, the
   timeline and Properties until they are renamed; the start hint leaves the status bar once a
   project is open; Manim's cache moved from the folder the editor was started from to the user's
   cache folder (`MANIM_STUDIO_CACHE` overrides it), and a never-saved project is suggested next
   to the last project (else `Documents/Manim Studio`, Documents or home), its exports too
-  (`ui/places.py`); a build worker torn down with the application no longer tries to restart.
+  (`ui/session/places.py`); a build worker torn down with the application no longer tries to restart.
 - Preferences, recent files and the first-run welcome (P6d.1, ADR 0044): the editor remembers
   how it was left in one ini file (`MANIM_STUDIO_SETTINGS`, default `manim-studio.ini` in the user
   configuration folder): File > Open Recent (ten files, newest first, missing ones dropped, Clear
@@ -265,7 +266,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   project opens. Until a project opens the viewer shows a welcome with New, Open..., Open Example
   (File > Open Example: the showcase scene as an untitled copy) and the recent files as links.
   Tests start from a fresh settings file each.
-- `core/edits.py` (S1.1): `move_clip`, `trim_clip`, `update_clip`, `update_layer`
+- `core/editing/edits.py` (S1.1): `move_clip`, `trim_clip`, `update_clip`, `update_layer`
   return validated snapshots plus an edit kind computed by diffing; `Evaluator.apply(edit)`.
 - Edit kind **timing** keeps every evaluator cache; morph animations are reused
   while their baked start/end transforms are unchanged (ADR 0013). Clip drags on
@@ -289,7 +290,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
 
 - S1 timeline plan (`docs/plans/s1-timeline.md`), proposed ADRs 0013–0014, benchmarks B10–B14.
 
-- `ui/document.py` (S1.2): the open project as immutable snapshots with a
+- `ui/session/document.py` (S1.2): the open project as immutable snapshots with a
   `QUndoStack`; drags preview freely and record one undo step (Escape cancels).
   Edit menu with Undo/Redo; window title marks unsaved changes.
 
@@ -314,12 +315,12 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
 - Validation: duplicate clip ids on a lane and vector-only clip kinds on image
   layers are rejected.
 - `Document.apply` records nothing for an edit that changes nothing.
-- Build worker (S2.2, ADR 0015): `python -m manim_studio.worker` warms Manim's
-  disk cache for Text/Tex/MathTex in another process; `ui/worker_process.py`
+- Build worker (S2.2, ADR 0015): `python -m manim_studio.processes.worker` warms Manim's
+  disk cache for Text/Tex/MathTex in another process; `ui/services/worker_process.py`
   queues requests during startup, restarts on a 20 s timeout or a crash, and
   falls back to synchronous builds if it cannot start (`MANIM_STUDIO_WORKER=0`
   disables it). LaTeX errors are reported as LaTeX's own message.
-- `core/warm.py` and `ui/build_service.py`: panel edits are operations; one that
+- `core/engine/warm.py` and `ui/session/build_service.py`: panel edits are operations; one that
   builds a cold text object waits for the worker and is then re-run on the
   current snapshot, so edits and undos made meanwhile are kept; latest wins per
   field; a failed build commits nothing; nothing commits mid-drag.
@@ -350,10 +351,10 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   front-most first; only what is drawn counts (alpha > 0.02); text by its box,
   images by their rectangle, shapes by fill (nonzero winding) or within 4 px of
   their stroke. 0.8 ms per click on the stress scene.
-- Shared selection (S3.3, `ui/selection.py`): one layer/clip selection for the
+- Shared selection (S3.3, `ui/session/selection.py`): one layer/clip selection for the
   canvas, Layers panel, timeline and Properties; deleted clips fall back to
   their layer, deleted layers clear it.
-- Canvas editing (S3.4-S3.5, `ui/canvas_tools.py`): click selects the
+- Canvas editing (S3.4-S3.5, `ui/canvas/canvas_tools.py`): click selects the
   front-most object (Alt+click: the one behind), the selection is outlined with
   its box and anchor; drag moves it (one undo step, Shift = one axis, Escape
   cancels); arrow keys nudge 1 px / 10 px with Shift, a held key is one undo
@@ -369,7 +370,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   `<name>.partial.mp4` and replace the output only when complete, so a failed or
   cancelled export never damages a previous video; a locked output (open in a
   player) is saved as `<name> (2).mp4` with a warning (ADR 0017).
-- `ui/export_job.py` (S4.2): one export in a separate process — snapshot to a
+- `ui/deliver/export_job.py` (S4.2): one export in a separate process — snapshot to a
   JSON file in the cache, live progress, `finished(path, warning)` /
   `failed(message)`, `cancel()` that leaves no partial file. A folder given as
   the output is now a clear error instead of a misleading "in use" rename.
@@ -448,7 +449,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   field. Every menu item now explains itself in a tooltip. New tests check every page and
   dialog at a 1024x640 window: no menu item without a tooltip, nothing squeezed below its
   minimum size, no label cut off. They found the transport readout cut off on narrow
-  windows: it now shortens with "..." (`ui/elided_label.py`) and shows the whole line as
+  windows: it now shortens with "..." (`ui/style/elided_label.py`) and shows the whole line as
   a tooltip.
 - Presets browser (P6d.3, ADR 0044): **Animate > Browse Presets...** (Ctrl+Shift+P) and
   **Browse presets...** in a timeline row's menu open a dialog with a card for every preset:
@@ -461,7 +462,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   time - as one undo step, whole or refused; the refusal is on the dialog's status line
   and in the status bar, and the dialog stays open for the next try. Presets of your own
   carry a "Yours" mark and appear as soon as they are saved. New `render/preset_thumbs.py`
-  (Qt-free: which frames, the project, the cache) and `ui/presets_browser.py`.
+  (Qt-free: which frames, the project, the cache) and `ui/panels/presets_browser.py`.
 - Several selected objects (P6c.2, ADR 0043): Shift+click on the canvas adds or takes
   out an object, a drag from empty canvas draws a selection rectangle (Shift: adding),
   and Ctrl/Shift+click in Layers selects several. Dragging any of them moves them all
@@ -472,7 +473,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   new **Arrange** menu aligns the objects' left/centre/right/top/middle/bottom to their
   common box (one object: to the video frame; Ctrl+Alt+arrows, H, V) and distributes
   three or more with equal gaps. New `Selection.layer_ids` / `set_layers` /
-  `toggle_layer`, `edits.remove_layers`, `MoveTool.move_by`, pure `ui/arrange.py`.
+  `toggle_layer`, `edits.remove_layers`, `MoveTool.move_by`, pure `ui/canvas/arrange.py`.
 - Parameter handles and snapping guides (P6c.1, ADR 0043): the selected object
   shows round handles for its sizes - a rectangle's width and height, a circle's or
   dot's radius, a square's side, a star's radius, a text's or number's font size
@@ -484,7 +485,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   edges and centre to the other objects' and the frame's within 6 px, with a guide
   line; hold Alt to drag freely, or turn it off with View > Snap to Objects (Ctrl+;).
   New `edits.set_params`, `Evaluator.world_affine` / `connector_frames`, pure
-  `ui/param_handles.py` and `ui/snap_guides.py`. Handles that would cover a small
+  `ui/canvas/param_handles.py` and `ui/canvas/snap_guides.py`. Handles that would cover a small
   object's middle are hidden (zoom in to resize it).
 - Workspace pages (P6b.1, ADR 0041): the window is a set of pages switched from a
   page bar at the bottom, View > Pages or Shift+1..5, sharing one canvas,
@@ -506,13 +507,13 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   moves the cursor to that line. A typed character in a 2000-line scene costs about 11 ms (B57).
 - Audio page (P6b.4, ADR 0041): a table of the sounds (name, file with a missing-file warning,
   start, trim, duration, gain, fades) and a table of the subtitles (start, end, text), both
-  edited in place - each edit one undo step through `core/edits.py`, a refused one (an overlap,
+  edited in place - each edit one undo step through `core/editing/edits.py`, a refused one (an overlap,
   fades longer than the sound, not a number) shown in the status bar - with Import / Delete / Play
   from here, Add at playhead, Import / Export .srt, selection shared with the timeline, and a level
   meter of the mix at the playhead (peak and RMS per channel, 0.2 ms per read, B58).
 - Design system (P6a, ADR 0040): the editor has a dark studio look - the Fusion
   style, a palette and one stylesheet generated from colour tokens in
-  `ui/theme.py`, a 9 pt UI font, and Phosphor icons (QtAwesome, a new dependency)
+  `ui/style/theme.py`, a 9 pt UI font, and Phosphor icons (QtAwesome, a new dependency)
   on the Layers panel and the transport. Every chrome colour - panels, fields,
   menus, the timeline, canvas overlays, the curve editor - comes from the tokens;
   document colours (styles, the canvas background, markers, subtitles) are never
@@ -639,7 +640,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   The canvas draws the selected layer's motion path: drag key squares, bend
   tangent handles (a smooth key stays aligned, Alt breaks it), double-click to
   smooth/straighten. Edits keep tangents; a key added inside a curve splits it
-  so its shape stays. `core/motion_paths.py`, `ui/motion_overlay.py`,
+  so its shape stays. `core/model/motion_paths.py`, `ui/canvas/motion_overlay.py`,
   `edits.set_tangents`, `edits.smooth_key`, `Evaluator.position_frame`.
 - MoveAlongPath clips (P3c, ADR 0025): a root object travels along another
   layer's shape (a graph, a circle, a line) - *Add clip > Move > MoveAlongPath*.
@@ -652,7 +653,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   `layer`; category `motion`. The graphs example now has a dot on the parabola.
 - Axes and function graphs (P3b, ADR 0024): `Axes` in the library; graphs are
   child objects (`parent_id` + their own spec) added with *Parts > Add graph...*,
-  plotted from a whitelist expression (`core/expressions.py`: parsed, never
+  plotted from a whitelist expression (`core/model/expressions.py`: parsed, never
   `eval`'d; validated on load). Graphs ride on their axes, are locked to them
   (only opacity is keyable), take every vector clip kind and morph into other
   graphs; editing the axes re-plots them. Curves split where the function is
@@ -694,10 +695,10 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
 - Code layers (P2d, ADR 0019): a layer holding a Manim `Scene` written by the
   user, for what the timeline cannot express (updaters, ValueTracker,
   TracedPath). Real Manim plays it once into a frame cache (cropped,
-  premultiplied, zlib; `core/code_cache.py`) and the editor paints the frames
+  premultiplied, zlib; `core/code/code_cache.py`) and the editor paints the frames
   with Cairo between ordinary mobjects, with the layer's transform and opacity.
-  Code runs only in single-use warm spare processes (`code_runner.py`,
-  `ui/code_render.py`; B30, B31) and only when trusted: a per-user hash store,
+  Code runs only in single-use warm spare processes (`processes/code_runner.py`,
+  `ui/services/code_render.py`; B30, B31) and only when trusted: a per-user hash store,
   a prompt when opening a project with untrusted code, `--trust-code` for the
   CLI. Properties shows a code editor, the render status and Run again.
 - Showcase example (`examples/showcase.json`, built by `examples/build_showcase.py`).
@@ -710,7 +711,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   tree with **Add part...** and **Split into terms**; part rows on the timeline;
   a part's key in Properties; root-first canvas clicks, double-click to drill
   in, Esc to back out; part gizmos pivot on the part; a warning when a text
-  edit may move a part's match. `core/parts.py`; `edits.add_part`, `add_parts`;
+  edit may move a part's match. `core/model/parts.py`; `edits.add_part`, `add_parts`;
   `Project.children/descendants/ancestors/root_of`; `Evaluator.layer_frame`.
 - Easing curve editor (P2b): "Custom curve..." in every easing list opens a
   graph with two bezier handles and presets; named Manim eases start from a
@@ -725,7 +726,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   Edit > Auto-key: the first change of an untracked property animates from the
   layer's start to the playhead (ADR 0018). `edits.set_property` holds the rule.
 - P2a transform gizmos plan (`docs/plans/p2a-gizmos.md`), proposed ADR 0018.
-- Phase 1 complete: `tests/ui/test_acceptance_v1.py` writes an equation, moves
+- Phase 1 complete: `tests/acceptance/test_acceptance_v1.py` writes an equation, moves
   it, morphs it into a second equation, fades it out and exports MP4 through
   the UI alone.
 - Export dialog (S4.3-S4.4): File > Export Video... (Ctrl+E) exports the scene
@@ -733,7 +734,7 @@ workspace pages (there was no 0.2.0 release). Summary and install notes:
   time left, Cancel, Open folder; quitting during an export asks first. The UI
   stays responsive (B26: p99 14 ms timer lateness).
 - S4 export plan (`docs/plans/s4-export.md`), proposed ADR 0017, benchmark B25.
-- S3 acceptance (`tests/ui/test_acceptance_s3.py`): move an object on the
+- S3 acceptance (`tests/acceptance/test_acceptance_s3.py`): move an object on the
   canvas, undo, redo, and animate it by moving it with keyframes on; benchmark
   B24 (`benchmarks/bench_canvas_drag.py`): 18.5 ms per drag step in the window.
 - S3 canvas interaction plan (`docs/plans/s3-canvas.md`), proposed ADR 0016,

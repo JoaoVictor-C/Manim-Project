@@ -59,11 +59,11 @@ def main() -> None:
         subprocess.run([*command, "--cache-dir", str(cache)], check=True, capture_output=True)
         commands.append(time.perf_counter() - t0)
 
-    from manim_studio.core import adapter
+    from manim_studio.core.engine import adapter
 
     adapter.configure(cache)
-    from manim_studio import scene_recorder
-    from manim_studio.core.scene_import import import_scene
+    from manim_studio.core.exchange.scene_import import import_scene
+    from manim_studio.processes import scene_recorder
 
     records, imports = [], []
     for _ in range(3):

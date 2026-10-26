@@ -22,7 +22,7 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from bench_edits import scene
-from manim_studio.core import adapter
+from manim_studio.core.engine import adapter
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.timeline.view import ROW_HEIGHT, RULER_HEIGHT
 

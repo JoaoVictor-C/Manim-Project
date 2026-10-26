@@ -26,7 +26,7 @@ from collections.abc import Sequence
 import manim as m
 import numpy as np
 
-from ..core.code_frame import CodeFrame
+from ..core.code.code_frame import CodeFrame
 
 VISIBLE_ALPHA = 0.02
 TOLERANCE_PX = 4.0

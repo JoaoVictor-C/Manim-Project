@@ -20,8 +20,8 @@ from pathlib import Path
 import manim as m
 import numpy as np
 
-from manim_studio.core import adapter
-from manim_studio.core.schema import Canvas
+from manim_studio.core.engine import adapter
+from manim_studio.core.model.schema import Canvas
 from manim_studio.render.cairo_export import make_camera, render_frame
 
 ROOT = Path(__file__).resolve().parent.parent

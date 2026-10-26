@@ -31,7 +31,7 @@ both exported files have the right frame count, size and sound.
   (clamped to the scene's frames; empty after rounding is an error). Output frame `k` shows
   time `(a + k) / fps`; the audio mix is sliced to the same window (padded with silence if
   short); the `.srt` is shifted by `-a / fps` and clipped at both edges.
-- **Queue** (`ui/render_queue.py`, no Qt): statuses queued / rendering / done / failed /
+- **Queue** (`ui/deliver/render_queue.py`, no Qt): statuses queued / rendering / done / failed /
   cancelled; Start runs queued jobs in order, one `ExportJob` at a time; Cancel cancels the
   selected job (the queue goes on); Remove (not while rendering); Clear finished. A job whose
   output path equals a pending job's gets ` (2)`.
@@ -50,9 +50,9 @@ scene stacked in a splitter.
 | step | content | acceptance |
 |---|---|---|
 | 1 | `render/options.py`, CLI flags, exporter window/crf/srt | unit tests: sizes, window, audio slice, srt clip; real renders |
-| 2 | `ui/render_queue.py` | state machine tests |
-| 3 | `ui/pages/deliver.py`, registered after Compose | `tests/ui/test_deliver_page.py` through `MainWindow` |
-| 4 | acceptance (slow): two exports with different sizes/ranges, Python scene saved | `tests/ui/test_acceptance_p6b5.py` |
+| 2 | `ui/deliver/render_queue.py` | state machine tests |
+| 3 | `ui/pages/deliver.py`, registered after Compose | `tests/ui/pages/test_deliver_page.py` through `MainWindow` |
+| 4 | acceptance (slow): two exports with different sizes/ranges, Python scene saved | `tests/acceptance/test_acceptance_p6b5.py` |
 | 5 | mutation check, docs | `.cache/p6b5/mutate.py` |
 
 ## Result

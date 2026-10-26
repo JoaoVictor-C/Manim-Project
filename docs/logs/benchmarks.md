@@ -243,7 +243,7 @@ first frame at 6.6-8.7 s, done at 7.2-9.3 s — the import is ~85 % of the wait.
 → ADR 0019.
 
 ### B31 — Code layer edit to frames with a warm spare · 2026-10-10
-`tests/ui/test_code_render.py::test_a_warm_spare_renders_real_code_in_about_a_second`:
+`tests/ui/services/test_code_render.py::test_a_warm_spare_renders_real_code_in_about_a_second`:
 `CodeRenderService` with a spare that has already imported Manim; the code of a
 layer changes to a 1 s scene (`Create(Square())`, 32x18 @ 10 fps). From
 `sync()` to every frame in the cache: **0.15-0.24 s** (3 runs), against 6.6-8.7 s
@@ -734,7 +734,7 @@ gave timeline sync 14.5 ms at 295 layers, the next three 54-170), so the table i
 repeats** of a probe (`.cache/p7-2/micro.py`) that rebuilds the index on every sync, plus the bench's own
 numbers where they were stable.
 - **Cause (B64's profile):** `Project.children / morph_sources / layer / root_of / ancestors` each scan every
-  layer; the timeline, the Layers panel and `Evaluator.invalidate` asked once per layer. Fix: `core/layer_index.py`,
+  layer; the timeline, the Layers panel and `Evaluator.invalidate` asked once per layer. Fix: `core/model/layer_index.py`,
   one pass per snapshot (id, children and morph maps, memoised lifetimes), used by `TimelineView` (cached per
   snapshot, rows included), `LayersPanel.sync`, `parts.resolve/build_spec`, and the evaluator (`_index`,
   `invalidate`, `_builds`, its tree walks). Tests count the scans (constant against 8x the layers).
@@ -786,7 +786,7 @@ Two runs on battery (medians, ms): pre-P7.5 2D **6.80 / 4.28**, default **7.24 /
 10.1 against 12.3 / 10.2), phi 60 **11.1 / 7.2**, phi 60 theta -45 gamma 10 **11.4 / 6.4** - a
 turned camera costs about 50-70 % more per frame here (B65 measured 25 % for the 3D camera at the
 default angles; why turning costs more was not measured).
-The frames of the default camera are bit-identical to before (`tests/core/test_camera.py`). Found
+The frames of the default camera are bit-identical to before (`tests/core/features/test_camera.py`). Found
 on the way: Manim's `ThreeDCamera` subtracts `frame_center` twice (a pan moved the picture twice as
 far and changed the angle: `StudioThreeDCamera`), and its rotation matrix is refreshed only at a
 capture (a code frame painted first used the old angles). -> ADR 0048.
@@ -827,7 +827,7 @@ sampled every 2 ms above the RSS after imports (114 MB). The same script run aga
   ms, met** (it is one 0.25 s span); the first decode off the GUI thread: **met** for sounds
   longer than 60 s (shorter ones keep their waveform at once, ~0.1 s, so the timeline tests and
   small projects see no flat row).
-- **Exactness:** every output sample is unchanged. `tests/core/test_audio_spans.py`: windows of
+- **Exactness:** every output sample is unchanged. `tests/core/sound/test_audio_spans.py`: windows of
   wav (8-96 kHz, mono/stereo), FLAC, MP3, AAC (MP4 and ADTS) decoded on demand equal the same
   samples of the whole decode; random projects and spans equal the old whole mix
   (`np.array_equal`); the exported AAC track decodes to the same samples as the old one-frame
@@ -864,7 +864,7 @@ save + load; minimum of 20, two runs.
   ~1e-17, so they are stored as [x, y, z]); far below the 4 MB / 300 000-point limit, so no
   rounding. -> ADR 0052.
 - **Pixels:** identical (`np.array_equal`) to the source in every frame tested
-  (`tests/core/test_shapes.py`).
+  (`tests/core/model/test_shapes.py`).
 
 ### B72 - P10.3: importing a Manim scene · 2026-10-18
 `benchmarks/bench_scene_import.py`: a 27-second scene (a Write, a LaggedStart of five Creates, ten

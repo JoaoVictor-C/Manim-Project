@@ -31,7 +31,7 @@ GUI_CHECK = """
 import json, os, sys
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
-from manim_studio.ui import theme
+from manim_studio.ui.style import theme
 from manim_studio.ui.main_window import MainWindow
 app = QApplication([])
 theme.apply(app)

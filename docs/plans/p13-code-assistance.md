@@ -14,10 +14,10 @@ and in the list below. Order is ours to decide.
 
 | Slice | What | Where |
 |---|---|---|
-| P13.0 | `manim_names.json` + generator + version stamp | `core/manim_names.json`, `scripts/gen_manim_names.py` |
+| P13.0 | `manim_names.json` + generator + version stamp | `data/manim_names.json`, `scripts/gen_manim_names.py` |
 | P13.1 | Structured errors from both runners; `error_hints` with did-you-mean; `diagnostics` (syntax); error tally | core + the two runners |
-| P13.2 | Helpers: model, import machinery, trust, cache signature, export, CLI | `core/helpers.py`, schema, adapter, runners, python_export |
-| P13.3 | Pure helpers for the UI: snippets, PARAMS editing, code history, outline, run-to-cursor, preset search/tags | `core/snippets.py`, `params_edit.py`, `code_history.py`, `outline.py`, `run_to_cursor.py` |
+| P13.2 | Helpers: model, import machinery, trust, cache signature, export, CLI | `core/code/helpers.py`, schema, adapter, runners, python_export |
+| P13.3 | Pure helpers for the UI: snippets, PARAMS editing, code history, outline, run-to-cursor, preset search/tags | `core/assist/snippets.py`, `params_edit.py`, `code_history.py`, `outline.py`, `run_to_cursor.py` |
 | P13.4 | UI: hints and syntax marker, elapsed time, history/revert/diff, Parameters definition, trust wording | `ui/pages/code.py` and new `ui/` modules |
 | P13.5 | UI: helpers (explorer section, tabs, New helper, import as helper, presets of kind helper) | same |
 | P13.6 | UI: snippet gallery, tags/search, outline, completion and hover, thumbnails | same |
@@ -30,13 +30,13 @@ and in the list below. Order is ours to decide.
 `CodeProblem` gain `error_type`, `where` and `traceback` (all optional, default empty, so old messages still
 work). `core/error_hints.hint(error_type, message, source) -> Hint | None`, `Hint(text, suggestions)`.
 `core/diagnostics.syntax_problem(source) -> SyntaxProblem(line, column, message) | None`.
-`core/manim_names.json`: `{"manim_version": "0.22.0", "names": [...], "methods": {class: [...]}, "kwargs":
-{callable: [...]}}`; `core/manim_names.py` loads it lazily.
+`data/manim_names.json`: `{"manim_version": "0.22.0", "names": [...], "methods": {class: [...]}, "kwargs":
+{callable: [...]}}`; `core/assist/manim_names.py` loads it lazily.
 
 **Helpers (P13.2)** - see ADR 0058. `Project.helpers: list[Helper]`; `Helper(name, code, description="")`;
-`core/helpers.py` (pure): `check_name`, `imports_of`, `needed(project, code)`, `digest(project)`,
+`core/code/helpers.py` (pure): `check_name`, `imports_of`, `needed(project, code)`, `digest(project)`,
 `install(sources)` (context manager), edits `add_helper`, `update_helper`, `rename_helper`,
-`remove_helper` in `core/edits.py`.
+`remove_helper` in `core/editing/edits.py`.
 
 **Pure UI helpers (P13.3).**
 

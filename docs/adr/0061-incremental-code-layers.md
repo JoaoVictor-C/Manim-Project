@@ -30,7 +30,7 @@ composited.
   and of what is visible, the camera, updater counts, whether a hidden object's updater reaches a visible one,
   whether Manim will draw waits as real frames (a time-based updater exists), and a digest per local variable
   that holds mobjects. They are stored in the cache entry: a by-product of the render already paid for.
-- **Chapters** (`core/scene_analysis.py`). A cut before statement *k* is valid when the visible picture,
+- **Chapters** (`core/code/scene_analysis.py`). A cut before statement *k* is valid when the visible picture,
   camera, visible updaters and wait mode equal what they were right after the setup (the statements before the
   first frame); no hidden updater reaches the visible picture; no later statement needs - by name, through the
   setup's closures, or by the state the setup's own variables are in - something an earlier chapter defined or
@@ -75,9 +75,9 @@ composited.
 ## Evidence
 
 - Plan and measurements: [../plans/p15-incremental-code-layers.md](../plans/p15-incremental-code-layers.md)
-- Tests: `tests/core/test_render_hash.py`, `tests/core/test_scene_analysis.py`, `tests/core/test_scene_split.py`,
-  `tests/test_scene_chapters.py` (real Manim: whole and chapters, frame-identical), `tests/ui/test_chapters_ui.py`
-- Source: [scene_probe.py](../../src/manim_studio/scene_probe.py),
-  [scene_analysis.py](../../src/manim_studio/core/scene_analysis.py),
-  [scene_split.py](../../src/manim_studio/core/scene_split.py),
-  [chapters.py](../../src/manim_studio/ui/chapters.py)
+- Tests: `tests/core/code/test_render_hash.py`, `tests/core/code/test_scene_analysis.py`, `tests/core/code/test_scene_split.py`,
+  `tests/processes/test_scene_chapters.py` (real Manim: whole and chapters, frame-identical), `tests/ui/code/test_chapters_ui.py`
+- Source: [processes/scene_probe.py](../../src/manim_studio/processes/scene_probe.py),
+  [scene_analysis.py](../../src/manim_studio/core/code/scene_analysis.py),
+  [scene_split.py](../../src/manim_studio/core/code/scene_split.py),
+  [chapters.py](../../src/manim_studio/ui/code/chapters.py)

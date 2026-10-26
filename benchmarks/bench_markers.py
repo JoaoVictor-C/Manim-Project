@@ -15,7 +15,7 @@ import statistics
 import time
 from pathlib import Path
 
-from manim_studio.core.schema import Project
+from manim_studio.core.model.schema import Project
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "explainer.json"
 

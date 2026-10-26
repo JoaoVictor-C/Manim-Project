@@ -14,8 +14,10 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from manim_studio.core import adapter, edits, python_object, python_templates
-from manim_studio.core.schema import Layer, Project, Spec
+from manim_studio.core.code import python_object, python_templates
+from manim_studio.core.editing import edits
+from manim_studio.core.engine import adapter
+from manim_studio.core.model.schema import Layer, Project, Spec
 
 SOURCES = {
     "Text 'Hi ok'": Spec(type="Text", params={"text": "Hi ok"}),

@@ -76,7 +76,7 @@ code lives in the project.
 
 ## Evidence
 
-- Tests: `tests/core/test_python_objects.py`, `tests/ui/test_python_objects_ui.py`,
-  `tests/test_worker_messages.py::test_new_python_code_stopped_by_its_time_limit_fails_the_request`;
+- Tests: `tests/core/code/test_python_objects.py`, `tests/ui/code/test_python_objects_ui.py`,
+  `tests/processes/test_worker_messages.py::test_new_python_code_stopped_by_its_time_limit_fails_the_request`;
   the slow `test_the_readable_export_renders_what_the_editor_shows` compares rendered frames.
 - Plan: [../plans/p10-code-to-objects.md](../plans/p10-code-to-objects.md).

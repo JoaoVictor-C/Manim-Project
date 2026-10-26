@@ -33,7 +33,7 @@ register(ObjectType("Pendulum", build, params=(Param("length", "float", 2.0),), 
   import registers, or a callable that is called), then `*.py` in the
   `MANIM_STUDIO_PLUGINS` folders (os.pathsep list; default
   `~/.manim-studio/plugins`), sorted, as modules `manim_studio_plugin_<stem>`.
-  Called at the end of `core/adapter.py`. A plugin that raises while loading
+  Called at the end of `core/engine/adapter.py`. A plugin that raises while loading
   is listed in `problems` and the types it had already registered are removed.
 
 ## Building

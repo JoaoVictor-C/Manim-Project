@@ -59,7 +59,7 @@ by-product of the render the user already paid for.
 
 ### 3. Chapters
 
-`core/scene_analysis.py` reads the code (AST) and the probes and finds **cut points**: a boundary `k` is a valid
+`core/code/scene_analysis.py` reads the code (AST) and the probes and finds **cut points**: a boundary `k` is a valid
 cut when all hold.
 
 1. **Visible state is back to the baseline:** the visible survivors at `k` have the same digest as at the end of

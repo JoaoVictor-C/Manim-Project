@@ -1,6 +1,6 @@
 # P3a — Viewport zoom and pan: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p3a.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p3a.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 15](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.83)
 - **Evidence:** benchmark B36 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -67,5 +67,5 @@ Space+drag pan; Alt-click and arrow nudges are unchanged.
 
 ## Outcome
 
-Done on 2026-10-10, as planned. The view model is pure (`ui/viewport.py`);
+Done on 2026-10-10, as planned. The view model is pure (`ui/canvas/viewport.py`);
 the canvas's camera size key now includes the world area it shows.

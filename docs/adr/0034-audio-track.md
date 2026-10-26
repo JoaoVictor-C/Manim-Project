@@ -16,7 +16,7 @@ export could not place sounds.
   `audio: [{id, name, path, start, offset, duration, gain, fade_in, fade_out}]`
   (seconds; `offset` trims the file's start; `gain` in dB). The list is saved
   only when it is not empty; layers stay purely visual.
-- **One mix.** `core/audio.py` (PyAV and numpy, no Qt) probes a file's
+- **One mix.** `core/sound/audio.py` (PyAV and numpy, no Qt) probes a file's
   duration, decodes it to 48 kHz stereo float (a small cache keyed by path and
   file signature), keeps waveform peaks, and mixes a project into audio as long
   as the canvas: each clip trimmed, with gain and linear fades, the sum clipped.
@@ -63,7 +63,7 @@ output sample (B70).
   the whole clip's arithmetic (the envelope's ramp index is an integer cast to float32, as
   `np.arange(n, dtype=float32)` gives it; a float32 range started mid-clip rounds differently
   past 2**24 samples), then the sum is clipped. It is **bit-identical** to the slice of the
-  whole mix (`np.array_equal`, random projects and spans in `tests/core/test_audio_spans.py`
+  whole mix (`np.array_equal`, random projects and spans in `tests/core/sound/test_audio_spans.py`
   against a verbatim copy of the old mix). `audio.mix` stays, made of spans, for the exact
   Python scene's wav; playback (a `QIODevice` pulling 0.25 s spans), the export (the mix
   encoded in 10 s pieces with consecutive timestamps, the same AAC track as before), the level

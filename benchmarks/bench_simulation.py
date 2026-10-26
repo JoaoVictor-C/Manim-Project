@@ -79,9 +79,9 @@ def compare() -> None:
 
 
 def costs() -> None:
-    from manim_studio.core import adapter
-    from manim_studio.core.evaluator import Evaluator
-    from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
+    from manim_studio.core.engine import adapter
+    from manim_studio.core.engine.evaluator import Evaluator
+    from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
     from manim_studio.render.cairo_export import make_camera, render_frame
 
     canvas = Canvas(width_px=1280, height_px=720, fps=30, duration=10.0)

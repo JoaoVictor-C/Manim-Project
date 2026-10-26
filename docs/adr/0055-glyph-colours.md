@@ -78,11 +78,11 @@ one-string MathTex).
 
 ## Evidence
 
-- Tests: `tests/core/test_glyph_colours.py` ("hello"'s two l's, an equation per glyph against
+- Tests: `tests/core/model/test_glyph_colours.py` ("hello"'s two l's, an equation per glyph against
   `set_color`, labels, validation, the edit, the plain build reused, warm key, t2c / fill / part
   composition, Indicate, Write and FadeIn, a morph target, a theme, freeze pixel identity, no LaTeX),
-  `tests/core/test_glyph_colour_helpers.py`,
-  `tests/core/test_python_export.py::test_glyph_colours_are_plain_code_that_builds_what_the_editor_builds`,
-  `::test_readable_glyph_colours_render_what_the_editor_shows` (slow), `tests/ui/test_glyph_colours_ui.py`.
+  `tests/core/model/test_glyph_colour_helpers.py`,
+  `tests/core/engine/test_python_export.py::test_glyph_colours_are_plain_code_that_builds_what_the_editor_builds`,
+  `::test_readable_glyph_colours_render_what_the_editor_shows` (slow), `tests/ui/panels/test_glyph_colours_ui.py`.
 - Mutation check: 41 of 41 mutants of the guards killed (`.cache/mutate_glyphs.py`, not committed).
 - Source: Manim `SVGMobject.get_mobjects_from` (the order glyphs are read), dvisvgm's glyph ids.

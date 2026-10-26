@@ -14,12 +14,12 @@ moved, deleted, copied and given a preset together, and Arrange lines them up.
 
 ## P6c.1 — parameter handles and snapping guides
 
-- `ui/param_handles.py` (pure): for a spec, its handles (name, local point, param,
+- `ui/canvas/param_handles.py` (pure): for a spec, its handles (name, local point, param,
   how a local point maps to the param value) and `value_at(handle, local)`; clamps from
   the registry.
 - `MoveTool`: hit order parameter handle > corner > knob > pivot > body; a handle drag
   previews `edits.update_layer(spec=...)`; Shift steps; Escape cancels; one undo step.
-- `ui/snap_guides.py` (pure): box edges/centres of other visible objects and the frame;
+- `ui/canvas/snap_guides.py` (pure): box edges/centres of other visible objects and the frame;
   `snap(box, candidates, radius)` -> offset and guide lines; the canvas draws them.
 
 ## P6c.2 — several objects (after the pages merge)

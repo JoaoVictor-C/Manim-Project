@@ -20,7 +20,7 @@ third-party algebra-animation library's code or documentation was consulted.
 
 | slice | scope | state |
 |---|---|---|
-| **P11.1 steps generator** | `core/equation_steps.py` (lines, a small LaTeX tokenizer, operations on both sides of `LHS = RHS`, transition planning), `edits.add_equation_steps` (one MathTex per step, entrance, morphs back to back, highlight of new terms as coloured parts), the Equation steps dialog (Layers > Add, Animate menu) with live checks through the build worker | **done** |
+| **P11.1 steps generator** | `core/editing/equation_steps.py` (lines, a small LaTeX tokenizer, operations on both sides of `LHS = RHS`, transition planning), `edits.add_equation_steps` (one MathTex per step, entrance, morphs back to back, highlight of new terms as coloured parts), the Equation steps dialog (Layers > Add, Animate menu) with live checks through the build worker | **done** |
 | **P11.2 later** | an optional computer-algebra extra (not a required dependency) for *simplify* and *solve for x* suggestions in the dialog; **highlight and annotate**: braces or brackets under a term with a note ("factor", "+2 both sides") between two steps | open |
 
 ## P11.1 as built
@@ -35,8 +35,8 @@ third-party algebra-animation library's code or documentation was consulted.
   colour (only on matching transitions); runs the parts cannot isolate are skipped and reported.
 - The dialog never builds LaTeX in the UI thread: syntax at once, LaTeX through the worker; on a
   computer without LaTeX the steps are added at once as placeholders.
-- Tests: `tests/core/test_equation_steps.py`, `tests/core/test_equation_steps_layers.py`,
-  `tests/ui/test_equation_steps_ui.py`. No slow test: the frames are compared in-process.
+- Tests: `tests/core/editing/test_equation_steps.py`, `tests/core/editing/test_equation_steps_layers.py`,
+  `tests/ui/panels/test_equation_steps_ui.py`. No slow test: the frames are compared in-process.
 - Mutation check: 56 mutants of the guards (core reading, operations and their parentheses,
   substitution contexts, transition planning, the generator's checks, timing, highlight and
   scene growth, the dialog's checks, `BuildService.check`, the panel's no-LaTeX path, selection

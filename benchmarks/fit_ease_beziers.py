@@ -12,8 +12,8 @@ import time
 
 import numpy as np
 
-from manim_studio.core import adapter
-from manim_studio.core.schema import Easing
+from manim_studio.core.engine import adapter
+from manim_studio.core.model.schema import Easing
 
 S = np.linspace(0, 1, 41)
 B = np.stack([3 * (1 - S) ** 2 * S, 3 * (1 - S) * S**2, S**3], 1)  # coefficients for P1, P2, P3=(1,1)

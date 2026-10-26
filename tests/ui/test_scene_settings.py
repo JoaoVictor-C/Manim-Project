@@ -11,10 +11,11 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from manim_studio.core import edits, scene_length
-from manim_studio.core.schema import Clip, Layer, Project
-from manim_studio.ui.document import Document
+from manim_studio.core.editing import edits
+from manim_studio.core.model import scene_length
+from manim_studio.core.model.schema import Clip, Layer, Project
 from manim_studio.ui.main_window import MainWindow
+from manim_studio.ui.session.document import Document
 from support import CANVAS, TEXT
 
 pytestmark = pytest.mark.ui
@@ -170,7 +171,7 @@ def test_scene_settings_in_the_edit_menu_shows_the_length(window, qt_app) -> Non
 def test_fit_length_leaves_an_untimed_scene_and_says_so(qt_app, tmp_path) -> None:
     """Only objects there from the start (their end on "auto"): the scene shrank to one frame
     (the user's report); now it keeps its length and the status bar says why."""
-    from manim_studio.core.schema import Canvas, Spec
+    from manim_studio.core.model.schema import Canvas, Spec
 
     path = tmp_path / "still.json"
     still = Project(canvas=Canvas(duration=6.0), layers=[Layer(id="c", spec=Spec(type="Circle"))])

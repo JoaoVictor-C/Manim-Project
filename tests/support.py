@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from manim_studio.core import adapter
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import CLIP_KIND_INFO, Canvas, Clip, Easing, Layer, Project, Spec
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import CLIP_KIND_INFO, Canvas, Clip, Easing, Layer, Project, Spec
 from manim_studio.render.cairo_export import make_camera, render_frame
 
 CANVAS = Canvas(width_px=320, height_px=180, fps=15, duration=1.0)

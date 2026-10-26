@@ -32,6 +32,6 @@ source layer's lane with `to_layer` set, and:
 
 ## Evidence
 
-- `tests/core/test_random_access.py::test_morph_random_access`
-- `tests/core/test_invalidation.py::test_morph_target_edit_refreshes_source`
-- `tests/core/test_schema.py::test_clips_after_a_morph_are_rejected`
+- `tests/core/engine/test_random_access.py::test_morph_random_access`
+- `tests/core/engine/test_invalidation.py::test_morph_target_edit_refreshes_source`
+- `tests/core/model/test_schema.py::test_clips_after_a_morph_are_rejected`

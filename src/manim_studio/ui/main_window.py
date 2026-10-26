@@ -36,53 +36,60 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import adapter, audio, edits, library, limits, parts, recovery, shape, shift_timing, subtitles
-from ..core.code_cache import code_hash
-from ..core.edits import Edit, EditKind
-from ..core.evaluator import Evaluator
-from ..core.frame_cache import frame_index, frame_time
-from ..core.preset_library import PresetLibrary
-from ..core.python_export import PythonExport, class_name, to_python
-from ..core.scene_import import import_scene, scene_classes
-from ..core.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
-from ..core.trust import TrustStore
-from ..core.trust import label as trust_label
+from ..core.code import limits
+from ..core.code.code_cache import code_hash
+from ..core.code.trust import TrustStore
+from ..core.code.trust import label as trust_label
+from ..core.editing import edits, library, shift_timing
+from ..core.editing.edits import Edit, EditKind
+from ..core.engine import adapter
+from ..core.engine.evaluator import Evaluator
+from ..core.engine.frame_cache import frame_index, frame_time
+from ..core.engine.python_export import PythonExport, class_name, to_python
+from ..core.exchange.preset_library import PresetLibrary
+from ..core.exchange.scene_import import import_scene, scene_classes
+from ..core.model import parts, recovery, shape
+from ..core.model.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
+from ..core.sound import audio, subtitles
 from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
-from . import arrange, icons, places, shortcuts_help, snap_guides, theme
-from .audio_player import make_audio_player
-from .autosave import Autosave
-from .build_service import BuildService
-from .canvas import CanvasWidget
-from .canvas_tools import MoveTool
-from .clipboard_actions import ClipboardActions
-from .code_importer import CodeImporter
-from .code_render import make_code_renderer
-from .document import Document
-from .elided_label import ElidedLabel
-from .export_dialog import ExportDialog
-from .layers_panel import LayersPanel
-from .new_project_dialog import NewProjectDialog
+from .canvas import arrange, snap_guides
+from .canvas.canvas import CanvasWidget
+from .canvas.canvas_tools import MoveTool
+from .canvas.viewport import ZOOM_STEP
+from .deliver.export_dialog import ExportDialog
+from .exchange.code_importer import CodeImporter
 from .pages import PageHost, Shared
 from .pages.animate import AnimatePage
 from .pages.audio import AudioPage
 from .pages.code import CodePage
 from .pages.compose import ComposePage
 from .pages.deliver import DeliverPage
-from .plugins_dialog import PluginsDialog, startup_message
-from .preferences import Preferences
-from .presenter import Presenter
-from .presets_browser import PresetsBrowser
-from .preview_client import make_preview
-from .properties_panel import PropertiesPanel
-from .render_activity import RenderActivity
-from .render_ahead import RenderAhead
-from .scene_import import ImportReport, SceneImporter
-from .selection import Selection
-from .shortcuts_help import ShortcutsDialog
+from .panels.layers_panel import LayersPanel
+from .panels.presets_browser import PresetsBrowser
+from .panels.properties_panel import PropertiesPanel
+from .playback.audio_player import make_audio_player
+from .playback.presenter import Presenter
+from .services.code_render import make_code_renderer
+from .services.preview_client import make_preview
+from .services.render_ahead import RenderAhead
+from .services.scene_import import ImportReport, SceneImporter
+from .services.worker_process import make_worker
+from .session import places
+from .session.build_service import BuildService
+from .session.document import Document
+from .session.preferences import Preferences
+from .session.selection import Selection
+from .shell import shortcuts_help
+from .shell.autosave import Autosave
+from .shell.clipboard_actions import ClipboardActions
+from .shell.new_project_dialog import NewProjectDialog
+from .shell.plugins_dialog import PluginsDialog, startup_message
+from .shell.shortcuts_help import ShortcutsDialog
+from .shell.welcome import EXAMPLE, WelcomePanel
+from .style import icons, theme
+from .style.elided_label import ElidedLabel
+from .style.render_activity import RenderActivity
 from .timeline.view import TimelineView
-from .viewport import ZOOM_STEP
-from .welcome import EXAMPLE, WelcomePanel
-from .worker_process import make_worker
 
 log = get_logger(__name__)
 

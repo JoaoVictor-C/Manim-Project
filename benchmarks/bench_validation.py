@@ -19,8 +19,9 @@ import pstats
 import sys
 import time
 
-from manim_studio.core import edits, frame_cache
-from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, PartKey, Project, Spec
+from manim_studio.core.editing import edits
+from manim_studio.core.engine import frame_cache
+from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, PartKey, Project, Spec
 
 SIZES = (20, 200, 1000, 2000)
 

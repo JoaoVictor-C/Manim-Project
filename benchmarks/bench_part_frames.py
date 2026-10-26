@@ -10,9 +10,11 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from manim_studio.core import adapter, edits, parts
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
+from manim_studio.core.editing import edits
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model import parts
+from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
 from manim_studio.render.cairo_export import make_camera, render_frame
 
 adapter.configure(Path(__file__).resolve().parent.parent / ".cache" / "manim")

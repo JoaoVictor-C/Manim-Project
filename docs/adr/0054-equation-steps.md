@@ -27,7 +27,7 @@ third-party algebra-animation library's code or documentation was consulted.
   `hold` when it grows with its content. Afterwards the layers are edited with the normal tools.
 - **Plain layers, no group:** a v1 group cannot hold objects with parts, nor morphs between its
   members and the outside (ADR 0050).
-- **Pure core** (`core/equation_steps.py`, no Manim, no Qt): a small LaTeX tokenizer and tree
+- **Pure core** (`core/editing/equation_steps.py`, no Manim, no Qt): a small LaTeX tokenizer and tree
   (tokens, `{}`/`()`/`[]`/`\left...\right` groups, commands with arguments such as `\frac`,
   `\sqrt`, `\text`); `parse_steps` (one equation per non-empty line, `%` comments, at most 40
   steps of 400 characters); `derive(line, operation, term)` on `LHS = RHS` split at its one
@@ -80,10 +80,10 @@ third-party algebra-animation library's code or documentation was consulted.
 
 ## Evidence
 
-- Tests: `tests/core/test_equation_steps.py` (lines, tokens, tree, every operation and its
-  refusals, every derived line built by Manim, plans), `tests/core/test_equation_steps_layers.py`
+- Tests: `tests/core/editing/test_equation_steps.py` (lines, tokens, tree, every operation and its
+  refusals, every derived line built by Manim, plans), `tests/core/editing/test_equation_steps_layers.py`
   (layers, clips, timing, lifetimes, scene length, highlight and skipped runs, frames that show
   one step at a time against hand-built MathTex, a highlighted step against the same equation
-  coloured with `colour_part`, no LaTeX), `tests/ui/test_equation_steps_ui.py` (dialog, checks
+  coloured with `colour_part`, no LaTeX), `tests/ui/panels/test_equation_steps_ui.py` (dialog, checks
   through a fake worker, remembered options, one undo step, the real window).
 - Plan: [../plans/p11-equation-steps.md](../plans/p11-equation-steps.md).

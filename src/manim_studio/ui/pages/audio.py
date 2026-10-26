@@ -2,12 +2,12 @@
 
 A *sounds* table (name, file, start, trim, duration, gain, fades) and a *subtitles* table (start, end,
 text) read the document snapshot and edit it in place: a cell's text becomes an ``Edit`` through
-``core/tables.py`` (so ``update_audio`` / ``update_cue`` validate it), applied as one undo step; a
+``core/editing/tables.py`` (so ``update_audio`` / ``update_cue`` validate it), applied as one undo step; a
 refused edit shows its reason in the status bar and the cell keeps its value. Selection follows the
 shared ``Selection`` both ways - a click on a row selects the sound or subtitle (a subtitle row also
 moves the playhead to it), a selection made on the timeline selects the row without moving anything.
 
-The level meter shows the peak and RMS of the mix around the playhead (``core/levels.py``); it follows
+The level meter shows the peak and RMS of the mix around the playhead (``core/sound/levels.py``); it follows
 every seek and playback tick and every edit while the page is shown. The subtitle style is in the shared
 Properties panel (select a subtitle), and the timeline sits below, as on every page.
 """
@@ -33,9 +33,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import audio, edits, levels, tables
-from ...core.schema import AudioClip, Cue
-from .. import icons, theme
+from ...core.editing import edits, tables
+from ...core.model.schema import AudioClip, Cue
+from ...core.sound import audio, levels
+from ..style import icons, theme
 from . import Page, Shared
 
 ZONES = ((levels.FLOOR_DB, -18.0, "success"), (-18.0, -6.0, "warning"), (-6.0, 0.0, "danger"))

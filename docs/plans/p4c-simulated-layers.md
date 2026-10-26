@@ -13,7 +13,7 @@ pendulum simulation swings and its bob is traced, and both scrub in any order
 equal to playing them, render ahead equal to live frames, and export to a video
 and to an exact Python scene that match the editor.
 
-## Schema (`core/schema.py`)
+## Schema (`core/model/schema.py`)
 
 - `TRACE_TYPES = {"TracedPath"}`; a TracedPath is a root with params `target`
   (a layer id, required), `offset` (x, y; default 0, 0) and `dissipate` (seconds,

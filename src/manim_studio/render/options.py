@@ -14,8 +14,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..core import audio
-from ..core.schema import Canvas, Cue, Project
+from ..core.model.schema import Canvas, Cue, Project
+from ..core.sound import audio
 
 SUBTITLE_MODES = ("burn", "srt", "none")
 DEFAULT_CRF = 18  # what exports used before options existed

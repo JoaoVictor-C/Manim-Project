@@ -21,7 +21,7 @@ Manim".
    `from grid_tools import make_grid` works. Names are Python identifiers, unique, and must not shadow the
    standard library, Manim, numpy or the names the runners provide (`np`, `math`, `m`). Limits: 64 KB per
    helper, 50 helpers.
-3. **How it is imported** (`core/helpers.py`, pure): while user code runs, a meta-path finder serves the
+3. **How it is imported** (`core/code/helpers.py`, pure): while user code runs, a meta-path finder serves the
    project's helper sources as modules (`__file__` = `<helper name>`, so tracebacks say where an error is);
    the modules are removed afterwards, so an edit is always picked up. A helper may import another.
 4. **Trust is per helper and enforced where the import happens.** Helper code is a program like any other

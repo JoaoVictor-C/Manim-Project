@@ -14,12 +14,13 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QKeyEvent
 
-from manim_studio.core import edits, subtitles
-from manim_studio.core.schema import Canvas, Cue, Layer, Project, Spec
+from acceptance.test_acceptance_v1 import menu_action
+from manim_studio.core.editing import edits
+from manim_studio.core.model.schema import Canvas, Cue, Layer, Project, Spec
+from manim_studio.core.sound import subtitles
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.timeline.view import ROW_HEIGHT, RULER_HEIGHT, CueItem
-from ui.test_acceptance_v1 import menu_action
-from ui.test_timeline_view import move, press, release
+from ui.timeline.test_timeline_view import move, press, release
 
 pytestmark = pytest.mark.ui
 

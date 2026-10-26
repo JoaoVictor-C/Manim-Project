@@ -139,7 +139,7 @@ under the user cache folder, verify a checksum where the source publishes one.
 |---|---|---|
 | P14.0 | Decision session and ADR 0060: provider API, data model, retiming rules, secrets, worker isolation; answer the open questions above | ADR accepted; open questions closed or explicitly deferred |
 | P14.1 | `VoiceProvider` API, discovery, registries, problems list, **SAPI** provider, worker-process synthesis with timeout/cancel/retry, content-addressed cache | a provider in the plugin folder is found; SAPI synthesizes a file in the worker; failures are listed; cached hit does no work (unit tests with a fake provider) |
-| P14.2 | Model changes (`voice`, `audio_id` on cues, saved only when set), stale tracking, generate-and-place edits in `core/edits.py` | round-trips through load/save; old files unchanged; undo restores; no frame changes |
+| P14.2 | Model changes (`voice`, `audio_id` on cues, saved only when set), stale tracking, generate-and-place edits in `core/editing/edits.py` | round-trips through load/save; old files unchanged; undo restores; no frame changes |
 | P14.3 | Narration section UI: voice selector, preview, generate, progress/cancel, stale markers, delete behaviour | generate for selected/all/stale; cancel leaves a valid project; UI tests |
 | P14.4 | **Follow speech** and **Fit speech to cues**, pause setting, undo, report of what could not fit | cues retimed without overlap; the example's schedule reproduced exactly by the feature |
 | P14.5 | Providers: Edge (extra), then Kokoro and Piper with consented model downloads, then cloud providers with keyring secrets | each provider works from the dialog; missing extra shows an install hint, not a traceback |

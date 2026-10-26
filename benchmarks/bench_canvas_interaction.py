@@ -25,9 +25,9 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPainterPath, QPainterPathStroker, QPen
 
 from bench_edits import scene
-from manim_studio.core import edits
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Keyframe, Transform2D
+from manim_studio.core.editing import edits
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Keyframe, Transform2D
 from manim_studio.render.cairo_export import make_camera, render_frame
 from manim_studio.render.qt_paths import camera_transform, vmobject_path
 

@@ -1,6 +1,6 @@
 # S4 — Export dialog: implementation plan
 
-- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_export_dialog.py`; B26: UI timer p99 14 ms during an export
+- **Status:** ✅ Done (2026-10-09) — `tests/ui/deliver/test_export_dialog.py`; B26: UI timer p99 14 ms during an export
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 7](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B25 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -49,7 +49,7 @@ and reports it.
 | step | content | acceptance |
 |---|---|---|
 | S4.1 | CLI `--cache-dir`, `--progress json`, partial file + replace + locked-target rename | CLI tests: progress lines, cache dir used, failure leaves the old output intact and no partial file, locked target renamed with a warning |
-| S4.2 | `ui/export_job.py`: QProcess wrapper (`progress`, `finished`, `failed`, `cancel()`) | real subprocess on a tiny canvas: progress before exit, cancel cleans up, error reported |
+| S4.2 | `ui/deliver/export_job.py`: QProcess wrapper (`progress`, `finished`, `failed`, `cancel()`) | real subprocess on a tiny canvas: progress before exit, cancel cleans up, error reported |
 | S4.3 | dialog, menu, quit guard | dialog states; quit while exporting asks |
 | S4.4 | acceptance + docs | export from the UI while editing; the result is a playable video |
 

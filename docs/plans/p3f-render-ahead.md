@@ -15,7 +15,7 @@ change refills the cache.
 
 ## Core (no Qt)
 
-- `core/frame_cache.py`:
+- `core/engine/frame_cache.py`:
   - `frame_index(t, fps)` / `frame_time(i, fps)`: the grid (as `frame_times`).
   - `changed_spans(old, new)`: `None` (everything) when anything but the layers
     differs; otherwise the old and new lifetimes of the **closure** of changed
@@ -35,19 +35,19 @@ change refills the cache.
 
 ## Process and client
 
-- `manim_studio/preview.py` (`--cache-dir`): JSON lines. In: `project`
+- `manim_studio/processes/preview.py` (`--cache-dir`): JSON lines. In: `project`
   (snapshot + generation), `view` (id + `PreviewView`), `want` (indices),
   `media`. Out: `ready`, `frame` (view id, generation, index, zlib base64). A
   reader thread queues input; between frames the loop applies the newest
   messages. A new snapshot is applied with `invalidate` on its changed layers
   (a new evaluator when the canvas changed).
-- `ui/preview_client.py`: the `QProcess` (restart on crash, give up after three
+- `ui/services/preview_client.py`: the `QProcess` (restart on crash, give up after three
   failed starts), a `frame` signal; `make_preview` returns none when
   `MANIM_STUDIO_PREVIEW=0` (tests).
 
 ## Editor
 
-- `ui/render_ahead.py` (`RenderAhead`): owns the store and the client. On a
+- `ui/services/render_ahead.py` (`RenderAhead`): owns the store and the client. On a
   document change it drops `changed_spans` at once and sends the snapshot
   ~150 ms after the last change; on a view change it clears and sends the view;
   it asks for the next 60 missing frames from the playhead when frames arrive,

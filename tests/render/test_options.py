@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 
 from manim_studio import cli
-from manim_studio.core import audio
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import AudioClip, Canvas, Clip, Cue, Layer, Project, Spec, SubtitleStyle
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import AudioClip, Canvas, Clip, Cue, Layer, Project, Spec, SubtitleStyle
+from manim_studio.core.sound import audio
 from manim_studio.render.cairo_export import export_video, frame_times, make_camera, render_frame
 from manim_studio.render.options import (
     OptionsError,
@@ -361,8 +361,8 @@ def test_cli_subtitles_none_writes_no_srt(tmp_path) -> None:
 @pytest.mark.slow
 def test_code_layers_are_rendered_at_the_size_being_exported(tmp_path) -> None:
     """A code layer's frames are cached per canvas size; the CLI renders them at the export's size."""
-    from manim_studio.core.code_cache import CodeCache
-    from manim_studio.core.evaluator import code_key
+    from manim_studio.core.code.code_cache import CodeCache
+    from manim_studio.core.engine.evaluator import code_key
 
     code = "class A(Scene):\n    def construct(self):\n        self.add(Dot())\n        self.wait(0.5)\n"
     layer = Layer(id="code", spec=Spec(type="Code", params={"code": code}))

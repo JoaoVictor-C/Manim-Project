@@ -22,11 +22,11 @@ what a linter cannot.
 ## Architecture rules (checked in review)
 
 1. `core/` never imports Qt or `ui/`.
-2. Only `core/adapter.py` imports Manim mobject/animation classes or reaches into
+2. Only `core/engine/adapter.py` imports Manim mobject/animation classes or reaches into
    animation internals. Other modules use generic `Mobject` APIs.
 3. A frame is a pure function of `(project, t)`. Never mutate a checkpoint, a
    base mobject, or anything returned by `Evaluator.frame()`.
-4. Every edit is made with a function in `core/edits.py` and applied with
+4. Every edit is made with a function in `core/editing/edits.py` and applied with
    `Evaluator.apply(edit)`; never build an edited `Project` with
    `model_copy(update=...)` (it skips validation) or pick the edit kind by hand.
 5. New clip kinds are added to `schema.CLIP_KIND_INFO` and

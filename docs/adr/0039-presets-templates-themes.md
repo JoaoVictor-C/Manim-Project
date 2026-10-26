@@ -15,7 +15,7 @@ header) were rebuilt each time, and colours were set one object at a time.
 
 - **Library items are data**: JSON files with `format: "manim-studio-library"`,
   `version: 1`, a `kind` (`preset`, `template` or `theme`) and a `name`. Built-ins
-  ship with the package (`src/manim_studio/library/`); the user's own live in a
+  ship with the package (`src/manim_studio/data/library/`); the user's own live in a
   user folder (`MANIM_STUDIO_LIBRARY` overrides it). A file that cannot be read, or
   has a newer version, is skipped with a message (like plugins, ADR 0032).
 - **A preset** (category entrance, emphasis, exit or motion) lists clips - kinds

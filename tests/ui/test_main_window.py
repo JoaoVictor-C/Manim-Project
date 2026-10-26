@@ -51,7 +51,7 @@ def window(qt_app, tmp_path):
 
 @pytest.mark.ui
 def test_save_round_trips_the_project(window, tmp_path) -> None:
-    from manim_studio.core.schema import Project
+    from manim_studio.core.model.schema import Project
 
     target = tmp_path / "saved.json"
     window.path = target
@@ -145,8 +145,8 @@ def test_timeline_scrub_pauses_and_seeks(window) -> None:
 
 @pytest.mark.ui
 def test_timeline_drag_updates_canvas_and_undo(window) -> None:
-    from manim_studio.core import edits
-    from manim_studio.core.evaluator import Evaluator
+    from manim_studio.core.editing import edits
+    from manim_studio.core.engine.evaluator import Evaluator
 
     doc = window.document
     doc.begin_preview()
@@ -166,7 +166,7 @@ def test_timeline_drag_updates_canvas_and_undo(window) -> None:
 
 def test_the_start_hint_goes_once_a_project_is_open(qt_app, tmp_path) -> None:
     """GP: "Create a project..." stayed in the status bar after New and after opening a file."""
-    from manim_studio.core.schema import Project
+    from manim_studio.core.model.schema import Project
     from manim_studio.ui.main_window import START_HINT
 
     win = MainWindow()
@@ -231,7 +231,7 @@ def test_without_latex_the_editor_keeps_working(qt_app, tmp_path, monkeypatch) -
     canvas and selection - and the editor seemed broken. Now it shows a placeholder and says why."""
     import uuid
 
-    from manim_studio.core.schema import Canvas, Clip, Layer, Project, Spec
+    from manim_studio.core.model.schema import Canvas, Clip, Layer, Project, Spec
 
     monkeypatch.setenv("PATH", str(tmp_path))  # no latex on PATH
     text = rf"x^2 + \text{{{uuid.uuid4().hex[:8]}}}"

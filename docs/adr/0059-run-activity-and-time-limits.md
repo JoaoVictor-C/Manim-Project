@@ -15,7 +15,7 @@ needs ten minutes, with no way past it.
 
 ## Decision
 
-- **Show it everywhere.** `ui/render_activity.py`: one spinner glyph (a full turn a second) used by
+- **Show it everywhere.** `ui/style/render_activity.py`: one spinner glyph (a full turn a second) used by
   - a **status-bar indicator** on every page: *spinner Rendering Orbit · 340 frames · 12 s · 1 waiting*
     (*· no time limit* when lifted); hidden when idle; a click opens the layer on the Code page;
   - a **badge on the canvas** (top right) with the same line;
@@ -24,7 +24,7 @@ needs ten minutes, with no way past it.
   - a thicker, accent-coloured progress bar and a spinner on **Run** (*Running... 12.3 s*).
   `CodeRenderService.active()` lists what renders (longest first) and what waits; nothing here changes a
   frame or the project.
-- **A switch for the limits.** `core/limits.py` holds one process-wide flag, `unlimited()`, and the defaults
+- **A switch for the limits.** `core/code/limits.py` holds one process-wide flag, `unlimited()`, and the defaults
   (`RENDER_LIMIT` 120 s, `BUILD_LIMIT` 20 s). The Code page's **No time limit** toggle (next to Run, remembered
   as the option `code_no_time_limit`, applied at startup) lifts all three: the render watchdog, the build
   worker's timeout, and `python_object.time_limit`. The build worker is told in each request (`no_limit`), not
@@ -51,7 +51,7 @@ needs ten minutes, with no way past it.
 
 ## Evidence
 
-- Test: `tests/core/test_limits.py`, `tests/ui/test_render_activity.py`,
-  `tests/ui/test_code_render.py::test_no_time_limit_lets_a_long_render_go_on`
-- Source: [limits.py](../../src/manim_studio/core/limits.py),
-  [render_activity.py](../../src/manim_studio/ui/render_activity.py)
+- Test: `tests/core/code/test_limits.py`, `tests/ui/style/test_render_activity.py`,
+  `tests/ui/services/test_code_render.py::test_no_time_limit_lets_a_long_render_go_on`
+- Source: [limits.py](../../src/manim_studio/core/code/limits.py),
+  [render_activity.py](../../src/manim_studio/ui/style/render_activity.py)

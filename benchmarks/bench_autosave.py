@@ -16,8 +16,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from manim_studio.core import clipboard, edits, recovery
-from manim_studio.core.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
+from manim_studio.core.editing import clipboard, edits
+from manim_studio.core.model import recovery
+from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
 
 
 def timed(work, repeat: int = 7) -> float:

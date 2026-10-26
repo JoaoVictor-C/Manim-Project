@@ -1,6 +1,6 @@
 # S2 — Panels: implementation plan
 
-- **Status:** ✅ Done (2026-10-09) — acceptance test `tests/ui/test_acceptance_s2.py`
+- **Status:** ✅ Done (2026-10-09) — acceptance test `tests/acceptance/test_acceptance_s2.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 5](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B17–B20 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -35,13 +35,13 @@ warm, after which the editor builds the same object in 10–32 ms (B18).
 
 ```
 Properties / Layers / Timeline
-        │ submit(op, text, supersede_key)          op: Project -> Edit (core/edits.py)
+        │ submit(op, text, supersede_key)          op: Project -> Edit (core/editing/edits.py)
         ▼
-  BuildService (ui/build_service.py) ──needs_warm(old, new, warmed)── core/warm.py (pure)
+  BuildService (ui/session/build_service.py) ──needs_warm(old, new, warmed)── core/engine/warm.py (pure)
         │ nothing to warm → Document.apply           │ keys to warm
         │                                            ▼
         │                               WorkerProcess (QProcess, JSON lines)
-        │                                 python -m manim_studio.worker
+        │                                 python -m manim_studio.processes.worker
         │ reply ok: key → warmed; re-run pending ops on the CURRENT snapshot
         ▼
      Document.apply → Evaluator (disk-cache hit, ~10–32 ms)
@@ -119,8 +119,8 @@ top). Selecting a layer selects it in the properties panel.
 
 | step | content | acceptance |
 |---|---|---|
-| S2.1 | `core/edits.py`: `add_layer`, `remove_layer`, `move_layer`, `add_clip`, `remove_clip`, `new_layer_id`, `new_clip_id` | unit tests; property test: random structural edits + `Evaluator.apply` == fresh evaluator |
-| S2.2 | `core/warm.py`, `manim_studio/worker.py`, `ui/build_service.py`, ADR 0015 | fake-worker tests for rules 1–7; real subprocess: warm then main build < 100 ms, LaTeX error reported, killed worker restarts and a queued request completes |
+| S2.1 | `core/editing/edits.py`: `add_layer`, `remove_layer`, `move_layer`, `add_clip`, `remove_clip`, `new_layer_id`, `new_clip_id` | unit tests; property test: random structural edits + `Evaluator.apply` == fresh evaluator |
+| S2.2 | `core/engine/warm.py`, `manim_studio/processes/worker.py`, `ui/session/build_service.py`, ADR 0015 | fake-worker tests for rules 1–7; real subprocess: warm then main build < 100 ms, LaTeX error reported, killed worker restarts and a queued request completes |
 | S2.3 | `adapter.MOBJECT_PARAMS` for the 12 types | every type builds with defaults and with each param changed |
 | S2.4 | Layers dock | add/delete/rename/reorder through the widget, one undo step each |
 | S2.5 | Properties dock | edits through widgets; pending text survives an unrelated edit |

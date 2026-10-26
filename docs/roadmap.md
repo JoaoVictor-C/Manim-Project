@@ -17,13 +17,13 @@ Each slice ends with something runnable and its tests. Order decided in
 | slice | scope | done when |
 |---|---|---|
 | ✅ **S1 timeline** — [plan](plans/s1-timeline.md) | QGraphicsView: one row per layer, clip bars draggable and resizable, playhead scrub, overlap prevented (drags clamp at neighbours), undo/redo | dragging a clip updates the canvas live (≤ 33 ms per applied step; B16: 19–24 ms in the editor) |
-| ✅ **S2 panels** — [plan](plans/s2-panels.md) | layer list (reorder = z-order), object library, properties panel generated from the adapter registry | a new MathTex layer with a Write clip can be built without editing JSON (`tests/ui/test_acceptance_s2.py`) |
-| ✅ **S3 canvas interaction** — [plan](plans/s3-canvas.md) | hit-testing with `qt_paths`, selection outline, move gizmo with the stopwatch rule (no keyframes → base value; keyframes → key at playhead), `QUndoStack` | move an object, undo, redo (`tests/ui/test_acceptance_s3.py`; B24: 18.5 ms per drag step) |
-| ✅ **S4 export dialog** — [plan](plans/s4-export.md) | `QProcess` running `manim-studio render`, progress, cancel | export from the UI without freezing it (`tests/ui/test_export_dialog.py`; B26) |
+| ✅ **S2 panels** — [plan](plans/s2-panels.md) | layer list (reorder = z-order), object library, properties panel generated from the adapter registry | a new MathTex layer with a Write clip can be built without editing JSON (`tests/acceptance/test_acceptance_s2.py`) |
+| ✅ **S3 canvas interaction** — [plan](plans/s3-canvas.md) | hit-testing with `qt_paths`, selection outline, move gizmo with the stopwatch rule (no keyframes → base value; keyframes → key at playhead), `QUndoStack` | move an object, undo, redo (`tests/acceptance/test_acceptance_s3.py`; B24: 18.5 ms per drag step) |
+| ✅ **S4 export dialog** — [plan](plans/s4-export.md) | `QProcess` running `manim-studio render`, progress, cancel | export from the UI without freezing it (`tests/ui/deliver/test_export_dialog.py`; B26) |
 
 **Smallest useful v1:** write an equation, move it, morph it into a second
 equation, fade it out, export MP4 — without touching code or JSON. ✅ Reached:
-`tests/ui/test_acceptance_v1.py` does exactly this through the menus, panels,
+`tests/acceptance/test_acceptance_v1.py` does exactly this through the menus, panels,
 timeline and canvas, with the real build worker and renderer.
 
 ## Phase 2

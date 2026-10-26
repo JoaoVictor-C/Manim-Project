@@ -72,37 +72,31 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import (
-    adapter,
-    code_files,
-    diagnostics,
-    edits,
-    error_hints,
-    helpers,
-    limits,
-    live_guard,
-    outline,
-    python_object,
-    run_to_cursor,
-)
-from ...core.code_history import CodeHistory
-from ...core.schema import CODE_TYPES, PYTHON_TYPES
-from ...core.standalone import standalone_scene
-from .. import code_drag, icons, quick_open, theme
-from ..chapters import ChapterActions
-from ..code_drafts import Drafts, error_line, error_text, moved_on
-from ..code_editor import CodeEditor
-from ..code_explorer import CodeExplorer, Row, Section
-from ..code_helpers import EMPTY as NO_HELPERS
-from ..code_helpers import HelperActions, key_of, name_of
-from ..code_history_dialog import HistoryKeeper
-from ..code_render import CodeStatus
-from ..find_bar import FindBar
-from ..params_definition import ParamsDefinitionPanel
-from ..properties_panel import _first_error, set_param, set_python_code
-from ..render_activity import spinner
-from ..snippet_dialog import SnippetDialog
-from ..values_panel import ValuesPanel
+from ...core.assist import diagnostics, error_hints, live_guard, outline, run_to_cursor
+from ...core.code import helpers, limits, python_object
+from ...core.code.code_history import CodeHistory
+from ...core.editing import edits
+from ...core.engine import adapter
+from ...core.engine.standalone import standalone_scene
+from ...core.exchange import code_files
+from ...core.model.schema import CODE_TYPES, PYTHON_TYPES
+from ..code import quick_open
+from ..code.chapters import ChapterActions
+from ..code.code_drafts import Drafts, error_line, error_text, moved_on
+from ..code.code_editor import CodeEditor
+from ..code.code_explorer import CodeExplorer, Row, Section
+from ..code.code_helpers import EMPTY as NO_HELPERS
+from ..code.code_helpers import HelperActions, key_of, name_of
+from ..code.code_history_dialog import HistoryKeeper
+from ..code.find_bar import FindBar
+from ..code.params_definition import ParamsDefinitionPanel
+from ..code.snippet_dialog import SnippetDialog
+from ..panels.properties_panel import _first_error, set_param, set_python_code
+from ..panels.values_panel import ValuesPanel
+from ..services.code_render import CodeStatus
+from ..session import code_drag
+from ..style import icons, theme
+from ..style.render_activity import spinner
 from . import Page, Shared
 
 LIVE_PAUSE_MS = 800  # the pause in typing after which Live applies

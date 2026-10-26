@@ -2,7 +2,7 @@
 
 Places where Manim Studio deliberately renders differently from a hand-written
 Manim scene, so that every frame can be computed in any order (scrubbing).
-Each entry is enforced in `src/manim_studio/core/adapter.py` and covered by
+Each entry is enforced in `src/manim_studio/core/engine/adapter.py` and covered by
 `tests/test_random_access.py`.
 
 ## Wiggle pivots around the starting centre
@@ -48,7 +48,7 @@ from wherever each outline starts, and blends colours in sRGB.
 
 **Manim Studio:** a Transform, ClockwiseTransform or CounterclockwiseTransform clip with
 `match: "smart"` (what the editor gives new morphs, ADR 0056) is fed ends aligned by
-`core/morph.py` - pieces paired by place, size and outline, holes with holes, loops started where
+`core/engine/morph.py` - pieces paired by place, size and outline, holes with holes, loops started where
 they travel least and cut at each other's corners - and blends colours in OKLab, with each end
 drawn exactly. Clips without the param (older files, imported scenes) are Manim's own Transform,
 bit for bit. A project with a smart morph exports as the exact scene.
@@ -58,13 +58,13 @@ bit for bit. A project with a smart morph exports as the exact scene.
 - **MoveAlongPath measures its path once.** Manim's `point_from_proportion`
   measures every curve of the path on every frame (23.6 ms on a 399-curve
   graph); the adapter's `TabledMoveAlongPath` builds an arc-length table when
-  the clip begins and gives the same points (B38, `tests/core/test_paths.py`).
+  the clip begins and gives the same points (B38, `tests/core/features/test_paths.py`).
 
 - **Half-written LaTeX renders are compiled again.** Manim reuses
   `<hash>.svg` whenever it exists; a process killed while writing it (a build
   worker past its timeout) left a truncated file that failed that formula for
   good. The adapter wraps `tex_to_svg_file`: an SVG that does not end with
-  `</svg>` is deleted and compiled again (`tests/core/test_adapter.py`).
+  `</svg>` is deleted and compiled again (`tests/core/engine/test_adapter.py`).
 - **Traced paths have no corner at the end of a play.** Manim's `TracedPath`
   adds its point on every frame and once more after each `play()` ends (the end
   state, which is never shown as a frame). The editor has no `play()` calls: a

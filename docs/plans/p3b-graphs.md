@@ -1,6 +1,6 @@
 # P3b — Axes and function graphs: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p3b.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p3b.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 16](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.82)
 - **Evidence:** benchmark B37 in [../logs/benchmarks.md](../logs/benchmarks.md)

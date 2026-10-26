@@ -28,9 +28,9 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
-from manim_studio.core import python_export
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Project
+from manim_studio.core.engine import python_export
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Project
 from manim_studio.render.cairo_export import frame_times, make_camera, render_frame
 from manim_studio.ui.main_window import MainWindow
 
@@ -223,8 +223,8 @@ def test_create_save_reopen_and_export_a_typical_animation(qt_app, tmp_path, mon
 
 
 def test_the_golden_path_project_exports_readable_python() -> None:
-    from manim_studio.core import library
-    from manim_studio.core.schema import Canvas, Layer, Spec
+    from manim_studio.core.editing import library
+    from manim_studio.core.model.schema import Canvas, Layer, Spec
 
     project = Project(
         canvas=Canvas(width_px=640, height_px=360),

@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import icons
+from ..style import icons
 
 
 @dataclass(frozen=True)

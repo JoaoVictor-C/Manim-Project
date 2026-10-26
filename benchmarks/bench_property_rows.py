@@ -26,8 +26,8 @@ from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QApplication
 from test_long_scene_scaling import long_project
 
-from manim_studio.core.schema import Keyframe, Project
-from manim_studio.ui.document import Document
+from manim_studio.core.model.schema import Keyframe, Project
+from manim_studio.ui.session.document import Document
 from manim_studio.ui.timeline.view import TimelineView
 
 REPEATS = 15

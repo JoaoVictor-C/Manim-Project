@@ -67,7 +67,7 @@ edit.
 | step | content | acceptance |
 |---|---|---|
 | 1 | `props` on `retime_keys` / `remove_keys`; curve colour tokens | edit tests, theme tests |
-| 2 | `ui/graph_model.py` (Qt-free): curves, ranges, sampling, view, hits, drag rule, edits | `tests/ui/test_graph_model.py` (parity with the evaluator) |
-| 3 | `ui/graph_editor.py`, `ui/pages/animate.py`, registered after Compose; `playheadMoved` | `tests/ui/test_animate_page.py` through the real window |
-| 4 | acceptance and mutation check | `tests/ui/test_acceptance_p6b2.py`; 38/38 mutants killed |
+| 2 | `ui/timeline/graph_model.py` (Qt-free): curves, ranges, sampling, view, hits, drag rule, edits | `tests/ui/timeline/test_graph_model.py` (parity with the evaluator) |
+| 3 | `ui/timeline/graph_editor.py`, `ui/pages/animate.py`, registered after Compose; `playheadMoved` | `tests/ui/pages/test_animate_page.py` through the real window |
+| 4 | acceptance and mutation check | `tests/acceptance/test_acceptance_p6b2.py`; 38/38 mutants killed |
 | 5 | B56, docs | benchmarks log, CHANGELOG, testing, architecture, README |

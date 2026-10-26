@@ -23,11 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from tests.core import test_python_export_keyed as cases  # noqa: E402
+from tests.core.engine import test_python_export_keyed as cases  # noqa: E402
 
-from manim_studio.core import adapter, library  # noqa: E402
-from manim_studio.core.python_export import to_python  # noqa: E402
-from manim_studio.core.schema import Canvas, Layer, Project, Spec  # noqa: E402
+from manim_studio.core.editing import library  # noqa: E402
+from manim_studio.core.engine import adapter  # noqa: E402
+from manim_studio.core.engine.python_export import to_python  # noqa: E402
+from manim_studio.core.model.schema import Canvas, Layer, Project, Spec  # noqa: E402
 
 
 def main() -> None:

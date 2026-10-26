@@ -1,6 +1,6 @@
 # P2b — Keyframes on the timeline and the easing curve editor: implementation plan
 
-- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_p2b.py`
+- **Status:** ✅ Done (2026-10-09) — `tests/acceptance/test_acceptance_p2b.py`
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 9](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.90)
 - **Evidence:** benchmark B27 in [../logs/benchmarks.md](../logs/benchmarks.md)

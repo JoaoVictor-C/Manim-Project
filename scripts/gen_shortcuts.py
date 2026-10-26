@@ -1,7 +1,7 @@
 """Generate docs/guide/shortcuts.md from the editor itself.
 
 The table is read the same way Help > Keyboard Shortcuts (F1) reads it
-(``ui/shortcuts_help.py``): every menu item that has a shortcut, the panels' actions that
+(``ui/shell/shortcuts_help.py``): every menu item that has a shortcut, the panels' actions that
 have one, and the fixed list of mouse gestures (``GESTURES``). A few keys are bound with a
 bare ``QShortcut`` or an action without a name, which the dialog cannot list; they are in
 ``EXTRA`` below - keep it in step with the code it names.
@@ -36,19 +36,31 @@ EXTRA: tuple[tuple[str, str, str], ...] = (
     ("Code page", "Go to a layer or preset by name", "Ctrl+P"),  # pages/code.py QShortcut
     ("Code page", "Go to a symbol (class, function, PARAMS) of the code", "Ctrl+Shift+O"),  # pages/code.py
     ("Code page", "Insert a snippet at the cursor", "Ctrl+Shift+I"),  # pages/code.py QShortcut
-    ("Code page", "Suggest names (also while typing)", "Ctrl+Space"),  # ui/code_editor.py keyPressEvent
+    ("Code page", "Suggest names (also while typing)", "Ctrl+Space"),  # ui/code/code_editor.py keyPressEvent
     ("Code page", "Show or hide the output", "Ctrl+J"),  # pages/code.py QShortcut
     ("Code page", "Show or hide the explorer", "Ctrl+B"),  # pages/code.py QShortcut
-    ("Code page", "Comment or uncomment the lines", "Ctrl+/"),  # ui/code_editor.py keyPressEvent
-    ("Code page", "Move the lines up, down", "Alt+Up, Alt+Down"),  # ui/code_editor.py keyPressEvent
-    ("Code page", "Copy the lines up, down", "Shift+Alt+Up, Shift+Alt+Down"),  # ui/code_editor.py
-    ("Code page", "Delete the line; select the line", "Ctrl+Shift+K, Ctrl+L"),  # ui/code_editor.py
-    ("Code page", "Zoom the code in, out, reset", "Ctrl+=, Ctrl+-, Ctrl+0 (Ctrl+Wheel)"),  # ui/code_editor.py
-    ("Full screen", "Play or pause; one frame back, forward (Shift: ten)", "Space; Left, Right"),  # ui/presenter.py
-    ("Full screen", "Start, end; repeat; mute; volume", "Home, End; L; M; Up, Down"),  # ui/presenter.py
-    ("Full screen", "Leave", "Esc, F11, double-click"),  # ui/presenter.py
-    ("Properties", "Apply a multi-line field (LaTeX, code)", "Ctrl+Enter"),  # ui/fields.py
-    ("Animate gestures", "Frame every key (the graph has the focus)", "F"),  # ui/graph_editor.py
+    ("Code page", "Comment or uncomment the lines", "Ctrl+/"),  # ui/code/code_editor.py keyPressEvent
+    ("Code page", "Move the lines up, down", "Alt+Up, Alt+Down"),  # ui/code/code_editor.py keyPressEvent
+    ("Code page", "Copy the lines up, down", "Shift+Alt+Up, Shift+Alt+Down"),  # ui/code/code_editor.py
+    ("Code page", "Delete the line; select the line", "Ctrl+Shift+K, Ctrl+L"),  # ui/code/code_editor.py
+    (
+        "Code page",
+        "Zoom the code in, out, reset",
+        "Ctrl+=, Ctrl+-, Ctrl+0 (Ctrl+Wheel)",
+    ),  # ui/code/code_editor.py
+    (
+        "Full screen",
+        "Play or pause; one frame back, forward (Shift: ten)",
+        "Space; Left, Right",
+    ),  # ui/playback/presenter.py
+    (
+        "Full screen",
+        "Start, end; repeat; mute; volume",
+        "Home, End; L; M; Up, Down",
+    ),  # ui/playback/presenter.py
+    ("Full screen", "Leave", "Esc, F11, double-click"),  # ui/playback/presenter.py
+    ("Properties", "Apply a multi-line field (LaTeX, code)", "Ctrl+Enter"),  # ui/style/fields.py
+    ("Animate gestures", "Frame every key (the graph has the focus)", "F"),  # ui/timeline/graph_editor.py
 )
 
 HEADER = """# Keyboard shortcuts and mouse gestures
@@ -102,11 +114,11 @@ def _keys(text: str) -> str:
 def _described(action) -> str:
     """A panel action's tooltip without its "(keys)" tail, else its text: "Up" says less than
     "Bring forward"."""
-    from manim_studio.ui import shortcuts_help
+    from manim_studio.ui.shell import shortcuts_help
 
     text = shortcuts_help._plain(action.text())
     tips = [action.toolTip()] + [w.toolTip() for w in action.associatedObjects() if hasattr(w, "toolTip")]
-    for tip in tips:  # the button showing the action carries the tooltip (ui/layers_panel.py)
+    for tip in tips:  # the button showing the action carries the tooltip (ui/panels/layers_panel.py)
         tip = tip.split(" (")[0].strip()
         if tip and tip != text:
             return f"{tip} ({text})"
@@ -118,8 +130,9 @@ def collect() -> list[Row]:
     from PySide6.QtGui import QAction, QKeySequence
     from PySide6.QtWidgets import QApplication
 
-    from manim_studio.ui import shortcuts_help, theme
     from manim_studio.ui.main_window import MainWindow
+    from manim_studio.ui.shell import shortcuts_help
+    from manim_studio.ui.style import theme
 
     app = QApplication.instance() or QApplication([])
     theme.apply(app)

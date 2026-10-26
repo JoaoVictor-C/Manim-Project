@@ -1,6 +1,6 @@
 # Project file format (schema version 1)
 
-A project is one UTF-8 JSON file validated by `manim_studio.core.schema.Project`.
+A project is one UTF-8 JSON file validated by `manim_studio.core.model.schema.Project`.
 Example: [examples/euler.json](../examples/euler.json). Units are Manim frame
 units (the frame is `frame_height` = 8 units tall, origin at the centre, y up);
 times are seconds.
@@ -355,7 +355,7 @@ dialog in the editor):
 ## Library files (ADR 0039)
 
 Presets, themes and templates are JSON files: the built-ins in
-`manim_studio/library/`, your own in `~/.manim-studio/library` (or the folder in
+`manim_studio/data/library/`, your own in `~/.manim-studio/library` (or the folder in
 `MANIM_STUDIO_LIBRARY`). Every file has `"format": "manim-studio-library"`,
 `"version": 1`, a `"kind"` and a `"name"`; files with another format or a newer
 version are skipped with a message, and one of yours replaces a built-in of the
@@ -412,4 +412,4 @@ are written to a temporary name and moved into place, the sidecar last.
 
 Readers must reject unknown `schema_version` values. Adding optional fields
 does not bump the version; renaming or changing meaning does, with a migration
-function in `core/schema.py`.
+function in `core/model/schema.py`.

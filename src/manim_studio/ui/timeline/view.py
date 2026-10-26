@@ -62,10 +62,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter, audio, edits, scene_length, shift_timing, subtitles
-from ...core.evaluator import layer_transform
-from ...core.layer_index import LayerIndex
-from ...core.schema import (
+from ...core.editing import edits, shift_timing
+from ...core.engine import adapter
+from ...core.engine.evaluator import layer_transform
+from ...core.model import scene_length
+from ...core.model.layer_index import LayerIndex
+from ...core.model.schema import (
     CLIP_KIND_INFO,
     CODE_TYPES,
     CONNECTOR_TYPES,
@@ -81,9 +83,12 @@ from ...core.schema import (
     keyable_props,
     new_clip_params,
 )
+from ...core.sound import audio, subtitles
 from ...logging_config import get_logger
-from .. import code_drag, curve_editor, graph_model, theme
-from ..document import Document
+from ..session import code_drag
+from ..session.document import Document
+from ..style import theme
+from . import curve_editor, graph_model
 from .model import (
     Edge,
     TimeScale,

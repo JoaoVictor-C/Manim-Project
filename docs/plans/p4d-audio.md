@@ -21,7 +21,7 @@ scene carry the same sound.
 
 ## Core
 
-- `core/audio.py`: `RATE = 48000`; `signature(path)` (mtime and size, or
+- `core/sound/audio.py`: `RATE = 48000`; `signature(path)` (mtime and size, or
   missing); `probe(path) -> seconds | None`; `decode(path) -> (2, n) float32`
   (LRU of 4, keyed by path and signature; `None` when unreadable); `peaks(path,
   per_second=100)`; `mix(project) -> (2, round(duration × RATE))`; `problems(project)`
@@ -35,7 +35,7 @@ scene carry the same sound.
 
 ## UI
 
-- `ui/audio_player.py`: `AudioPlayer.play(mix, t)`, `stop()`, `position() ->
+- `ui/playback/audio_player.py`: `AudioPlayer.play(mix, t)`, `stop()`, `position() ->
   seconds | None` (None until the device starts); a fake for tests.
 - Main window: playback uses the player's clock when the project has audio and
   the player is available; File > Import Audio...; missing audio in the media

@@ -26,11 +26,12 @@ from pathlib import Path
 
 import manim as m
 
-from .core import audio, python_object
-from .core.code_cache import CodeCache
-from .core.code_frame import CodeFrame
-from .core.evaluator import Evaluator
-from .core.schema import Project
+from .core.code import python_object
+from .core.code.code_cache import CodeCache
+from .core.code.code_frame import CodeFrame
+from .core.engine.evaluator import Evaluator
+from .core.model.schema import Project
+from .core.sound import audio
 from .render.preview import StudioThreeDCamera, keep_in_frame, orient
 
 

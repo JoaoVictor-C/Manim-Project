@@ -13,9 +13,10 @@ import statistics
 import time
 from pathlib import Path
 
-from manim_studio.core import adapter, library
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Layer, Project, Spec
+from manim_studio.core.editing import library
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Canvas, Layer, Project, Spec
 from manim_studio.render.cairo_export import make_camera, render_frame
 
 ROOT = Path(__file__).resolve().parents[1]

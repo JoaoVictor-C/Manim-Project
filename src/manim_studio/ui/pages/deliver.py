@@ -34,9 +34,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core import adapter
-from ...core.python_export import PythonExport, class_name, to_python
-from ...core.schema import Project
+from ...core.engine import adapter
+from ...core.engine.python_export import PythonExport, class_name, to_python
+from ...core.model.schema import Project
 from ...logging_config import get_logger
 from ...render.options import (
     DEFAULT_CRF,
@@ -48,9 +48,9 @@ from ...render.options import (
     frame_window,
     size_for_height,
 )
-from .. import theme
-from ..export_job import ExportJob
-from ..render_queue import QueueJob, RenderQueue, Status
+from ..deliver.export_job import ExportJob
+from ..deliver.render_queue import QueueJob, RenderQueue, Status
+from ..style import theme
 from . import Page, Shared
 
 log = get_logger(__name__)

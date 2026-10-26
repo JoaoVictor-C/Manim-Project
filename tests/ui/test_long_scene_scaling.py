@@ -15,12 +15,12 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from manim_studio.core import edits
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Canvas, Clip, Layer, PartKey, Project, Spec
-from manim_studio.ui.build_service import BuildService
-from manim_studio.ui.document import Document
-from manim_studio.ui.layers_panel import LayersPanel
+from manim_studio.core.editing import edits
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Canvas, Clip, Layer, PartKey, Project, Spec
+from manim_studio.ui.panels.layers_panel import LayersPanel
+from manim_studio.ui.session.build_service import BuildService
+from manim_studio.ui.session.document import Document
 from manim_studio.ui.timeline.view import TimelineView
 from qt_support import FakeWorker
 

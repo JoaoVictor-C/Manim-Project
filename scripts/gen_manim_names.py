@@ -1,4 +1,4 @@
-"""Write ``src/manim_studio/core/manim_names.json``: what the installed Manim offers (P13.0).
+"""Write ``src/manim_studio/data/manim_names.json``: what the installed Manim offers (P13.0).
 
 The code assistance (did-you-mean in error hints, completion) needs the names Manim makes available
 to a scene - what ``from manim import *`` gives - without importing Manim in the editor. This script
@@ -12,7 +12,7 @@ The file is ``{"manim_version", "names", "methods", "kwargs", "bases"}``:
 * ``names``: the public names of ``from manim import *``, sorted (modules left out);
 * ``methods``: for Mobject, VMobject, Scene, Animation and every public Mobject / Animation / Scene
   class among the names: the public methods and attributes the class *adds* to its parent in this
-  table (``bases`` names the parent), so the file stays small; ``core/manim_names.py`` puts the
+  table (``bases`` names the parent), so the file stays small; ``core/assist/manim_names.py`` puts the
   chain back together;
 * ``kwargs``: the parameter names of every public class (its ``__init__``) and function, ``self`` and
   ``*args`` / ``**kwargs`` left out; a class that passes ``**kwargs`` on also lists its parents'
@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-OUTPUT = ROOT / "src" / "manim_studio" / "core" / "manim_names.json"
+OUTPUT = ROOT / "src" / "manim_studio" / "data" / "manim_names.json"
 
 MAX_BYTES = 600_000  # the shipped file stays small
 

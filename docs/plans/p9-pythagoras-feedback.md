@@ -9,7 +9,7 @@
 | # | the user's note | what was found | slice |
 |---|---|---|---|
 | 1 | scrolling the timeline moves the view but not the shown frame unless playing; add a lock | the view and the playhead are independent | **U3 done**: View > Follow Playhead (view only; the wheel does not scrub) |
-| 2 | moving keys/clips by hand; moving a preset means copying its start time into Appears at | Appears at is explicit, so it does not follow the clips | **U4** *Shift timing* with the boundary clip carrying Appears at / Disappears at (**done**: `core/shift_timing.py`, Edit > Shift Timing...); timeline multi-selection (**done**, U4b: `TimelineView` picks, rubber band, group drag, band drag of selected rows) |
+| 2 | moving keys/clips by hand; moving a preset means copying its start time into Appears at | Appears at is explicit, so it does not follow the clips | **U4** *Shift timing* with the boundary clip carrying Appears at / Disappears at (**done**: `core/editing/shift_timing.py`, Edit > Shift Timing...); timeline multi-selection (**done**, U4b: `TimelineView` picks, rubber band, group drag, band drag of selected rows) |
 | 3 | right triangles had to be built as a sample | no such object | **U1 done**: Right triangle object (`RightTriangle`, same params as the user's file) |
 | 4 | colour just a part of a text; many MathTex only to transform parts | part layers have no style | **U5 done**: part colour (ADR 0049): a part layer's `style`, a Text's `t2c` |
 | 5 | auto-key ties a new object's movement to a key at its start | a one-key track at the first frame, or keys at 0 and at the playhead, turned the stopwatch on | **U2 done**: ADR 0018 amended - nothing to animate yet means a base edit |

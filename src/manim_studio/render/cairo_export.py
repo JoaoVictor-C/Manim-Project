@@ -12,19 +12,12 @@ import av
 import manim as m
 import numpy as np
 
-from ..core import audio, subtitles
-from ..core.code_frame import CodeFrame
-from ..core.evaluator import Evaluator
-from ..core.schema import Camera, Canvas, Project
+from ..core.code.code_frame import CodeFrame
+from ..core.engine.evaluator import Evaluator
+from ..core.model.schema import Camera, Canvas, Project
+from ..core.sound import audio, subtitles
 from ..logging_config import get_logger
-from .options import (
-    DEFAULT_CRF,
-    RenderOptions,
-    apply_options,
-    audio_bounds,
-    frame_window,
-    window_cues,
-)
+from .options import DEFAULT_CRF, RenderOptions, apply_options, audio_bounds, frame_window, window_cues
 from .preview import PreviewView, keep_in_frame, scene_camera
 
 log = get_logger(__name__)

@@ -29,10 +29,9 @@ from PySide6.QtGui import QGuiApplication, QImage
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bench_preview import stress_project
-
-from manim_studio.core import adapter
-from manim_studio.core.evaluator import Evaluator
-from manim_studio.core.schema import Clip, Layer, Spec, Transform2D
+from manim_studio.core.engine import adapter
+from manim_studio.core.engine.evaluator import Evaluator
+from manim_studio.core.model.schema import Clip, Layer, Spec, Transform2D
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = (1100, 620)

@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..core import library
-from ..core.edits import EditError
-from ..core.evaluator import Evaluator
-from ..core.schema import Canvas, Layer, Project, Spec
+from ..core.editing import library
+from ..core.editing.edits import EditError
+from ..core.engine.evaluator import Evaluator
+from ..core.model.schema import Canvas, Layer, Project, Spec
 from ..logging_config import get_logger
 from .cairo_export import make_camera, render_frame
 

@@ -21,8 +21,8 @@ import narration  # noqa: E402
 import scenes  # noqa: E402
 import tts  # noqa: E402
 
-from manim_studio.core import edits  # noqa: E402
-from manim_studio.core.schema import Canvas, Project, Spec  # noqa: E402
+from manim_studio.core.editing import edits  # noqa: E402
+from manim_studio.core.model.schema import Canvas, Project, Spec  # noqa: E402
 
 PAUSE = 0.9  # between sentences
 LEAD = 1.0  # before a section's first sentence

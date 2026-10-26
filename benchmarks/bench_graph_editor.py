@@ -28,11 +28,12 @@ for name in ("MANIM_STUDIO_PREVIEW", "MANIM_STUDIO_WORKER", "MANIM_STUDIO_AUDIO"
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from manim_studio.core import adapter  # noqa: E402
-from manim_studio.core.evaluator import _sample  # noqa: E402
-from manim_studio.core.schema import Canvas, Easing, Keyframe, Layer, Project, Spec  # noqa: E402
-from manim_studio.ui import graph_model, theme  # noqa: E402
+from manim_studio.core.engine import adapter  # noqa: E402
+from manim_studio.core.engine.evaluator import _sample  # noqa: E402
+from manim_studio.core.model.schema import Canvas, Easing, Keyframe, Layer, Project, Spec  # noqa: E402
 from manim_studio.ui.main_window import MainWindow  # noqa: E402
+from manim_studio.ui.style import theme  # noqa: E402
+from manim_studio.ui.timeline import graph_model  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 EASES = ["smooth", "linear", "ease_out_back", "ease_in_out_sine", "there_and_back"]

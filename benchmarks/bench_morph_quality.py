@@ -113,7 +113,16 @@ PAIRS[5].params = {"rotation": 90.0}
 
 
 def project_for(pair: Pair, mode: str):
-    from manim_studio.core.schema import SMART_MORPHS, Canvas, Clip, Easing, Layer, Project, Spec, Transform2D
+    from manim_studio.core.model.schema import (
+        SMART_MORPHS,
+        Canvas,
+        Clip,
+        Easing,
+        Layer,
+        Project,
+        Spec,
+        Transform2D,
+    )
 
     params = {} if mode == "classic" or pair.kind not in SMART_MORPHS else {"match": mode}
     clip = Clip(
@@ -151,19 +160,19 @@ def snapshot(mob) -> list[np.ndarray]:
 
 def outline_polylines(leaf, per_curve: int = 6) -> list[np.ndarray]:
     """Each closed or open subpath of ``leaf`` sampled as a polyline."""
-    from manim_studio.core import morph
+    from manim_studio.core.engine import morph
 
     return [morph.sample_subpath(sub[:, :2], per_curve) for sub in morph.subpaths(leaf.points)]
 
 
 def crossings(mob) -> int:
-    from manim_studio.core import morph
+    from manim_studio.core.engine import morph
 
     return sum(morph.self_crossings(poly) for leaf in leaves(mob) for poly in outline_polylines(leaf))
 
 
 def area(mob) -> float:
-    from manim_studio.core import morph
+    from manim_studio.core.engine import morph
 
     total = 0.0
     for leaf in leaves(mob):
@@ -182,13 +191,13 @@ def first_fill(mob) -> np.ndarray | None:
 
 
 def lightness(rgb: np.ndarray) -> float:
-    from manim_studio.core import morph
+    from manim_studio.core.engine import morph
 
     return float(morph.srgb_to_oklab(np.asarray(rgb, dtype=float)[None, :])[0, 0])
 
 
 def measure(pair: Pair, mode: str) -> tuple[dict, list[np.ndarray]]:
-    from manim_studio.core.evaluator import Evaluator
+    from manim_studio.core.engine.evaluator import Evaluator
     from manim_studio.render.cairo_export import make_camera, render_frame
 
     project = project_for(pair, mode)
@@ -304,7 +313,7 @@ def main() -> None:
 
     import logging
 
-    from manim_studio.core import adapter
+    from manim_studio.core.engine import adapter
 
     adapter.configure(ROOT / ".cache" / "manim")
     logging.getLogger("manim").setLevel(logging.WARNING)

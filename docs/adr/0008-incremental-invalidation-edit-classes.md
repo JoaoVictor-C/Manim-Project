@@ -31,4 +31,4 @@ Morph partners are always included: a morph reads both ends.
 ## Evidence
 
 - Benchmarks B3, B5, B6 in [../logs/benchmarks.md](../logs/benchmarks.md).
-- `tests/core/test_invalidation.py`.
+- `tests/core/engine/test_invalidation.py`.

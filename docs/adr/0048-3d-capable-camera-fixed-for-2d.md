@@ -78,10 +78,10 @@ hit-testing (ADR 0016, 0043), the motion path and F framing all work in flat sce
 
 ## Evidence
 
-- Tests: `tests/core/test_camera.py` (default frames equal a copy of the pre-P7.5 camera code bit
+- Tests: `tests/core/features/test_camera.py` (default frames equal a copy of the pre-P7.5 camera code bit
   for bit on the showcase, framed by the canvas and the export; a tilted camera matches Manim's
   own `ThreeDCamera`; pans; flat subtitles; code frames; invalidation; the export; Python export),
-  `tests/ui/test_camera_ui.py` (Properties, the canvas, no handles or clicks while turned,
+  `tests/ui/canvas/test_camera_ui.py` (Properties, the canvas, no handles or clicks while turned,
   render-ahead frames equal live ones, the preview process's renderer).
 - Benchmarks: B65, B68 in [logs/benchmarks.md](../logs/benchmarks.md).
 - Source: Manim 0.22 `camera/three_d_camera.py` (`project_points` subtracts `frame_center`;

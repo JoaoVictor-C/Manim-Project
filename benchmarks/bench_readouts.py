@@ -16,7 +16,7 @@ from pathlib import Path
 
 import manim as m
 
-from manim_studio.core import adapter
+from manim_studio.core.engine import adapter
 
 
 def timed(build, repeat: int = 1) -> float:

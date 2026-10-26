@@ -27,8 +27,10 @@ from pathlib import Path
 
 import numpy as np
 
-from manim_studio.core import adapter, audio, edits
-from manim_studio.core.schema import Canvas, Easing, Project, Spec
+from manim_studio.core.editing import edits
+from manim_studio.core.engine import adapter
+from manim_studio.core.model.schema import Canvas, Easing, Project, Spec
+from manim_studio.core.sound import audio
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "explainer.json"

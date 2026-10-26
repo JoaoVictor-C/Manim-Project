@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass
 import manim as m
 import numpy as np
 
-from ..core.schema import Camera
+from ..core.model.schema import Camera
 
 
 @dataclass(frozen=True)

@@ -20,7 +20,7 @@ os.environ.setdefault("MANIM_STUDIO_WORKER", "0")
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from manim_studio.core import adapter
+from manim_studio.core.engine import adapter
 from manim_studio.ui.main_window import MainWindow
 
 ROOT = Path(__file__).resolve().parent.parent

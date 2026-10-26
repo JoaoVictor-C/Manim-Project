@@ -1,6 +1,6 @@
 # S3 — Canvas interaction: implementation plan
 
-- **Status:** ✅ Done (2026-10-09) — `tests/ui/test_acceptance_s3.py`; B24: 18.5 ms per drag step
+- **Status:** ✅ Done (2026-10-09) — `tests/acceptance/test_acceptance_s3.py`; B24: 18.5 ms per drag step
 - **Date:** 2026-10-09
 - **Decided in:** [decision session 6](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **Evidence:** benchmarks B21–B23 in [../logs/benchmarks.md](../logs/benchmarks.md)
@@ -42,7 +42,7 @@ Cost as shipped: median 0.78 ms, at most 1.9 ms per click on the stress scene (B
 The objects come from `Evaluator.frame_layers(t)` called at click/paint time and
 never kept — they are shared render buffers (ADR 0002).
 
-## Selection (`ui/selection.py`)
+## Selection (`ui/session/selection.py`)
 
 One `Selection` object holds `(layer_id, clip_id | None)` and emits `changed`.
 The canvas, Layers panel, timeline and Properties all read and set it; it
@@ -50,7 +50,7 @@ clears when its layer or clip disappears and on New/Open. The canvas overlay
 draws the selected layer's outline, a dashed bounding box and a centre cross at
 the playhead (0.7 ms per frame, B22); nothing when the layer is invisible there.
 
-## Moving (`ui/canvas.py`)
+## Moving (`ui/canvas/canvas.py`)
 
 | gesture | result |
 |---|---|

@@ -20,8 +20,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from ...core.layer_index import LayerIndex
-from ...core.schema import Clip, Layer, Project
+from ...core.model.layer_index import LayerIndex
+from ...core.model.schema import Clip, Layer, Project
 
 SNAP_RADIUS_PX = 8.0
 MIN_PX_PER_SECOND = 0.5  # a 15-minute scene fits 1600 px (P7.2), an hour 1800 px

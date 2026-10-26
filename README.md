@@ -120,8 +120,9 @@ Cairo renderer for the canvas and the export. More in [docs/architecture.md](doc
 ## Repository layout
 
 ```text
-src/manim_studio/   the application: core (no Qt), render, ui (PySide6), CLI
-tests/              pytest suite: core, render, ui
+src/manim_studio/   the application: core (no Qt), render, ui (PySide6), the helper processes, the CLI;
+                    each in folders named for what the code does (docs/architecture.md)
+tests/              pytest suite, laid out like the code; tests/test_architecture.py checks the layering
 benchmarks/         performance scripts behind the numbers in docs/logs/benchmarks.md
 examples/           example projects and the scripts that build them; example plugins
 scripts/            release check, documentation tools

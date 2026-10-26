@@ -27,7 +27,7 @@ import numpy as np
 from manim.renderer.cairo_renderer import CairoRenderer
 from PIL import Image
 
-from manim_studio.core import adapter
+from manim_studio.core.engine import adapter
 
 adapter.configure(Path(__file__).resolve().parent.parent / ".cache" / "manim")
 

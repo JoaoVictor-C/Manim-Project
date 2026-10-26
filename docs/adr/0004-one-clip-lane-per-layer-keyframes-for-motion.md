@@ -14,7 +14,7 @@ writers to the same arrays: the last one wins. Manim defines no composition.
 ## Decision
 
 - Each **layer** holds one object, a lifetime, keyframe tracks and **one lane of
-  clips that may not overlap** (`Layer` validator in `core/schema.py`).
+  clips that may not overlap** (`Layer` validator in `core/model/schema.py`).
 - **Motion and style** — position, scale, rotation, opacity (more later) — are
   **keyframe tracks**, applied after the clip as a layer transform. They
   compose with any clip.
@@ -39,5 +39,5 @@ writers to the same arrays: the last one wins. Manim defines no composition.
 
 ## Evidence
 
-- `tests/core/test_transforms.py`: the numpy transform path equals Manim's
+- `tests/core/engine/test_transforms.py`: the numpy transform path equals Manim's
   `scale`/`rotate`/`shift` with an active Write clip underneath.

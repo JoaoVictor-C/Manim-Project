@@ -27,7 +27,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from manim_studio.core import adapter
+from manim_studio.core.engine import adapter
 from manim_studio.render.cairo_export import make_camera, render_frame
 from support import CANVAS, FRAMES, MATH, SQUARE, TEXT
 

@@ -32,8 +32,8 @@ os.environ.setdefault("MANIM_STUDIO_AUDIO", "0")
 
 import numpy as np
 
-from manim_studio.core import audio, levels
-from manim_studio.core.schema import AudioClip, Canvas, Layer, Project, Spec
+from manim_studio.core.model.schema import AudioClip, Canvas, Layer, Project, Spec
+from manim_studio.core.sound import audio, levels
 from manim_studio.render.cairo_export import export_video
 from manim_studio.render.options import RenderOptions
 
@@ -112,7 +112,7 @@ def play(project: Project, t: float, seconds: float) -> tuple[float, float]:
     """What the player does to start at ``t`` and play ``seconds``: (ms to the first sound, ms in all)."""
     first = round(t * audio.RATE)
     if SPANS:
-        from manim_studio.ui.audio_player import MixDevice
+        from manim_studio.ui.playback.audio_player import MixDevice
     start = time.perf_counter()
     if SPANS:
         device = MixDevice(audio.source(project), first)

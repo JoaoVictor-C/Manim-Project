@@ -1,6 +1,6 @@
 # P3c — MoveAlongPath clips: implementation plan
 
-- **Status:** ✅ Done (2026-10-10) — `tests/ui/test_acceptance_p3c.py`
+- **Status:** ✅ Done (2026-10-10) — `tests/acceptance/test_acceptance_p3c.py`
 - **Date:** 2026-10-10
 - **Decided in:** [decision session 17](../logs/decision-sessions.md) (Terza, `fast`, confidence 0.80)
 - **Evidence:** benchmark B38 in [../logs/benchmarks.md](../logs/benchmarks.md)

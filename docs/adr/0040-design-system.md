@@ -13,7 +13,7 @@ before P6b rebuilds the window into pages.
 
 ## Decision
 
-- **Tokens** (`ui/theme.py`): one frozen set of colour roles - the chrome (window,
+- **Tokens** (`ui/style/theme.py`): one frozen set of colour roles - the chrome (window,
   panel, raised, field, border, divider, text, muted, disabled, accent and the text
   on it, warning, danger, success, tool tips), the timeline's colours (track, ruler,
   lifetime band, playhead, snap guide, clip categories, sound, waveform, subtitles,
@@ -27,7 +27,7 @@ before P6b rebuilds the window into pages.
   palette), a palette from the tokens, one stylesheet generated from them, a 9 pt UI
   font. The app and the tests' application fixture both call it, so the tests drive
   the widgets users see.
-- **Icons** (`ui/icons.py`): semantic names mapped to Phosphor glyphs through
+- **Icons** (`ui/style/icons.py`): semantic names mapped to Phosphor glyphs through
   QtAwesome (MIT), imported on the first icon and tinted from the tokens. Icon
   buttons keep their text as tool tip and accessible name.
 - **Fields waiting for an edit** keep their own small rule (italic, the muted token),

@@ -23,10 +23,10 @@ Only some params create new cache entries: the text and the Text font do
 
 ## Decision
 
-- A **persistent worker process** (`python -m manim_studio.worker`, JSON lines
+- A **persistent worker process** (`python -m manim_studio.processes.worker`, JSON lines
   over stdin/stdout, driven by a `QProcess`) builds specs to warm the disk
   cache. It starts with the editor and pre-warms the library defaults.
-- Every UI edit goes through a **gate** (`core/warm.py`, pure): the *warm keys*
+- Every UI edit goes through a **gate** (`core/engine/warm.py`, pure): the *warm keys*
   of text-bearing specs that the edit adds or changes. A warm key is the
   canonical `type` + `params` minus the measured cache-neutral params; unmeasured
   params count by default.
@@ -65,10 +65,10 @@ Only some params create new cache entries: the text and the Text font do
 
 - Benchmarks B17–B20 in [../logs/benchmarks.md](../logs/benchmarks.md).
 - [Decision session 5](../logs/decision-sessions.md).
-- Tests: `tests/core/test_warm.py` (keys, gate), `tests/ui/test_build_service.py`
+- Tests: `tests/core/engine/test_warm.py` (keys, gate), `tests/ui/session/test_build_service.py`
   (rules against a fake worker: edits and undo made while building are kept,
   latest wins, deleted layer dropped, one request per key, failed builds commit
-  nothing, no commit mid-drag), `tests/ui/test_worker_process.py` (startup
+  nothing, no commit mid-drag), `tests/ui/services/test_worker_process.py` (startup
   queue, timeout restart, giving up, crash restart; the real worker warms the
   cache this process reads and reports LaTeX errors).
 - Found while implementing: inside Manim's `align*` wrapper `\frac{x}{` is

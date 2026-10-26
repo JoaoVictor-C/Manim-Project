@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from manim_studio.core.schema import Spec
-from manim_studio.core.warm import warm_key
-from manim_studio.ui.worker_process import WorkerClient
+from manim_studio.core.engine.warm import warm_key
+from manim_studio.core.model.schema import Spec
+from manim_studio.ui.services.worker_process import WorkerClient
 
 
 class FakeWorker(WorkerClient):

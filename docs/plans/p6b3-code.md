@@ -32,9 +32,9 @@ result - and every existing UI test passes.
 
 | step | content | acceptance |
 |---|---|---|
-| P6b.3.1 | `ui/code_syntax.py` (lexer: spans and a line state), `ui/code_drafts.py` (drafts, error line helpers) - no Qt; theme tokens for the syntax and the tinted lines | unit tests: tokens, triple quotes across lines, no overlap or crash on any text, draft rules |
-| P6b.3.2 | `ui/code_editor.py` (`CodeEditor`, `PythonHighlighter`), `ui/pages/code.py` (`CodePage`), registered after Compose | `tests/ui/test_code_page.py` through the real `MainWindow`: list, selection, editing keys, Run, drafts, Revert, errors |
-| P6b.3.3 | acceptance `tests/ui/test_acceptance_p6b3.py`: create, edit, run with the real code runner, an error clicked to its line, fixed, the frame on the canvas | passes |
+| P6b.3.1 | `ui/code/code_syntax.py` (lexer: spans and a line state), `ui/code/code_drafts.py` (drafts, error line helpers) - no Qt; theme tokens for the syntax and the tinted lines | unit tests: tokens, triple quotes across lines, no overlap or crash on any text, draft rules |
+| P6b.3.2 | `ui/code/code_editor.py` (`CodeEditor`, `PythonHighlighter`), `ui/pages/code.py` (`CodePage`), registered after Compose | `tests/ui/code/test_code_page.py` through the real `MainWindow`: list, selection, editing keys, Run, drafts, Revert, errors |
+| P6b.3.3 | acceptance `tests/acceptance/test_acceptance_p6b3.py`: create, edit, run with the real code runner, an error clicked to its line, fixed, the frame on the canvas | passes |
 | P6b.3.4 | B57 (`benchmarks/bench_code_editor.py`), mutation check of the draft/Run guards, docs | every non-equivalent mutant killed |
 
 ## Out of scope
