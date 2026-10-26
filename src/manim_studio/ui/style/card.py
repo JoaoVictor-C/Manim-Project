@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QFont, QPainterPath, QRegion, QResizeEvent
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLayout, QSplitter, QVBoxLayout, QWidget
 
 from . import theme
 
@@ -135,3 +135,19 @@ class Pill(QFrame):
         super().__init__(parent)
         self.setObjectName("pill")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+
+def gutter_splitter(orientation: Qt.Orientation = Qt.Orientation.Horizontal) -> QSplitter:
+    """A splitter whose handle is the 8 px gutter between cards (invisible until hovered)."""
+    splitter = QSplitter(orientation)
+    splitter.setHandleWidth(theme.GUTTER)
+    splitter.setChildrenCollapsible(False)
+    return splitter
+
+
+def page_margins(layout: QLayout) -> None:
+    """The margins every page's root layout uses: a gutter at the left, right and bottom, none above (the
+    top bar sits there)."""
+    g = theme.GUTTER
+    layout.setContentsMargins(g, 0, g, g)
+    layout.setSpacing(g)
