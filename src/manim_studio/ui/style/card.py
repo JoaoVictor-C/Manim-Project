@@ -20,7 +20,7 @@ HEADER_HEIGHT = 38
 
 
 class Card(QFrame):
-    """A rounded panel: ``Card("Layers")``; its content goes in with ``set_body``, its buttons with ``add_action``."""
+    """A rounded panel: ``Card("Layers")``; content via ``set_body``, header buttons via ``add_action``."""
 
     titleChanged = Signal(str)
 
