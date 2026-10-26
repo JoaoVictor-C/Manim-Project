@@ -16,7 +16,7 @@
       "spec": {
         "type": "Code",
         "params": {
-          "code": "B = [1.0, 3.772, 9.04, 12.82, 15.856, 23.14, 26.836]\n\nINK = \"#e2e8f0\"\nMUTED = \"#94a3b8\"\nBLUE = \"#38bdf8\"\nORANGE = \"#fb923c\"\nGREEN = \"#4ade80\"\nPINK = \"#f472b6\"\nYELLOW = \"#facc15\"\nPANEL = \"#1e293b\"\nLL = 8.0  # the skater's angular momentum (kg m^2 / s)\n\n\ndef at(sc, i):\n    d = B[i] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef hold(sc, d):\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef span(i, margin=0.25):\n    return max(0.4, B[i + 1] - B[i] - margin)\n\n\ndef finish(sc):\n    d = B[-1] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef backdrop():\n    return VGroup(*[Dot([x, y, 0], radius=0.025, color=GREY_B, fill_opacity=0.2) for x in np.arange(-7, 7.1, 1.0) for y in np.arange(-4, 4.1, 1.0)])\n\n\ndef nothing():\n    return Dot(ORIGIN, radius=0.001, fill_opacity=0, stroke_width=0)\n\n\ndef lab(text, size=28, color=INK):\n    return Text(text, font_size=size, color=color)\n\n\ndef inertia(r):\n    return 1.0 + r * r\n\n\ndef omega_of(r):\n    return LL / inertia(r)\n\n\ndef skater(r_tr, th_tr, center=ORIGIN, K=1.3):\n    \"\"\"Top view of a skater on the ice: rink rings, shoulders, head, arms, gloves with trails, spin arrow.\"\"\"\n    def hand(sign):\n        th = th_tr.get_value()\n        return center + sign * K * r_tr.get_value() * np.array([np.cos(th), np.sin(th), 0.0])\n\n    def build():\n        r = r_tr.get_value() * K\n        th = th_tr.get_value()\n        d = np.array([np.cos(th), np.sin(th), 0.0])\n        n = np.array([-np.sin(th), np.cos(th), 0.0])\n        arms = Line(center - d * r, center + d * r, color=INK, stroke_width=9, stroke_opacity=0.9)\n        shoulders = Ellipse(width=0.95, height=0.55, color=BLUE, fill_color=BLUE_E, fill_opacity=1, stroke_width=3)\n        shoulders.rotate(th).move_to(center)\n        head = Circle(radius=0.2, color=BLUE_B, fill_color=BLUE_C, fill_opacity=1, stroke_width=2).move_to(center)\n        nose = Dot(center + n * 0.16, radius=0.045, color=WHITE)\n        glow1 = Circle(radius=0.27, stroke_width=0, fill_color=ORANGE, fill_opacity=0.25).move_to(hand(1))\n        glow2 = Circle(radius=0.27, stroke_width=0, fill_color=PINK, fill_opacity=0.25).move_to(hand(-1))\n        h1 = Dot(hand(1), radius=0.15, color=ORANGE)\n        h2 = Dot(hand(-1), radius=0.15, color=PINK)\n        w = omega_of(r_tr.get_value())\n        spin = Arc(radius=0.78, start_angle=th + 0.9, angle=min(5.0, 0.7 * w), arc_center=center, color=GREEN, stroke_width=5)\n        spin.add_tip(tip_length=0.2)\n        return VGroup(arms, glow1, glow2, h1, h2, shoulders, head, nose, spin)\n\n    rings = VGroup(*[Circle(radius=q * K, color=GREY_B, stroke_width=1.5, stroke_opacity=0.22).move_to(center) for q in (0.9, 1.45, 2.0)])\n    t1 = TracedPath(lambda: hand(1), stroke_color=ORANGE, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    t2 = TracedPath(lambda: hand(-1), stroke_color=PINK, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    group = VGroup(rings, always_redraw(build))\n    group.trails = [t1, t2]\n    return group\n\n\ndef spin_it(th_tr, r_tr):\n    th_tr.add_updater(lambda m, dt: m.increment_value(omega_of(r_tr.get_value()) * dt))\n\n\ndef readout(tex, fn, color, decimals=1, size=38):\n    name = MathTex(tex + \"=\", font_size=size, color=color)\n    num = DecimalNumber(fn(), num_decimal_places=decimals, font_size=size, color=color)\n    num.next_to(name, RIGHT, buff=0.15)\n    num.add_updater(lambda m: m.set_value(fn()))\n    return VGroup(name, num)\n\nclass Main(Scene):\n    def construct(self):\n        self.add(backdrop())\n        r_tr = ValueTracker(3 ** 0.5)\n        th_tr = ValueTracker(0.0)\n        spin_it(th_tr, r_tr)\n        sk = skater(r_tr, th_tr, center=DOWN * 0.1)\n        caption = lab(\"arms out\", 34, MUTED).move_to(UP * 2.4)\n\n        at(self, 0)\n        self.add(th_tr)\n        self.add(*sk.trails)\n        self.play(FadeIn(sk), FadeIn(caption), run_time=1.0)\n\n        at(self, 1)\n        self.play(\n            r_tr.animate.set_value(1.0),\n            Transform(caption, lab(\"arms in\", 34, ORANGE).move_to(UP * 2.4)),\n            run_time=1.6, rate_func=smooth,\n        )\n        fast = lab(\"much faster!\", 34, ORANGE).move_to(UP * 1.8)\n        self.play(FadeIn(fast, shift=UP * 0.2), run_time=0.6)\n\n        at(self, 2)\n        nopush = VGroup(\n            lab(\"no push\", 32, PINK), lab(\"no motor\", 32, PINK)\n        ).arrange(DOWN, buff=0.25).move_to(RIGHT * 4.6 + UP * 0.9)\n        cross = VGroup(*[Cross(t, stroke_color=PINK, stroke_width=5, scale_factor=1.0) for t in nopush])\n        self.play(FadeIn(nopush), run_time=0.6)\n        self.play(Create(cross), run_time=0.8)\n\n        at(self, 3)\n        q = Text(\"?\", font_size=140, color=YELLOW).move_to(RIGHT * 4.6 + DOWN * 1.0)\n        self.play(FadeOut(nopush), FadeOut(cross), FadeIn(q, scale=0.5), run_time=0.7)\n        self.play(Indicate(q, scale_factor=1.3, color=YELLOW), run_time=1.0)\n\n        at(self, 4)\n        self.remove(*sk.trails)\n        self.play(FadeOut(sk), FadeOut(caption), FadeOut(fast), FadeOut(q), run_time=0.6)\n        names = [(\"momentum\", BLUE), (\"torque\", ORANGE), (\"angular momentum\", GREEN)]\n        cards = VGroup(*[\n            VGroup(\n                RoundedRectangle(corner_radius=0.2, width=3.9, height=1.3, color=c, fill_color=PANEL, fill_opacity=1),\n                lab(n, 30, c),\n            )\n            for n, c in names\n        ]).arrange(RIGHT, buff=0.7).move_to(ORIGIN)\n        arrows = VGroup(*[\n            Arrow(cards[k].get_right(), cards[k + 1].get_left(), buff=0.1, color=MUTED, stroke_width=4)\n            for k in range(2)\n        ])\n        gap = (span(4) - 0.6) / 3\n        for k in range(3):\n            anims = [FadeIn(cards[k], shift=UP * 0.3)]\n            if k:\n                anims.append(GrowArrow(arrows[k - 1]))\n            self.play(*anims, run_time=min(0.8, gap))\n            hold(self, gap - 0.8)\n\n        at(self, 5)\n        self.play(Indicate(cards[0], color=BLUE, scale_factor=1.12), run_time=1.0)\n        self.wait(0.3)\n        self.play(FadeOut(cards), FadeOut(arrows), run_time=0.5)\n        finish(self)\n"
+          "code": "B = [1.0, 3.772, 9.04, 12.82, 15.856, 23.14, 26.836]\n\nINK = \"#e2e8f0\"\nMUTED = \"#94a3b8\"\nBLUE = \"#38bdf8\"\nORANGE = \"#fb923c\"\nGREEN = \"#4ade80\"\nPINK = \"#f472b6\"\nYELLOW = \"#facc15\"\nPANEL = \"#1e293b\"\nLL = 8.0  # the skater's angular momentum (kg m^2 / s)\n\n\ndef at(sc, i):\n    d = B[i] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef hold(sc, d):\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef span(i, margin=0.25):\n    return max(0.4, B[i + 1] - B[i] - margin)\n\n\ndef finish(sc):\n    d = B[-1] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef backdrop():\n    return VGroup(*[Dot([x, y, 0], radius=0.025, color=GREY_B, fill_opacity=0.2) for x in np.arange(-7, 7.1, 1.0) for y in np.arange(-4, 4.1, 1.0)])\n\n\ndef nothing():\n    return Dot(ORIGIN, radius=0.001, fill_opacity=0, stroke_width=0)\n\n\ndef lab(text, size=28, color=INK):\n    return Text(text, font_size=size, color=color)\n\n\ndef inertia(r):\n    return 1.0 + r * r\n\n\ndef omega_of(r):\n    return LL / inertia(r)\n\n\ndef skater(r_tr, th_tr, center=ORIGIN, K=1.3):\n    \"\"\"Top view of a skater on the ice: rink rings, shoulders, head, arms, gloves with trails, spin arrow.\"\"\"\n    def hand(sign):\n        th = th_tr.get_value()\n        return center + sign * K * r_tr.get_value() * np.array([np.cos(th), np.sin(th), 0.0])\n\n    def build():\n        r = r_tr.get_value() * K\n        th = th_tr.get_value()\n        d = np.array([np.cos(th), np.sin(th), 0.0])\n        n = np.array([-np.sin(th), np.cos(th), 0.0])\n        arms = Line(center - d * r, center + d * r, color=INK, stroke_width=9, stroke_opacity=0.9)\n        shoulders = Ellipse(width=0.95, height=0.55, color=BLUE, fill_color=BLUE_E, fill_opacity=1, stroke_width=3)\n        shoulders.rotate(th).move_to(center)\n        head = Circle(radius=0.2, color=BLUE_B, fill_color=BLUE_C, fill_opacity=1, stroke_width=2).move_to(center)\n        nose = Dot(center + n * 0.16, radius=0.045, color=WHITE)\n        glow1 = Circle(radius=0.27, stroke_width=0, fill_color=ORANGE, fill_opacity=0.25).move_to(hand(1))\n        glow2 = Circle(radius=0.27, stroke_width=0, fill_color=PINK, fill_opacity=0.25).move_to(hand(-1))\n        h1 = Dot(hand(1), radius=0.15, color=ORANGE)\n        h2 = Dot(hand(-1), radius=0.15, color=PINK)\n        w = omega_of(r_tr.get_value())\n        spin = Arc(radius=0.78, start_angle=th + 0.9, angle=min(5.0, 0.7 * w), arc_center=center, color=GREEN, stroke_width=5)\n        spin.add_tip(tip_length=0.2)\n        return VGroup(arms, glow1, glow2, h1, h2, shoulders, head, nose, spin)\n\n    rings = VGroup(*[Circle(radius=q * K, color=GREY_B, stroke_width=1.5, stroke_opacity=0.22).move_to(center) for q in (0.9, 1.45, 2.0)])\n    t1 = TracedPath(lambda: hand(1), stroke_color=ORANGE, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    t2 = TracedPath(lambda: hand(-1), stroke_color=PINK, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    group = VGroup(rings, always_redraw(build))\n    group.trails = [t1, t2]\n    return group\n\n\ndef spin_it(th_tr, r_tr):\n    th_tr.add_updater(lambda m, dt: m.increment_value(omega_of(r_tr.get_value()) * dt))\n\n\ndef readout(tex, fn, color, decimals=1, size=38):\n    name = MathTex(tex + \"=\", font_size=size, color=color)\n    num = DecimalNumber(fn(), num_decimal_places=decimals, font_size=size, color=color)\n    num.next_to(name, RIGHT, buff=0.15)\n    num.add_updater(lambda m: m.set_value(fn()))\n    return VGroup(name, num)\n\nclass Main(Scene):\n    def construct(self):\n        self.add(backdrop())\n        r_tr = ValueTracker(3 ** 0.5)\n        th_tr = ValueTracker(0.0)\n        spin_it(th_tr, r_tr)\n        sk = skater(r_tr, th_tr, center=DOWN * 0.1)\n        caption = lab(\"arms out\", 34, MUTED).move_to(UP * 2.4)\n\n        at(self, 0)\n        self.add(th_tr)\n        self.add(*sk.trails)\n        self.play(FadeIn(sk), FadeIn(caption), run_time=1.0)\n\n        at(self, 1)\n        self.play(\n            r_tr.animate.set_value(1.0),\n            Transform(caption, lab(\"arms in\", 34, ORANGE).move_to(UP * 2.4)),\n            run_time=1.6, rate_func=smooth,\n        )\n        fast = lab(\"much faster!\", 34, ORANGE).move_to(UP * 1.8)\n        self.play(FadeIn(fast, shift=UP * 0.2), run_time=0.6)\n\n        at(self, 2)\n        nopush = VGroup(\n            lab(\"no push\", 32, PINK), lab(\"no motor\", 32, PINK)\n        ).arrange(DOWN, buff=0.25).move_to(RIGHT * 4.6 + UP * 0.9)\n        cross = VGroup(*[Cross(t, stroke_color=PINK, stroke_width=5, scale_factor=1.0) for t in nopush])\n        self.play(FadeIn(nopush), run_time=0.6)\n        self.play(Create(cross), run_time=0.8)\n\n        at(self, 3)\n        q = Text(\"?\", font_size=140, color=YELLOW).move_to(RIGHT * 4.6 + DOWN * 1.0)\n        self.play(FadeOut(nopush), FadeOut(cross), FadeIn(q, scale=0.5), run_time=0.7)\n        self.play(Indicate(q, scale_factor=1.3, color=YELLOW), run_time=1.0)\n\n        at(self, 4)\n        self.remove(*sk.trails)\n        self.play(FadeOut(sk), FadeOut(caption), FadeOut(fast), FadeOut(q), run_time=0.6)\n        names = [(\"momentum\", BLUE), (\"torque\", ORANGE), (\"angular momentum\", GREEN)]\n        cards = VGroup(*[\n            VGroup(\n                RoundedRectangle(corner_radius=0.2, width=4.4, height=1.3, color=c, fill_color=PANEL, fill_opacity=1),\n                lab(n, 30, c),\n            )\n            for n, c in names\n        ]).arrange(RIGHT, buff=0.7).move_to(ORIGIN)\n        arrows = VGroup(*[\n            Arrow(cards[k].get_right(), cards[k + 1].get_left(), buff=0.1, color=MUTED, stroke_width=4)\n            for k in range(2)\n        ])\n        gap = (span(4) - 0.6) / 3\n        for k in range(3):\n            anims = [FadeIn(cards[k], shift=UP * 0.3)]\n            if k:\n                anims.append(GrowArrow(arrows[k - 1]))\n            self.play(*anims, run_time=min(0.8, gap))\n            hold(self, gap - 0.8)\n\n        at(self, 5)\n        self.play(Indicate(cards[0], color=BLUE, scale_factor=1.12), run_time=1.0)\n        self.wait(0.3)\n        self.play(FadeOut(cards), FadeOut(arrows), run_time=0.5)\n        finish(self)\n"
         },
         "style": {}
       },
@@ -24,8 +24,8 @@
       "part": null,
       "base": {
         "position": [
-          -4.440892098500626e-16,
-          0.30695443645083936
+          0.0,
+          0.0
         ],
         "scale": 1.0,
         "rotation": 0.0,
@@ -176,7 +176,7 @@
       "spec": {
         "type": "Code",
         "params": {
-          "code": "B = [1.0, 7.732, 11.488, 17.692, 23.656, 29.908, 36.688, 41.836, 49.276]\n\nINK = \"#e2e8f0\"\nMUTED = \"#94a3b8\"\nBLUE = \"#38bdf8\"\nORANGE = \"#fb923c\"\nGREEN = \"#4ade80\"\nPINK = \"#f472b6\"\nYELLOW = \"#facc15\"\nPANEL = \"#1e293b\"\nLL = 8.0  # the skater's angular momentum (kg m^2 / s)\n\n\ndef at(sc, i):\n    d = B[i] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef hold(sc, d):\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef span(i, margin=0.25):\n    return max(0.4, B[i + 1] - B[i] - margin)\n\n\ndef finish(sc):\n    d = B[-1] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef backdrop():\n    return VGroup(*[Dot([x, y, 0], radius=0.025, color=GREY_B, fill_opacity=0.2) for x in np.arange(-7, 7.1, 1.0) for y in np.arange(-4, 4.1, 1.0)])\n\n\ndef nothing():\n    return Dot(ORIGIN, radius=0.001, fill_opacity=0, stroke_width=0)\n\n\ndef lab(text, size=28, color=INK):\n    return Text(text, font_size=size, color=color)\n\n\ndef inertia(r):\n    return 1.0 + r * r\n\n\ndef omega_of(r):\n    return LL / inertia(r)\n\n\ndef skater(r_tr, th_tr, center=ORIGIN, K=1.3):\n    \"\"\"Top view of a skater on the ice: rink rings, shoulders, head, arms, gloves with trails, spin arrow.\"\"\"\n    def hand(sign):\n        th = th_tr.get_value()\n        return center + sign * K * r_tr.get_value() * np.array([np.cos(th), np.sin(th), 0.0])\n\n    def build():\n        r = r_tr.get_value() * K\n        th = th_tr.get_value()\n        d = np.array([np.cos(th), np.sin(th), 0.0])\n        n = np.array([-np.sin(th), np.cos(th), 0.0])\n        arms = Line(center - d * r, center + d * r, color=INK, stroke_width=9, stroke_opacity=0.9)\n        shoulders = Ellipse(width=0.95, height=0.55, color=BLUE, fill_color=BLUE_E, fill_opacity=1, stroke_width=3)\n        shoulders.rotate(th).move_to(center)\n        head = Circle(radius=0.2, color=BLUE_B, fill_color=BLUE_C, fill_opacity=1, stroke_width=2).move_to(center)\n        nose = Dot(center + n * 0.16, radius=0.045, color=WHITE)\n        glow1 = Circle(radius=0.27, stroke_width=0, fill_color=ORANGE, fill_opacity=0.25).move_to(hand(1))\n        glow2 = Circle(radius=0.27, stroke_width=0, fill_color=PINK, fill_opacity=0.25).move_to(hand(-1))\n        h1 = Dot(hand(1), radius=0.15, color=ORANGE)\n        h2 = Dot(hand(-1), radius=0.15, color=PINK)\n        w = omega_of(r_tr.get_value())\n        spin = Arc(radius=0.78, start_angle=th + 0.9, angle=min(5.0, 0.7 * w), arc_center=center, color=GREEN, stroke_width=5)\n        spin.add_tip(tip_length=0.2)\n        return VGroup(arms, glow1, glow2, h1, h2, shoulders, head, nose, spin)\n\n    rings = VGroup(*[Circle(radius=q * K, color=GREY_B, stroke_width=1.5, stroke_opacity=0.22).move_to(center) for q in (0.9, 1.45, 2.0)])\n    t1 = TracedPath(lambda: hand(1), stroke_color=ORANGE, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    t2 = TracedPath(lambda: hand(-1), stroke_color=PINK, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    group = VGroup(rings, always_redraw(build))\n    group.trails = [t1, t2]\n    return group\n\n\ndef spin_it(th_tr, r_tr):\n    th_tr.add_updater(lambda m, dt: m.increment_value(omega_of(r_tr.get_value()) * dt))\n\n\ndef readout(tex, fn, color, decimals=1, size=38):\n    name = MathTex(tex + \"=\", font_size=size, color=color)\n    num = DecimalNumber(fn(), num_decimal_places=decimals, font_size=size, color=color)\n    num.next_to(name, RIGHT, buff=0.15)\n    num.add_updater(lambda m: m.set_value(fn()))\n    return VGroup(name, num)\n\nPIV = np.array([-3.6, -0.7, 0.0])\nFMAG = 2.0\n\n\ndef tau_of(r, th):\n    return r * FMAG * np.sin(th)\n\n\nclass Main(Scene):\n    def construct(self):\n        self.add(backdrop())\n        r_tr = ValueTracker(4.0)\n        th_tr = ValueTracker(PI / 2)\n\n        wrench = VGroup(\n            RoundedRectangle(corner_radius=0.17, width=6.2, height=0.38, color=GREY_B, fill_color=GREY_D, fill_opacity=1, stroke_width=3),\n        )\n        wrench[0].move_to(PIV + RIGHT * 2.7)\n        bolt = RegularPolygon(6, radius=0.5, color=YELLOW, fill_color=GREY_E, fill_opacity=1, stroke_width=5).move_to(PIV)\n        hole = Circle(radius=0.17, color=GREY_B, stroke_width=3).move_to(PIV)\n\n        def point():\n            return PIV + RIGHT * r_tr.get_value()\n\n        def fvec():\n            th = th_tr.get_value()\n            return np.array([np.cos(th), np.sin(th), 0.0]) * FMAG * 0.85\n\n        r_arrow = always_redraw(lambda: Arrow(PIV + DOWN * 0.55, point() + DOWN * 0.55, buff=0, color=BLUE, stroke_width=6))\n        r_lab = MathTex(r\"r\", color=BLUE, font_size=40)\n        r_lab.add_updater(lambda m: m.move_to((PIV + point()) / 2 + DOWN * 0.95))\n        f_arrow = always_redraw(lambda: Arrow(point(), point() + fvec(), buff=0, color=ORANGE, stroke_width=8, max_tip_length_to_length_ratio=0.3) if FMAG > 0 else nothing())\n        f_lab = MathTex(r\"\\vec F\", color=ORANGE, font_size=40)\n        f_lab.add_updater(lambda m: m.move_to(point() + fvec() * 1.0 + (UP * 0.35 if np.sin(th_tr.get_value()) > 0.3 else RIGHT * 0.45)))\n\n        def arc():\n            th = th_tr.get_value()\n            if th < 0.04:\n                return nothing()\n            return Arc(radius=0.75, start_angle=0, angle=th, arc_center=point(), color=PINK, stroke_width=5)\n\n        theta_arc = always_redraw(arc)\n        theta_lab = MathTex(r\"\\theta\", color=PINK, font_size=38)\n        theta_lab.add_updater(lambda m: m.move_to(point() + 1.1 * np.array([np.cos(th_tr.get_value() / 2), np.sin(th_tr.get_value() / 2), 0]) if th_tr.get_value() > 0.12 else point() + RIGHT * 5))\n\n        def spin_hint():\n            tau = tau_of(r_tr.get_value(), th_tr.get_value())\n            o = min(1.0, abs(tau) / 8.0) * 0.95\n            if o < 0.03:\n                return nothing()\n            return Arc(radius=0.95, start_angle=0.4, angle=2.4, arc_center=PIV, color=YELLOW, stroke_width=5, stroke_opacity=o).add_tip(tip_length=0.22)\n\n        hint = always_redraw(spin_hint)\n\n        at(self, 0)\n        left = VGroup(lab(\"force\", 34, ORANGE), lab(\"straight-line motion\", 28, MUTED)).arrange(DOWN, buff=0.15)\n        right = VGroup(lab(\"torque\", 34, YELLOW), lab(\"rotation\", 28, MUTED)).arrange(DOWN, buff=0.15)\n        pair = VGroup(left, Text(\"→\", font_size=1), right)\n        pair = VGroup(left, right).arrange(RIGHT, buff=2.2).move_to(UP * 2)\n        self.play(FadeIn(left, shift=RIGHT * 1), run_time=0.8)\n        self.wait(1.2)\n        self.play(FadeIn(right, shift=LEFT * 1), run_time=0.8)\n\n        at(self, 1)\n        self.play(FadeIn(wrench), FadeIn(bolt), FadeIn(hole), run_time=0.9)\n        self.add(f_arrow, f_lab)\n        self.play(FadeIn(f_arrow), FadeIn(f_lab), run_time=0.7)\n        self.add(hint)\n\n        at(self, 2)\n        self.play(FadeOut(pair), run_time=0.4)\n        eq1 = MathTex(r\"\\vec\\tau\", \"=\", r\"\\vec r\", r\"\\times\", r\"\\vec F\", font_size=62).move_to(RIGHT * 3.9 + UP * 2.4)\n        eq1[0].set_color(YELLOW)\n        eq1[2].set_color(BLUE)\n        eq1[4].set_color(ORANGE)\n        self.add(r_arrow, r_lab)\n        self.play(FadeIn(r_arrow), FadeIn(r_lab), Write(eq1), run_time=1.4)\n\n        at(self, 3)\n        eq2 = MathTex(r\"\\tau\", \"=\", \"r\", \"F\", r\"\\sin\\theta\", font_size=62).next_to(eq1, DOWN, buff=0.45)\n        eq2[0].set_color(YELLOW)\n        eq2[2].set_color(BLUE)\n        eq2[3].set_color(ORANGE)\n        eq2[4].set_color(PINK)\n        self.add(theta_arc, theta_lab)\n        self.play(Write(eq2), FadeIn(theta_arc), FadeIn(theta_lab), run_time=1.4)\n        tau_ro = readout(r\"\\tau\", lambda: tau_of(r_tr.get_value(), th_tr.get_value()), YELLOW, 1, 40)\n        r_ro = readout(r\"r\", lambda: r_tr.get_value(), BLUE, 1, 34)\n        th_ro = readout(r\"\\theta\", lambda: np.degrees(th_tr.get_value()), PINK, 0, 34)\n        stack = VGroup(r_ro, th_ro, tau_ro).arrange(DOWN, buff=0.3, aligned_edge=LEFT).move_to(RIGHT * 4.3 + DOWN * 1.0)\n        self.play(FadeIn(stack), run_time=0.6)\n\n        at(self, 4)\n        gap = span(4) / 2\n        self.play(r_tr.animate.set_value(1.2), run_time=gap * 0.9, rate_func=smooth)\n        self.wait(0.1)\n        self.play(r_tr.animate.set_value(4.0), run_time=gap * 0.9, rate_func=smooth)\n\n        at(self, 5)\n        self.play(th_tr.animate.set_value(0.0), run_time=span(5) * 0.45, rate_func=smooth)\n        zero = lab(\"no torque\", 30, PINK).move_to(RIGHT * 4.3 + DOWN * 2.6)\n        self.play(FadeIn(zero), run_time=0.4)\n        self.wait(0.5)\n\n        at(self, 6)\n        self.play(FadeOut(zero), th_tr.animate.set_value(PI / 3), run_time=1.0, rate_func=smooth)\n        fperp = always_redraw(lambda: DashedLine(point(), point() + UP * FMAG * 0.85 * np.sin(th_tr.get_value()), color=GREEN, stroke_width=6))\n        fpar = always_redraw(lambda: DashedLine(point(), point() + RIGHT * FMAG * 0.85 * np.cos(th_tr.get_value()), color=GREY_B, stroke_width=5))\n        fl_perp = MathTex(r\"F\\sin\\theta\", color=GREEN, font_size=34)\n        fl_perp.add_updater(lambda m: m.move_to(point() + LEFT * 0.95 + UP * FMAG * 0.85 * np.sin(th_tr.get_value()) * 0.5))\n        self.add(fperp, fpar, fl_perp)\n        self.play(FadeIn(fperp), FadeIn(fpar), FadeIn(fl_perp), run_time=0.7)\n        self.play(Indicate(fperp, color=GREEN, scale_factor=1.15), run_time=1.0)\n\n        at(self, 7)\n        sym = VGroup(Circle(radius=0.38, color=YELLOW, stroke_width=5), Dot(radius=0.1, color=YELLOW))\n        sym.move_to(PIV + UP * 2.5 + RIGHT * 0.2)\n        sl = VGroup(lab(\"τ points out of the screen\", 26, YELLOW), lab(\"(right-hand rule)\", 22, MUTED)).arrange(DOWN, buff=0.1)\n        sl.next_to(sym, RIGHT, buff=0.35)\n        self.play(FadeIn(sym, scale=0.5), FadeIn(sl), run_time=0.9)\n        finish(self)\n"
+          "code": "B = [1.0, 7.732, 11.488, 17.692, 23.656, 29.908, 36.688, 41.836, 49.276]\n\nINK = \"#e2e8f0\"\nMUTED = \"#94a3b8\"\nBLUE = \"#38bdf8\"\nORANGE = \"#fb923c\"\nGREEN = \"#4ade80\"\nPINK = \"#f472b6\"\nYELLOW = \"#facc15\"\nPANEL = \"#1e293b\"\nLL = 8.0  # the skater's angular momentum (kg m^2 / s)\n\n\ndef at(sc, i):\n    d = B[i] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef hold(sc, d):\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef span(i, margin=0.25):\n    return max(0.4, B[i + 1] - B[i] - margin)\n\n\ndef finish(sc):\n    d = B[-1] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef backdrop():\n    return VGroup(*[Dot([x, y, 0], radius=0.025, color=GREY_B, fill_opacity=0.2) for x in np.arange(-7, 7.1, 1.0) for y in np.arange(-4, 4.1, 1.0)])\n\n\ndef nothing():\n    return Dot(ORIGIN, radius=0.001, fill_opacity=0, stroke_width=0)\n\n\ndef lab(text, size=28, color=INK):\n    return Text(text, font_size=size, color=color)\n\n\ndef inertia(r):\n    return 1.0 + r * r\n\n\ndef omega_of(r):\n    return LL / inertia(r)\n\n\ndef skater(r_tr, th_tr, center=ORIGIN, K=1.3):\n    \"\"\"Top view of a skater on the ice: rink rings, shoulders, head, arms, gloves with trails, spin arrow.\"\"\"\n    def hand(sign):\n        th = th_tr.get_value()\n        return center + sign * K * r_tr.get_value() * np.array([np.cos(th), np.sin(th), 0.0])\n\n    def build():\n        r = r_tr.get_value() * K\n        th = th_tr.get_value()\n        d = np.array([np.cos(th), np.sin(th), 0.0])\n        n = np.array([-np.sin(th), np.cos(th), 0.0])\n        arms = Line(center - d * r, center + d * r, color=INK, stroke_width=9, stroke_opacity=0.9)\n        shoulders = Ellipse(width=0.95, height=0.55, color=BLUE, fill_color=BLUE_E, fill_opacity=1, stroke_width=3)\n        shoulders.rotate(th).move_to(center)\n        head = Circle(radius=0.2, color=BLUE_B, fill_color=BLUE_C, fill_opacity=1, stroke_width=2).move_to(center)\n        nose = Dot(center + n * 0.16, radius=0.045, color=WHITE)\n        glow1 = Circle(radius=0.27, stroke_width=0, fill_color=ORANGE, fill_opacity=0.25).move_to(hand(1))\n        glow2 = Circle(radius=0.27, stroke_width=0, fill_color=PINK, fill_opacity=0.25).move_to(hand(-1))\n        h1 = Dot(hand(1), radius=0.15, color=ORANGE)\n        h2 = Dot(hand(-1), radius=0.15, color=PINK)\n        w = omega_of(r_tr.get_value())\n        spin = Arc(radius=0.78, start_angle=th + 0.9, angle=min(5.0, 0.7 * w), arc_center=center, color=GREEN, stroke_width=5)\n        spin.add_tip(tip_length=0.2)\n        return VGroup(arms, glow1, glow2, h1, h2, shoulders, head, nose, spin)\n\n    rings = VGroup(*[Circle(radius=q * K, color=GREY_B, stroke_width=1.5, stroke_opacity=0.22).move_to(center) for q in (0.9, 1.45, 2.0)])\n    t1 = TracedPath(lambda: hand(1), stroke_color=ORANGE, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    t2 = TracedPath(lambda: hand(-1), stroke_color=PINK, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    group = VGroup(rings, always_redraw(build))\n    group.trails = [t1, t2]\n    return group\n\n\ndef spin_it(th_tr, r_tr):\n    th_tr.add_updater(lambda m, dt: m.increment_value(omega_of(r_tr.get_value()) * dt))\n\n\ndef readout(tex, fn, color, decimals=1, size=38):\n    name = MathTex(tex + \"=\", font_size=size, color=color)\n    num = DecimalNumber(fn(), num_decimal_places=decimals, font_size=size, color=color)\n    num.next_to(name, RIGHT, buff=0.15)\n    num.add_updater(lambda m: m.set_value(fn()))\n    return VGroup(name, num)\n\nPIV = np.array([-3.6, -0.7, 0.0])\nFMAG = 2.0\n\n\ndef tau_of(r, th):\n    return r * FMAG * np.sin(th)\n\n\nclass Main(Scene):\n    def construct(self):\n        self.add(backdrop())\n        r_tr = ValueTracker(4.0)\n        th_tr = ValueTracker(PI / 2)\n\n        wrench = VGroup(\n            RoundedRectangle(corner_radius=0.17, width=6.2, height=0.38, color=GREY_B, fill_color=GREY_D, fill_opacity=1, stroke_width=3),\n        )\n        wrench[0].move_to(PIV + RIGHT * 2.7)\n        bolt = RegularPolygon(6, radius=0.5, color=YELLOW, fill_color=GREY_E, fill_opacity=1, stroke_width=5).move_to(PIV)\n        hole = Circle(radius=0.17, color=GREY_B, stroke_width=3).move_to(PIV)\n\n        def point():\n            return PIV + RIGHT * r_tr.get_value()\n\n        def fvec():\n            th = th_tr.get_value()\n            return np.array([np.cos(th), np.sin(th), 0.0]) * FMAG * 0.85\n\n        r_arrow = always_redraw(lambda: Arrow(PIV + DOWN * 0.55, point() + DOWN * 0.55, buff=0, color=BLUE, stroke_width=6))\n        r_lab = MathTex(r\"r\", color=BLUE, font_size=40)\n        r_lab.add_updater(lambda m: m.move_to((PIV + point()) / 2 + DOWN * 0.95))\n        f_arrow = always_redraw(lambda: Arrow(point(), point() + fvec(), buff=0, color=ORANGE, stroke_width=8, max_tip_length_to_length_ratio=0.3) if FMAG > 0 else nothing())\n        f_lab = MathTex(r\"\\vec F\", color=ORANGE, font_size=40)\n        f_lab.add_updater(lambda m: m.move_to(point() + fvec() * 1.0 + (UP * 0.35 if np.sin(th_tr.get_value()) > 0.3 else RIGHT * 0.45)))\n\n        def arc():\n            th = th_tr.get_value()\n            if th < 0.04:\n                return nothing()\n            return Arc(radius=0.75, start_angle=0, angle=th, arc_center=point(), color=PINK, stroke_width=5)\n\n        theta_arc = always_redraw(arc)\n        theta_lab = MathTex(r\"\\theta\", color=PINK, font_size=38)\n        theta_lab.add_updater(lambda m: m.move_to(point() + 1.1 * np.array([np.cos(th_tr.get_value() / 2), np.sin(th_tr.get_value() / 2), 0]) if th_tr.get_value() > 0.12 else point() + RIGHT * 5))\n\n        def spin_hint():\n            tau = tau_of(r_tr.get_value(), th_tr.get_value())\n            o = min(1.0, abs(tau) / 8.0) * 0.95\n            if o < 0.03:\n                return nothing()\n            return Arc(radius=0.95, start_angle=0.4, angle=2.4, arc_center=PIV, color=YELLOW, stroke_width=5, stroke_opacity=o).add_tip(tip_length=0.22)\n\n        hint = always_redraw(spin_hint)\n\n        at(self, 0)\n        left = VGroup(lab(\"force\", 34, ORANGE), lab(\"straight-line motion\", 28, MUTED)).arrange(DOWN, buff=0.15)\n        right = VGroup(lab(\"torque\", 34, YELLOW), lab(\"rotation\", 28, MUTED)).arrange(DOWN, buff=0.15)\n        pair = VGroup(left, Text(\"→\", font_size=1), right)\n        pair = VGroup(left, right).arrange(RIGHT, buff=2.2).move_to(RIGHT * 3.6 + UP * 1.6)\n        self.play(FadeIn(left, shift=RIGHT * 0.2), run_time=0.8)\n        self.wait(1.2)\n        self.play(FadeIn(right, shift=LEFT * 0.2), run_time=0.8)\n\n        at(self, 1)\n        self.play(FadeIn(wrench), FadeIn(bolt), FadeIn(hole), run_time=0.9)\n        self.add(f_arrow, f_lab)\n        self.play(FadeIn(f_arrow), FadeIn(f_lab), run_time=0.7)\n        self.add(hint)\n\n        at(self, 2)\n        self.play(FadeOut(pair), run_time=0.4)\n        eq1 = MathTex(r\"\\vec\\tau\", \"=\", r\"\\vec r\", r\"\\times\", r\"\\vec F\", font_size=62).move_to(RIGHT * 3.9 + UP * 2.4)\n        eq1[0].set_color(YELLOW)\n        eq1[2].set_color(BLUE)\n        eq1[4].set_color(ORANGE)\n        self.add(r_arrow, r_lab)\n        self.play(FadeIn(r_arrow), FadeIn(r_lab), Write(eq1), run_time=1.4)\n\n        at(self, 3)\n        eq2 = MathTex(r\"\\tau\", \"=\", \"r\", \"F\", r\"\\sin\\theta\", font_size=62).next_to(eq1, DOWN, buff=0.45)\n        eq2[0].set_color(YELLOW)\n        eq2[2].set_color(BLUE)\n        eq2[3].set_color(ORANGE)\n        eq2[4].set_color(PINK)\n        self.add(theta_arc, theta_lab)\n        self.play(Write(eq2), FadeIn(theta_arc), FadeIn(theta_lab), run_time=1.4)\n        tau_ro = readout(r\"\\tau\", lambda: tau_of(r_tr.get_value(), th_tr.get_value()), YELLOW, 1, 40)\n        r_ro = readout(r\"r\", lambda: r_tr.get_value(), BLUE, 1, 34)\n        th_ro = readout(r\"\\theta\", lambda: np.degrees(th_tr.get_value()), PINK, 0, 34)\n        stack = VGroup(r_ro, th_ro, tau_ro).arrange(DOWN, buff=0.3, aligned_edge=LEFT).move_to(RIGHT * 4.3 + DOWN * 1.0)\n        self.play(FadeIn(stack), run_time=0.6)\n\n        at(self, 4)\n        gap = span(4) / 2\n        self.play(r_tr.animate.set_value(1.2), run_time=gap * 0.9, rate_func=smooth)\n        self.wait(0.1)\n        self.play(r_tr.animate.set_value(4.0), run_time=gap * 0.9, rate_func=smooth)\n\n        at(self, 5)\n        self.play(th_tr.animate.set_value(0.0), run_time=span(5) * 0.45, rate_func=smooth)\n        zero = lab(\"no torque\", 30, PINK).move_to(RIGHT * 4.3 + DOWN * 2.6)\n        self.play(FadeIn(zero), run_time=0.4)\n        self.wait(0.5)\n\n        at(self, 6)\n        self.play(FadeOut(zero), th_tr.animate.set_value(PI / 3), run_time=1.0, rate_func=smooth)\n        fperp = always_redraw(lambda: DashedLine(point(), point() + UP * FMAG * 0.85 * np.sin(th_tr.get_value()), color=GREEN, stroke_width=6))\n        fpar = always_redraw(lambda: DashedLine(point(), point() + RIGHT * FMAG * 0.85 * np.cos(th_tr.get_value()), color=GREY_B, stroke_width=5))\n        fl_perp = MathTex(r\"F\\sin\\theta\", color=GREEN, font_size=34)\n        fl_perp.add_updater(lambda m: m.move_to(point() + LEFT * 0.95 + UP * FMAG * 0.85 * np.sin(th_tr.get_value()) * 0.5))\n        self.add(fperp, fpar, fl_perp)\n        self.play(FadeIn(fperp), FadeIn(fpar), FadeIn(fl_perp), run_time=0.7)\n        self.play(Indicate(fperp, color=GREEN, scale_factor=1.15), run_time=1.0)\n\n        at(self, 7)\n        sym = VGroup(Circle(radius=0.38, color=YELLOW, stroke_width=5), Dot(radius=0.1, color=YELLOW))\n        sym.move_to(PIV + UP * 2.5 + RIGHT * 0.2)\n        sl = VGroup(lab(\"τ points out of the screen\", 26, YELLOW), lab(\"(right-hand rule)\", 22, MUTED)).arrange(DOWN, buff=0.1)\n        sl.next_to(sym, RIGHT, buff=0.35)\n        self.play(FadeIn(sym, scale=0.5), FadeIn(sl), run_time=0.9)\n        finish(self)\n"
         },
         "style": {}
       },
@@ -416,7 +416,7 @@
       "spec": {
         "type": "Code",
         "params": {
-          "code": "B = [1.0, 7.828, 16.072, 19.468, 25.24, 29.86, 39.268]\n\nINK = \"#e2e8f0\"\nMUTED = \"#94a3b8\"\nBLUE = \"#38bdf8\"\nORANGE = \"#fb923c\"\nGREEN = \"#4ade80\"\nPINK = \"#f472b6\"\nYELLOW = \"#facc15\"\nPANEL = \"#1e293b\"\nLL = 8.0  # the skater's angular momentum (kg m^2 / s)\n\n\ndef at(sc, i):\n    d = B[i] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef hold(sc, d):\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef span(i, margin=0.25):\n    return max(0.4, B[i + 1] - B[i] - margin)\n\n\ndef finish(sc):\n    d = B[-1] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef backdrop():\n    return VGroup(*[Dot([x, y, 0], radius=0.025, color=GREY_B, fill_opacity=0.2) for x in np.arange(-7, 7.1, 1.0) for y in np.arange(-4, 4.1, 1.0)])\n\n\ndef nothing():\n    return Dot(ORIGIN, radius=0.001, fill_opacity=0, stroke_width=0)\n\n\ndef lab(text, size=28, color=INK):\n    return Text(text, font_size=size, color=color)\n\n\ndef inertia(r):\n    return 1.0 + r * r\n\n\ndef omega_of(r):\n    return LL / inertia(r)\n\n\ndef skater(r_tr, th_tr, center=ORIGIN, K=1.3):\n    \"\"\"Top view of a skater on the ice: rink rings, shoulders, head, arms, gloves with trails, spin arrow.\"\"\"\n    def hand(sign):\n        th = th_tr.get_value()\n        return center + sign * K * r_tr.get_value() * np.array([np.cos(th), np.sin(th), 0.0])\n\n    def build():\n        r = r_tr.get_value() * K\n        th = th_tr.get_value()\n        d = np.array([np.cos(th), np.sin(th), 0.0])\n        n = np.array([-np.sin(th), np.cos(th), 0.0])\n        arms = Line(center - d * r, center + d * r, color=INK, stroke_width=9, stroke_opacity=0.9)\n        shoulders = Ellipse(width=0.95, height=0.55, color=BLUE, fill_color=BLUE_E, fill_opacity=1, stroke_width=3)\n        shoulders.rotate(th).move_to(center)\n        head = Circle(radius=0.2, color=BLUE_B, fill_color=BLUE_C, fill_opacity=1, stroke_width=2).move_to(center)\n        nose = Dot(center + n * 0.16, radius=0.045, color=WHITE)\n        glow1 = Circle(radius=0.27, stroke_width=0, fill_color=ORANGE, fill_opacity=0.25).move_to(hand(1))\n        glow2 = Circle(radius=0.27, stroke_width=0, fill_color=PINK, fill_opacity=0.25).move_to(hand(-1))\n        h1 = Dot(hand(1), radius=0.15, color=ORANGE)\n        h2 = Dot(hand(-1), radius=0.15, color=PINK)\n        w = omega_of(r_tr.get_value())\n        spin = Arc(radius=0.78, start_angle=th + 0.9, angle=min(5.0, 0.7 * w), arc_center=center, color=GREEN, stroke_width=5)\n        spin.add_tip(tip_length=0.2)\n        return VGroup(arms, glow1, glow2, h1, h2, shoulders, head, nose, spin)\n\n    rings = VGroup(*[Circle(radius=q * K, color=GREY_B, stroke_width=1.5, stroke_opacity=0.22).move_to(center) for q in (0.9, 1.45, 2.0)])\n    t1 = TracedPath(lambda: hand(1), stroke_color=ORANGE, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    t2 = TracedPath(lambda: hand(-1), stroke_color=PINK, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    group = VGroup(rings, always_redraw(build))\n    group.trails = [t1, t2]\n    return group\n\n\ndef spin_it(th_tr, r_tr):\n    th_tr.add_updater(lambda m, dt: m.increment_value(omega_of(r_tr.get_value()) * dt))\n\n\ndef readout(tex, fn, color, decimals=1, size=38):\n    name = MathTex(tex + \"=\", font_size=size, color=color)\n    num = DecimalNumber(fn(), num_decimal_places=decimals, font_size=size, color=color)\n    num.next_to(name, RIGHT, buff=0.15)\n    num.add_updater(lambda m: m.set_value(fn()))\n    return VGroup(name, num)\n\nclass Main(Scene):\n    def construct(self):\n        self.add(backdrop())\n        r_tr = ValueTracker(3 ** 0.5)\n        th_tr = ValueTracker(0.0)\n        spin_it(th_tr, r_tr)\n        C = LEFT * 3.3 + UP * 0.3\n        sk = skater(r_tr, th_tr, center=C, K=1.0)\n\n        law = MathTex(r\"\\vec\\tau_{\\text{ext}} = 0\", r\"\\;\\Longrightarrow\\;\", r\"\\vec L = \\text{constant}\", font_size=50).move_to(UP * 2.5)\n        law[0].set_color(PINK)\n        law[2].set_color(YELLOW)\n\n        I_ro = readout(\"I\", lambda: inertia(r_tr.get_value()), GREEN, 1, 44)\n        w_ro = readout(r\"\\omega\", lambda: omega_of(r_tr.get_value()), PINK, 1, 44)\n        L_ro = readout(\"L\", lambda: inertia(r_tr.get_value()) * omega_of(r_tr.get_value()), YELLOW, 1, 44)\n        stack = VGroup(I_ro, w_ro, L_ro).arrange(DOWN, buff=0.45, aligned_edge=LEFT).move_to(RIGHT * 4.3 + DOWN * 0.1)\n        box = SurroundingRectangle(stack, color=MUTED, buff=0.35, corner_radius=0.15, stroke_width=2, fill_color=PANEL, fill_opacity=0)\n        units = lab(\"I in kg·m²,  ω in rad/s\", 20, MUTED).next_to(box, DOWN, buff=0.15)\n\n        at(self, 0)\n        self.play(Write(law), run_time=1.6)\n        self.play(Circumscribe(law[2], color=YELLOW), run_time=1.0)\n\n        at(self, 1)\n        self.add(th_tr)\n        self.add(*sk.trails)\n        self.play(FadeIn(sk), run_time=0.7)\n        self.add(I_ro, w_ro, L_ro)\n        self.play(FadeIn(stack), FadeIn(box), FadeIn(units), run_time=0.8)\n        note1 = lab(\"arms out: big I, slow spin\", 26, MUTED).move_to(C + DOWN * 2.2)\n        self.play(FadeIn(note1), run_time=0.5)\n\n        at(self, 2)\n        note2 = lab(\"arms in: small I\", 26, GREEN).move_to(C + DOWN * 2.2)\n        self.play(r_tr.animate.set_value(1.0), Transform(note1, note2), run_time=span(2) * 0.9, rate_func=smooth)\n\n        at(self, 3)\n        self.play(Indicate(w_ro, color=PINK, scale_factor=1.15), Indicate(L_ro, color=YELLOW, scale_factor=1.1), run_time=1.4)\n        self.play(Circumscribe(L_ro, color=YELLOW), run_time=1.1)\n\n        at(self, 4)\n        half = MathTex(r\"I \\to \\tfrac12 I\", r\"\\;\\Rightarrow\\;\", r\"\\omega \\to 2\\omega\", font_size=46).move_to(C + DOWN * 2.8)\n        half[0].set_color(GREEN)\n        half[2].set_color(PINK)\n        self.play(Write(half), run_time=1.1)\n        self.play(r_tr.animate.set_value(3 ** 0.5), run_time=1.2, rate_func=smooth)\n        self.play(r_tr.animate.set_value(1.0), run_time=1.2, rate_func=smooth)\n\n        # a planet on an eccentric orbit\n        at(self, 5)\n        self.remove(*sk.trails)\n        self.play(*[FadeOut(m) for m in (sk, stack, box, units, law, note1, half)], run_time=0.6)\n        th_tr.clear_updaters()\n        S = np.array([-1.0, 0.0, 0.0])\n        e, pp = 0.6, 2.0\n        a_ = pp / (1 - e * e)\n        h = 2 * PI * a_ * a_ * (1 - e * e) ** 0.5 / 8.0  # a period of 8 s\n        ang = ValueTracker(0.0)\n\n        def rr(t):\n            return pp / (1 + e * np.cos(t))\n\n        def stepper(m, dt):\n            t = ang.get_value()\n            ang.increment_value(h / rr(t) ** 2 * dt)\n\n        ang.add_updater(stepper)\n        self.add(ang)\n        sun = Dot(S, radius=0.3, color=YELLOW)\n        orbit = ParametricFunction(lambda t: S + rr(t) * np.array([np.cos(t), np.sin(t), 0.0]), t_range=[0, TAU], color=GREY_C, stroke_width=2)\n        planet = always_redraw(lambda: Dot(S + rr(ang.get_value()) * np.array([np.cos(ang.get_value()), np.sin(ang.get_value()), 0.0]), radius=0.16, color=BLUE))\n        trail = TracedPath(lambda: planet.get_center(), stroke_color=BLUE, stroke_width=4, dissipating_time=1.2)\n        d_ro = readout(\"r\", lambda: rr(ang.get_value()), GREEN, 2, 38)\n        w2_ro = readout(r\"\\dot\\theta\", lambda: h / rr(ang.get_value()) ** 2, PINK, 2, 38)\n        c_ro = readout(r\"r^2\\dot\\theta\", lambda: h, YELLOW, 2, 38)\n        stack2 = VGroup(d_ro, w2_ro, c_ro).arrange(DOWN, buff=0.4, aligned_edge=LEFT).move_to(RIGHT * 4.6 + UP * 0.5)\n        tuck = lab(\"a diver tucks: smaller I, faster spin\", 24, MUTED).move_to(RIGHT * 3.8 + DOWN * 2.3)\n        self.add(trail, planet, d_ro, w2_ro, c_ro)\n        self.play(FadeIn(sun), FadeIn(orbit), FadeIn(planet), FadeIn(stack2), run_time=0.8)\n        hold(self, span(5) - 3.5)\n        self.play(FadeIn(tuck), run_time=0.7)\n        finish(self)\n"
+          "code": "B = [1.0, 7.828, 16.072, 19.468, 25.24, 29.86, 39.268]\n\nINK = \"#e2e8f0\"\nMUTED = \"#94a3b8\"\nBLUE = \"#38bdf8\"\nORANGE = \"#fb923c\"\nGREEN = \"#4ade80\"\nPINK = \"#f472b6\"\nYELLOW = \"#facc15\"\nPANEL = \"#1e293b\"\nLL = 8.0  # the skater's angular momentum (kg m^2 / s)\n\n\ndef at(sc, i):\n    d = B[i] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef hold(sc, d):\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef span(i, margin=0.25):\n    return max(0.4, B[i + 1] - B[i] - margin)\n\n\ndef finish(sc):\n    d = B[-1] - sc.time\n    if d > 0.02:\n        sc.wait(d)\n\n\ndef backdrop():\n    return VGroup(*[Dot([x, y, 0], radius=0.025, color=GREY_B, fill_opacity=0.2) for x in np.arange(-7, 7.1, 1.0) for y in np.arange(-4, 4.1, 1.0)])\n\n\ndef nothing():\n    return Dot(ORIGIN, radius=0.001, fill_opacity=0, stroke_width=0)\n\n\ndef lab(text, size=28, color=INK):\n    return Text(text, font_size=size, color=color)\n\n\ndef inertia(r):\n    return 1.0 + r * r\n\n\ndef omega_of(r):\n    return LL / inertia(r)\n\n\ndef skater(r_tr, th_tr, center=ORIGIN, K=1.3):\n    \"\"\"Top view of a skater on the ice: rink rings, shoulders, head, arms, gloves with trails, spin arrow.\"\"\"\n    def hand(sign):\n        th = th_tr.get_value()\n        return center + sign * K * r_tr.get_value() * np.array([np.cos(th), np.sin(th), 0.0])\n\n    def build():\n        r = r_tr.get_value() * K\n        th = th_tr.get_value()\n        d = np.array([np.cos(th), np.sin(th), 0.0])\n        n = np.array([-np.sin(th), np.cos(th), 0.0])\n        arms = Line(center - d * r, center + d * r, color=INK, stroke_width=9, stroke_opacity=0.9)\n        shoulders = Ellipse(width=0.95, height=0.55, color=BLUE, fill_color=BLUE_E, fill_opacity=1, stroke_width=3)\n        shoulders.rotate(th).move_to(center)\n        head = Circle(radius=0.2, color=BLUE_B, fill_color=BLUE_C, fill_opacity=1, stroke_width=2).move_to(center)\n        nose = Dot(center + n * 0.16, radius=0.045, color=WHITE)\n        glow1 = Circle(radius=0.27, stroke_width=0, fill_color=ORANGE, fill_opacity=0.25).move_to(hand(1))\n        glow2 = Circle(radius=0.27, stroke_width=0, fill_color=PINK, fill_opacity=0.25).move_to(hand(-1))\n        h1 = Dot(hand(1), radius=0.15, color=ORANGE)\n        h2 = Dot(hand(-1), radius=0.15, color=PINK)\n        w = omega_of(r_tr.get_value())\n        spin = Arc(radius=0.78, start_angle=th + 0.9, angle=min(5.0, 0.7 * w), arc_center=center, color=GREEN, stroke_width=5)\n        spin.add_tip(tip_length=0.2)\n        return VGroup(arms, glow1, glow2, h1, h2, shoulders, head, nose, spin)\n\n    rings = VGroup(*[Circle(radius=q * K, color=GREY_B, stroke_width=1.5, stroke_opacity=0.22).move_to(center) for q in (0.9, 1.45, 2.0)])\n    t1 = TracedPath(lambda: hand(1), stroke_color=ORANGE, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    t2 = TracedPath(lambda: hand(-1), stroke_color=PINK, stroke_width=4, stroke_opacity=0.7, dissipating_time=0.8)\n    group = VGroup(rings, always_redraw(build))\n    group.trails = [t1, t2]\n    return group\n\n\ndef spin_it(th_tr, r_tr):\n    th_tr.add_updater(lambda m, dt: m.increment_value(omega_of(r_tr.get_value()) * dt))\n\n\ndef readout(tex, fn, color, decimals=1, size=38):\n    name = MathTex(tex + \"=\", font_size=size, color=color)\n    num = DecimalNumber(fn(), num_decimal_places=decimals, font_size=size, color=color)\n    num.next_to(name, RIGHT, buff=0.15)\n    num.add_updater(lambda m: m.set_value(fn()))\n    return VGroup(name, num)\n\nclass Main(Scene):\n    def construct(self):\n        self.add(backdrop())\n        r_tr = ValueTracker(3 ** 0.5)\n        th_tr = ValueTracker(0.0)\n        spin_it(th_tr, r_tr)\n        C = LEFT * 3.3 + UP * 0.3\n        sk = skater(r_tr, th_tr, center=C, K=1.0)\n\n        law = MathTex(r\"\\vec\\tau_{\\text{ext}} = 0\", r\"\\;\\Longrightarrow\\;\", r\"\\vec L = \\text{constant}\", font_size=50).move_to(UP * 2.5)\n        law[0].set_color(PINK)\n        law[2].set_color(YELLOW)\n\n        I_ro = readout(\"I\", lambda: inertia(r_tr.get_value()), GREEN, 1, 44)\n        w_ro = readout(r\"\\omega\", lambda: omega_of(r_tr.get_value()), PINK, 1, 44)\n        L_ro = readout(\"L\", lambda: inertia(r_tr.get_value()) * omega_of(r_tr.get_value()), YELLOW, 1, 44)\n        stack = VGroup(I_ro, w_ro, L_ro).arrange(DOWN, buff=0.45, aligned_edge=LEFT).move_to(RIGHT * 4.3 + DOWN * 0.1)\n        box = SurroundingRectangle(stack, color=MUTED, buff=0.35, corner_radius=0.15, stroke_width=2, fill_color=PANEL, fill_opacity=0.9)\n        units = lab(\"I in kg·m²,  ω in rad/s\", 20, MUTED).next_to(box, DOWN, buff=0.15)\n\n        at(self, 0)\n        self.play(Write(law), run_time=1.6)\n        self.play(Circumscribe(law[2], color=YELLOW), run_time=1.0)\n\n        at(self, 1)\n        self.add(th_tr)\n        self.add(*sk.trails)\n        self.play(FadeIn(sk), run_time=0.7)\n        self.add(I_ro, w_ro, L_ro)\n        self.play(FadeIn(stack), FadeIn(box), FadeIn(units), run_time=0.8)\n        note1 = lab(\"arms out: big I, slow spin\", 26, MUTED).move_to(C + DOWN * 2.2)\n        self.play(FadeIn(note1), run_time=0.5)\n\n        at(self, 2)\n        note2 = lab(\"arms in: small I\", 26, GREEN).move_to(C + DOWN * 2.2)\n        self.play(r_tr.animate.set_value(1.0), Transform(note1, note2), run_time=span(2) * 0.9, rate_func=smooth)\n\n        at(self, 3)\n        self.play(Indicate(w_ro, color=PINK, scale_factor=1.15), Indicate(L_ro, color=YELLOW, scale_factor=1.1), run_time=1.4)\n        self.play(Circumscribe(L_ro, color=YELLOW), run_time=1.1)\n\n        at(self, 4)\n        half = MathTex(r\"I \\to \\tfrac12 I\", r\"\\;\\Rightarrow\\;\", r\"\\omega \\to 2\\omega\", font_size=46).move_to(C + DOWN * 2.8)\n        half[0].set_color(GREEN)\n        half[2].set_color(PINK)\n        self.play(Write(half), run_time=1.1)\n        self.play(r_tr.animate.set_value(3 ** 0.5), run_time=1.2, rate_func=smooth)\n        self.play(r_tr.animate.set_value(1.0), run_time=1.2, rate_func=smooth)\n\n        # a planet on an eccentric orbit\n        at(self, 5)\n        self.remove(*sk.trails)\n        self.play(*[FadeOut(m) for m in (sk, stack, box, units, law, note1, half)], run_time=0.6)\n        th_tr.clear_updaters()\n        S = np.array([-1.0, 0.0, 0.0])\n        e, pp = 0.6, 2.0\n        a_ = pp / (1 - e * e)\n        h = 2 * PI * a_ * a_ * (1 - e * e) ** 0.5 / 8.0  # a period of 8 s\n        ang = ValueTracker(0.0)\n\n        def rr(t):\n            return pp / (1 + e * np.cos(t))\n\n        def stepper(m, dt):\n            t = ang.get_value()\n            ang.increment_value(h / rr(t) ** 2 * dt)\n\n        ang.add_updater(stepper)\n        self.add(ang)\n        sun = Dot(S, radius=0.3, color=YELLOW)\n        orbit = ParametricFunction(lambda t: S + rr(t) * np.array([np.cos(t), np.sin(t), 0.0]), t_range=[0, TAU], color=GREY_C, stroke_width=2)\n        planet = always_redraw(lambda: Dot(S + rr(ang.get_value()) * np.array([np.cos(ang.get_value()), np.sin(ang.get_value()), 0.0]), radius=0.16, color=BLUE))\n        trail = TracedPath(lambda: planet.get_center(), stroke_color=BLUE, stroke_width=4, dissipating_time=1.2)\n        d_ro = readout(\"r\", lambda: rr(ang.get_value()), GREEN, 2, 38)\n        w2_ro = readout(r\"\\dot\\theta\", lambda: h / rr(ang.get_value()) ** 2, PINK, 2, 38)\n        c_ro = readout(r\"r^2\\dot\\theta\", lambda: h, YELLOW, 2, 38)\n        stack2 = VGroup(d_ro, w2_ro, c_ro).arrange(DOWN, buff=0.4, aligned_edge=LEFT).move_to(RIGHT * 4.6 + UP * 0.5)\n        tuck = lab(\"a diver tucks: smaller I, faster spin\", 24, MUTED).move_to(RIGHT * 3.8 + DOWN * 2.3)\n        self.add(trail, planet, d_ro, w2_ro, c_ro)\n        self.play(FadeIn(sun), FadeIn(orbit), FadeIn(planet), FadeIn(stack2), run_time=0.8)\n        hold(self, span(5) - 3.5)\n        self.play(FadeIn(tuck), run_time=0.7)\n        finish(self)\n"
         },
         "style": {}
       },
@@ -573,9 +573,9 @@
   ],
   "audio": [
     {
-      "id": "audio-1",
-      "name": "hook 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\hook_0.mp3",
+      "id": "voice-cue-1",
+      "name": "Watch a figure skater spin.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\a05b73cfd471358f871e.mp3",
       "start": 1.6,
       "offset": 0.0,
       "duration": 1.872,
@@ -584,10 +584,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-2",
-      "name": "hook 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\hook_1.mp3",
-      "start": 4.372,
+      "id": "voice-cue-2",
+      "name": "She pulls her arms in, and suddenly she ",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\690f1a85b22043bb6218.mp3",
+      "start": 4.372000000000001,
       "offset": 0.0,
       "duration": 4.368,
       "gain": 0.0,
@@ -595,10 +595,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-3",
-      "name": "hook 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\hook_2.mp3",
-      "start": 9.639999999999999,
+      "id": "voice-cue-3",
+      "name": "No one pushed her. No motor turned on.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\2799113d18ee500d8e69.mp3",
+      "start": 9.640000000000002,
       "offset": 0.0,
       "duration": 2.88,
       "gain": 0.0,
@@ -606,10 +606,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-4",
-      "name": "hook 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\hook_3.mp3",
-      "start": 13.42,
+      "id": "voice-cue-4",
+      "name": "So where did the extra speed come from?",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\141a6c9cbde35e6f9ef0.mp3",
+      "start": 13.420000000000003,
       "offset": 0.0,
       "duration": 2.136,
       "gain": 0.0,
@@ -617,10 +617,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-5",
-      "name": "hook 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\hook_4.mp3",
-      "start": 16.456,
+      "id": "voice-cue-5",
+      "name": "The answer hides in three connected idea",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\6140e6e811cbaecfa973.mp3",
+      "start": 16.456000000000003,
       "offset": 0.0,
       "duration": 6.384,
       "gain": 0.0,
@@ -628,9 +628,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-6",
-      "name": "hook 6",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\hook_5.mp3",
+      "id": "voice-cue-6",
+      "name": "Let's build them one at a time.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\cdeb2749b6c970a8a002.mp3",
       "start": 23.740000000000002,
       "offset": 0.0,
       "duration": 1.896,
@@ -639,10 +639,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-7",
-      "name": "momentum 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_0.mp3",
-      "start": 28.436,
+      "id": "voice-cue-7",
+      "name": "We start with the simplest one: linear m",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\cc158af34a87ce258ded.mp3",
+      "start": 28.436000000000003,
       "offset": 0.0,
       "duration": 3.312,
       "gain": 0.0,
@@ -650,10 +650,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-8",
-      "name": "momentum 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_1.mp3",
-      "start": 32.647999999999996,
+      "id": "voice-cue-8",
+      "name": "Momentum is mass times velocity. It is w",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\6a3f5da06568d3905086.mp3",
+      "start": 32.648,
       "offset": 0.0,
       "duration": 5.064,
       "gain": 0.0,
@@ -661,9 +661,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-9",
-      "name": "momentum 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_2.mp3",
+      "id": "voice-cue-9",
+      "name": "It is a vector, so it points the same wa",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\37238860c8495ade7cc5.mp3",
       "start": 38.612,
       "offset": 0.0,
       "duration": 4.152,
@@ -672,9 +672,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-10",
-      "name": "momentum 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_3.mp3",
+      "id": "voice-cue-10",
+      "name": "A heavy truck and a light bicycle can mo",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\3e6012b06fd1d46f79f6.mp3",
       "start": 43.664,
       "offset": 0.0,
       "duration": 8.568,
@@ -683,10 +683,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-11",
-      "name": "momentum 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_4.mp3",
-      "start": 53.132000000000005,
+      "id": "voice-cue-11",
+      "name": "Now watch two carts collide.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\e83b5875b5372b102870.mp3",
+      "start": 53.132,
       "offset": 0.0,
       "duration": 2.088,
       "gain": 0.0,
@@ -694,10 +694,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-12",
-      "name": "momentum 6",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_5.mp3",
-      "start": 56.120000000000005,
+      "id": "voice-cue-12",
+      "name": "Each cart changes its momentum, but the ",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\abda2970cc146d50a405.mp3",
+      "start": 56.12,
       "offset": 0.0,
       "duration": 6.432,
       "gain": 0.0,
@@ -705,9 +705,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-13",
-      "name": "momentum 7",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_6.mp3",
+      "id": "voice-cue-13",
+      "name": "When no outside force acts, total moment",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\de6a1276370c53b7c6b1.mp3",
       "start": 63.452,
       "offset": 0.0,
       "duration": 4.56,
@@ -716,9 +716,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-14",
-      "name": "momentum 8",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\momentum_7.mp3",
+      "id": "voice-cue-14",
+      "name": "And what changes momentum? A force. Forc",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\cf49a33bbb00f95e52dd.mp3",
       "start": 68.912,
       "offset": 0.0,
       "duration": 5.568,
@@ -727,9 +727,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-15",
-      "name": "torque 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_0.mp3",
+      "id": "voice-cue-15",
+      "name": "Forces make things speed up in a straigh",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\701a97d7fc153a490948.mp3",
       "start": 77.28,
       "offset": 0.0,
       "duration": 5.832,
@@ -738,9 +738,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-16",
-      "name": "torque 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_1.mp3",
+      "id": "voice-cue-16",
+      "name": "Imagine pushing on a wrench to turn a bo",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\827f98577117dad7643c.mp3",
       "start": 84.012,
       "offset": 0.0,
       "duration": 2.856,
@@ -749,9 +749,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-17",
-      "name": "torque 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_2.mp3",
+      "id": "voice-cue-17",
+      "name": "Torque is the distance from the pivot, r",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\91d0aabd228073696aec.mp3",
       "start": 87.768,
       "offset": 0.0,
       "duration": 5.304,
@@ -760,9 +760,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-18",
-      "name": "torque 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_3.mp3",
+      "id": "voice-cue-18",
+      "name": "Its size is r F sine theta, where theta ",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\368dd0cf2cef3a9fad76.mp3",
       "start": 93.97200000000001,
       "offset": 0.0,
       "duration": 5.064,
@@ -771,9 +771,9 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-19",
-      "name": "torque 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_4.mp3",
+      "id": "voice-cue-19",
+      "name": "Push far from the bolt, and the torque i",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\2b0434299a7bccfe82a8.mp3",
       "start": 99.936,
       "offset": 0.0,
       "duration": 5.352,
@@ -782,10 +782,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-20",
-      "name": "torque 6",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_5.mp3",
-      "start": 106.188,
+      "id": "voice-cue-20",
+      "name": "Push straight along the wrench, with the",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\9a389e375e1b8f66f553.mp3",
+      "start": 106.18800000000002,
       "offset": 0.0,
       "duration": 5.88,
       "gain": 0.0,
@@ -793,10 +793,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-21",
-      "name": "torque 7",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_6.mp3",
-      "start": 112.968,
+      "id": "voice-cue-21",
+      "name": "Only the part of the force that is perpe",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\531ea4ac4608db5b5c2c.mp3",
+      "start": 112.96800000000002,
       "offset": 0.0,
       "duration": 4.248,
       "gain": 0.0,
@@ -804,10 +804,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-22",
-      "name": "torque 8",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\torque_7.mp3",
-      "start": 118.116,
+      "id": "voice-cue-22",
+      "name": "Torque points along the axis of rotation",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\69e47c1b170fb954f065.mp3",
+      "start": 118.11600000000003,
       "offset": 0.0,
       "duration": 5.64,
       "gain": 0.0,
@@ -815,10 +815,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-23",
-      "name": "inertia 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\inertia_0.mp3",
-      "start": 126.556,
+      "id": "voice-cue-23",
+      "name": "Rotation has its own version of mass. We",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\267a1664a8b729dbdaf1.mp3",
+      "start": 126.55600000000003,
       "offset": 0.0,
       "duration": 5.712,
       "gain": 0.0,
@@ -826,10 +826,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-24",
-      "name": "inertia 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\inertia_1.mp3",
-      "start": 133.168,
+      "id": "voice-cue-24",
+      "name": "For point masses, I is the sum of m time",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\1d6399fd2e4af0f74423.mp3",
+      "start": 133.16800000000003,
       "offset": 0.0,
       "duration": 4.08,
       "gain": 0.0,
@@ -837,10 +837,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-25",
-      "name": "inertia 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\inertia_2.mp3",
-      "start": 138.148,
+      "id": "voice-cue-25",
+      "name": "Notice that distance counts squared. Mas",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\c49a0fbdd9e88e9539ff.mp3",
+      "start": 138.14800000000005,
       "offset": 0.0,
       "duration": 5.712,
       "gain": 0.0,
@@ -848,10 +848,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-26",
-      "name": "inertia 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\inertia_3.mp3",
-      "start": 144.76,
+      "id": "voice-cue-26",
+      "name": "Newton's second law now has a rotating t",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\bb0017d2464afdbff626.mp3",
+      "start": 144.76000000000005,
       "offset": 0.0,
       "duration": 9.024,
       "gain": 0.0,
@@ -859,10 +859,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-27",
-      "name": "inertia 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\inertia_4.mp3",
-      "start": 154.684,
+      "id": "voice-cue-27",
+      "name": "Every linear idea has a rotational partn",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\e118c0a79b325c9b9e0c.mp3",
+      "start": 154.68400000000005,
       "offset": 0.0,
       "duration": 13.464,
       "gain": 0.0,
@@ -870,10 +870,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-28",
-      "name": "angular 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\angular_0.mp3",
-      "start": 170.948,
+      "id": "voice-cue-28",
+      "name": "Now we can define angular momentum.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\9b4b1c1d5c86a28d1e96.mp3",
+      "start": 170.94800000000006,
       "offset": 0.0,
       "duration": 2.64,
       "gain": 0.0,
@@ -881,10 +881,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-29",
-      "name": "angular 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\angular_1.mp3",
-      "start": 174.488,
+      "id": "voice-cue-29",
+      "name": "For a single particle, it is the positio",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\a4e964cbcd4c6d933ce9.mp3",
+      "start": 174.48800000000006,
       "offset": 0.0,
       "duration": 5.592,
       "gain": 0.0,
@@ -892,10 +892,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-30",
-      "name": "angular 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\angular_2.mp3",
-      "start": 180.98000000000002,
+      "id": "voice-cue-30",
+      "name": "For a spinning object, this simplifies t",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\03d7ea64d5b761e1edbc.mp3",
+      "start": 180.98000000000008,
       "offset": 0.0,
       "duration": 4.944,
       "gain": 0.0,
@@ -903,10 +903,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-31",
-      "name": "angular 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\angular_3.mp3",
-      "start": 186.824,
+      "id": "voice-cue-31",
+      "name": "A planet circling the Sun, a spinning to",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\ec37f5319d35f6f725eb.mp3",
+      "start": 186.82400000000007,
       "offset": 0.0,
       "duration": 7.032,
       "gain": 0.0,
@@ -914,10 +914,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-32",
-      "name": "angular 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\angular_4.mp3",
-      "start": 194.756,
+      "id": "voice-cue-32",
+      "name": "Its direction follows the right hand rul",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\86e3e35206a843745178.mp3",
+      "start": 194.75600000000009,
       "offset": 0.0,
       "duration": 6.984,
       "gain": 0.0,
@@ -925,10 +925,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-33",
-      "name": "angular 6",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\angular_5.mp3",
-      "start": 202.64000000000001,
+      "id": "voice-cue-33",
+      "name": "And just as force changes momentum, torq",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\4b02e3f6c01d1ac54d68.mp3",
+      "start": 202.6400000000001,
       "offset": 0.0,
       "duration": 4.8,
       "gain": 0.0,
@@ -936,10 +936,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-34",
-      "name": "conservation 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\conservation_0.mp3",
-      "start": 210.24,
+      "id": "voice-cue-34",
+      "name": "Here is the payoff. If no external torqu",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\120582911c85ee9b0829.mp3",
+      "start": 210.24000000000012,
       "offset": 0.0,
       "duration": 5.928,
       "gain": 0.0,
@@ -947,10 +947,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-35",
-      "name": "conservation 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\conservation_1.mp3",
-      "start": 217.068,
+      "id": "voice-cue-35",
+      "name": "Back to our skater. With her arms stretc",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\cdefc4a5a61f0eb5d0cc.mp3",
+      "start": 217.06800000000013,
       "offset": 0.0,
       "duration": 7.344,
       "gain": 0.0,
@@ -958,10 +958,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-36",
-      "name": "conservation 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\conservation_2.mp3",
-      "start": 225.312,
+      "id": "voice-cue-36",
+      "name": "When she pulls them in, I drops.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\ae67a363bc6e430ca218.mp3",
+      "start": 225.31200000000013,
       "offset": 0.0,
       "duration": 2.496,
       "gain": 0.0,
@@ -969,10 +969,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-37",
-      "name": "conservation 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\conservation_3.mp3",
-      "start": 228.708,
+      "id": "voice-cue-37",
+      "name": "But L equals I omega must stay constant,",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\bdeb59bd421e2edb6d16.mp3",
+      "start": 228.70800000000014,
       "offset": 0.0,
       "duration": 4.872,
       "gain": 0.0,
@@ -980,10 +980,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-38",
-      "name": "conservation 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\conservation_4.mp3",
-      "start": 234.48000000000002,
+      "id": "voice-cue-38",
+      "name": "Half the moment of inertia means twice t",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\3dcc28548795e4aeb335.mp3",
+      "start": 234.48000000000016,
       "offset": 0.0,
       "duration": 3.72,
       "gain": 0.0,
@@ -991,10 +991,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-39",
-      "name": "conservation 6",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\conservation_5.mp3",
-      "start": 239.10000000000002,
+      "id": "voice-cue-39",
+      "name": "The same law makes a planet sweep faster",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\b2591be62f47d9e7f98c.mp3",
+      "start": 239.10000000000016,
       "offset": 0.0,
       "duration": 7.608,
       "gain": 0.0,
@@ -1002,10 +1002,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-40",
-      "name": "recap 1",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\recap_0.mp3",
-      "start": 249.508,
+      "id": "voice-cue-40",
+      "name": "Let's recap.",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\e593f147ce1972b8796a.mp3",
+      "start": 249.50800000000018,
       "offset": 0.0,
       "duration": 1.872,
       "gain": 0.0,
@@ -1013,10 +1013,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-41",
-      "name": "recap 2",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\recap_1.mp3",
-      "start": 252.28,
+      "id": "voice-cue-41",
+      "name": "Momentum, p equals m v, measures motion ",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\e14f17d084eddeeb25d1.mp3",
+      "start": 252.2800000000002,
       "offset": 0.0,
       "duration": 5.016,
       "gain": 0.0,
@@ -1024,10 +1024,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-42",
-      "name": "recap 3",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\recap_2.mp3",
-      "start": 258.196,
+      "id": "voice-cue-42",
+      "name": "Torque, tau equals r cross F, is what tw",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\a854e849334d0d031f98.mp3",
+      "start": 258.1960000000002,
       "offset": 0.0,
       "duration": 3.912,
       "gain": 0.0,
@@ -1035,10 +1035,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-43",
-      "name": "recap 4",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\recap_3.mp3",
-      "start": 263.00800000000004,
+      "id": "voice-cue-43",
+      "name": "Angular momentum, L equals I omega, meas",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\8d4b92434be281001455.mp3",
+      "start": 263.00800000000015,
       "offset": 0.0,
       "duration": 8.136,
       "gain": 0.0,
@@ -1046,10 +1046,10 @@
       "fade_out": 0.0
     },
     {
-      "id": "audio-44",
-      "name": "recap 5",
-      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\voice\\recap_4.mp3",
-      "start": 272.044,
+      "id": "voice-cue-44",
+      "name": "Next time you see a skater spin, you'll ",
+      "path": "C:\\Joao\\Programação\\ProjectHub\\Manim-Project\\examples\\angular_momentum\\angular_momentum_voice\\8234978d996f03eaef05.mp3",
+      "start": 272.04400000000015,
       "offset": 0.0,
       "duration": 3.504,
       "gain": 0.0,
@@ -1061,434 +1061,360 @@
     {
       "id": "cue-1",
       "start": 1.6,
-      "end": 3.472,
-      "text": "Watch a figure skater spin."
+      "end": 3.4720000000000004,
+      "text": "Watch a figure skater spin.",
+      "audio_id": "voice-cue-1",
+      "audio_key": "a05b73cfd471358f871e"
     },
     {
       "id": "cue-2",
-      "start": 4.372,
-      "end": 8.74,
-      "text": "She pulls her arms in, and suddenly she spins much faster."
+      "start": 4.372000000000001,
+      "end": 8.740000000000002,
+      "text": "She pulls her arms in, and suddenly she spins much faster.",
+      "audio_id": "voice-cue-2",
+      "audio_key": "690f1a85b22043bb6218"
     },
     {
       "id": "cue-3",
-      "start": 9.64,
-      "end": 12.52,
-      "text": "No one pushed her. No motor turned on."
+      "start": 9.640000000000002,
+      "end": 12.520000000000003,
+      "text": "No one pushed her. No motor turned on.",
+      "audio_id": "voice-cue-3",
+      "audio_key": "2799113d18ee500d8e69"
     },
     {
       "id": "cue-4",
-      "start": 13.42,
-      "end": 15.556,
-      "text": "So where did the extra speed come from?"
+      "start": 13.420000000000003,
+      "end": 15.556000000000004,
+      "text": "So where did the extra speed come from?",
+      "audio_id": "voice-cue-4",
+      "audio_key": "141a6c9cbde35e6f9ef0"
     },
     {
       "id": "cue-5",
-      "start": 16.456,
-      "end": 21.165,
-      "text": "The answer hides in three connected ideas: momentum, torque,"
+      "start": 16.456000000000003,
+      "end": 22.840000000000003,
+      "text": "The answer hides in three connected ideas: momentum, torque, and angular momentum.",
+      "audio_id": "voice-cue-5",
+      "audio_key": "6140e6e811cbaecfa973"
     },
     {
       "id": "cue-6",
-      "start": 21.185,
-      "end": 22.84,
-      "text": "and angular momentum."
+      "start": 23.740000000000002,
+      "end": 25.636000000000003,
+      "text": "Let's build them one at a time.",
+      "audio_id": "voice-cue-6",
+      "audio_key": "cdeb2749b6c970a8a002"
     },
     {
       "id": "cue-7",
-      "start": 23.74,
-      "end": 25.636,
-      "text": "Let's build them one at a time."
+      "start": 28.436000000000003,
+      "end": 31.748000000000005,
+      "text": "We start with the simplest one: linear momentum.",
+      "audio_id": "voice-cue-7",
+      "audio_key": "cc158af34a87ce258ded",
+      "pause_before": 2.8
     },
     {
       "id": "cue-8",
-      "start": 28.436,
-      "end": 31.748,
-      "text": "We start with the simplest one: linear momentum."
+      "start": 32.648,
+      "end": 37.712,
+      "text": "Momentum is mass times velocity. It is written p equals m v.",
+      "audio_id": "voice-cue-8",
+      "audio_key": "6a3f5da06568d3905086"
     },
     {
       "id": "cue-9",
-      "start": 32.648,
-      "end": 37.712,
-      "text": "Momentum is mass times velocity. It is written p equals m v."
+      "start": 38.612,
+      "end": 42.764,
+      "text": "It is a vector, so it points the same way the object moves.",
+      "audio_id": "voice-cue-9",
+      "audio_key": "37238860c8495ade7cc5"
     },
     {
       "id": "cue-10",
-      "start": 38.612,
-      "end": 42.764,
-      "text": "It is a vector, so it points the same way the object moves."
+      "start": 43.664,
+      "end": 52.232,
+      "text": "A heavy truck and a light bicycle can move at the same speed, but the truck carries far more momentum, and is far harder to stop.",
+      "audio_id": "voice-cue-10",
+      "audio_key": "3e6012b06fd1d46f79f6"
     },
     {
       "id": "cue-11",
-      "start": 43.664,
-      "end": 47.759,
-      "text": "A heavy truck and a light bicycle can move at the same speed,"
+      "start": 53.132,
+      "end": 55.22,
+      "text": "Now watch two carts collide.",
+      "audio_id": "voice-cue-11",
+      "audio_key": "e83b5875b5372b102870"
     },
     {
       "id": "cue-12",
-      "start": 47.779,
-      "end": 50.458,
-      "text": "but the truck carries far more momentum,"
+      "start": 56.12,
+      "end": 62.552,
+      "text": "Each cart changes its momentum, but the total, before and after, is exactly the same.",
+      "audio_id": "voice-cue-12",
+      "audio_key": "abda2970cc146d50a405"
     },
     {
       "id": "cue-13",
-      "start": 50.478,
-      "end": 52.232,
-      "text": "and is far harder to stop."
+      "start": 63.452,
+      "end": 68.012,
+      "text": "When no outside force acts, total momentum is conserved.",
+      "audio_id": "voice-cue-13",
+      "audio_key": "de6a1276370c53b7c6b1"
     },
     {
       "id": "cue-14",
-      "start": 53.132,
-      "end": 55.22,
-      "text": "Now watch two carts collide."
+      "start": 68.912,
+      "end": 74.48,
+      "text": "And what changes momentum? A force. Force is the rate of change of momentum.",
+      "audio_id": "voice-cue-14",
+      "audio_key": "cf49a33bbb00f95e52dd"
     },
     {
       "id": "cue-15",
-      "start": 56.12,
-      "end": 59.622,
-      "text": "Each cart changes its momentum, but the total,"
+      "start": 77.28,
+      "end": 83.112,
+      "text": "Forces make things speed up in a straight line. To make something rotate, we need torque.",
+      "audio_id": "voice-cue-15",
+      "audio_key": "701a97d7fc153a490948",
+      "pause_before": 2.8
     },
     {
       "id": "cue-16",
-      "start": 59.642,
-      "end": 62.552,
-      "text": "before and after, is exactly the same."
+      "start": 84.012,
+      "end": 86.868,
+      "text": "Imagine pushing on a wrench to turn a bolt.",
+      "audio_id": "voice-cue-16",
+      "audio_key": "827f98577117dad7643c"
     },
     {
       "id": "cue-17",
-      "start": 63.452,
-      "end": 68.012,
-      "text": "When no outside force acts, total momentum is conserved."
+      "start": 87.768,
+      "end": 93.072,
+      "text": "Torque is the distance from the pivot, r, crossed with the force, F.",
+      "audio_id": "voice-cue-17",
+      "audio_key": "91d0aabd228073696aec"
     },
     {
       "id": "cue-18",
-      "start": 68.912,
-      "end": 71.49,
-      "text": "And what changes momentum? A force."
+      "start": 93.97200000000001,
+      "end": 99.036,
+      "text": "Its size is r F sine theta, where theta is the angle between them.",
+      "audio_id": "voice-cue-18",
+      "audio_key": "368dd0cf2cef3a9fad76"
     },
     {
       "id": "cue-19",
-      "start": 71.51,
-      "end": 74.48,
-      "text": "Force is the rate of change of momentum."
+      "start": 99.936,
+      "end": 105.28800000000001,
+      "text": "Push far from the bolt, and the torque is large. Push close, and it is small.",
+      "audio_id": "voice-cue-19",
+      "audio_key": "2b0434299a7bccfe82a8"
     },
     {
       "id": "cue-20",
-      "start": 77.28,
-      "end": 80.375,
-      "text": "Forces make things speed up in a straight line."
+      "start": 106.18800000000002,
+      "end": 112.06800000000001,
+      "text": "Push straight along the wrench, with theta equal to zero, and there is no torque at all.",
+      "audio_id": "voice-cue-20",
+      "audio_key": "9a389e375e1b8f66f553"
     },
     {
       "id": "cue-21",
-      "start": 80.395,
-      "end": 83.112,
-      "text": "To make something rotate, we need torque."
+      "start": 112.96800000000002,
+      "end": 117.21600000000002,
+      "text": "Only the part of the force that is perpendicular to r turns the bolt.",
+      "audio_id": "voice-cue-21",
+      "audio_key": "531ea4ac4608db5b5c2c"
     },
     {
       "id": "cue-22",
-      "start": 84.012,
-      "end": 86.868,
-      "text": "Imagine pushing on a wrench to turn a bolt."
+      "start": 118.11600000000003,
+      "end": 123.75600000000003,
+      "text": "Torque points along the axis of rotation, and the right hand rule tells us which way.",
+      "audio_id": "voice-cue-22",
+      "audio_key": "69e47c1b170fb954f065"
     },
     {
       "id": "cue-23",
-      "start": 87.768,
-      "end": 90.994,
-      "text": "Torque is the distance from the pivot, r,"
+      "start": 126.55600000000003,
+      "end": 132.26800000000003,
+      "text": "Rotation has its own version of mass. We call it the moment of inertia, I.",
+      "audio_id": "voice-cue-23",
+      "audio_key": "267a1664a8b729dbdaf1",
+      "pause_before": 2.8
     },
     {
       "id": "cue-24",
-      "start": 91.014,
-      "end": 93.072,
-      "text": "crossed with the force, F."
+      "start": 133.16800000000003,
+      "end": 137.24800000000005,
+      "text": "For point masses, I is the sum of m times r squared.",
+      "audio_id": "voice-cue-24",
+      "audio_key": "1d6399fd2e4af0f74423"
     },
     {
       "id": "cue-25",
-      "start": 93.972,
-      "end": 96.056,
-      "text": "Its size is r F sine theta,"
+      "start": 138.14800000000005,
+      "end": 143.86000000000004,
+      "text": "Notice that distance counts squared. Mass far from the axis is much harder to spin.",
+      "audio_id": "voice-cue-25",
+      "audio_key": "c49a0fbdd9e88e9539ff"
     },
     {
       "id": "cue-26",
-      "start": 96.076,
-      "end": 99.036,
-      "text": "where theta is the angle between them."
+      "start": 144.76000000000005,
+      "end": 153.78400000000005,
+      "text": "Newton's second law now has a rotating twin: torque equals I times alpha, where alpha is the angular acceleration.",
+      "audio_id": "voice-cue-26",
+      "audio_key": "bb0017d2464afdbff626"
     },
     {
       "id": "cue-27",
-      "start": 99.936,
-      "end": 104.141,
-      "text": "Push far from the bolt, and the torque is large. Push close,"
+      "start": 154.68400000000005,
+      "end": 168.14800000000005,
+      "text": "Every linear idea has a rotational partner: position and angle, velocity and angular velocity, mass and moment of inertia, force and torque, and momentum and angular momentum.",
+      "audio_id": "voice-cue-27",
+      "audio_key": "e118c0a79b325c9b9e0c"
     },
     {
       "id": "cue-28",
-      "start": 104.161,
-      "end": 105.288,
-      "text": "and it is small."
+      "start": 170.94800000000006,
+      "end": 173.58800000000005,
+      "text": "Now we can define angular momentum.",
+      "audio_id": "voice-cue-28",
+      "audio_key": "9b4b1c1d5c86a28d1e96",
+      "pause_before": 2.8
     },
     {
       "id": "cue-29",
-      "start": 106.188,
-      "end": 110.02,
-      "text": "Push straight along the wrench, with theta equal to zero,"
+      "start": 174.48800000000006,
+      "end": 180.08000000000007,
+      "text": "For a single particle, it is the position vector r, crossed with the momentum p.",
+      "audio_id": "voice-cue-29",
+      "audio_key": "a4e964cbcd4c6d933ce9"
     },
     {
       "id": "cue-30",
-      "start": 110.04,
-      "end": 112.068,
-      "text": "and there is no torque at all."
+      "start": 180.98000000000008,
+      "end": 185.92400000000006,
+      "text": "For a spinning object, this simplifies to L equals I omega.",
+      "audio_id": "voice-cue-30",
+      "audio_key": "03d7ea64d5b761e1edbc"
     },
     {
       "id": "cue-31",
-      "start": 112.968,
-      "end": 117.216,
-      "text": "Only the part of the force that is perpendicular to r turns the bolt."
+      "start": 186.82400000000007,
+      "end": 193.85600000000008,
+      "text": "A planet circling the Sun, a spinning top, a wheel: all of them carry angular momentum.",
+      "audio_id": "voice-cue-31",
+      "audio_key": "ec37f5319d35f6f725eb"
     },
     {
       "id": "cue-32",
-      "start": 118.116,
-      "end": 120.849,
-      "text": "Torque points along the axis of rotation,"
+      "start": 194.75600000000009,
+      "end": 201.7400000000001,
+      "text": "Its direction follows the right hand rule. Curl your fingers the way it spins, and your thumb points along L.",
+      "audio_id": "voice-cue-32",
+      "audio_key": "86e3e35206a843745178"
     },
     {
       "id": "cue-33",
-      "start": 120.869,
-      "end": 123.756,
-      "text": "and the right hand rule tells us which way."
+      "start": 202.6400000000001,
+      "end": 207.4400000000001,
+      "text": "And just as force changes momentum, torque changes angular momentum.",
+      "audio_id": "voice-cue-33",
+      "audio_key": "4b02e3f6c01d1ac54d68"
     },
     {
       "id": "cue-34",
-      "start": 126.556,
-      "end": 129.431,
-      "text": "Rotation has its own version of mass."
+      "start": 210.24000000000012,
+      "end": 216.16800000000012,
+      "text": "Here is the payoff. If no external torque acts, angular momentum is conserved.",
+      "audio_id": "voice-cue-34",
+      "audio_key": "120582911c85ee9b0829",
+      "pause_before": 2.8
     },
     {
       "id": "cue-35",
-      "start": 129.451,
-      "end": 132.268,
-      "text": "We call it the moment of inertia, I."
+      "start": 217.06800000000013,
+      "end": 224.41200000000012,
+      "text": "Back to our skater. With her arms stretched out, her moment of inertia is large, and she spins slowly.",
+      "audio_id": "voice-cue-35",
+      "audio_key": "cdefc4a5a61f0eb5d0cc"
     },
     {
       "id": "cue-36",
-      "start": 133.168,
-      "end": 137.248,
-      "text": "For point masses, I is the sum of m times r squared."
+      "start": 225.31200000000013,
+      "end": 227.80800000000013,
+      "text": "When she pulls them in, I drops.",
+      "audio_id": "voice-cue-36",
+      "audio_key": "ae67a363bc6e430ca218"
     },
     {
       "id": "cue-37",
-      "start": 138.148,
-      "end": 140.636,
-      "text": "Notice that distance counts squared."
+      "start": 228.70800000000014,
+      "end": 233.58000000000015,
+      "text": "But L equals I omega must stay constant, so omega has to go up.",
+      "audio_id": "voice-cue-37",
+      "audio_key": "bdeb59bd421e2edb6d16"
     },
     {
       "id": "cue-38",
-      "start": 140.656,
-      "end": 143.86,
-      "text": "Mass far from the axis is much harder to spin."
+      "start": 234.48000000000016,
+      "end": 238.20000000000016,
+      "text": "Half the moment of inertia means twice the spin rate.",
+      "audio_id": "voice-cue-38",
+      "audio_key": "3dcc28548795e4aeb335"
     },
     {
       "id": "cue-39",
-      "start": 144.76,
-      "end": 148.285,
-      "text": "Newton's second law now has a rotating twin:"
+      "start": 239.10000000000016,
+      "end": 246.70800000000017,
+      "text": "The same law makes a planet sweep faster when it swings close to the Sun, and it is why a diver tucks into a tight ball.",
+      "audio_id": "voice-cue-39",
+      "audio_key": "b2591be62f47d9e7f98c"
     },
     {
       "id": "cue-40",
-      "start": 148.305,
-      "end": 150.541,
-      "text": "torque equals I times alpha,"
+      "start": 249.50800000000018,
+      "end": 251.3800000000002,
+      "text": "Let's recap.",
+      "audio_id": "voice-cue-40",
+      "audio_key": "e593f147ce1972b8796a",
+      "pause_before": 2.8
     },
     {
       "id": "cue-41",
-      "start": 150.561,
-      "end": 153.784,
-      "text": "where alpha is the angular acceleration."
+      "start": 252.2800000000002,
+      "end": 257.2960000000002,
+      "text": "Momentum, p equals m v, measures motion in a straight line.",
+      "audio_id": "voice-cue-41",
+      "audio_key": "e14f17d084eddeeb25d1"
     },
     {
       "id": "cue-42",
-      "start": 154.684,
-      "end": 158.03,
-      "text": "Every linear idea has a rotational partner:"
+      "start": 258.1960000000002,
+      "end": 262.1080000000002,
+      "text": "Torque, tau equals r cross F, is what twists.",
+      "audio_id": "voice-cue-42",
+      "audio_key": "a854e849334d0d031f98"
     },
     {
       "id": "cue-43",
-      "start": 158.05,
-      "end": 161.944,
-      "text": "position and angle, velocity and angular velocity,"
+      "start": 263.00800000000015,
+      "end": 271.1440000000002,
+      "text": "Angular momentum, L equals I omega, measures spinning motion, and when there is no torque, it never changes.",
+      "audio_id": "voice-cue-43",
+      "audio_key": "8d4b92434be281001455"
     },
     {
       "id": "cue-44",
-      "start": 161.964,
-      "end": 165.467,
-      "text": "mass and moment of inertia, force and torque,"
-    },
-    {
-      "id": "cue-45",
-      "start": 165.487,
-      "end": 168.148,
-      "text": "and momentum and angular momentum."
-    },
-    {
-      "id": "cue-46",
-      "start": 170.948,
-      "end": 173.588,
-      "text": "Now we can define angular momentum."
-    },
-    {
-      "id": "cue-47",
-      "start": 174.488,
-      "end": 178.078,
-      "text": "For a single particle, it is the position vector r,"
-    },
-    {
-      "id": "cue-48",
-      "start": 178.098,
-      "end": 180.08,
-      "text": "crossed with the momentum p."
-    },
-    {
-      "id": "cue-49",
-      "start": 180.98,
-      "end": 185.924,
-      "text": "For a spinning object, this simplifies to L equals I omega."
-    },
-    {
-      "id": "cue-50",
-      "start": 186.824,
-      "end": 190.974,
-      "text": "A planet circling the Sun, a spinning top, a wheel:"
-    },
-    {
-      "id": "cue-51",
-      "start": 190.994,
-      "end": 193.856,
-      "text": "all of them carry angular momentum."
-    },
-    {
-      "id": "cue-52",
-      "start": 194.756,
-      "end": 197.477,
-      "text": "Its direction follows the right hand rule."
-    },
-    {
-      "id": "cue-53",
-      "start": 197.497,
-      "end": 199.762,
-      "text": "Curl your fingers the way it spins,"
-    },
-    {
-      "id": "cue-54",
-      "start": 199.782,
-      "end": 201.74,
-      "text": "and your thumb points along L."
-    },
-    {
-      "id": "cue-55",
-      "start": 202.64,
-      "end": 205.127,
-      "text": "And just as force changes momentum,"
-    },
-    {
-      "id": "cue-56",
-      "start": 205.147,
-      "end": 207.44,
-      "text": "torque changes angular momentum."
-    },
-    {
-      "id": "cue-57",
-      "start": 210.24,
-      "end": 213.838,
-      "text": "Here is the payoff. If no external torque acts,"
-    },
-    {
-      "id": "cue-58",
-      "start": 213.858,
-      "end": 216.168,
-      "text": "angular momentum is conserved."
-    },
-    {
-      "id": "cue-59",
-      "start": 217.068,
-      "end": 220.538,
-      "text": "Back to our skater. With her arms stretched out,"
-    },
-    {
-      "id": "cue-60",
-      "start": 220.558,
-      "end": 224.412,
-      "text": "her moment of inertia is large, and she spins slowly."
-    },
-    {
-      "id": "cue-61",
-      "start": 225.312,
-      "end": 227.808,
-      "text": "When she pulls them in, I drops."
-    },
-    {
-      "id": "cue-62",
-      "start": 228.708,
-      "end": 231.831,
-      "text": "But L equals I omega must stay constant,"
-    },
-    {
-      "id": "cue-63",
-      "start": 231.851,
-      "end": 233.58,
-      "text": "so omega has to go up."
-    },
-    {
-      "id": "cue-64",
-      "start": 234.48,
-      "end": 238.2,
-      "text": "Half the moment of inertia means twice the spin rate."
-    },
-    {
-      "id": "cue-65",
-      "start": 239.1,
-      "end": 243.747,
-      "text": "The same law makes a planet sweep faster when it swings close to the Sun,"
-    },
-    {
-      "id": "cue-66",
-      "start": 243.767,
-      "end": 246.708,
-      "text": "and it is why a diver tucks into a tight ball."
-    },
-    {
-      "id": "cue-67",
-      "start": 249.508,
-      "end": 251.38,
-      "text": "Let's recap."
-    },
-    {
-      "id": "cue-68",
-      "start": 252.28,
-      "end": 257.296,
-      "text": "Momentum, p equals m v, measures motion in a straight line."
-    },
-    {
-      "id": "cue-69",
-      "start": 258.196,
-      "end": 262.108,
-      "text": "Torque, tau equals r cross F, is what twists."
-    },
-    {
-      "id": "cue-70",
-      "start": 263.008,
-      "end": 267.626,
-      "text": "Angular momentum, L equals I omega, measures spinning motion,"
-    },
-    {
-      "id": "cue-71",
-      "start": 267.646,
-      "end": 271.144,
-      "text": "and when there is no torque, it never changes."
-    },
-    {
-      "id": "cue-72",
-      "start": 272.044,
-      "end": 275.548,
-      "text": "Next time you see a skater spin, you'll know the secret."
+      "start": 272.04400000000015,
+      "end": 275.5480000000002,
+      "text": "Next time you see a skater spin, you'll know the secret.",
+      "audio_id": "voice-cue-44",
+      "audio_key": "8234978d996f03eaef05"
     }
   ],
   "subtitle_style": {
@@ -1545,5 +1471,10 @@
       "name": "Recap",
       "colour": "#f59e0b"
     }
-  ]
+  ],
+  "voice": {
+    "provider": "edge",
+    "voice": "en-US-AndrewNeural",
+    "rate": 0.91
+  }
 }

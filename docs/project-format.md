@@ -116,6 +116,21 @@ cues.
 "subtitle_style": { "font_size": 30, "colour": "#facc15" }
 ```
 
+**Narration** (ADR 0060): a cue can be spoken. `voice` on the project is the voice cues without their own use
+(`{ "provider": "edge", "voice": "en-US-AndrewNeural", "rate": 0.91 }`; `rate` is a speed multiplier, 1.0 is
+normal), and `pronunciations` maps written text to what is said (`{ "dp/dt": "d p by d t" }`; the subtitle keeps
+the written text). A cue may carry `voice` (its own), `audio_id` (the sound made for it: an ordinary entry of
+`audio`), `audio_key` (a hash of the voice, speed and spoken text the sound was made from: the sound is stale
+when the cue's key now differs) and `pause_before` (seconds of silence before it when the cues follow their
+speech). Each is saved only when set. The sounds are plain `audio` clips pointing at files in
+`<project name>_voice/`; no provider is needed to open or render the project.
+
+```json
+"voice": { "provider": "edge", "voice": "en-US-AndrewNeural", "rate": 0.91 },
+"subtitles": [{ "id": "cue-1", "start": 1.6, "end": 3.47, "text": "Watch a figure skater spin.",
+                "audio_id": "voice-cue-1", "audio_key": "5b0c1e3f9a2d47e810c6" }]
+```
+
 **Markers** (ADR 0037): `markers` lists named moments for editing: `id`, `t`
 (seconds, at least 0), `name` and `colour` (default `#f59e0b`), kept in time
 order, never two at the same time (the editor keeps one per frame). They draw

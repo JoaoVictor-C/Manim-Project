@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSplitter,
     QTableView,
@@ -36,6 +37,7 @@ from PySide6.QtWidgets import (
 from ...core.editing import edits, tables
 from ...core.model.schema import AudioClip, Cue
 from ...core.sound import audio, levels
+from ..panels.narration_panel import NARRATION_COLUMNS, NarrationPanel, cue_cell
 from ..style import icons, theme
 from . import Page, Shared
 
@@ -114,10 +116,12 @@ class RowsModel(QAbstractTableModel):
             return f"{text} - {problem}" if problem else text
         if role == Qt.ItemDataRole.ToolTipRole:
             return f"{row.path}\n{problem}" if column.key == "path" else column.tip
-        if role == Qt.ItemDataRole.ForegroundRole and problem:
+        if role == Qt.ItemDataRole.ForegroundRole and (
+            problem or (column.key == "speech" and text == "stale")
+        ):
             return theme.qcolor(theme.THEME.warning)
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            numeric = column.key not in ("name", "path", "text")
+            numeric = column.key not in ("name", "path", "text", "voice", "speech")
             side = Qt.AlignmentFlag.AlignRight if numeric else Qt.AlignmentFlag.AlignLeft
             return int(side | Qt.AlignmentFlag.AlignVCenter)
         return None
@@ -243,7 +247,9 @@ class AudioPage(Page):
         self.sounds_model = RowsModel(
             self, tables.SOUND_COLUMNS, self._clips, tables.sound_cell, tables.sound_edit
         )
-        self.cues_model = RowsModel(self, tables.CUE_COLUMNS, self._cues, tables.cue_cell, tables.cue_edit)
+        self.cues_model = RowsModel(
+            self, tables.CUE_COLUMNS + NARRATION_COLUMNS, self._cues, self._cue_cell, tables.cue_edit
+        )
         self.sounds = self._table(self.sounds_model)
         self.cues = self._table(self.cues_model)
         header = self.sounds.horizontalHeader()  # names and files share the room, numbers fit their text
@@ -253,6 +259,8 @@ class AudioPage(Page):
                 column, QHeaderView.ResizeMode.ResizeToContents if fits else QHeaderView.ResizeMode.Stretch
             )
         self.cues.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        for column in (3, 4, 5):  # voice, speech, pause before
+            self.cues.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         self.sounds.selectionModel().currentRowChanged.connect(self._sound_row_chosen)
         self.cues.selectionModel().currentRowChanged.connect(self._cue_row_chosen)
         self.cues.clicked.connect(self._cue_clicked)
@@ -279,6 +287,7 @@ class AudioPage(Page):
         self.meter = LevelMeter()
 
         self.tables = QSplitter(Qt.Orientation.Vertical)
+        self.tables.setChildrenCollapsible(False)  # the Narration section never shrinks to nothing
         self.tables.addWidget(
             self._box(
                 "Sounds",
@@ -286,6 +295,12 @@ class AudioPage(Page):
                 (self.import_sound_button, self.delete_sound_button, self.play_button),
             )
         )
+        self.narration = NarrationPanel(self.window)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.narration)
+        scroll.setMinimumHeight(120)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self.tables.addWidget(
             self._box(
                 "Subtitles",
@@ -298,6 +313,7 @@ class AudioPage(Page):
                 ),
             )
         )
+        self.tables.addWidget(scroll)
         self.centre = QSplitter(Qt.Orientation.Vertical)  # the viewer (placed), the meter
         self.centre.addWidget(self.meter)
         self.top = QSplitter(Qt.Orientation.Horizontal)  # tables | viewer and meter | Properties (placed)
@@ -369,6 +385,12 @@ class AudioPage(Page):
         project = self.window.project
         return list(project.subtitles) if project is not None else []
 
+    def _cue_cell(self, cue: Cue, key: str) -> str:
+        project = self.window.project
+        if key in ("voice", "speech") and project is not None:
+            return cue_cell(project, cue, key)
+        return tables.cue_cell(cue, key)
+
     def message(self, text: str) -> None:
         self.window.statusBar().showMessage(text, 10000)
 
@@ -387,7 +409,9 @@ class AudioPage(Page):
             width, height = max(self.top.width(), 1200), max(self.outer.height(), 700)
             tables_w, properties_w = int(width * 0.46), 300  # first show: the tables get the room
             self.top.setSizes([tables_w, max(width - tables_w - properties_w, 300), properties_w])
-            self.outer.setSizes([int(height * 0.6), int(height * 0.4)])
+            self.outer.setSizes([int(height * 0.74), int(height * 0.26)])
+            room = int(height * 0.74)  # the left column: sounds and subtitles are short, narration needs room
+            self.tables.setSizes([int(room * 0.2), int(room * 0.3), int(room * 0.5)])
         self._active = True
         self.refresh()
 
@@ -406,6 +430,7 @@ class AudioPage(Page):
             self._syncing = False
         self._sync_selection()
         self.refresh_meter()
+        self.narration.refresh()
 
     def _on_changed(self, *_args) -> None:
         self.refresh()
@@ -434,6 +459,7 @@ class AudioPage(Page):
         finally:
             self._syncing = False
         self._update_buttons()
+        self.narration.refresh()
 
     def _select_row(self, view: QTableView, model: RowsModel, item_id: str | None) -> None:
         row = model.row_of(item_id)

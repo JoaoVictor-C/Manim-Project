@@ -65,13 +65,13 @@ nearer the top of each table.
 | `model/` | 0 | the project document and the rules that need nothing else: schema, layer index, parts, shapes, glyph colours, recovery copies |
 | `code/`, `sound/` | 1 | running and keeping the user's code (frame cache, trust, helpers, Python objects, limits, chapters); sound and subtitles |
 | `exchange/`, `editing/` | 2 | code in and out (files, presets, imported scenes); changing a project (edits, clipboard, library items, equation steps, the Audio page's tables) |
-| `assist/` | 3 | help while code is typed: completion, hints, diagnostics, snippets, outline, run to cursor |
+| `assist/`, `voice/` | 3 | help while code is typed: completion, hints, diagnostics, snippets, outline, run to cursor; narration: voices for the subtitles, their sounds, keeping them in step |
 | `engine/` | 4 | Manim: adapter, evaluator, morphs, frame cache, Python export, the warm gate, placement |
 
 | `ui/` | rank | holds |
 |---|---|---|
 | `style/` | 0 | colour tokens, icons, field widgets, the run-activity cue |
-| `services/` | 1 | the editor's side of its helper processes: worker, preview, code renders, helper checks |
+| `services/` | 1 | the editor's side of its helper processes: worker, preview, code renders, helper checks, voices |
 | `session/`, `deliver/` | 2 | the document and its undo, the selection, the build service, settings; video export and the render queue |
 | `timeline/`, `canvas/` | 3 | the timeline and the graph editor; the canvas, gizmos, handles, snapping |
 | `playback/`, `panels/`, `code/`, `shell/` | 4 | audio and the presenter; docks that edit the selection; the Code workspace; pieces of the main window |
@@ -109,6 +109,7 @@ flowchart TD
 | **build worker** `python -m manim_studio.processes.worker` | `ui/services/worker_process.py` | builds new Text/Tex/MathTex objects (0.5-1.3 s each the first time) into Manim's disk cache, and tries new Python object code first; the edit commits once the editor's own build is a cache hit. Restarted on a 20 s timeout or a crash. | [0015](adr/0015-build-worker-warm-then-commit.md), [0051](adr/0051-python-objects.md) |
 | **preview process** `python -m manim_studio.processes.preview` | `ui/services/preview_client.py` | holds its own copy of the project and renders frames ahead of the playhead with the canvas's camera; the editor keeps them compressed and drops only the frames an edit changes | [0028](adr/0028-render-ahead-cache.md) |
 | **code runner** `manim_studio.processes.code_runner` | `ui/services/code_render.py` | plays a code layer's `Scene` once in a single-use process into the code layer frame cache (warm spares are kept ready) | [0019](adr/0019-code-layers.md) |
+| **voice helper** `python -m manim_studio.processes.voice` | `ui/services/voice_client.py` (and `manim-studio narrate`) | lists a voice provider's voices and speaks texts to files; a provider is a plugin and never runs in the editor. Killed on cancel or when it goes quiet for 3 minutes; retries what a provider calls retryable. | [0060](adr/0060-voice-providers-and-narration.md) |
 | **export** `manim-studio render --progress json` | `ui/deliver/export_job.py` | renders a video while the editor keeps working; an existing file is replaced only when complete | [0017](adr/0017-export-process-and-safe-output.md) |
 
 Each helper can be turned off for tests and debugging: `MANIM_STUDIO_WORKER=0` (build
@@ -122,12 +123,13 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 
 | path | responsibility | key tests |
 |---|---|---|
-| `cli.py` | `manim-studio render \| python \| edit`, `--version` | `render/test_export.py`, `test_version.py` |
+| `cli.py` | `manim-studio render \| python \| import \| narrate \| edit`, `--version` | `render/test_export.py`, `test_version.py`, `test_narrate_cli.py` |
 | `processes/worker.py` | build worker (warms text, tries Python objects) | `processes/test_worker_messages.py`, `ui/services/test_worker_process.py` |
 | `processes/preview.py` | preview render process | `ui/services/test_preview_process.py` |
 | `processes/code_runner.py` | renders a code layer's scene into its frame cache | `processes/test_code_runner.py` |
+| `processes/voice.py` | the voice helper: lists voices, speaks texts (also `run_job` for the command line) | `processes/test_voice_process.py` |
 | `manim_scene.py` | `StudioScene`: exported exact scenes play the project through the evaluator | `core/engine/test_python_export.py` |
-| `plugins.py` | public plugin API: `ObjectType`, `Param`, `register`, plugin folders and entry points | `test_plugins.py` |
+| `plugins.py` | public plugin API: `ObjectType`, `Simulation`, `VoiceProvider`, `Param`, `register`, plugin folders and entry points | `test_plugins.py` |
 | `logging_config.py` | console and rotating file logging | `test_logging.py` |
 
 ### `core/` - the model and the engine (no Qt)
@@ -159,6 +161,10 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `engine/python_export.py` | the project as Manim code, readable or exact, and why | `core/engine/test_python_export.py`, `core/engine/test_python_export_keyed.py` |
 | `sound/audio.py` | sounds: decoding on demand, peaks, the mix per span | `core/sound/test_audio.py`, `core/sound/test_audio_spans.py` |
 | `sound/subtitles.py` | wrapping, `.srt` read/write, placing cues, changed spans | `core/sound/test_subtitles.py` |
+| `voice/narration.py` | narration: a cue's key and state (new, stale, ready), what to speak, placing the speech, follow and fit, the script | `core/voice/test_narration.py` |
+| `voice/retime.py` | Follow speech and Fit speech to cues | `core/voice/test_retime.py` |
+| `voice/pronunciation.py`, `voice/voice_cache.py` | the pronunciation dictionary; where generated speech is kept | `core/voice/test_narration.py` |
+| `voice/builtin_sapi.py`, `voice/builtin_edge.py` | the two built-in voice providers (Windows voices, Edge neural) | `processes/test_voice_process.py` (fake provider) |
 | `editing/tables.py`, `sound/levels.py` | the Audio page's cells and level meter, without Qt | `core/editing/test_tables.py`, `core/sound/test_levels.py` |
 | `model/recovery.py` | recovery copies of unsaved work | `core/model/test_recovery.py` |
 

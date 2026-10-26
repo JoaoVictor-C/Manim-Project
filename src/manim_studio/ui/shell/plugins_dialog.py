@@ -18,7 +18,11 @@ def report() -> str:
     """The dialog's text: plugins with their types, then those skipped with why."""
     lines = []
     for plugin, types in sorted(plugins.loaded.items()):
-        added = ", ".join(f"{adapter.LIBRARY_LABELS.get(t, t)} ({plugins.TYPES[t].section})" for t in types)
+        voices = [t.removeprefix("voice:") for t in types if t.startswith("voice:")]
+        objects = [t for t in types if not t.startswith("voice:")]
+        added = ", ".join(f"{adapter.LIBRARY_LABELS.get(t, t)} ({plugins.TYPES[t].section})" for t in objects)
+        if voices:
+            added = ", ".join(filter(None, [added, "voices: " + ", ".join(voices)]))
         lines.append(f"{plugin}\n    adds: {added or 'no object types'}")
     for plugin, problem in sorted(plugins.problems.items()):
         lines.append(f"{plugin}\n    NOT LOADED: {problem}")

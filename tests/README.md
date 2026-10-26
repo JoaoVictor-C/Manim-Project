@@ -22,11 +22,11 @@ Coverage: `uv run pytest --cov=manim_studio --cov-report=term-missing`.
 | `conftest.py` | session setup: per-worker Manim caches, LaTeX discovery and auto-skip, the shared `qt_app`, a fresh settings file per test, and every user folder redirected (plugins, logs, trust store, recovery, library); no build worker, preview process, code runner or sound unless a test opts in |
 | `support.py` | shared constants (`CANVAS`, `SQUARE`, `TEXT`...) and frame helpers: a frame must equal Manim's own sequential playback |
 | `qt_support.py` | Qt test helpers such as `FakeWorker` |
-| `core/<package>/` | the model and the engine, no Qt, one folder per package of `src/manim_studio/core/` (`model`, `editing`, `engine`, `sound`, `code`, `assist`, `exchange`); `core/features/` holds the behaviour tests that run a whole project through the evaluator and belong to no single module (`euler_example.json` and `golden_readable_export.txt` are fixtures, next to the export tests) |
+| `core/<package>/` | the model and the engine, no Qt, one folder per package of `src/manim_studio/core/` (`model`, `editing`, `engine`, `sound`, `code`, `assist`, `voice`, `exchange`); `core/features/` holds the behaviour tests that run a whole project through the evaluator and belong to no single module (`euler_example.json` and `golden_readable_export.txt` are fixtures, next to the export tests) |
 | `render/` | Qt paths vs Cairo, hit-testing, video export and the CLI, render options, preset thumbnails |
 | `ui/<package>/` | the editor through the real `MainWindow`, offscreen, one folder per package of `src/manim_studio/ui/`; the tests of the whole window (main window, golden path, layout checks) stay at the top of `ui/` |
 | `acceptance/` | the slice-by-slice walks a user would do, end to end (`test_acceptance_*.py`) |
-| `processes/` | the helper processes: code runner, worker messages, scene recorder, chapters, helper check |
+| `processes/` | the helper processes: code runner, worker messages, scene recorder, chapters, helper check, voice |
 | `test_*.py` (top level) | the layering (`test_architecture.py`), logging, the version, the plugin API, the import command, documentation links |
 
 ## Naming

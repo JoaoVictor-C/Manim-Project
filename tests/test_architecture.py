@@ -33,6 +33,7 @@ CORE_LAYERS = {
     "exchange": 2,  # code in and out
     "editing": 2,
     "assist": 3,  # helping while code is typed
+    "voice": 3,  # narration: voices for the cues (builds on editing)
     "engine": 4,  # Manim: adapter, evaluator, export
 }
 UI_LAYERS = {
@@ -73,6 +74,7 @@ STABLE = [
     f"{PKG}.processes.code_runner",
     f"{PKG}.processes.scene_recorder",
     f"{PKG}.processes.helper_check",
+    f"{PKG}.processes.voice",
 ]
 
 

@@ -53,6 +53,7 @@ from ..model.schema import (
     Spec,
     SubtitleStyle,
     Transform2D,
+    VoiceChoice,
     clip_params,
     infer_lifetime,
     is_colour,
@@ -1184,6 +1185,8 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "camera": project.camera,
         "morph_matching": project.morph_matching,
         "helpers": project.helpers,
+        "voice": project.voice,
+        "pronunciations": project.pronunciations,
     }
     return Project.model_validate({**data, **parts})
 
@@ -1316,14 +1319,46 @@ def update_cue(project: Project, cue_id: str, **fields: Any) -> Edit:
     return _replace_subtitles(project, cues)
 
 
-def remove_cue(project: Project, cue_id: str) -> Edit:
-    _cue(project, cue_id)
-    return _replace_subtitles(project, [c for c in project.subtitles if c.id != cue_id])
+def remove_cue(project: Project, cue_id: str, with_audio: bool = True) -> Edit:
+    """Delete a subtitle. The sound it generated (narration, ADR 0060) goes with it, so that no
+    speech is left without its words; undo brings both back."""
+    cue = _cue(project, cue_id)
+    cues = [c for c in project.subtitles if c.id != cue_id]
+    if with_audio and cue.audio_id is not None and any(clip.id == cue.audio_id for clip in project.audio):
+        return set_narration(project, cues, [c for c in project.audio if c.id != cue.audio_id])
+    return _replace_subtitles(project, cues)
 
 
 def set_subtitles(project: Project, cues: list[Cue]) -> Edit:
     """Replace every subtitle (an imported .srt)."""
     return _replace_subtitles(project, cues)
+
+
+def set_narration(project: Project, cues: list[Cue], audio: list[AudioClip]) -> Edit:
+    """Replace the subtitles and the sounds together (generated speech placed, cues retimed): one edit."""
+    return Edit(_rebuilt(project, subtitles=cues, audio=audio), "timing", frozenset())
+
+
+def set_voice(project: Project, voice: VoiceChoice | None) -> Edit:
+    """The voice cues without their own are spoken with (None: none)."""
+    return Edit(_rebuilt(project, voice=voice), "timing", frozenset())
+
+
+def set_cue_voice(project: Project, cue_ids: Iterable[str], voice: VoiceChoice | None) -> Edit:
+    """A voice of their own for these cues (None: back to the project's)."""
+    chosen = set(cue_ids)
+    for cue_id in chosen:
+        _cue(project, cue_id)
+    cues = [c.model_copy(update={"voice": voice}) if c.id in chosen else c for c in project.subtitles]
+    return _replace_subtitles(project, cues)
+
+
+def set_pronunciations(project: Project, pronunciations: dict[str, str]) -> Edit:
+    """How written texts are spoken (ADR 0060); empty keys and no-op entries are dropped."""
+    cleaned = {
+        k.strip(): v.strip() for k, v in pronunciations.items() if k.strip() and k.strip() != v.strip()
+    }
+    return Edit(_rebuilt(project, pronunciations=cleaned), "timing", frozenset())
 
 
 def set_subtitle_style(project: Project, **fields: Any) -> Edit:

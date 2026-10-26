@@ -169,9 +169,12 @@ def test_the_sounds_table_shows_every_field(window, page) -> None:
 def test_the_subtitles_table_shows_the_cues_in_time_order(window, page) -> None:
     model = page.cues_model
     assert [[cell(model, r, c.key) for c in model.columns] for r in range(model.rowCount())] == [
-        ["0.500", "1.500", "first"],
-        ["2.000", "3.000", "second"],
+        ["0.500", "1.500", "first", "", "", ""],  # voice, speech, pause before: empty without narration
+        ["2.000", "3.000", "second", "", "", ""],
     ]
+    assert [c.key for c in model.columns[3:]] == ["voice", "speech", "pause_before"]
+    assert not any(model.flags(model.index(0, c)) & Qt.ItemFlag.ItemIsEditable for c in (3, 4))
+    assert model.flags(model.index(0, 5)) & Qt.ItemFlag.ItemIsEditable
 
 
 def test_a_missing_file_is_flagged_in_the_file_cell(qt_app, tmp_path) -> None:

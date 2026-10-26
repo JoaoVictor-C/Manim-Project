@@ -56,9 +56,12 @@ tests/
 │   │                  test_parts.py, test_recovery.py ...
 │   ├── features/      behaviour tests that run a whole project through the evaluator: images, graphs,
 │   │                  axes, svg, camera, child trees ...
+│   ├── voice/         narration keys and states, the plan, placing speech, follow and fit (a random-input
+│   │                  property test: no overlaps, order kept, idempotent), pronunciation
 │   └── sound/ code/ assist/ exchange/
 ├── render/            Qt paths vs Cairo; video export and CLI
-├── processes/         the code runner, worker messages, scene recorder, chapters (real Manim), helper check
+├── processes/         the code runner, worker messages, scene recorder, chapters (real Manim), helper check,
+│                      the voice helper (a fake provider written as a plugin; see tests/voice_support.py)
 ├── acceptance/        the slice-by-slice walks a user would do (test_acceptance_*), end to end
 └── ui/                the editor through the real MainWindow, offscreen: one folder per package of
                        src/manim_studio/ui/ (session: document/undo, build service; services: worker process,

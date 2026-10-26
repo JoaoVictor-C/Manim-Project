@@ -88,5 +88,6 @@ need one.
 | [0057](0057-code-workspace.md) | The Code workspace: presets, an import window, safe online sources and drag and drop | Accepted |
 | [0058](0058-helpers.md) | Helpers: reusable Python modules in the project, imported by name by code layers and Python objects | Accepted |
 | [0059](0059-run-activity-and-time-limits.md) | Code runs show that they run (status bar, canvas, explorer) and their time limits can be lifted | Accepted |
+| [0060](0060-voice-providers-and-narration.md) | Voice providers and narration: speech made from subtitles, by engines that are plugins | Accepted |
 | [0061](0061-incremental-code-layers.md) | Incremental code layers: cheaper renders, chapters that are proved against the full render, layers you declare | Accepted |
 | [0062](0062-package-layout.md) | Package layout: folders named for what the code does, and layers that a test checks | Accepted |

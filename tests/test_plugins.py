@@ -22,7 +22,7 @@ from manim_studio.core.engine import adapter, warm
 from manim_studio.core.engine.evaluator import Evaluator
 from manim_studio.core.engine.python_export import readable_problems, to_python
 from manim_studio.core.model.schema import Clip, Layer, Project, Spec
-from manim_studio.plugins import ObjectType, Param
+from manim_studio.plugins import ObjectType, Param, Voice, VoiceError, VoiceProvider
 
 
 def pendulum(params: dict) -> m.VMobject:
@@ -52,6 +52,88 @@ def _restore_plugins():
     plugins.problems.clear()
     plugins.problems.update(problems)
     assert library == adapter.LIBRARY
+
+
+@pytest.fixture(autouse=True)
+def _restore_voices():
+    """Voice providers a test added go away with it (ADR 0060)."""
+    before = set(plugins.VOICES)
+    yield
+    for name in set(plugins.VOICES) - before:
+        plugins.unregister(f"voice:{name}")
+
+
+def provider(name: str = "anna") -> VoiceProvider:
+    return VoiceProvider(name, "Anna", lambda: [Voice("a", "A")], lambda text, voice, rate, out: None)
+
+
+def test_the_built_in_voice_providers_need_no_plugin() -> None:
+    providers = plugins.voice_providers()
+    assert {"sapi", "edge"} <= set(providers)
+    assert providers["edge"].online and not providers["sapi"].online
+    assert providers["edge"].extension == ".mp3" and providers["sapi"].extension == ".wav"
+
+
+def test_a_voice_provider_is_registered_by_name() -> None:
+    plugins.register(provider("anna-2_b"))
+    assert "anna-2_b" in plugins.VOICES
+    for bad in ("Anna", "1anna", "an na", "", "voice:x"):
+        with pytest.raises(ValueError, match="not a valid voice provider name"):
+            plugins.register(provider(bad))
+    with pytest.raises(ValueError, match="already taken"):
+        plugins.register(provider("anna-2_b"))
+    with pytest.raises(ValueError, match="already taken"):
+        plugins.register(provider("edge"))  # a plugin cannot shadow a built-in one
+
+
+def test_a_plugin_file_can_add_a_voice_provider_and_is_credited_with_it(monkeypatch, tmp_path) -> None:
+    source = (
+        "from manim_studio.plugins import Voice, VoiceProvider, register\n"
+        "register(VoiceProvider('lena', 'Lena', lambda: [Voice('l', 'L')], lambda t, v, r, o: None))\n"
+    )
+    path = _write(tmp_path, "lena_voice.py", source)
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    assert plugins.loaded[str(path)] == ["voice:lena"]
+    assert plugins.VOICES["lena"].label == "Lena"
+
+
+def test_a_plugin_that_fails_after_adding_a_voice_adds_nothing(monkeypatch, tmp_path) -> None:
+    source = (
+        "from manim_studio.plugins import Voice, VoiceProvider, register\n"
+        "register(VoiceProvider('half', 'Half', lambda: [], lambda t, v, r, o: None))\n"
+        "raise ImportError('needs a model')\n"
+    )
+    path = _write(tmp_path, "half_voice.py", source)
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    assert "half" not in plugins.VOICES
+    assert plugins.problems[str(path)] == "ImportError: needs a model"
+
+
+def test_unregistering_a_voice_provider_forgets_it() -> None:
+    plugins.register(provider("gone"))
+    plugins.unregister("voice:gone")
+    assert "gone" not in plugins.VOICES
+
+
+def test_a_voice_error_says_whether_to_try_again() -> None:
+    assert VoiceError("busy", retryable=True).retryable
+    assert not VoiceError("no").retryable
+    assert str(VoiceError("busy")) == "busy"
+
+
+def test_the_plugins_dialog_lists_voice_providers(monkeypatch, tmp_path) -> None:
+    from manim_studio.ui.shell import plugins_dialog
+
+    source = (
+        "from manim_studio.plugins import Voice, VoiceProvider, register\n"
+        "register(VoiceProvider('dlg', 'Dlg', lambda: [], lambda t, v, r, o: None))\n"
+    )
+    _write(tmp_path, "dlg_voice.py", source)
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    assert "adds: voices: dlg" in plugins_dialog.report()
 
 
 def test_a_registered_type_joins_the_library_and_properties() -> None:

@@ -1215,6 +1215,7 @@ class MainWindow(QMainWindow):
         self.code.stop()
         self.pages.pages["code"].helper_actions.checker.stop()  # a helper being test-imported (ADR 0058)
         self.scene_importer.stop()
+        self.pages.pages["audio"].narration.client.stop()  # voices being spoken (ADR 0060)
         if self.render_ahead is not None:
             self.render_ahead.stop()
         super().closeEvent(event)

@@ -1,4 +1,4 @@
-"""Command line entry point: ``manim-studio render``, ``python``, ``import`` and ``edit``."""
+"""Command line entry point: ``manim-studio render``, ``python``, ``import``, ``narrate`` and ``edit``."""
 
 from __future__ import annotations
 
@@ -74,6 +74,28 @@ def build_parser() -> argparse.ArgumentParser:
     scene_import.add_argument("--scene", help="the scene class (needed when the file has several)")
     scene_import.add_argument("--cache-dir", type=Path, help="Manim's cache (default: FILE_DIR/.cache/manim)")
 
+    narrate = sub.add_parser(
+        "narrate",
+        help="speak a project's subtitles with a voice and place the sounds at them (ADR 0060)",
+    )
+    narrate.add_argument("project", type=Path)
+    narrate.add_argument(
+        "-o", "--output", type=Path, help="the project file to write (default: the same file)"
+    )
+    narrate.add_argument("--voice", metavar="PROVIDER:VOICE", help="the voice (default: the project's)")
+    narrate.add_argument("--rate", type=float, help="speaking speed, 1.0 is normal (default: the project's)")
+    narrate.add_argument(
+        "--all", action="store_true", help="speak every subtitle again, not only new and changed"
+    )
+    narrate.add_argument("--follow-speech", action="store_true", help="retime the subtitles to the speech")
+    narrate.add_argument(
+        "--pause", type=float, default=0.6, help="seconds between subtitles with --follow-speech"
+    )
+    narrate.add_argument(
+        "--allow-online", action="store_true", help="let an online voice service receive the subtitle text"
+    )
+    narrate.add_argument("--script", type=Path, help="also write the narration as a plain text script")
+
     edit = sub.add_parser("edit", help="open the editor")
     edit.add_argument("project", type=Path, nargs="?")
     return parser
@@ -92,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
         return _import(args.file, args.output, args.scene, args.cache_dir)
     if args.command == "python":
         return _python(args.project, args.output, args.scene, args.cache_dir)
+    if args.command == "narrate":
+        return _narrate(args)
     from .render.options import OptionsError, RenderOptions, parse_size
 
     try:
@@ -223,6 +247,97 @@ def _import(path: Path, output: Path, scene: str | None, cache_dir: Path | None)
         print(line)
     print(f"wrote {output} in {time.perf_counter() - started:.1f} s")
     return 0
+
+
+def _narrate(args: argparse.Namespace) -> int:
+    """Speak the subtitles that need it and place the sounds (ADR 0060), without the editor. Exit code 0
+    when every subtitle that needed speech has it, 1 when some failed, 2 when it cannot start."""
+    from . import plugins
+    from .core.editing import edits
+    from .core.model.scene_length import grow_to_fit
+    from .core.model.schema import Project, VoiceChoice
+    from .core.sound import audio
+    from .core.voice import narration, voice_cache
+    from .processes.voice import run_job
+
+    path: Path = args.project
+    try:
+        project = Project.model_validate_json(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return _fail(f"cannot read {path}: {exc.strerror or exc}")
+    except ValidationError as exc:
+        return _fail(f"{path} is not a valid project:\n{exc}")
+    providers = plugins.voice_providers()
+    if args.voice or args.rate:
+        base = project.voice or VoiceChoice(provider="", voice="")
+        provider, _, voice = (args.voice or f"{base.provider}:{base.voice}").partition(":")
+        if provider not in providers or not voice:
+            return _fail(f"--voice wants PROVIDER:VOICE with a provider among {', '.join(sorted(providers))}")
+        try:
+            choice = VoiceChoice(provider=provider, voice=voice, rate=args.rate or base.rate)
+        except ValidationError as exc:
+            return _fail(f"--rate: {exc.errors()[0]['msg']}")
+        project = edits.set_voice(project, choice).project
+    plan = narration.plan(project, None, voice_cache.folder_for(path), only_missing=not args.all)
+    for cue_id, why in plan.skipped.items():
+        if why not in (narration.EMPTY, narration.NO_VOICE):
+            print(f"  {cue_id}: {why}")
+    if narration.NO_VOICE in plan.skipped.values():
+        return _fail("some subtitles have no voice: pass --voice PROVIDER:VOICE or choose one in the editor")
+    online = sorted({j.provider for j in plan.jobs if providers[j.provider].online})
+    if online and not args.allow_online:
+        return _fail(f"{', '.join(online)} sends the subtitle text over the internet: pass --allow-online")
+    failed: dict[str, str] = {}
+    done: set[str] = set()
+    for provider in dict.fromkeys(j.provider for j in plan.jobs):
+        jobs = [j for j in plan.jobs if j.provider == provider]
+        first = {str(j.out): j for j in reversed(jobs)}  # one text per file: equal texts share it
+        items = [
+            {"id": j.cue_id, "text": j.text, "voice": j.voice, "rate": j.rate, "out": out}
+            for out, j in first.items()
+        ]
+        outs = {j.cue_id: str(j.out) for j in first.values()}
+
+        def show(message: dict, jobs=jobs, outs=outs) -> None:
+            if "id" in message:
+                for job in (j for j in jobs if str(j.out) == outs[message["id"]]):
+                    if message["ok"]:
+                        done.add(job.cue_id)
+                    else:
+                        failed[job.cue_id] = message["error"]
+                print(
+                    f"  {message['id']}: {'ok' if message['ok'] else 'FAILED: ' + message['error']}",
+                    flush=True,
+                )
+            elif message.get("ok") is False:
+                for job in jobs:
+                    failed.setdefault(job.cue_id, str(message.get("error")))
+                print(f"error: {message.get('error')}", file=sys.stderr)
+
+        print(f"speaking {len(items)} text{'s' if len(items) != 1 else ''} with {provider}...", flush=True)
+        run_job({"op": "speak", "provider": provider, "items": items}, show)
+    spoken = []
+    by_cue = {c.id: c for c in project.subtitles}
+    for job in [*plan.cached, *plan.jobs]:
+        if job.cue_id in failed or (job in plan.jobs and job.cue_id not in done):
+            continue
+        seconds = audio.probe(str(job.out))
+        cue = by_cue.get(job.cue_id)
+        if seconds and cue is not None and narration.key_for(project, cue) == job.key:
+            spoken.append(narration.Spoken(job.cue_id, job.key, job.out, seconds))
+    if spoken:
+        project = grow_to_fit(
+            narration.place(project, spoken, follow=args.follow_speech, pause=args.pause).project
+        )
+    output = args.output or path
+    try:
+        output.write_text(project.model_dump_json(by_alias=True, indent=2), encoding="utf-8")
+        if args.script:
+            args.script.write_text(narration.script(project), encoding="utf-8")
+    except OSError as exc:
+        return _fail(f"cannot write {exc.filename}: {exc.strerror or exc}")
+    print(f"wrote {output}: {len(spoken)} sound(s) placed, {len(failed)} failed")
+    return 1 if failed else 0
 
 
 def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:

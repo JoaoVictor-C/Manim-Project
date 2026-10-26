@@ -1,9 +1,10 @@
 # P14 — Narration: voice providers (plugins) and a Narration panel
 
-- **Status:** Proposed (not started)
-- **Date:** 2026-10-25
-- **Decided in:** not yet (a decision session and ADR 0060 come first, see P14.0)
-- **ADR:** 0060 — Voice providers and narration (to be written)
+- **Status:** Done for P14.0-P14.4, P14.6, P14.7 and the Edge and SAPI providers of P14.5; Kokoro, Piper and the paid cloud
+  providers are not built (see Steps)
+- **Date:** 2026-10-25 (planned), 2026-10-26 (built)
+- **Decided in:** [ADR 0060](../adr/0060-voice-providers-and-narration.md)
+- **ADR:** [0060 — Voice providers and narration](../adr/0060-voice-providers-and-narration.md)
 - **Builds on:** [0032 plugins](../adr/0032-plugin-api.md), [0034 audio track](../adr/0034-audio-track.md),
   [0035 subtitle track](../adr/0035-subtitle-track.md)
 
@@ -137,14 +138,14 @@ under the user cache folder, verify a checksum where the source publishes one.
 
 | step | content | acceptance |
 |---|---|---|
-| P14.0 | Decision session and ADR 0060: provider API, data model, retiming rules, secrets, worker isolation; answer the open questions above | ADR accepted; open questions closed or explicitly deferred |
-| P14.1 | `VoiceProvider` API, discovery, registries, problems list, **SAPI** provider, worker-process synthesis with timeout/cancel/retry, content-addressed cache | a provider in the plugin folder is found; SAPI synthesizes a file in the worker; failures are listed; cached hit does no work (unit tests with a fake provider) |
-| P14.2 | Model changes (`voice`, `audio_id` on cues, saved only when set), stale tracking, generate-and-place edits in `core/editing/edits.py` | round-trips through load/save; old files unchanged; undo restores; no frame changes |
-| P14.3 | Narration section UI: voice selector, preview, generate, progress/cancel, stale markers, delete behaviour | generate for selected/all/stale; cancel leaves a valid project; UI tests |
-| P14.4 | **Follow speech** and **Fit speech to cues**, pause setting, undo, report of what could not fit | cues retimed without overlap; the example's schedule reproduced exactly by the feature |
-| P14.5 | Providers: Edge (extra), then Kokoro and Piper with consented model downloads, then cloud providers with keyring secrets | each provider works from the dialog; missing extra shows an install hint, not a traceback |
-| P14.6 | Pronunciation dictionary, narration script export, `narrate` CLI | the example video's math reads correctly; CLI generates headless |
-| P14.7 | Port `examples/angular_momentum/` to the feature; user guide page; shortcuts; release notes | the example rebuilds from cues only; docs updated; `scripts/release_check.py` passes |
+| P14.0 **done** | Decision session and ADR 0060: provider API, data model, retiming rules, secrets, worker isolation; answer the open questions above | ADR accepted; open questions closed or explicitly deferred |
+| P14.1 **done** | `VoiceProvider` API, discovery, registries, problems list, **SAPI** provider, worker-process synthesis with timeout/cancel/retry, content-addressed cache | a provider in the plugin folder is found; SAPI synthesizes a file in the worker; failures are listed; cached hit does no work (unit tests with a fake provider) |
+| P14.2 **done** | Model changes (`voice`, `audio_id` on cues, saved only when set), stale tracking, generate-and-place edits in `core/editing/edits.py` | round-trips through load/save; old files unchanged; undo restores; no frame changes |
+| P14.3 **done** | Narration section UI: voice selector, preview, generate, progress/cancel, stale markers, delete behaviour | generate for selected/all/stale; cancel leaves a valid project; UI tests |
+| P14.4 **done** | **Follow speech** and **Fit speech to cues**, pause setting, undo, report of what could not fit | cues retimed without overlap; the example's schedule reproduced exactly by the feature |
+| P14.5 **partly done** | Providers: Edge (extra) and SAPI done; **not built yet:** Kokoro and Piper with consented model downloads, then cloud providers with keyring secrets | each provider works from the dialog; missing extra shows an install hint, not a traceback |
+| P14.6 **done** | Pronunciation dictionary, narration script export, `narrate` CLI | the example video's math reads correctly; CLI generates headless |
+| P14.7 **done** | Port `examples/angular_momentum/` to the feature; user guide page; shortcuts; release notes | the example rebuilds from cues only; docs updated; `scripts/release_check.py` passes |
 
 ## Tests
 
@@ -158,3 +159,13 @@ under the user cache folder, verify a checksum where the source publishes one.
 
 P14.0 half a day; P14.1-P14.2 about one to two days; P14.3-P14.4 about two days; each provider in P14.5
 a few hours (model download flows take longest); P14.6-P14.7 about a day.
+
+## What changed from the plan when it was built
+
+- Stale is derived from a key kept on the cue (`audio_key`), not stored as a flag; the cue gained `pause_before`
+  so the example's section gaps are reproduced exactly by Follow speech (the plan's `schedule()` step).
+- Deleting a cue deletes its sound without asking (one undo brings both back).
+- The Windows provider speaks through PowerShell's `System.Speech` (one call per text), not a Python package.
+- Secrets/keyring were not needed by the two providers built and are deferred with the paid ones.
+- The scene grows to hold retimed speech through the existing grow-with-content rule, so Follow speech has no
+  "extend the video" option.

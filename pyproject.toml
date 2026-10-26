@@ -35,6 +35,10 @@ dependencies = [
     "qtawesome>=1.4.2",  # Phosphor icons for the editor (ADR 0040)
 ]
 
+[project.optional-dependencies]
+# Voices for the narration (ADR 0060); each is optional so the base install stays small.
+tts-edge = ["edge-tts>=7"]  # Microsoft Edge neural voices: natural, free, online and unofficial
+
 [project.urls]
 Repository = "https://github.com/JoaoVictor-C/Manim-Project"
 Documentation = "https://github.com/JoaoVictor-C/Manim-Project/blob/master/docs/guide/index.md"

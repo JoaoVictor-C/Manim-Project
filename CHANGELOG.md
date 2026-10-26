@@ -7,6 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Narration: a voice reads the subtitles** (ADR 0060). The **Narration** section of the Audio page speaks the
+  subtitles with a computer voice and places each result as a sound at its subtitle: pick a provider, language,
+  voice and speed (for the project, or for one subtitle), **Preview**, then **Generate voice** (new and changed,
+  the selected one, or all) with progress and Cancel, as one undo step. A subtitle whose text, voice, speed or
+  pronunciation changed shows **stale** and keeps its old sound until generated again; unchanged subtitles are
+  never spoken twice (the sounds are kept by what they say in `<project>_voice/`). **Follow speech** lays the
+  subtitles end to end with a pause (**Pause before** gives one its own, for a break between sections) and
+  **Fit speech to subtitles** sets speeds so speech fits its subtitle; **Pronunciation...** says how words are
+  spoken without changing the subtitle; **Export script...** writes the text. Voices come from *providers*, which
+  are plugins (`VoiceProvider` in `manim_studio.plugins`) run in a separate helper process, never in the editor:
+  built in are **Windows voices** (offline) and **Microsoft Edge neural voices** (online; extra
+  `tts-edge`; the editor asks once before any text is sent). `manim-studio narrate` does the same from the command
+  line. The example video is now built from its subtitles with this feature.
 - **Chapters: edit one phase, re-render one phase** (ADR 0061). A scene made of phases that clear the screen
   between them can be cut into chapters that render and cache separately. *Editor > Analyse scene...* says where
   (and why not elsewhere); *Split into chapters...* replaces the layer by one layer per chapter, renders them

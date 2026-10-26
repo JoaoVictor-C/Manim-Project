@@ -39,6 +39,8 @@ os.environ["MANIM_STUDIO_PRESETS"] = str(
 )
 # ... and play no sound: playback keeps the wall clock unless a test gives it a player (ADR 0034).
 os.environ["MANIM_STUDIO_AUDIO"] = "0"
+# ... and generated speech goes to a throwaway folder, not the user's cache (ADR 0060).
+os.environ["MANIM_STUDIO_VOICE_CACHE"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-voices-")))
 
 # Must run before any test builds a mobject: sets the cache dir and finds MiKTeX.
 SHARED_CACHE = ROOT / ".cache" / "manim"
@@ -190,3 +192,13 @@ def _time_limits_on():
     limits.set_unlimited(False)
     yield
     limits.set_unlimited(False)
+
+
+@pytest.fixture
+def fake_voice(tmp_path_factory, monkeypatch):
+    """The fake voice provider (``tests/voice_support.py``), seen by this process and by helpers it starts."""
+    import voice_support
+
+    voice_support.install_fake(tmp_path_factory.mktemp("voice-plugins"), monkeypatch)
+    yield
+    voice_support.forget_fake()

@@ -567,13 +567,40 @@ class AudioClip(BaseModel):
         return self
 
 
+class VoiceChoice(BaseModel):
+    """A voice of a provider at a speed (ADR 0060): what a cue is spoken with."""
+
+    provider: str
+    voice: str
+    rate: float = Field(default=1.0, ge=0.5, le=2.0)  # speed multiplier; 1.0 is normal
+
+
 class Cue(BaseModel):
-    """A subtitle (ADR 0035): ``text`` shown from ``start`` until ``end``."""
+    """A subtitle (ADR 0035): ``text`` shown from ``start`` until ``end``.
+
+    A narrated cue (ADR 0060) may carry its own ``voice`` (else the project's), the sound it
+    generated (``audio_id``) and the key of what that sound says (``audio_key``: a hash of the
+    voice, speed and spoken text, so a change of any of them marks the sound stale). All three are
+    saved only when set, so older files open and save unchanged. ``pause_before`` is the silence
+    left before this cue when cues follow their speech (default: the narration's pause).
+    """
 
     id: str
     start: float = Field(ge=0)
     end: float
     text: str = ""
+    voice: VoiceChoice | None = None
+    audio_id: str | None = None
+    audio_key: str | None = None
+    pause_before: float | None = Field(default=None, ge=0)  # silence before this cue when following speech
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_narration(self, handler):
+        data = handler(self)
+        for key in ("voice", "audio_id", "audio_key", "pause_before"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
 
     @model_validator(mode="after")
     def _ends_after_start(self) -> Cue:
@@ -667,10 +694,16 @@ class Project(BaseModel):
     # changes no existing clip. Smart is the default and is not written to the file.
     morph_matching: Literal["smart", "classic"] = "smart"
     helpers: list[Helper] = Field(default_factory=list)  # importable by code (ADR 0058)
+    voice: VoiceChoice | None = None  # the narration's voice for cues without their own (ADR 0060)
+    pronunciations: dict[str, str] = Field(default_factory=dict)  # written -> spoken, before synthesis
 
     @model_serializer(mode="wrap")
     def _omit_unused(self, handler):
         data = handler(self)
+        if self.voice is None:
+            data.pop("voice", None)
+        if not self.pronunciations:
+            data.pop("pronunciations", None)
         if self.morph_matching == "smart":
             data.pop("morph_matching", None)
         if not self.helpers:

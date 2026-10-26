@@ -42,7 +42,14 @@ CUE_COLUMNS = (
     Column("end", "End (s)", "When it disappears", undo="Move subtitle"),
     Column("text", "Text", "What it says (a line break is shown as ↵)", undo="Edit subtitle"),
 )
-_SECONDS = {"start", "offset", "duration", "fade_in", "fade_out", "end"}
+# A subtitle's own silence before it when the subtitles follow their speech (ADR 0060); blank: the default.
+PAUSE_COLUMN = Column(
+    "pause_before",
+    "Pause before (s)",
+    "Silence before this subtitle when following speech; blank for the narration's pause",
+    undo="Pause before subtitle",
+)
+_SECONDS = {"start", "offset", "duration", "fade_in", "fade_out", "end", "pause_before"}
 
 
 def column(columns: tuple[Column, ...], key: str) -> Column:
@@ -111,18 +118,21 @@ def sound_edit(project: Project, clip_id: str, key: str, text: str) -> edits.Edi
 def cue_cell(cue: Cue, key: str) -> str:
     if key == "text":
         return cue.text.replace("\n", LINE_BREAK)
-    return format_seconds(getattr(cue, key))
+    value = getattr(cue, key)
+    return "" if value is None else format_seconds(value)
 
 
 def cue_edit(project: Project, cue_id: str, key: str, text: str) -> edits.Edit:
-    col = next((c for c in CUE_COLUMNS if c.key == key), None)
+    col = next((c for c in (*CUE_COLUMNS, PAUSE_COLUMN) if c.key == key), None)
     if col is None:
         raise edits.EditError(f"{key} cannot be edited")
-    value: Any = (
-        "\n".join(line.strip() for line in text.split(LINE_BREAK.strip())).strip()
-        if key == "text"
-        else parse_number(text)
-    )
+    value: Any
+    if key == "text":
+        value = "\n".join(line.strip() for line in text.split(LINE_BREAK.strip())).strip()
+    elif key == "pause_before" and not text.strip():
+        value = None
+    else:
+        value = parse_number(text)
     return _validated(col, lambda: edits.update_cue(project, cue_id, **{key: value}))
 
 
