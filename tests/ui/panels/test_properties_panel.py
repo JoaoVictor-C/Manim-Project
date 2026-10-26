@@ -483,7 +483,7 @@ def test_sections_collapse_and_stay_collapsed_for_the_next_selection(panel) -> N
     assert not panel.fields["style.fill"].widget.isVisibleTo(panel)
     panel.show_layer("dot")
     assert panel.sections["Style"].is_collapsed()
-    assert panel.fields["base.scale"].widget.isVisibleTo(panel)  # the others stay open
+    assert not panel.sections["Transform"].is_collapsed()  # the others stay open
     panel.sections["Style"].caret.click()
     panel.show_layer("box")
     assert not panel.sections["Style"].is_collapsed()
