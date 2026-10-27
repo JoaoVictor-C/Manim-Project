@@ -6,6 +6,9 @@ the library: the page gives it ``Section`` lists and hears back which row was op
 asked for a menu, and which was dragged. Rows drag out as ``code_drag`` payloads, so they can be
 dropped on the timeline, the canvas and the layers list - except helpers, which are imported by code
 and have no place or time.
+
+In Lumen (P17.4d) ``ExplorerDelegate`` paints the rows like the Layers rows - a rounded kind chip, the name,
+one state chip - and the sections as small capitals that fold on a click; the item texts keep their marks.
 """
 
 from __future__ import annotations

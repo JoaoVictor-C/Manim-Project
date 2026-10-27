@@ -1,8 +1,9 @@
 """The Code page (P6b.3, ADR 0041; reworked as a workspace in P12, ADR 0057).
 
-Layout: the explorer (this project's code layers and Python objects, then the preset library) |
-tabs over the editor, the output and a status strip | the viewer. The model, settled in decision
-session 36, is unchanged:
+Layout (Lumen, P17.4d): three columns of cards - the explorer (this project's code layers and Python
+objects, its helpers, then the preset library) | the editor card (file tabs with Revert and Run, a row of
+state chips, the code, a status strip) over the output card (Output, Values, Parameters, History) | the
+preview card (the viewer) over the chapters card. The model, settled in decision session 36, is unchanged:
 
 * **Run only** applies the text: Ctrl+Enter or the Run button trusts the exact text
   (as the Properties code field does, ADR 0019) and applies it as one undo step through
