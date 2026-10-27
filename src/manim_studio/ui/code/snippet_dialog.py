@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from ...core.assist import snippets
 from ...core.assist.snippets import Snippet
 from ..style import theme
+from .dialog_frame import DialogFrame
 
 
 class SnippetDialog(QDialog):
@@ -30,7 +31,8 @@ class SnippetDialog(QDialog):
         self.pool = snippets.SNIPPETS if pool is None else tuple(pool)
         self.chosen: Snippet | None = None
         self.shown: list[Snippet] = []
-        outer = QVBoxLayout(self)
+        frame = DialogFrame(self, "code", "Insert snippet", "Small pieces of Manim to start from")
+        outer = frame.body
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search: circle, matrix, graph, updater...")
         self.search.setClearButtonEnabled(True)
@@ -38,14 +40,17 @@ class SnippetDialog(QDialog):
         self.search.returnPressed.connect(self.accept)
         outer.addWidget(self.search)
         row = QHBoxLayout()
+        row.setSpacing(12)
         self.list = QListWidget()
         self.list.setObjectName("snippetList")
         self.list.currentRowChanged.connect(self._show)
         self.list.itemActivated.connect(lambda _item: self.accept())
         row.addWidget(self.list, 2)
         right = QVBoxLayout()
+        right.setSpacing(8)
         self.description = QLabel("")
         self.description.setWordWrap(True)
+        self.description.setProperty("role", "muted")
         self.preview = QPlainTextEdit()
         self.preview.setReadOnly(True)
         self.preview.setFont(theme.mono_font())
@@ -56,12 +61,13 @@ class SnippetDialog(QDialog):
         outer.addLayout(row, 1)
         hint = QLabel("Inserted at the cursor. Tab moves between the places to fill in; Esc stops.")
         hint.setProperty("role", "hint")
-        outer.addWidget(hint)
+        hint.setWordWrap(True)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.insert_button = buttons.addButton("Insert", QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        frame.add_footer(hint, 1)
+        frame.add_buttons(buttons)
         self._filter("")
         self.search.setFocus()
 

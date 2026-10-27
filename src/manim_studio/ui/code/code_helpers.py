@@ -120,8 +120,10 @@ class HelperActions:
             }.get(state, helper.description or f"import {helper.name}")
             if key in dirty:
                 tip = "Unapplied changes: Run applies them"
+            used = len(helpers.importers(project, helper.name))
+            badge = f"{used} import{'s' if used != 1 else ''}" if used else ""
             rows.append(
-                Row(key, helper.name, "helper", "helper", tip, key in dirty, state, helper.description)
+                Row(key, helper.name, "helper", "helper", tip, key in dirty, state, helper.description, badge)
             )
         return tuple(rows)
 

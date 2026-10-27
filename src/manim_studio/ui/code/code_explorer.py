@@ -12,19 +12,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QDrag
-from PySide6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem, QWidget
+from PySide6.QtCore import QModelIndex, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QBrush, QColor, QDrag, QFont, QFontMetricsF, QMouseEvent, QPainter, QPen
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QWidget,
+)
 
 from ..session import code_drag
 from ..style import icons, theme
 from ..style.render_activity import INTERVAL_MS, spinner
+from .code_chrome import chip_font, paint_chip, paint_kind
 
 KEY_ROLE = Qt.ItemDataRole.UserRole
 SOURCE_ROLE = Qt.ItemDataRole.UserRole + 1
 KIND_ROLE = Qt.ItemDataRole.UserRole + 2
 NAME_ROLE = Qt.ItemDataRole.UserRole + 3
 STATE_ROLE = Qt.ItemDataRole.UserRole + 4
+DIRTY_ROLE = Qt.ItemDataRole.UserRole + 5
+BADGE_ROLE = Qt.ItemDataRole.UserRole + 6
+ROW_HEIGHT = 38  # a 36 px row and its 1 px margins
+HEADER_HEIGHT = 30
 
 KIND_BADGE = {"object": "obj", "scene": "scene", "helper": "helper"}
 ICONS = {"object": "py-object", "scene": "py-scene", "helper": "helper"}
@@ -40,6 +53,9 @@ class Row:
     dirty: bool = False  # unapplied changes (layers)
     state: str = ""  # "", "error", "untrusted", "queued", "running" - shown as a marker after the name
     match: str = ""  # more words the filter looks in (a preset's description, tags and kind)
+    badge: str = (
+        ""  # a quiet chip at the right when nothing more urgent is said ("built", "built in", "mine")
+    )
 
 
 @dataclass(frozen=True)
@@ -49,6 +65,110 @@ class Section:
     rows: tuple[Row, ...] = ()
     empty: str = ""  # shown (greyed) when there are no rows
     extra: dict = field(default_factory=dict)
+
+
+def row_chip(state: str, dirty: bool, badge: str) -> tuple[str, str] | None:
+    """(text, tone) of the chip at the right of a row: what most needs saying, or the quiet badge."""
+    if dirty:
+        return "unapplied", "warn"
+    found = {
+        "error": ("error", "bad"),
+        "untrusted": ("not run", "warn"),
+        "running": ("running", "accent"),
+        "queued": ("waiting", "neutral"),
+    }.get(state)
+    if found is not None:
+        return found
+    return (badge, "ok" if badge == "built" else "neutral") if badge else None
+
+
+class ExplorerDelegate(QStyledItemDelegate):
+    """Paints the explorer like the Layers rows (Lumen): section labels in small capitals, rows with a
+    rounded kind chip, the name and a state chip, the current row tinted with the accent. The item text keeps
+    its marks for the page and its tests; the painting reads the roles instead."""
+
+    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
+        if not index.parent().isValid():
+            return QSize(option.rect.width(), HEADER_HEIGHT if index.row() else HEADER_HEIGHT - 4)
+        return QSize(option.rect.width(), ROW_HEIGHT if index.data(KEY_ROLE) is not None else 28)
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        colours = theme.THEME
+        rect = QRectF(option.rect)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not index.parent().isValid():  # a section
+            font = theme.font("section")
+            font.setPixelSize(10)
+            font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 110)
+            painter.setFont(font)
+            painter.setPen(theme.qcolor(colours.faint))
+            text = str(index.data(Qt.ItemDataRole.DisplayRole) or "").upper()
+            area = rect.adjusted(14, 0, -28, -2)
+            painter.drawText(area, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom, text)
+            tree = option.widget
+            item = tree.itemFromIndex(index) if isinstance(tree, QTreeWidget) else None
+            if item is not None and item.childCount():
+                self._chevron(painter, QPointF(rect.right() - 18, rect.bottom() - 9), item.isExpanded())
+            painter.restore()
+            return
+        if index.data(KEY_ROLE) is None:  # a greyed note ("No match", "Import a folder ...")
+            painter.setFont(theme.font("caption"))
+            painter.setPen(theme.qcolor(colours.faint))
+            text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+            area = rect.adjusted(18, 0, -10, 0)
+            shown = painter.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, int(area.width()))
+            painter.drawText(area, Qt.AlignmentFlag.AlignVCenter, shown)
+            painter.restore()
+            return
+        row = rect.adjusted(6, 1, -6, -1)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        if selected:
+            painter.setPen(QPen(theme.qcolor(colours.accent_line), 1))
+            painter.setBrush(theme.qcolor(colours.accent_soft))
+            painter.drawRoundedRect(row.adjusted(0.5, 0.5, -0.5, -0.5), theme.RADIUS_ROW, theme.RADIUS_ROW)
+        elif hovered:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(theme.qcolor(colours.raised))
+            painter.drawRoundedRect(row, theme.RADIUS_ROW, theme.RADIUS_ROW)
+        kind = "preset" if index.data(SOURCE_ROLE) == "preset" else str(index.data(KIND_ROLE) or "scene")
+        chip = QRectF(row.left() + 8, row.center().y() - 11, 22, 22)
+        paint_kind(painter, chip, kind)
+        right = row.right() - 8
+        said = row_chip(
+            str(index.data(STATE_ROLE) or ""), bool(index.data(DIRTY_ROLE)), str(index.data(BADGE_ROLE) or "")
+        )
+        if said is not None:
+            text, tone = said
+            if text == "running":
+                text = f"{spinner()} running"
+            width = QFontMetricsF(chip_font()).horizontalAdvance(text) + 14
+            box = QRectF(right - width, row.center().y() - 9, width, 18)
+            paint_chip(painter, box, text, tone)
+            right = box.left() - 6
+        name = str(index.data(NAME_ROLE) or index.data(Qt.ItemDataRole.DisplayRole) or "")
+        font = theme.font("label")
+        painter.setFont(font)
+        state = index.data(STATE_ROLE)
+        painter.setPen(theme.qcolor(colours.error_text if state == "error" else colours.text))
+        left = chip.right() + 9
+        shown = painter.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, int(right - left))
+        painter.drawText(
+            QRectF(left, row.top(), right - left, row.height()), Qt.AlignmentFlag.AlignVCenter, shown
+        )
+        painter.restore()
+
+    @staticmethod
+    def _chevron(painter: QPainter, centre: QPointF, open_: bool) -> None:
+        pen = QPen(theme.qcolor(theme.THEME.faint), 1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        x, y = centre.x(), centre.y()
+        if open_:
+            painter.drawPolyline([QPointF(x - 3.5, y - 1.5), QPointF(x, y + 2), QPointF(x + 3.5, y - 1.5)])
+        else:
+            painter.drawPolyline([QPointF(x - 1.5, y - 3.5), QPointF(x + 2, y), QPointF(x - 1.5, y + 3.5)])
 
 
 class CodeExplorer(QTreeWidget):
@@ -61,8 +181,13 @@ class CodeExplorer(QTreeWidget):
         super().__init__(parent)
         self.setHeaderHidden(True)
         self.setObjectName("codeExplorer")
-        self.setRootIsDecorated(True)
-        self.setUniformRowHeights(True)
+        # Lumen: no branch arrows or indent; a section's label carries its chevron and a click folds it
+        self.setRootIsDecorated(False)
+        self.setIndentation(0)
+        self.setItemDelegate(ExplorerDelegate(self))
+        self.setMouseTracking(True)
+        self.setFrameShape(QTreeWidget.Shape.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setExpandsOnDoubleClick(False)
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
@@ -212,6 +337,8 @@ class CodeExplorer(QTreeWidget):
         item.setData(0, KIND_ROLE, row.kind)
         item.setData(0, NAME_ROLE, row.label)
         item.setData(0, STATE_ROLE, row.state)
+        item.setData(0, DIRTY_ROLE, row.dirty)
+        item.setData(0, BADGE_ROLE, row.badge)
         item.setIcon(0, icons.icon(ICONS.get(row.kind, "py-scene")))
         badge = KIND_BADGE.get(row.kind, row.kind)
         item.setToolTip(0, row.tip or f"{row.label} ({badge})")
@@ -237,6 +364,22 @@ class CodeExplorer(QTreeWidget):
     def _on_current(self, item: QTreeWidgetItem | None, _previous) -> None:
         if item is not None and item.parent() is not None and item.data(0, KEY_ROLE) is not None:
             self.chosen.emit(item.data(0, SOURCE_ROLE), item.data(0, KEY_ROLE))
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """A click on a section's label folds or unfolds it (the label is its arrow in Lumen)."""
+        item = self.itemAt(event.position().toPoint())
+        if item is not None and item.parent() is None and event.button() == Qt.MouseButton.LeftButton:
+            item.setExpanded(not item.isExpanded())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        item = self.itemAt(event.position().toPoint())
+        if item is not None and item.parent() is None:  # the press already folded it
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def _on_activated(self, item: QTreeWidgetItem, _column: int = 0) -> None:
         if item.parent() is None:

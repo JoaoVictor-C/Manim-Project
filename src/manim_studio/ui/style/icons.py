@@ -112,6 +112,21 @@ NAMES: dict[str, str] = {
     "simulation": "atom",
     "scene": "film-strip",
     "presets": "squares-four",
+    # the Code page in Lumen (P17.4d): the kind chips of the explorer, the toolbar and the output
+    "kind-scene": "code",
+    "kind-object": "cube",
+    "kind-helper": "brackets-curly",
+    "kind-preset": "text-align-left",
+    "editor-settings": "sliders-horizontal",
+    "rename": "pencil-simple",
+    "save-file": "floppy-disk",
+    "convert": "squares-four",
+    "stop": "stop",
+    "error": "warning-circle",
+    "history": "clock-counter-clockwise",
+    "chapters": "film-strip",
+    "import": "arrow-square-out",
+    "collapse": "caret-down",
 }
 
 # icons drawn in another theme colour than the text: Record's red dot, the Python logos, the helpers
@@ -120,6 +135,7 @@ TINTS: dict[str, str] = {
     "py-object": "py_object",
     "py-scene": "py_scene",
     "helper": "success",
+    "error": "danger",
 }
 
 _drawn: dict[tuple, QIcon] = {}  # (theme, name, tint) -> the glyph in that colour

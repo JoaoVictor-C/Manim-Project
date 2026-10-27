@@ -36,7 +36,8 @@ from PySide6.QtWidgets import (
 
 from ...core.assist import diagnostics, params_edit
 from ...core.assist.params_edit import AddParam, ChangeParam, ParamsEditError, RemoveParam, RenameParam
-from ..style import theme
+from . import code_chrome  # noqa: F401 - the stylesheet rules of the status line
+from .dialog_frame import DialogFrame
 
 REFRESH_MS = 300  # the pause in typing after which the table reads the editor again
 COLUMNS = ("Name", "Default", "Minimum", "Maximum")
@@ -163,10 +164,10 @@ class ChangeDialog(QDialog):
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        column = QVBoxLayout(self)
-        column.addLayout(form)
-        column.addWidget(hint)
-        column.addWidget(buttons)
+        frame = DialogFrame(self, "rename", f"Change {row.name}", "Its default and limits, together")
+        frame.body.addLayout(form)
+        frame.body.addWidget(hint)
+        frame.add_buttons(buttons)
 
     def texts(self) -> tuple[str, str, str]:
         return self.default_edit.text(), self.minimum_edit.text(), self.maximum_edit.text()
@@ -480,8 +481,11 @@ class ParamsDefinitionPanel(QWidget):
         QTimer.singleShot(0, lambda: self.set_cell(index, column, text))  # not under the item's own edit
 
     def _say(self, text: str, error: bool = False) -> None:
-        colour = theme.THEME.error_text if error else theme.THEME.muted
-        self.status.setStyleSheet(f"color: {theme.css(colour)};")
+        tone = "bad" if error else ""
+        if self.status.property("tone") != tone:  # the colour is the stylesheet's (code_chrome.rules)
+            self.status.setProperty("tone", tone)
+            self.status.style().unpolish(self.status)
+            self.status.style().polish(self.status)
         self.status.setText(text)
 
     def _ask_change_dialog(self, row: ParamRow) -> tuple[str, str, str] | None:

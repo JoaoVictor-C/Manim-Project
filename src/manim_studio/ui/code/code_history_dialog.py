@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 from ...core.code.code_history import CodeHistory, Version, diff_stats, unified_diff
 from ...core.model.schema import PYTHON_TYPES
 from ..style import theme
+from .dialog_frame import DialogFrame, ghost, primary
 
 SOURCES = {"run": "Run", "live": "Live", "open": "Opened"}
 NO_WORKING = "No earlier version of this code worked yet: run it first"
@@ -246,26 +247,25 @@ class CodeHistoryDialog(QDialog):
         right_column.addWidget(self.diff_label)
         right_column.addWidget(self.diff, 1)
         split = QSplitter(Qt.Orientation.Horizontal)
+        split.setHandleWidth(theme.GUTTER)
         split.addWidget(self.list)
         split.addWidget(right)
         split.setStretchFactor(0, 0)
         split.setStretchFactor(1, 1)
         split.setSizes([300, 520])
 
-        self.put_button = QPushButton("Put in editor")
+        self.put_button = primary(QPushButton("Put in editor"))
         self.put_button.setToolTip("Replace the editor's text with this version (not applied until Run)")
         self.put_button.clicked.connect(self.put_in_editor)
         self.close_button = QPushButton("Close")
         self.close_button.clicked.connect(self.reject)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        buttons.addWidget(self.put_button)
-        buttons.addWidget(self.close_button)
 
-        column = QVBoxLayout(self)
-        column.addWidget(intro)
-        column.addWidget(split, 1)
-        column.addLayout(buttons)
+        frame = DialogFrame(self, "history", f"History of {title}" if title else "History")
+        frame.body.addWidget(intro)
+        frame.body.addWidget(split, 1)
+        frame.footer.addStretch(1)
+        frame.add_footer(self.close_button)
+        frame.add_footer(self.put_button)  # the primary action last
         self.refresh()
 
     # -- reading --------------------------------------------------------------------------------
@@ -323,3 +323,71 @@ class CodeHistoryDialog(QDialog):
         if version is not None:
             self._put(version.text)
             self.refresh_diff()
+
+
+class HistoryPanel(QWidget):
+    """The History tab of the Code page's output card: the versions of the code in the editor, newest
+    first, with Put in editor and the window that compares them (``HistoryKeeper.show_dialog``)."""
+
+    def __init__(self, keeper: HistoryKeeper, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.keeper = keeper
+        self.setObjectName("codeHistoryPanel")
+        self.list = QListWidget()
+        self.list.setObjectName("codeHistoryTab")
+        self.list.itemDoubleClicked.connect(lambda _item: self.put_in_editor())
+        self.list.currentRowChanged.connect(lambda _row: self._sync())
+        self.note = QLabel("")
+        self.note.setProperty("role", "hint")
+        self.note.setWordWrap(True)
+        self.put_button = primary(QPushButton("Put in editor"))
+        self.put_button.setProperty("size", "sm")
+        self.put_button.setToolTip("Replace the editor's text with this version (not applied until Run)")
+        self.put_button.clicked.connect(self.put_in_editor)
+        self.compare_button = ghost(QPushButton("Compare…"))
+        self.compare_button.setProperty("size", "sm")
+        self.compare_button.setToolTip(
+            "Open the History window: what changed from each version to the editor"
+        )
+        self.compare_button.clicked.connect(self.keeper.show_dialog)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(6)
+        buttons.addWidget(self.note, 1)
+        buttons.addWidget(self.compare_button)
+        buttons.addWidget(self.put_button)
+        column = QVBoxLayout(self)
+        column.setContentsMargins(14, 10, 14, 10)
+        column.setSpacing(8)
+        column.addWidget(self.list, 1)
+        column.addLayout(buttons)
+        self.versions: list[Version] = []
+
+    def refresh(self) -> None:
+        page = self.keeper.page
+        layer_id = page.layer_id
+        editor = page.editor.text()
+        self.versions = [] if layer_id is None else self.keeper.history.versions(layer_id)
+        row = max(self.list.currentRow(), 0)
+        now = time.time()
+        self.list.blockSignals(True)
+        try:
+            self.list.clear()
+            for version in self.versions:
+                self.list.addItem(QListWidgetItem(describe(version, editor, now)))
+        finally:
+            self.list.blockSignals(False)
+        if self.versions:
+            self.list.setCurrentRow(min(row, len(self.versions) - 1))
+        self.note.setText(
+            "" if self.versions else "No versions yet: Run records one each time it applies the code."
+        )
+        self._sync()
+
+    def _sync(self) -> None:
+        self.put_button.setEnabled(0 <= self.list.currentRow() < len(self.versions))
+
+    def put_in_editor(self) -> None:
+        row = self.list.currentRow()
+        if 0 <= row < len(self.versions):
+            self.keeper.put(self.versions[row].text)
+            self.refresh()

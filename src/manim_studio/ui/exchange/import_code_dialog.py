@@ -35,6 +35,7 @@ from ...core.assist import live_guard
 from ...core.exchange import code_import
 from ...core.exchange.code_import import AS_LABELS, HELPER, OBJECT, PRESET, SCENE, ImportChoice, ImportItem
 from ..code.code_editor import CodeEditor
+from ..code.dialog_frame import DialogFrame
 from ..style import theme
 
 
@@ -98,8 +99,16 @@ class ImportCodeDialog(QDialog):
         self._row = -1
         self._loading = False
 
-        layout = QVBoxLayout(self)
+        frame = DialogFrame(
+            self,
+            "import",
+            "Import code",
+            "Choose what each file becomes - its kind, name, time and place - before anything is added. "
+            "Nothing here runs the code.",
+        )
+        layout = frame.body
         self.split = QSplitter(Qt.Orientation.Horizontal)
+        self.split.setHandleWidth(theme.GUTTER * 2)
         self.list = QListWidget()
         self.list.setObjectName("importItems")
         self.list.currentRowChanged.connect(self._on_row)
@@ -112,14 +121,15 @@ class ImportCodeDialog(QDialog):
         self.message = QLabel("")
         self.message.setWordWrap(True)
         self.message.setObjectName("importMessage")
-        layout.addWidget(self.message)
+        self.message.setProperty("role", "message")
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Import")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
-        layout.addWidget(self.buttons)
+        frame.add_footer(self.message, 1)  # what is wrong, at the left of the actions
+        frame.add_buttons(self.buttons)
         self._fill_list()
         if self.states:
             self.list.setCurrentRow(0)
@@ -396,7 +406,5 @@ class ImportCodeDialog(QDialog):
                 problems.append(f"{choice.name or choice.item.origin}: {why}")
         if not chosen:
             problems.append("Nothing is checked")
-        colour = theme.css(theme.THEME.warning)
-        self.message.setStyleSheet(f"color: {colour};")
         self.message.setText("\n".join(problems[:3]))
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(not problems)

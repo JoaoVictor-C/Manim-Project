@@ -13,6 +13,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QDialog, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
+from . import code_chrome  # noqa: F401 - its stylesheet rules
+
 
 @dataclass(frozen=True)
 class QuickItem:
@@ -63,7 +65,10 @@ class QuickOpen(QDialog):
         self.setMinimumWidth(420)
         self.items = items
         self.chosen: QuickItem | None = None
+        self.setObjectName("quickOpen")  # Lumen: a raised card with a hairline (code_chrome.rules)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Type a name to open a layer or a preset")
         self.search.textChanged.connect(self._filter)
