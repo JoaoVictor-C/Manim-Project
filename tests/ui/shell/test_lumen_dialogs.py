@@ -72,7 +72,7 @@ def test_the_welcome_signals_still_fire(qt_app) -> None:
     panel._example.click()
     panel.set_templates([("graph", "Graph", "Axes and a curve")])
     panel.template_cards[0].click()
-    assert seen == ["new", "open", "example", "new", "example", "template:graph"]
+    assert seen == ["new", "open", "example", "new", "template:showcase", "template:graph"]
 
 
 def test_recent_projects_are_cards_with_their_name_and_path(qt_app, tmp_path) -> None:

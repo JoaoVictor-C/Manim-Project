@@ -18,12 +18,14 @@ import zlib
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import Property, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QCursor,
     QFont,
     QFontMetricsF,
+    QGuiApplication,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -31,6 +33,7 @@ from PySide6.QtGui import (
     QPen,
     QRadialGradient,
     QResizeEvent,
+    QShowEvent,
 )
 from PySide6.QtWidgets import (
     QFrame,
@@ -45,8 +48,9 @@ from PySide6.QtWidgets import (
 )
 
 from ... import __version__
-from ..style import icons, theme
+from ..style import icons, motion, theme
 from ..style.card import Chip
+from .welcome_scene import MathScene
 
 # examples/ sits beside src/ in a checkout; an installed copy has no example to offer.
 EXAMPLE = Path(__file__).resolve().parents[4] / "examples" / "showcase.json"
@@ -56,6 +60,11 @@ SUBTITLE = (
     "A visual studio for Manim. Compose a scene, shape its motion on a timeline, "
     "write code when you want it, and render a film."
 )
+LIVELY_MS = 32  # between frames of the picture while the entrance plays or the pointer is moving
+CALM_MS = 60  # ... and when nothing has moved for CALM_AFTER seconds: the slow motion needs fewer frames
+CALM_AFTER = 6.0
+REST_AFTER = 90.0  # a welcome left alone this long stops moving (the picture stays as it is) ...
+REST_MS = 400  # ... and only looks for the pointer, ten times a second or so, to start again
 COLUMNS = 5  # recent project cards per row
 MOTIFS = 6  # the drawings a thumbnail can show
 BLANK_MOTIF, EXAMPLE_MOTIF = 4, 1
@@ -430,6 +439,20 @@ class WelcomePanel(QWidget):
         self._margin = 80
         self._starter_columns = 4
         self._recent_columns = COLUMNS
+        self._intro = 1.0  # 0..1: how much of the entrance (the drawing, the reveal) has played
+        self._played = False
+        self._last_tick = time.monotonic()
+        self.scene = MathScene()
+        self._reveal: object | None = None
+        self._intro_animation: object | None = None
+        self._ticker = QTimer(self)  # moves the picture on while the welcome is on screen
+        self._ticker.setInterval(LIVELY_MS)
+        self._ticker.timeout.connect(self._tick)
+        self._mouse = QCursor.pos()
+        self._moved_at = time.monotonic()
+        app = QGuiApplication.instance()
+        if app is not None:  # a method, not a lambda: a closure would keep this widget alive for ever
+            app.applicationStateChanged.connect(self._on_application_state)
 
         self.new_button = self._hero("add", "New project", "Ctrl N", "primary", self.newRequested)
         self.new_button.setToolTip("An empty scene (Ctrl+N)")
@@ -464,8 +487,8 @@ class WelcomePanel(QWidget):
         self._blank.setToolTip("An empty scene (Ctrl+N)")
         self._blank.clicked.connect(lambda: self.newRequested.emit())
         self._example = StarterCard("Showcase", "The example scene", EXAMPLE_MOTIF)
-        self._example.setToolTip("The showcase scene, as a copy you can change freely")
-        self._example.clicked.connect(lambda: self.exampleRequested.emit())
+        self._example.setToolTip("Start a project from the showcase scene")
+        self._example.clicked.connect(lambda: self.templateRequested.emit("showcase"))
         self._example.setVisible(EXAMPLE.is_file())
         self._place_starters()
 
@@ -595,6 +618,102 @@ class WelcomePanel(QWidget):
             self.recent_grid.setColumnStretch(column, 1 if column < columns else 0)
         self._recent_columns = columns
 
+    # -- motion -----------------------------------------------------------------------------------
+
+    def _get_intro(self) -> float:
+        return self._intro
+
+    def _set_intro(self, value: float) -> None:
+        self._intro = float(value)
+        self._repaint_illustration()
+
+    intro = Property(float, _get_intro, _set_intro)
+
+    def _repaint_illustration(self) -> None:
+        area = self._illustration_rect()
+        if area is not None:
+            self.update(area.adjusted(-8, -8, 8, 8).toAlignedRect())
+
+    def _tick(self) -> None:
+        if not motion.enabled() or not self.isVisible():
+            self._ticker.stop()
+            return
+        now = time.monotonic()
+        mouse = QCursor.pos()
+        if mouse != self._mouse:
+            self._mouse, self._moved_at = mouse, now
+        idle = now - self._moved_at if self._intro >= 1.0 else 0.0
+        wanted = REST_MS if idle > REST_AFTER else CALM_MS if idle > CALM_AFTER else LIVELY_MS
+        if self._ticker.interval() != wanted:
+            self._ticker.setInterval(wanted)
+        self._last_tick, elapsed = now, now - self._last_tick
+        if wanted == REST_MS:
+            return  # nothing is drawn until the pointer moves
+        self.scene.step(elapsed, self._cursor_in_picture())
+        self._repaint_illustration()
+
+    def _on_application_state(self, state: Qt.ApplicationState) -> None:
+        """Nothing moves while another program has the focus or the window is minimized."""
+        if state == Qt.ApplicationState.ApplicationActive and self.isVisible() and motion.enabled():
+            self._last_tick = time.monotonic()
+            self._ticker.start()
+        elif state != Qt.ApplicationState.ApplicationActive:
+            self._ticker.stop()
+
+    def _cursor_in_picture(self) -> QPointF | None:
+        """Where the cursor is in the picture's own coordinates, or None when it is elsewhere."""
+        area = self._illustration_rect()
+        if area is None or not self.window().isActiveWindow():
+            return None
+        local = QPointF(self.mapFromGlobal(QCursor.pos())) - area.topLeft()
+        inside = -40 <= local.x() <= area.width() + 40 and -40 <= local.y() <= area.height() + 40
+        return local if inside else None
+
+    def _reveal_widgets(self) -> list[QWidget]:
+        """What fades in, in reading order."""
+        found: list[QWidget] = [
+            self.version_chip,
+            self.title,
+            self.subtitle,
+            self.new_button,
+            self.open_button,
+            self.example_button,
+            self.starters_heading,
+            self._blank,
+            self._example,
+            *self.template_cards,
+            self.recent_heading,
+            *self.recent_links,
+            self.browse_card,
+        ]
+        return [w for w in found if w.isVisibleTo(self)]
+
+    def play_intro(self) -> None:
+        """The entrance: the curves draw themselves and the content fades in, one piece after another."""
+        self._played = True
+        if not motion.enabled():
+            self._intro = 1.0
+            return
+        self._intro = 0.0
+        self._intro_animation = motion.animate(self, "intro", 1.0, 2800, start=0.0)
+        self._reveal = motion.stagger_in(self, self._reveal_widgets())
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if not self._played:
+            self.play_intro()
+        if (
+            motion.enabled()
+            and QGuiApplication.applicationState() != Qt.ApplicationState.ApplicationSuspended
+        ):
+            self._last_tick = time.monotonic()
+            self._moved_at = time.monotonic()
+            self._ticker.start()
+
+    def hideEvent(self, event) -> None:
+        self._ticker.stop()
+        super().hideEvent(event)
+
     # -- layout and painting ----------------------------------------------------------------------
 
     def resizeEvent(self, event: QResizeEvent) -> None:
@@ -621,7 +740,7 @@ class WelcomePanel(QWidget):
         room = self.width() - left - 40
         if room < 220:
             return None
-        height = min(self.height() * 0.62, room * 0.82)
+        height = min(self.height() * 0.66, room * 0.96)
         return QRectF(left, 16, room, height)
 
     def paintEvent(self, _event: QPaintEvent) -> None:
@@ -644,72 +763,10 @@ class WelcomePanel(QWidget):
         painter.fillRect(self.rect(), bottom)
         area = self._illustration_rect()
         if area is not None:
-            paint_curves(painter, area)
+            painter.save()
+            self.scene.paint(painter, area, self._intro, self._cursor_in_picture())
+            painter.restore()
         painter.end()
-
-
-def paint_curves(painter: QPainter, area: QRectF) -> None:
-    """The large drawing at the right of the welcome: two gradient curves over faint circles and axes, a dot
-    where one of them turns, and the identity next to it."""
-    c = theme.THEME
-    painter.save()
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    scale = min(area.width() / 640, area.height() / 520)
-    painter.translate(
-        area.left() + (area.width() - 640 * scale) / 2, area.top() + (area.height() - 520 * scale) / 2
-    )
-    painter.scale(scale, scale)
-    painter.setPen(QPen(_alpha(c.text, 0.07), 1))
-    painter.drawLine(QPointF(0, 260), QPointF(640, 260))
-    painter.drawLine(QPointF(320, 0), QPointF(320, 520))
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.setPen(QPen(_alpha(c.text, 0.08), 1))
-    painter.drawEllipse(QPointF(320, 260), 170, 170)
-    painter.setPen(QPen(_alpha(c.text, 0.06), 1))
-    painter.drawEllipse(QPointF(320, 260), 120, 120)
-
-    first = QPainterPath(QPointF(10, 260))
-    first.cubicTo(QPointF(90, 260), QPointF(110, 60), QPointF(200, 60))
-    first.cubicTo(QPointF(290, 60), QPointF(300, 460), QPointF(400, 460))
-    first.cubicTo(QPointF(500, 460), QPointF(530, 60), QPointF(630, 60))
-    grad_a = QLinearGradient(10, 0, 630, 0)
-    grad_a.setColorAt(0.0, theme.qcolor(c.accent))
-    grad_a.setColorAt(1.0, theme.qcolor(c.accent_2))
-    painter.setPen(QPen(QBrush(grad_a), 3.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-    painter.drawPath(first)
-
-    second = QPainterPath(QPointF(10, 330))
-    second.cubicTo(QPointF(110, 330), QPointF(140, 130), QPointF(240, 130))
-    second.cubicTo(QPointF(340, 130), QPointF(330, 400), QPointF(430, 400))
-    second.cubicTo(QPointF(530, 400), QPointF(540, 190), QPointF(630, 190))
-    grad_b = QLinearGradient(10, 0, 630, 0)
-    grad_b.setColorAt(0.0, theme.qcolor(c.morph))
-    grad_b.setColorAt(1.0, theme.qcolor(c.sound))
-    painter.setOpacity(0.8)
-    painter.setPen(QPen(QBrush(grad_b), 2.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-    painter.drawPath(second)
-    painter.setOpacity(1.0)
-
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(theme.qcolor(c.text))
-    painter.drawEllipse(QPointF(400, 460), 7, 7)
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.setPen(QPen(_alpha(c.text, 0.3), 1))
-    painter.drawEllipse(QPointF(400, 460), 16, 16)
-
-    font = theme.font("title", kind="serif")
-    font.setItalic(True)
-    font.setPixelSize(26)
-    painter.setFont(font)
-    painter.setPen(theme.qcolor(c.text))
-    painter.drawText(QPointF(420, 448), "e")
-    small = QFont(font)
-    small.setPixelSize(15)
-    painter.setFont(small)
-    painter.drawText(QPointF(433, 436), "iπ")
-    painter.setFont(font)
-    painter.drawText(QPointF(452, 448), "+ 1 = 0")
-    painter.restore()
 
 
 def _short_version() -> str:

@@ -46,6 +46,7 @@ from ..core.engine.python_export import PythonExport, class_name, to_python
 from ..core.exchange.preset_library import PresetLibrary
 from ..core.exchange.scene_import import import_scene, scene_classes
 from ..core.model import parts, recovery, shape
+from ..core.model.new_project import NewProjectSettings
 from ..core.model.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.sound import audio, subtitles
 from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
@@ -80,7 +81,7 @@ from .session.selection import Selection
 from .shell import shortcuts_help
 from .shell.autosave import Autosave
 from .shell.clipboard_actions import ClipboardActions
-from .shell.new_project_dialog import NewProjectDialog
+from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
 from .shell.plugins_dialog import PluginsDialog, startup_message
 from .shell.shortcuts_help import ShortcutsDialog
@@ -120,7 +121,9 @@ class MainWindow(QMainWindow):
         self.status = LumenStatusBar(self)  # messages also arrive as toasts (ADR 0063)
         self.setStatusBar(self.status)
         self.saved_indicator = SavedIndicator()
-        self.status.insertWidget(0, self.saved_indicator)
+        self.status.addPermanentWidget(
+            self.saved_indicator
+        )  # at the right: a message draws from the left edge
         self.toasts = ToastHost(self)
         self.status.toasts = self.toasts
         self.prefs = Preferences()  # how the editor was left (ADR 0044)
@@ -670,24 +673,67 @@ class MainWindow(QMainWindow):
         ``place_code``. P12.4."""
         self.importer.import_paths(paths, t, position)
 
-    def new_project(self) -> None:
-        """An empty scene with the default canvas (1280x720, 30 fps, 5 s); it asks how new morphs
-        should match (smart or classic, remembered for next time; ADR 0056)."""
+    def new_project(self, template: str = "blank") -> None:
+        """File > New: the New project dialog (a template, a name and folder, the canvas, how morphs
+        match). The project is written to its file at once, so it is in the recent list; a template starts
+        from that example's project. ``template`` preselects a starting point."""
+        if not isinstance(template, str):  # a menu action passes whether it is checked
+            template = "blank"
         if not self.confirm_discard():
             return
-        choice = self.ask_new_project(self.prefs.option("morph_matching", "smart"))
-        if choice is None:
+        settings = self.ask_new_project(self.prefs.option("morph_matching", "smart"), template)
+        if settings is None:
             return
-        self.prefs.set_option("morph_matching", choice)
-        self.path = None
-        self.document.replace(Project(morph_matching=choice))
-        log.info("new project (morphs: %s)", choice)
+        try:
+            project = self._project_for(settings)
+        except Exception as exc:  # a damaged template: say so, change nothing
+            log.exception("could not start from template %s", settings.template)
+            QMessageBox.critical(self, "Could not create the project", str(exc))
+            return
+        self.prefs.set_option("morph_matching", settings.morph_matching)
+        path = settings.path
+        if path is not None:
+            self.prefs.set_option("new_project_folder", str(path.parent))
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(project.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+            except OSError as exc:
+                log.exception("could not create %s", path)
+                QMessageBox.critical(self, "Could not create the project", str(exc))
+                return
+        self.path = path
+        self.document.replace(project)
+        if path is not None:
+            self._remember(path)
+            self.document.undo_stack.setClean()
+            self._update_title()
+        log.info(
+            "new project %s (template %s, morphs %s)",
+            path or "untitled",
+            settings.template,
+            settings.morph_matching,
+        )
 
-    def ask_new_project(self, remembered: str) -> str | None:
-        """``"smart"`` or ``"classic"``, or None when cancelled (tests and other front-ends answer
-        here instead of showing the dialog)."""
-        dialog = NewProjectDialog(remembered, self)
-        return dialog.choice() if dialog.exec() == QDialog.DialogCode.Accepted else None
+    def _project_for(self, settings: NewProjectSettings) -> Project:
+        """The project a ``NewProjectSettings`` describes: the blank scene with its canvas, or the template's
+        project with the morph choice (its canvas is the template's own)."""
+        template = template_by_key(settings.template)
+        if template.source is None:
+            return settings.blank_project()
+        project = Project.model_validate_json(template.source.read_text(encoding="utf-8"))
+        return project.model_copy(update={"morph_matching": settings.morph_matching})
+
+    def ask_new_project(self, remembered: str, template: str = "blank") -> NewProjectSettings | None:
+        """The settings for a new project, or None when cancelled (tests and other front-ends answer here
+        instead of showing the dialog)."""
+        folder = self.prefs.option("new_project_folder", "")
+        dialog = NewProjectDialog(
+            remembered,
+            self,
+            folder=Path(folder) if folder and Path(folder).is_dir() else self.default_folder(),
+            template=template,
+        )
+        return dialog.settings() if dialog.exec() == QDialog.DialogCode.Accepted else None
 
     def open_dialog(self) -> None:
         if not self.confirm_discard():
@@ -776,6 +822,14 @@ class MainWindow(QMainWindow):
         self.welcome.openRequested.connect(self.open_dialog)
         self.welcome.exampleRequested.connect(self.open_example)
         self.welcome.recentRequested.connect(self.open_recent)
+        self.welcome.templateRequested.connect(self.new_project)
+        self.welcome.set_templates(
+            [
+                (t.key, t.name, t.description)
+                for t in available_templates()
+                if t.key not in ("blank", "showcase")
+            ]
+        )
         self._refresh_recent()
 
     # -- preferences (P6d.1, ADR 0044) ----------------------------------------------------

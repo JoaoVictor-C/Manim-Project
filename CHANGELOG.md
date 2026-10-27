@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **A new project starts like one does in a game engine's hub.** *File > New* (and the welcome page's cards) open
+  a dialog with the starting points on the left - a blank scene and the example scenes - and, on the right, the
+  project's name and folder, its size (HD, Full HD, 4K, draft, vertical, square), frame rate, length and
+  background with a live preview of the frame, and how new morphs match. The project is written to
+  `<folder>/<name>.json` when created, so it is in the recent list at once; a name that is taken or not a file
+  name is refused with the reason. The welcome page now plays an entrance (the curves draw themselves, the
+  content fades in, a dot runs along the curve) that stops behind a project and with *Reduce motion*.
 - **Narration: a voice reads the subtitles** (ADR 0060). The **Narration** section of the Audio page speaks the
   subtitles with a computer voice and places each result as a sound at its subtitle: pick a provider, language,
   voice and speed (for the project, or for one subtitle), **Preview**, then **Generate voice** (new and changed,

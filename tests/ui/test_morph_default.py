@@ -13,6 +13,7 @@ pytest.importorskip("PySide6")
 
 from manim_studio.core.editing import edits
 from manim_studio.core.engine.python_export import readable_problems
+from manim_studio.core.model.new_project import NewProjectSettings
 from manim_studio.core.model.schema import Clip, Layer, Project, Spec, new_clip_params
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.shell.new_project_dialog import NewProjectDialog
@@ -128,7 +129,13 @@ def window(qt_app):
 
 def test_new_project_asks_and_creates_the_project_with_that_choice(window, monkeypatch) -> None:
     asked = []
-    monkeypatch.setattr(window, "ask_new_project", lambda remembered: asked.append(remembered) or "classic")
+    monkeypatch.setattr(
+        window,
+        "ask_new_project",
+        lambda remembered, template="blank": (
+            asked.append(remembered) or NewProjectSettings(morph_matching="classic")
+        ),
+    )
     window.new_project()
     assert window.project.morph_matching == "classic"
     assert asked == ["smart"]  # first time: smart is offered
@@ -139,13 +146,17 @@ def test_new_project_asks_and_creates_the_project_with_that_choice(window, monke
 def test_cancelling_the_dialog_keeps_the_current_project(window, monkeypatch) -> None:
     window.new_project()
     window.document.apply(edits.add_layer(window.project, Spec(type="Circle")), "Add")
-    monkeypatch.setattr(window, "ask_new_project", lambda remembered: None)
+    monkeypatch.setattr(window, "ask_new_project", lambda remembered, template="blank": None)
     window.new_project()
     assert len(window.project.layers) == 1
 
 
 def test_the_welcome_new_button_goes_through_the_same_question(window, monkeypatch) -> None:
-    monkeypatch.setattr(window, "ask_new_project", lambda remembered: "classic")
+    monkeypatch.setattr(
+        window,
+        "ask_new_project",
+        lambda remembered, template="blank": NewProjectSettings(morph_matching="classic"),
+    )
     window.welcome.new_button.click()
     assert window.project.morph_matching == "classic"
 

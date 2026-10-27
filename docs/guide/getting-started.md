@@ -46,10 +46,15 @@ examples, so there the button is hidden. To open a file directly:
 
 ## Your first animation in five minutes
 
-1. **New project.** **File > New** (`Ctrl+N`) asks one question: how morphs should match their
-   pieces - **Smart** (cleaner in-between frames, recommended) or **Classic** (Manim's own
-   Transform, so the Python export stays readable); your last answer is offered next time.
-   The scene is 1280x720 at 30 fps and 5 s long; it grows by itself when you place something
+1. **New project.** **File > New** (`Ctrl+N`, or **New project** on the welcome page) opens a
+   dialog like a game engine's hub. On the left pick a starting point: a **Blank scene** or one
+   of the example scenes. On the right give the project a **name** and the **folder** it is saved
+   in (it is written there as `<name>.json` at once, so it is in your recent projects), and for a
+   blank scene choose its **size** (HD, Full HD, 4K, draft, vertical, square), **speed** (24, 30 or
+   60 fps), **length** and **background**; a preview shows the frame. An example brings its own
+   canvas. Last, how morphs should match their pieces - **Smart** (cleaner in-between frames,
+   recommended) or **Classic** (Manim's own Transform, so the Python export stays readable); your
+   last answer and folder are offered next time. The scene grows by itself when you place something
    past its end. With nothing selected, Properties shows the **Scene** settings (length, size,
    frame rate, background, and **New morphs**, where you can change that answer).
 2. **Add a title.** In the Layers panel, **Add > Text > Text**. The object appears on the

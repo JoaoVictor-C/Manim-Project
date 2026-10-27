@@ -8,11 +8,20 @@ nowhere to run all mean the same thing: the property is set at once and no one w
 
 from __future__ import annotations
 
+import contextlib
 import os
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation
+from PySide6.QtCore import (
+    QEasingCurve,
+    QObject,
+    QParallelAnimationGroup,
+    QPauseAnimation,
+    QPropertyAnimation,
+    QSequentialAnimationGroup,
+)
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 FAST = 90
 BASE = 160
@@ -73,3 +82,43 @@ def animate(
         animation.finished.connect(finished)
     animation.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
     return animation
+
+
+def stagger_in(
+    owner: QObject, widgets: list[QWidget], *, step: int = 55, duration: int = 340
+) -> QParallelAnimationGroup | None:
+    """Fade ``widgets`` in one after the other, ``step`` ms apart (an entrance, used once when a page opens).
+
+    Each widget gets an opacity effect that is removed again when it is done, so nothing keeps paying for it.
+    Returns the running group (parented to ``owner``), or None when motion is off, in which case nothing
+    changes: the widgets are simply there."""
+    if not enabled() or not widgets:
+        return None
+    group = QParallelAnimationGroup(owner)
+    effects: list[QGraphicsOpacityEffect] = []
+    for index, widget in enumerate(widgets):
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.0)
+        widget.setGraphicsEffect(effect)
+        effects.append(effect)
+        fade = QPropertyAnimation(effect, b"opacity", effect)
+        fade.setDuration(duration)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setEasingCurve(curve())
+        run = QSequentialAnimationGroup(group)
+        run.addAnimation(QPauseAnimation(index * step))
+        run.addAnimation(fade)
+        group.addAnimation(run)
+
+    def done() -> None:
+        for widget in widgets:
+            with contextlib.suppress(
+                RuntimeError
+            ):  # the widget went away meanwhile (a list that was rebuilt)
+                widget.setGraphicsEffect(None)  # also deletes the effect
+        group.deleteLater()
+
+    group.finished.connect(done)
+    group.start()
+    return group

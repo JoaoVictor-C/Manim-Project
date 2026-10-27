@@ -131,13 +131,18 @@ def _no_unsaved_changes_dialog(request, monkeypatch):
     """Editor windows closed with unsaved edits must not block on a modal question."""
     if "ui" not in request.keywords:
         return
+    from manim_studio.core.model.new_project import NewProjectSettings
     from manim_studio.ui.main_window import MainWindow
 
     monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
     monkeypatch.setattr(MainWindow, "ask_stop_export", lambda self: "stop")
     monkeypatch.setattr(MainWindow, "ask_trust", lambda self, names: "skip")
     monkeypatch.setattr(MainWindow, "ask_recover", lambda self, entries: "later")
-    monkeypatch.setattr(MainWindow, "ask_new_project", lambda self, remembered: remembered)  # no dialog
+    monkeypatch.setattr(  # no dialog, and no file: the project stays untitled
+        MainWindow,
+        "ask_new_project",
+        lambda self, remembered, template="blank": NewProjectSettings(morph_matching=remembered),
+    )
 
 
 @pytest.fixture(autouse=True)
