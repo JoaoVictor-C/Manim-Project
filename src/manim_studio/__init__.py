@@ -2,6 +2,10 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from . import lifeline
+
+lifeline.limit_native_threads()  # before numpy is imported anywhere: one thread per core is hundreds of MB
+
 try:
     __version__ = version("manim-studio")  # one source of truth: pyproject.toml (P6e)
 except PackageNotFoundError:  # running from a source tree that was never installed

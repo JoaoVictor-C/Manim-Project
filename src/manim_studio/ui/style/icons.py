@@ -1,16 +1,22 @@
 """The editor's icons (P6a, ADR 0040; Lumen, ADR 0063): semantic names drawn as Phosphor glyphs.
 
-QtAwesome provides the glyphs as an icon font; it is imported on the first icon, so commands that never
-open a window never load it. An icon is a ``QIcon`` with an engine that draws the glyph at the moment it is
-painted, in the colours of the theme *then*, so a theme switch needs no one to set the icons again. Icons are
-tinted with the theme's text colour (muted for the ones that sit quietly), and its disabled colour when their
-widget is disabled.
+The glyphs are the Phosphor icon font that QtAwesome ships, and a few from its Material Design font. Only
+those two fonts are loaded, from QtAwesome's own files, on the first icon (so commands that never open a
+window never touch them): QtAwesome itself loads a dozen icon fonts the editor does not use, about 40 MB of
+memory. Where a font cannot be found, QtAwesome draws that icon as before. An icon is a ``QIcon`` with an
+engine that draws the glyph at the moment it is painted, in the colours of the theme *then*, so a theme switch
+needs no one to set the icons again. Icons are tinted with the theme's text colour (muted for the ones that
+sit quietly), and its disabled colour when their widget is disabled.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRect, QSize
-from PySide6.QtGui import QIcon, QIconEngine, QPainter, QPixmap
+import importlib.util
+import json
+from pathlib import Path
+
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QFont, QFontDatabase, QIcon, QIconEngine, QPainter, QPixmap
 
 from . import theme
 
@@ -138,10 +144,70 @@ TINTS: dict[str, str] = {
     "error": "danger",
 }
 
-_drawn: dict[tuple, QIcon] = {}  # (theme, name, tint) -> the glyph in that colour
+_drawn: dict[tuple, QIcon] = {}  # (theme, name, tint) -> QtAwesome's glyph in that colour (the fallback)
+_pixmaps: dict[tuple, QPixmap] = {}  # (theme, name, tint, size, disabled) -> the glyph drawn at that size
+_PIXMAP_LIMIT = 2000
+# QtAwesome's prefix -> (its font file, its table of glyph names), found in its fonts folder
+FONTS = {
+    "ph": ("phosphor-[0-9]*.ttf", "phosphor-charmap-*.json"),
+    "mdi6": ("materialdesignicons6-webfont-*.ttf", "materialdesignicons6-webfont-charmap-*.json"),
+}
+_fonts: dict[str, tuple[str, dict[str, str]] | None] = {}  # prefix -> (family, character of each glyph used)
 
 
-def _glyph(name: str, tint: str | None = None) -> QIcon:
+def _split(glyph: str) -> tuple[str, str]:
+    """``("ph", "plus")`` for ``"plus"`` (Phosphor), ``("mdi6", "dock-left")`` for ``mdi6.dock-left``."""
+    prefix, _, short = glyph.rpartition(".")
+    return prefix or "ph", short
+
+
+def _font(prefix: str) -> tuple[str, dict[str, str]] | None:
+    """A QtAwesome font, registered with Qt, and the character of each of its glyphs the editor uses; None
+    when its file cannot be found (QtAwesome then draws those icons)."""
+    if prefix not in _fonts:
+        _fonts[prefix] = None
+        if prefix in FONTS:
+            try:
+                spec = importlib.util.find_spec(
+                    "qtawesome"
+                )  # found, not imported: that would load every font
+                folder = Path(next(iter(spec.submodule_search_locations))) / "fonts"
+                font_file = next(folder.glob(FONTS[prefix][0]))
+                table_file = next(folder.glob(FONTS[prefix][1]))
+                families = QFontDatabase.applicationFontFamilies(
+                    QFontDatabase.addApplicationFont(str(font_file))
+                )
+                table = json.loads(table_file.read_text(encoding="utf-8"))
+                wanted = {short for p, short in map(_split, NAMES.values()) if p == prefix}
+                if families:
+                    _fonts[prefix] = (
+                        families[0],
+                        {n: chr(int(c, 16)) for n, c in table.items() if n in wanted},
+                    )
+            except (AttributeError, StopIteration, OSError, ValueError, TypeError):
+                _fonts[prefix] = None
+    return _fonts[prefix]
+
+
+def _drawn_glyph(painter: QPainter, rect: QRect, name: str, tint: str | None, disabled: bool) -> bool:
+    """Draw glyph ``name`` centred in ``rect`` the way QtAwesome does (the glyph at 7/8 of the height, to
+    leave the font's bearings); False when its font is not there."""
+    prefix, glyph = _split(NAMES[name])
+    font_data = _font(prefix)
+    if font_data is None or glyph not in font_data[1]:
+        return False
+    family, chars = font_data
+    colours = theme.THEME
+    ink = theme.qcolor(colours.disabled if disabled else getattr(colours, tint or TINTS.get(name, "text")))
+    font = QFont(family)
+    font.setPixelSize(round(0.875 * rect.height()))
+    painter.setPen(ink)
+    painter.setFont(font)
+    painter.drawText(rect, int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter), chars[glyph])
+    return True
+
+
+def _qtawesome_glyph(name: str, tint: str | None = None) -> QIcon:
     import qtawesome as qta  # the icon fonts load here, once
 
     colours = theme.THEME
@@ -175,7 +241,26 @@ class _ThemedEngine(QIconEngine):
         return size
 
     def pixmap(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QPixmap:
-        return _glyph(self.name, self.tint).pixmap(size, mode, state)
+        if size.isEmpty():
+            return QPixmap()
+        disabled = mode == QIcon.Mode.Disabled
+        key = (theme.THEME.name, self.name, self.tint, size.width(), size.height(), disabled)
+        cached = _pixmaps.get(key)
+        if cached is not None:
+            return cached
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        drawn = _drawn_glyph(
+            painter, QRect(0, 0, size.width(), size.height()), self.name, self.tint, disabled
+        )
+        painter.end()
+        if not drawn:
+            return _qtawesome_glyph(self.name, self.tint).pixmap(size, mode, state)
+        if len(_pixmaps) >= _PIXMAP_LIMIT:
+            _pixmaps.clear()
+        _pixmaps[key] = pixmap
+        return pixmap
 
     def paint(self, painter: QPainter, rect: QRect, mode: QIcon.Mode, state: QIcon.State) -> None:
         painter.drawPixmap(rect, self.pixmap(rect.size(), mode, state))
@@ -192,3 +277,4 @@ def icon(name: str, tint: str | None = None) -> QIcon:
 def refresh() -> None:
     """Forget the drawn glyphs (after a theme switch the engines draw them again in the new colours)."""
     _drawn.clear()
+    _pixmaps.clear()

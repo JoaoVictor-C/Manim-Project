@@ -31,6 +31,7 @@ import traceback
 from collections.abc import Callable
 from pathlib import Path
 
+from .. import lifeline
 from .worker import _claim_stdout, _send
 
 BACKOFF_S = 1.5
@@ -38,6 +39,7 @@ TRIES = 6
 
 
 def main(argv: list[str] | None = None) -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     protocol = _claim_stdout()
     job = json.loads(sys.stdin.readline())
     from .. import plugins

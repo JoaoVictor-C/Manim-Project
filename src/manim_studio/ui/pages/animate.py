@@ -48,6 +48,9 @@ class AnimatePage(Page):
         column = QVBoxLayout(root)
         page_margins(column)
         column.addWidget(self.outer)
+        self.panel.setParent(
+            root
+        )  # not on the page until it is shown: owned by it all the same, not parentless
         return root
 
     def _make_graph(self) -> None:

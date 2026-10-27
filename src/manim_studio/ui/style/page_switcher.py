@@ -60,7 +60,12 @@ class PageSwitcher(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
-        theme.signals.themeChanged.connect(lambda _name: self.update())
+        theme.signals.themeChanged.connect(
+            self._on_theme
+        )  # a method: it goes with the widget (a lambda did not)
+
+    def _on_theme(self, _name: str = "") -> None:
+        self.update()
 
     # -- the QTabBar subset ----------------------------------------------------------------------
 

@@ -114,16 +114,49 @@ def _fresh_python_builds(monkeypatch):
 @pytest.fixture(autouse=True)
 def _windows_are_gone_before_the_next_test(request):
     """A window one test closed is destroyed before the next starts: hidden but not yet deleted, it still
-    owns its shortcuts, and Qt then takes the next window's Ctrl+D for an ambiguous one."""
+    owns its shortcuts, and Qt then takes the next window's Ctrl+D for an ambiguous one.
+
+    Destroyed is not freed. The Python side of a window (its document, evaluator, caches, the objects of every
+    panel) is tied in rings through Qt objects that the garbage collector cannot look into, so a window left
+    alone stays in memory for good: about 15 MB each, and the 4000 tests make a few hundred (a test process
+    reached 4 GB, eight of them at once more than this computer has). The editor's own top-level widgets that
+    a test made (its windows, dialogs, parentless panels) are therefore deleted at its end and their
+    attributes dropped."""
+    if "ui" not in request.keywords:
+        yield
+        return
+    import gc
+
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent, QObject
+    from PySide6.QtWidgets import QApplication
+
+    before = list(QApplication.topLevelWidgets())
     yield
-    if "ui" in request.keywords:
-        import gc
-
-        from PySide6.QtCore import QCoreApplication, QEvent
-
-        gc.collect()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
-        QCoreApplication.processEvents()
+    fresh = [
+        w
+        for w in QApplication.topLevelWidgets()
+        if type(w).__module__.startswith("manim_studio") and not any(w is old for old in before)
+    ]
+    doomed: list[QObject] = []  # the editor's own objects below them: each holds Python state of its own
+    for widget in fresh:
+        if shiboken6.isValid(widget):
+            doomed.extend(
+                o for o in widget.findChildren(QObject) if type(o).__module__.startswith("manim_studio")
+            )
+            if widget.isVisible():
+                widget.close()
+            widget.deleteLater()
+    doomed.extend(fresh)
+    gc.collect()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+    QCoreApplication.processEvents()
+    for obj in doomed:
+        obj.__dict__.clear()
+    doomed.clear()
+    fresh.clear()
+    before.clear()
+    gc.collect()
 
 
 @pytest.fixture(autouse=True)

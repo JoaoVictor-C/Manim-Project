@@ -45,7 +45,12 @@ class SavedIndicator(QWidget):
         row.addWidget(self.dot)
         row.addWidget(self.state)
         row.addWidget(self.name)
-        theme.signals.themeChanged.connect(lambda _name: self.dot.update())
+        theme.signals.themeChanged.connect(
+            self._on_theme
+        )  # a method: it goes with the widget (a lambda did not)
+
+    def _on_theme(self, _name: str = "") -> None:
+        self.dot.update()
 
     def set_state(self, name: str, saved: bool) -> None:
         self.name.setText(name)

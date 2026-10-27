@@ -19,12 +19,13 @@ import tempfile
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QPlainTextEdit, QVBoxLayout, QWidget
 
 from ...logging_config import get_logger
 from ...processes.scene_recorder import TIME_LIMIT
 from ..style import theme
+from . import children
 
 log = get_logger(__name__)
 
@@ -70,15 +71,12 @@ class SceneImporter(QObject):
             process = QProcess()
             process.setProgram(self._program)
             process.setArguments(self._args)
-            env = QProcessEnvironment.systemEnvironment()
-            env.insert("PYTHONUTF8", "1")
-            env.insert("PYTHONUNBUFFERED", "1")
-            process.setProcessEnvironment(env)
+            process.setProcessEnvironment(children.environment(PYTHONUNBUFFERED="1"))
             process.readyReadStandardOutput.connect(self._read)
             process.readyReadStandardError.connect(self._log_stderr)
             process.finished.connect(self._on_exit)
             self._process, self._ready, self._buffer = process, False, b""
-            process.start()
+            children.start(process)
 
     def start(self, path: Path, scene: str | None, prelude: bool = False) -> None:
         """Record ``path``'s scene (``prelude``: a code layer's code, ADR 0019)."""

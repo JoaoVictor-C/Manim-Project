@@ -29,10 +29,12 @@ import zlib
 from pathlib import Path
 from typing import IO, Any
 
+from .. import lifeline
 from .worker import _claim_stdout, _send, _summary
 
 
 def main(argv: list[str] | None = None) -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     parser = argparse.ArgumentParser(prog="python -m manim_studio.processes.preview")
     parser.add_argument("--cache-dir", type=Path, required=True)
     args = parser.parse_args(argv)

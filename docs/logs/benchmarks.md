@@ -930,3 +930,43 @@ morph (ends included) and per frame. TransformMatchingTex has no choice (same nu
 - **Cost:** begin +1-5 ms for shapes, +6-40 ms for words and equations (the ends' build, shared
   by both, is most of it); a frame +0.03-0.05 ms. Scrubbing a 1 s morph at 30 fps adds ~1.5 ms in
   all. Contact sheets are ~1.5 MB, not committed: run the script.
+
+### B74 - the editor's memory, and what outlives it · 2026-10-27
+`benchmarks/bench_editor_memory.py`: the real editor, started without a screen, with `examples/euler.json`
+open or none; the sum over the editor and every process below it of the **committed** (private) memory - what the
+system must back with RAM or the page file - and the **working set**, what is resident (Windows 11, 12 cores,
+15.6 GB, Python 3.13). `--threads 0` leaves numpy's thread pools as they were (one per core).
+
+| situation | processes | committed | working set |
+|---|---|---|---|
+| welcome page, no project | editor 221 | 221 MB | 232 MB |
+| project open, helpers up | editor 236 + frame renderer 145 + build worker 130 | 516 MB | 529 MB |
+| project open, helpers released after 8 s | editor 236 | 236 MB | 249 MB |
+| welcome page, numpy's own pools | editor 928 | 928 MB | 234 MB |
+| project open, numpy's own pools | editor 944 + frame renderer 852 + build worker 837 | 2638 MB | 533 MB |
+
+- **The thread pools are committed, not resident:** 707 MB of address space reserved per process on twelve cores
+  (the three rows' differences are 707, 707 and 707), nearly none of it touched - so the working set does not
+  move (529 against 533 MB) and Task Manager's Memory column never showed it. The commit charge did, and with
+  five or six processes it is what a computer with a small page file runs out of first.
+- **What is resident goes with the helpers:** the build worker and the frame renderer are 117 and 135 MB of
+  working set each. The welcome page used to start the build worker (350 MB resident with it, 232 without),
+  and a helper that has had nothing to do for ten minutes is released (529 -> 249 MB).
+- **Exports are not slower with one thread** (`manim-studio render`, median of four renders after a warm-up,
+  process start to file written, seconds):
+
+| project | 1 thread | 12 threads |
+|---|---|---|
+| euler.json, 640x360, first 3 s | 2.3 | 2.3 |
+| showcase.json, 960x540, first 8 s | 4.7 | 4.8 |
+| graphs.json, 960x540, first 8 s | 4.6 | 4.7 |
+
+- **A project that was closed is given back:** opening the same project 30 more times took the editor from 255
+  to 365 MB of working set with `gc.freeze()` as it was (+3.4 MB each; 76 objects of cyclic garbage frozen per
+  open, the scrub boxes of the Properties panel), and from 256 to 265 MB with the thaw before the freeze.
+  One test process went from 8.5 GB to 2.4 GB with the windows of finished tests freed (`tests/conftest.py`).
+- **Killing the editor:** with a code layer that loops for ever, the code renderer outlived the editor (control
+  run without the lifeline: still there, a core busy) and is gone within a second with it; idle helpers are gone
+  too (`tests/test_editor_lifetime.py`).
+- **CPU while idle:** the welcome page 29.5% of a core before, 20.5% once it has settled, 0% after 90 s of rest;
+  a project page 0.4-2%.

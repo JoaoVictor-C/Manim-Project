@@ -13,9 +13,10 @@ import json
 import sys
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import QElapsedTimer, QObject, QProcess, QProcessEnvironment, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QObject, QProcess, QTimer, Signal
 
 from ...logging_config import get_logger
+from . import children
 from .code_render import _release
 
 log = get_logger(__name__)
@@ -122,10 +123,7 @@ class VoiceClient(QObject):
         process = QProcess()  # no Qt parent: _release owns its teardown
         process.setProgram(self.program)
         process.setArguments(self.args)
-        env = QProcessEnvironment.systemEnvironment()
-        env.insert("PYTHONUTF8", "1")
-        env.insert("PYTHONUNBUFFERED", "1")
-        process.setProcessEnvironment(env)
+        process.setProcessEnvironment(children.environment(PYTHONUNBUFFERED="1"))
         timer = QTimer(self)
         timer.setSingleShot(True)
         timer.setInterval(int((self.speak_timeout_s if kind == "speak" else self.list_timeout_s) * 1000))
@@ -139,7 +137,7 @@ class VoiceClient(QObject):
         process.finished.connect(lambda *_: self._on_exit(run))
         process.errorOccurred.connect(lambda error: self._on_error(run, error))
         timer.timeout.connect(lambda: self._on_timeout(run))
-        process.start()
+        children.start(process)
         process.write((json.dumps(job) + "\n").encode("utf-8"))
         process.closeWriteChannel()
         timer.start()

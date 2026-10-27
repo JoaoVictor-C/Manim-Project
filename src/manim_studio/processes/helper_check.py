@@ -23,6 +23,8 @@ import json
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 
+from .. import lifeline
+
 MAX_OUTPUT = 4096  # characters of printed output sent back (the end is kept)
 NOT_A_FILE = "<helper check>"  # no user code is compiled under this name: every frame is a helper's
 
@@ -62,6 +64,7 @@ def _describe(error: BaseException) -> str:
 
 
 def main() -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     line = sys.stdin.readline()
     if not line.strip():
         return 0

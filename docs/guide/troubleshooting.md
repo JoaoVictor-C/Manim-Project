@@ -48,6 +48,16 @@ asking.
 - If a video plays without sound, check that a sound output device exists: without one,
   playback follows the wall clock instead of the sound card.
 
+## Manim Studio uses a lot of memory
+
+Behind the window are helper processes - the one that builds text and formulas, the one that renders frames
+ahead, one for each code layer being rendered - and each is a Python with Manim loaded, about 120 MB. Several
+`python.exe` entries under Manim Studio in the Task Manager are normal while a project is open. They start when
+there is work for them (the welcome page runs none), they are given back after ten minutes without work (the
+next build or frame then takes a few seconds longer), and closing the window - or ending the editor in any
+other way - ends all of them. To give them back sooner, start the editor with `MANIM_STUDIO_IDLE_SECONDS=120`
+(`0` keeps them for good). Playback keeps at most 256 MB of rendered frames.
+
 ## Manim Studio closed without saving
 
 While you have unsaved changes, a recovery copy is written every 30 seconds. The next time

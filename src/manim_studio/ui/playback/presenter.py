@@ -16,6 +16,7 @@ when it moves; a paused animation keeps the bar.
 
 from __future__ import annotations
 
+import weakref
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
@@ -66,8 +67,10 @@ class _CanvasGuard(QObject):
 
 class Presenter(QWidget):
     def __init__(self, window: MainWindow) -> None:
-        super().__init__(None, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
-        self.window_ = window
+        # A window of its own, but owned by the editor's window: it goes with it (a parentless one was never
+        # deleted, and kept the whole editor alive through ``window_``).
+        super().__init__(window, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self._window = weakref.ref(window)
         self.setWindowTitle("Manim Studio - full screen")
         self.setStyleSheet("background: black;")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -96,6 +99,10 @@ class Presenter(QWidget):
         self._poll.timeout.connect(self._look_at_pointer)
         self._last_pointer = QPoint()
         self._connect(window)
+
+    @property
+    def window_(self) -> MainWindow:
+        return self._window()
 
     def _connect(self, window: MainWindow) -> None:
         bar = self.bar

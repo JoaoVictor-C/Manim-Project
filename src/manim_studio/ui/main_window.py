@@ -68,6 +68,7 @@ from .panels.properties_panel import PropertiesPanel
 from .playback.audio_player import make_audio_player
 from .playback.presenter import Presenter
 from .playback.transport import PlayButton, TransportPill, float_at_bottom
+from .services import children
 from .services.code_render import make_code_renderer
 from .services.preview_client import make_preview
 from .services.render_ahead import RenderAhead
@@ -151,7 +152,6 @@ class MainWindow(QMainWindow):
         # Every panel edit goes through the build service (ADR 0015).
         self.builds = BuildService(self.document, make_worker(adapter.cache_dir(), self), self)
         self.builds.failed.connect(self._on_build_failed)
-        self.builds.prewarm([adapter.default_spec(t) for t in sorted(TEXT_TYPES)])  # library defaults
         # Code layers render in separate processes, only if trusted (ADR 0019).
         self.trust = TrustStore()
         self.code = make_code_renderer(adapter.cache_dir(), self.trust, self)
@@ -681,6 +681,7 @@ class MainWindow(QMainWindow):
             template = "blank"
         if not self.confirm_discard():
             return
+        self._warm_defaults()  # the dialog takes a while: Manim is imported in the worker meanwhile
         settings = self.ask_new_project(self.prefs.option("morph_matching", "smart"), template)
         if settings is None:
             return
@@ -870,14 +871,17 @@ class MainWindow(QMainWindow):
         self.reduce_motion_action.toggled.connect(self._set_reduce_motion)
         menu.addAction(self.reduce_motion_action)
         hints = QGuiApplication.styleHints()
-        if hints is not None:
-            hints.colorSchemeChanged.connect(lambda _scheme: self._follow_system())
+        if hints is not None:  # a method, not a lambda: a closure here would keep this window alive for ever
+            hints.colorSchemeChanged.connect(self._on_color_scheme)
 
     def set_appearance(self, name: str) -> None:
         """Ink, Paper or the system's scheme: remembered, and applied now."""
         self.prefs.set_appearance(name)
         self.appearance_actions[name].setChecked(True)
         theme.set_theme(QApplication.instance(), theme.resolve_appearance(name))
+
+    def _on_color_scheme(self, _scheme=None) -> None:
+        self._follow_system()
 
     def _follow_system(self) -> None:
         if self.prefs.appearance() == "system":
@@ -1006,10 +1010,14 @@ class MainWindow(QMainWindow):
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
         self._update_title()
         self.seek(0.0)
+        # What an earlier project left is garbage now; frozen, its reference cycles would never be collected
+        # (3 MB for every project opened), so everything is thawed and collected before it is frozen again.
+        gc.unfreeze()
         gc.collect()
         gc.freeze()  # measured: removes the gen-2 GC hitches during playback
         self.idle_timer.start()
         self.code.sync(project)
+        self._warm_defaults()
         self._warm_subtitles(project)
         self._media_errors = {}
         self.report_media()
@@ -1350,6 +1358,7 @@ class MainWindow(QMainWindow):
         self._save_preferences()
         self.autosave.timer.stop()
         self.autosave.discard()  # saved, or thrown away on purpose (ADR 0038)
+        children.ask_all_to_stop()  # every helper at once: the stops below then wait for them together
         if exporting:
             if self.export_dialog is not None:
                 self.export_dialog.cancel()
@@ -1398,6 +1407,11 @@ class MainWindow(QMainWindow):
             self.write_python(Path(name))
 
     # -- subtitles (ADR 0035) ---------------------------------------------------
+
+    def _warm_defaults(self) -> None:
+        """Build the library's text objects ahead of time, so adding one never waits. This starts the build
+        worker, which is why it waits for a project: the welcome page runs no helper process."""
+        self.builds.prewarm([adapter.default_spec(t) for t in sorted(TEXT_TYPES)])
 
     def _warm_subtitles(self, project: Project) -> None:
         """Build the subtitles' text in the worker ahead of time; edits never wait for it."""
@@ -2171,6 +2185,7 @@ def run(argv: list[str] | None = None) -> int:
         setup_logging()
     app = QApplication(argv)
     app.setApplicationName("Manim Studio")
+    children.install(app)  # no helper process outlives the application
     prefs = Preferences()
     motion.set_reduced(prefs.toggle("reduce_motion", False))
     theme.apply(app, theme.THEMES[theme.resolve_appearance(prefs.appearance())])  # the studio look (ADR 0040)

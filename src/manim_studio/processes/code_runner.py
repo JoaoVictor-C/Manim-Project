@@ -34,6 +34,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import lifeline
+
 PRELUDE = "from manim import *\nimport numpy as np\n"
 CODE_FILENAME = "<code layer>"  # tracebacks name it, so lines map to the user's code
 PROGRESS_EVERY = 10
@@ -232,6 +234,7 @@ def _emit(message: dict) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     parser = argparse.ArgumentParser(prog="python -m manim_studio.processes.code_runner")
     parser.add_argument("--cache-dir", type=Path, required=True)
     args = parser.parse_args(argv)

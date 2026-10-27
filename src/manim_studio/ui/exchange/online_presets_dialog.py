@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 
+import shiboken6
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QComboBox,
@@ -165,6 +166,8 @@ class OnlinePresetsDialog(QDialog):
         self._set_busy(True)
 
         def finish(callback, value) -> None:
+            if not shiboken6.isValid(self):  # a download that ends after the window was deleted
+                return
             self._set_busy(False)
             callback(value)
 

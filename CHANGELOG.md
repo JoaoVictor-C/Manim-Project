@@ -159,11 +159,33 @@ All notable changes to this project are documented here. The format follows
   worker first). The readable Python export writes the code once as `_build_<name>(...)`.
 
 ### Changed
+- **The editor and its helpers commit a fifth of the memory, and give back what they are not using** (ADR 0064).
+  With a project open and every helper running, 516 MB are committed, from 2.6 GB: numpy started a thread pool
+  per processor core in every Manim process, 700 MB of address space each on a twelve-core machine; it is one
+  thread now (`MANIM_STUDIO_NATIVE_THREADS=N` raises it; exports take the same time). What is resident, 530 MB,
+  is what the helpers hold: the build worker no longer starts with the editor - the welcome page runs no
+  helper at all (232 MB, from 350) - but with the first project, and the build worker, the frame renderer and
+  the code renderer's ready spare are released after ten minutes without work and start again with the next
+  request (249 MB; `MANIM_STUDIO_IDLE_SECONDS=N` changes the ten minutes, `0` keeps them). Also: the icon fonts
+  that are not used are no longer loaded (40 MB), the frames kept ahead of the playhead are limited to 256 MB
+  (it was 512), and the welcome page's animation draws fewer frames while nothing moves, none after a minute
+  and a half, and none while the window is in the background.
 - **The code is grouped by what it does** (ADR 0062). `core/` is now `model`, `editing`, `engine`, `sound`, `code`, `assist` and `exchange`; `ui/` is `style`, `session`, `shell`, `services`, `playback`, `deliver`, `canvas`, `timeline`, `panels`, `code`, `exchange` and `pages`; the helper processes are in `processes/`; the files that ship with the package are in `data/`; the tests follow the code. No file was renamed and no code changed (the import graph, every syntax tree, the tests and a rendered project all match the old tree), so a bare `schema.py` in an older note still names one file; [docs/dev/moved-modules.md](docs/dev/moved-modules.md) maps the old paths. `manim_studio.manim_scene`, `manim_studio.plugins` and `python -m manim_studio` did not move: exported scenes and plugins keep working. `tests/test_architecture.py` now fails when an import points the wrong way. Two gaps in the tests' isolation that the new order exposed are closed (Python objects built, and trusted with `--trust-code`, by one test no longer carry into the next; a closed window is destroyed before the next test starts).
 - Documentation: README, user guide (docs/guide), refreshed architecture and contributing guides,
   link checker (`scripts/check_docs.py`) and a generated shortcuts page (`scripts/gen_shortcuts.py`).
 
 ### Fixed
+- **No helper outlives the editor** (ADR 0064). Ending the editor the hard way (Task Manager, a crash, a closed
+  terminal) left its helper processes running, and one rendering code that never returns kept a core busy and
+  about 150 MB until the computer was restarted. On Windows every helper is now in a job object that the system
+  closes with the editor; every helper also watches the editor that started it (so it works where there are no
+  jobs, and for a helper stuck in user code that never reads its input); and when the application quits the
+  editor ends what is left, with the processes that started. `MANIM_STUDIO_LIFELINE=0` turns it off to debug a
+  helper.
+- **A project that was closed is given back.** Opening a project froze the garbage of the one before it for good
+  (about 3.5 MB for every project opened in a session), and panels kept their windows alive through connections
+  that Qt holds; the editor now stays at the same size however many projects are opened, and the test suite
+  no longer grows to gigabytes.
 - Auto-key on a part of an equation that enters (writes itself in, fades in...) animates the part from
   its start instead of just moving it: a part has the entrance of its parent.
 

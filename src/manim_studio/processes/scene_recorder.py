@@ -47,6 +47,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .. import lifeline
+
 VERSION = 1
 TIME_LIMIT = 60.0  # seconds a recording may take before the editor stops it
 TOLERANCE = 1e-6  # Manim units: a rebuilt object's points must be this close
@@ -1445,6 +1447,7 @@ def _claim_stdout():
 
 
 def main(argv: list[str] | None = None) -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     parser = argparse.ArgumentParser(prog="python -m manim_studio.processes.scene_recorder")
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--file", type=Path, help="record this file at once (no job on stdin)")

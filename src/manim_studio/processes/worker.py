@@ -29,10 +29,13 @@ import time
 from pathlib import Path
 from typing import IO
 
+from .. import lifeline
+
 ERROR_LINES = 6  # enough of a LaTeX error to show the user
 
 
 def main(argv: list[str] | None = None) -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     parser = argparse.ArgumentParser(prog="python -m manim_studio.processes.worker")
     parser.add_argument("--cache-dir", type=Path, required=True)
     args = parser.parse_args(argv)

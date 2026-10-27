@@ -92,3 +92,4 @@ need one.
 | [0061](0061-incremental-code-layers.md) | Incremental code layers: cheaper renders, chapters that are proved against the full render, layers you declare | Accepted |
 | [0062](0062-package-layout.md) | Package layout: folders named for what the code does, and layers that a test checks | Accepted |
 | [0063](0063-lumen-interface.md) | Lumen: a new interface built on the existing design system (tokens, bundled fonts, cards, top bar, palette, toasts) | Accepted |
+| [0064](0064-helper-lifetime-and-memory.md) | Helper lifetime and memory: helpers end with the editor and rest when idle, numpy's threads and the editor's leaks are bounded | Accepted |

@@ -17,12 +17,13 @@ import sys
 import uuid
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
+from PySide6.QtCore import QObject, QProcess, Signal
 
 from ...core.model.schema import Project
 from ...logging_config import get_logger
 from ...render.cairo_export import partial_path
 from ...render.options import RenderOptions
+from ..services import children
 
 log = get_logger(__name__)
 
@@ -85,17 +86,14 @@ class ExportJob(QObject):
             ]
         )
         process.setWorkingDirectory(os.getcwd())  # relative image paths resolve as in the editor
-        env = QProcessEnvironment.systemEnvironment()
-        env.insert("PYTHONUNBUFFERED", "1")
-        env.insert("PYTHONUTF8", "1")
-        process.setProcessEnvironment(env)
+        process.setProcessEnvironment(children.environment(PYTHONUNBUFFERED="1"))
         process.readyReadStandardOutput.connect(self._read_stdout)
         process.readyReadStandardError.connect(self._read_stderr)
         process.finished.connect(self._on_finished)
         process.errorOccurred.connect(self._on_error)
         self._process = process
         log.info("export %s -> %s", self._snapshot.name, self.output)
-        process.start()
+        children.start(process)
 
     def cancel(self) -> None:
         if self._process is None:

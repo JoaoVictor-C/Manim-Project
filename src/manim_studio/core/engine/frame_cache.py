@@ -25,7 +25,10 @@ Span = tuple[float, float]  # [start, end) in seconds
 _NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers", "morph_matching", "helpers"}
 # The scene's length draws nothing: a frame is the same in a longer scene (P7.1).
 _NOT_DRAWN = {"canvas": {"duration", "grow_with_content"}}
-BUDGET = 512 * 2**20  # bytes of compressed frames (B41: 4500-9700 frames)
+# Bytes of compressed frames kept ahead of the playhead (B41: 2200-4800 frames, one to three minutes of a
+# 30 fps scene). It was 512 MB. The frames farthest ahead of the playhead go first, so a long scene still
+# plays smoothly from where it is, and the editor no longer holds half a gigabyte for frames it may not show.
+BUDGET = 256 * 2**20
 
 
 def frame_index(t: float, fps: int) -> int:

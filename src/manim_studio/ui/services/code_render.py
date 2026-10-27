@@ -10,6 +10,10 @@ its place. Rules:
 
 * spares run only while the project has code layers, at most ``max_spares``
   alive (one idle spare is kept ready, a second starts when jobs wait);
+* with ``idle_s`` the ready spare is kept only while the user is working with code: from the last job or
+  ``touch()`` (the Code page calls it when it is shown and when its text changes) until ``idle_s`` seconds
+  have passed. A spare is a Python process with Manim loaded, over 100 MB, so it is released after that,
+  and the next job starts one (its first render then waits for Manim's import);
 * one job per layer: newer code replaces a queued job, and kills a running one
   (single-use processes make killing the normal way to cancel);
 * only trusted code is queued; other layers report ``untrusted``;
@@ -31,7 +35,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
 from ...core.assist import error_hints
 from ...core.code import helpers, limits
@@ -41,6 +45,8 @@ from ...core.engine.evaluator import code_key, start_frame, start_time
 from ...core.model.schema import CODE_TYPES, Project
 from ...logging_config import get_logger
 from ...processes.code_runner import Job
+from . import children
+from .worker_process import IDLE_SECONDS, idle_seconds
 
 log = get_logger(__name__)
 
@@ -112,6 +118,7 @@ class CodeRenderService(QObject):
         timeout_s: float = limits.RENDER_LIMIT,
         program: str = sys.executable,
         args: list[str] | None = None,
+        idle_s: float | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -137,8 +144,21 @@ class CodeRenderService(QObject):
         self._watchdog = QTimer(self)
         self._watchdog.setInterval(250)
         self._watchdog.timeout.connect(self._check_timeouts)
+        self._warm = idle_s is None  # a ready spare is kept (always, or while the user works with code)
+        self._idle = QTimer(self)
+        self._idle.setSingleShot(True)
+        if idle_s:
+            self._idle.setInterval(round(idle_s * 1000))
+            self._idle.timeout.connect(self._cool)
 
     # -- public ----------------------------------------------------------------
+
+    def touch(self) -> None:
+        """The user is working with code (the Code page is shown, text is typed): keep a spare ready."""
+        if self._idle.interval() > 0 and not self._stopped:
+            self._warm = True
+            self._idle.start()
+            self._top_up()
 
     def status(self, layer_id: str) -> CodeStatus | None:
         return self._status.get(layer_id)
@@ -244,6 +264,7 @@ class CodeRenderService(QObject):
     def stop(self) -> None:
         self._stopped = True
         self._watchdog.stop()
+        self._idle.stop()
         self._queue.clear()
         spares, self._spares = self._spares, []  # _on_exit ignores them from now on
         for spare in spares:
@@ -274,6 +295,7 @@ class CodeRenderService(QObject):
         if not any(i == layer_id for i, _ in self._queue):
             self._queue.append((layer_id, job))
             self._set(layer_id, CodeStatus("queued"))
+            self.touch()  # work for a spare: one stays ready for a while after it
         self._dispatch()
 
     def _dispatch(self) -> None:
@@ -296,7 +318,7 @@ class CodeRenderService(QObject):
                 self._kill(spare)
             return
         idle = [s for s in self._spares if s.job is None and not s.cancelled]
-        needed = max(1, len(self._queue)) - len(idle)
+        needed = max(1 if self._warm else 0, len(self._queue)) - len(idle)
         while needed > 0 and len(self._spares) < self.max_spares:
             self._start_spare()
             needed -= 1
@@ -314,16 +336,13 @@ class CodeRenderService(QObject):
         process = QProcess()
         process.setProgram(self._program)
         process.setArguments(self._args)
-        env = QProcessEnvironment.systemEnvironment()
-        env.insert("PYTHONUTF8", "1")
-        env.insert("PYTHONUNBUFFERED", "1")
-        process.setProcessEnvironment(env)
+        process.setProcessEnvironment(children.environment(PYTHONUNBUFFERED="1"))
         spare = _Spare(process)
         process.readyReadStandardOutput.connect(lambda: self._read(spare))
         process.readyReadStandardError.connect(lambda: self._log_stderr(spare))
         process.finished.connect(lambda *_: self._on_exit(spare))
         self._spares.append(spare)
-        process.start()
+        children.start(process)
 
     def _read(self, spare: _Spare) -> None:
         spare.buffer += bytes(spare.process.readAllStandardOutput().data())
@@ -385,6 +404,16 @@ class CodeRenderService(QObject):
         if not self._stopped:
             self._top_up()
             self._dispatch()
+
+    def _cool(self) -> None:
+        """Nothing has been asked for a while: the spares that wait for a job are released."""
+        if any(s.job is not None and not s.done for s in self._spares) or self._queue:
+            self._idle.start()  # still working: look again later
+            return
+        self._warm = False
+        for spare in [s for s in self._spares if s.job is None]:
+            log.info("code render spare idle: released")
+            self._kill(spare)
 
     def _cancel(self, spare: _Spare) -> None:
         spare.cancelled = True
@@ -449,12 +478,16 @@ class NoCodeRenderer(QObject):
     def trust_layers(self, project: Project, layer_ids: list[str]) -> None:
         self.trust.trust([code_of(project, i) for i in layer_ids])
 
+    def touch(self) -> None:
+        pass
+
     def stop(self) -> None:
         pass
 
 
 def make_code_renderer(cache_dir: Path, trust: TrustStore, parent: QObject | None = None):
-    """The real renderer, or none when ``MANIM_STUDIO_CODE=0``."""
+    """The real renderer, or none when ``MANIM_STUDIO_CODE=0``. Its ready spare is released after
+    ``IDLE_SECONDS`` without code work (``MANIM_STUDIO_IDLE_SECONDS``, as for the build worker)."""
     if os.environ.get("MANIM_STUDIO_CODE") == "0":
         return NoCodeRenderer(cache_dir, trust, parent)
-    return CodeRenderService(cache_dir, trust, parent=parent)
+    return CodeRenderService(cache_dir, trust, idle_s=idle_seconds(IDLE_SECONDS), parent=parent)

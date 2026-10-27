@@ -84,6 +84,9 @@ Environment variables:
 | `MANIM_STUDIO_PREVIEW=0` | no preview process: frames are not rendered ahead (ADR 0028) |
 | `MANIM_STUDIO_CODE=0` | code layers are not rendered (ADR 0019) |
 | `MANIM_STUDIO_AUDIO=0` | no sound output: playback follows the wall clock (ADR 0034) |
+| `MANIM_STUDIO_IDLE_SECONDS=N` | seconds a helper may sit unused before it is released (default 600; `0`: never) (ADR 0064) |
+| `MANIM_STUDIO_NATIVE_THREADS=N` | threads numpy's BLAS/OpenMP pools may start in each process (default 1) (ADR 0064) |
+| `MANIM_STUDIO_LIFELINE=0` | helpers do not end with the editor (no job object, no watcher): to debug one on its own (ADR 0064) |
 
 The test suite sets most of these to temporary folders or `0` (`tests/conftest.py`).
 

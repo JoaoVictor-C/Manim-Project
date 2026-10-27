@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from . import lifeline
 from .logging_config import get_logger, setup_logging
 
 log = get_logger(__name__)
@@ -102,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    lifeline.die_with_editor()  # the helper ends with the editor, whatever happens to it
     args = build_parser().parse_args(argv)
     log_file = setup_logging(args.verbose)
     log.debug("command=%s log_file=%s", args.command, log_file)

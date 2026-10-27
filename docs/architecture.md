@@ -115,6 +115,16 @@ flowchart TD
 Each helper can be turned off for tests and debugging: `MANIM_STUDIO_WORKER=0` (build
 synchronously), `MANIM_STUDIO_PREVIEW=0`, `MANIM_STUDIO_CODE=0`, `MANIM_STUDIO_AUDIO=0`.
 
+**Lifetime and memory** ([ADR 0064](adr/0064-helper-lifetime-and-memory.md)). A helper is a Python with Manim
+loaded, about 120 MB, and none outlives the editor: on Windows each is put in a job object that the system closes
+with the editor's process; each also watches the editor that started it (`MANIM_STUDIO_EDITOR_PID`,
+`lifeline.die_with_editor()`), which covers other platforms and a helper stuck in user code that never reads its
+input; and `ui/services/children.py` ends what is left, with the processes it started, when the application
+quits. A helper starts when there is work for it (the welcome page runs none) and the build worker, the frame
+renderer and the code runner's ready spare are released after ten minutes without work
+(`MANIM_STUDIO_IDLE_SECONDS`; `0` keeps them). numpy's thread pools are capped at one thread in every process
+(`MANIM_STUDIO_NATIVE_THREADS`), because each thread reserves memory the moment numpy loads.
+
 ## Module map
 
 Paths are under `src/manim_studio/`; tests under `tests/`.
@@ -131,6 +141,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `manim_scene.py` | `StudioScene`: exported exact scenes play the project through the evaluator | `core/engine/test_python_export.py` |
 | `plugins.py` | public plugin API: `ObjectType`, `Simulation`, `VoiceProvider`, `Param`, `register`, plugin folders and entry points | `test_plugins.py` |
 | `logging_config.py` | console and rotating file logging | `test_logging.py` |
+| `lifeline.py` | helpers end with the editor (job object, watcher, `kill_tree`) and numpy's thread pools stay small | `test_lifeline.py`, `test_editor_lifetime.py` |
 
 ### `core/` - the model and the engine (no Qt)
 
@@ -194,6 +205,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `timeline/graph_model.py`, `timeline/graph_editor.py`, `timeline/curve_editor.py` | the Animate page's graph (pure rules, widget); the easing curve editor | `ui/timeline/test_graph_model.py`, `ui/timeline/test_curve_editor.py` |
 | `panels/layers_panel.py`, `panels/properties_panel.py`, `style/fields.py` | the Layers and Properties panels | `ui/panels/test_layers_panel.py`, `ui/panels/test_properties_panel.py` |
 | `services/render_ahead.py`, `services/preview_client.py`, `services/worker_process.py`, `services/code_render.py` | clients of the helper processes | `ui/services/test_render_ahead.py`, `ui/services/test_worker_process.py`, `ui/services/test_code_render.py` |
+| `services/children.py` | starts every helper (environment, job object) and ends them all when the application quits | `ui/services/test_children.py`, `ui/services/test_idle_release.py` |
 | `deliver/export_job.py`, `deliver/export_dialog.py`, `deliver/render_queue.py` | exports: one process, the dialog, the Deliver queue | `ui/deliver/test_export_job.py`, `ui/deliver/test_export_dialog.py`, `ui/deliver/test_render_queue.py` |
 | `playback/audio_player.py` | plays the mix; its clock drives playback | `ui/playback/test_audio_ui.py` |
 | `shell/clipboard_actions.py`, `shell/autosave.py` | Edit > Cut/Copy/Paste/Duplicate; recovery copies every 30 s | `ui/shell/test_clipboard_ui.py`, `ui/shell/test_autosave.py` |

@@ -580,6 +580,7 @@ class CodePage(Page):
         tab_row.setContentsMargins(8, 6, 8, 0)
         tab_row.setSpacing(6)
         tab_row.addWidget(self.sidebar_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.tabs.setMinimumWidth(90)  # the tabs scroll: a narrow window must not widen the page
         tab_row.addWidget(self.tabs, 1, Qt.AlignmentFlag.AlignBottom)
         for widget in (self.revert_button, self.cancel_button, self.run_button, self.editor_menu_button):
             tab_row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -977,6 +978,7 @@ class CodePage(Page):
             right = min(440, max(360, total * 30 // 100))
             self.split.setSizes([side, total - side - right, right])
         self.window.canvas.set_overlays(self.outline_button.isChecked())
+        self.window.code.touch()  # someone is about to write code: a render process is kept ready
         self._refresh_list(force=True)
         self._ensure_layer()
         self._after_change()
@@ -1469,6 +1471,7 @@ class CodePage(Page):
     def _on_text_changed(self) -> None:
         if self._loading:
             return
+        self.window.code.touch()
         self._syntax_timer.start()
         if self.live_action.isChecked():
             self._live_timer.start()
