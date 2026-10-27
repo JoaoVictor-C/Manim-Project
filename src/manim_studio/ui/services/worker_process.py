@@ -30,6 +30,7 @@ from pathlib import Path
 import shiboken6
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
+from ... import lifeline
 from ...core.code import limits
 from ...logging_config import get_logger
 from . import children
@@ -181,6 +182,12 @@ class WorkerProcess(WorkerClient):
         old, self._process = self._process, None
         if old is not None and shiboken6.isValid(old):
             old.blockSignals(True)
+            pid = int(old.processId())
+            tree = [pid, *lifeline.descendants(pid)] if pid else []
+            lifeline.kill_tree(
+                pid
+            )  # LaTeX too: the next worker must not meet a build still holding its files
+            lifeline.wait_gone(tree, timeout=2.0)
             old.kill()
             old.waitForFinished(1000)
             old.deleteLater()

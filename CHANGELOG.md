@@ -187,7 +187,9 @@ All notable changes to this project are documented here. The format follows
   that Qt holds; the editor now stays at the same size however many projects are opened, and the test suite
   no longer grows to gigabytes.
 - **Cancelling an export** waits until the render and what it started (ffmpeg) are gone before it removes the
-  partial video; on Windows the file was still open for a moment, so removing it failed now and then.
+  partial video; on Windows the file was still open for a moment, so removing it failed now and then. A build
+  worker that is restarted (it took too long) is ended together with its LaTeX first, so the new one never
+  meets a build that still holds the same files.
 - Auto-key on a part of an equation that enters (writes itself in, fades in...) animates the part from
   its start instead of just moving it: a part has the entrance of its parent.
 

@@ -21,6 +21,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from manim_studio import lifeline
 from manim_studio.core.engine import adapter
 from manim_studio.core.engine.warm import warm_key
 from manim_studio.core.model.schema import Spec
@@ -48,6 +49,15 @@ def wait_until(qt_app, condition, timeout: float = 30.0) -> None:
             raise AssertionError("timed out waiting")
         qt_app.processEvents()
         time.sleep(0.01)
+
+
+# A stand-in that starts a child of its own, as the real worker does with LaTeX.
+WITH_CHILD = (
+    "import json,subprocess,sys,time\n"
+    "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+    "print(json.dumps({'ready': True}), flush=True)\n"
+    "time.sleep(60)\n"
+)
 
 
 @pytest.fixture
@@ -96,6 +106,19 @@ def test_a_request_that_takes_too_long_fails_and_the_worker_restarts(make, qt_ap
     assert worker.replies[0][:2] == (1, False) and "longer than" in worker.replies[0][2]
     wait_until(qt_app, lambda: worker.ready)
     assert worker.pid != first_pid
+
+
+def test_a_restart_waits_until_the_old_worker_and_what_it_started_are_gone(make, qt_app) -> None:
+    """The next worker must not meet a LaTeX of the old one that still has the same files open."""
+    worker = make(WITH_CHILD)
+    wait_until(qt_app, lambda: worker.ready)
+    # (on Windows each Python is a launcher and its interpreter: the worker's, the child's and its)
+    wait_until(qt_app, lambda: len(lifeline.descendants(worker.pid)) >= (3 if sys.platform == "win32" else 1))
+    old = [worker.pid, *lifeline.descendants(worker.pid)]
+    worker._restart("a test")
+    assert not any(lifeline.process_alive(pid) for pid in old), "the old worker's tree was still running"
+    wait_until(qt_app, lambda: worker.ready)  # and the new one comes up
+    assert worker.pid not in old
 
 
 def test_a_worker_that_never_starts_makes_the_client_unavailable(make, qt_app) -> None:
