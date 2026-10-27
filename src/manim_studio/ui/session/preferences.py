@@ -22,6 +22,9 @@ from .editor_settings import EditorSettings, from_json, to_json
 
 MAX_RECENT = 10
 FILE_NAME = "manim-studio.ini"
+LAYOUT_VERSION = (
+    2  # 2: Lumen (ADR 0063) rearranged every page, so splitter sizes saved before it no longer fit
+)
 
 
 def _key(path: str | Path) -> str:
@@ -56,6 +59,17 @@ class Preferences:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._settings = QSettings(str(self.path), QSettings.Format.IniFormat)
+        self._forget_old_layouts()
+
+    def _forget_old_layouts(self) -> None:
+        """Splitter sizes and the dock state saved by an older arrangement of the pages would be applied to
+        the new one (panels in odd places, a collapsed stage): drop them once, when the layout changed."""
+        if int(self._settings.value("layout_version", 0)) >= LAYOUT_VERSION:
+            return
+        self._settings.remove("pages")
+        self._settings.remove("window/state")
+        self._settings.setValue("layout_version", LAYOUT_VERSION)
+        self._settings.sync()
 
     # -- recent files ---------------------------------------------------------------------
 

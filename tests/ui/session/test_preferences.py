@@ -506,7 +506,7 @@ def test_splitter_sizes_are_kept_per_page(qt_app, tmp_path) -> None:
     compose.outer.setSizes([420, 700, 280])
     win.show_page("animate")
     animate = win.pages.pages["animate"]
-    animate.top.setSizes([900, 500])
+    animate.top.setSizes([350, 700, 330])
     qt_app.processEvents()
     animate_right = animate.top.sizes()[1]
     win.show_page("compose")
@@ -599,7 +599,7 @@ def test_sizes_of_a_page_never_shown_are_kept_for_the_next_start(qt_app, tmp_pat
     win = start(qt_app, 1400, 900)
     win.load(path)
     win.show_page("animate")
-    win.pages.pages["animate"].top.setSizes([900, 500])
+    win.pages.pages["animate"].top.setSizes([350, 700, 330])
     win.show_page("compose")
     win.close()
     middle = start(qt_app, 1400, 900)  # animate is never shown in this session
@@ -635,3 +635,19 @@ def test_every_new_action_has_a_tooltip(qt_app) -> None:
         assert win.half_action.toolTip()
     finally:
         win.close()
+
+
+def test_sizes_saved_before_the_current_layout_are_dropped_once(tmp_path) -> None:
+    from PySide6.QtCore import QByteArray, QSettings
+
+    path = tmp_path / "old.ini"
+    old = QSettings(str(path), QSettings.Format.IniFormat)
+    old.setValue("pages/compose/0", QByteArray(b"old"))
+    old.setValue("window/state", QByteArray(b"old"))
+    old.setValue("window/geometry", QByteArray(b"keep"))
+    old.sync()
+    prefs = Preferences(path)  # no layout_version in the file: it came from before Lumen
+    assert prefs.page_sizes("compose") == []
+    assert prefs.window()[1] is None and prefs.window()[0] is not None  # the window's place stays
+    prefs.set_page_sizes("compose", [QByteArray(b"new")])
+    assert Preferences(path).page_sizes("compose") != []  # sizes saved now are kept on the next start
