@@ -1,5 +1,6 @@
-"""The Animate page (P6b.2, ADR 0041, decision session 35): the viewer and Properties on top,
-the graph editor of the selected layer's keys in the middle, the timeline at the bottom.
+"""The Animate page (P6b.2, ADR 0041, decision session 35): on top the viewer, the graph editor of the
+selected layer's keys and Properties side by side, the timeline below (Lumen, ADR 0063: the mock-up puts the
+curve beside the preview, not under it).
 
 P7.3 (ADR 0047): the timeline's rows expand into property rows, where each property is keyed,
 retimed, eased and deleted alone; the graph shows the curves of the properties chosen there
@@ -43,7 +44,6 @@ class AnimatePage(Page):
         self.panel_layout.setContentsMargins(0, 0, 0, 0)
         self.panel_layout.setSpacing(0)
         self.outer.addWidget(self.top)
-        self.outer.addWidget(self.panel)
         root = QWidget()
         column = QVBoxLayout(root)
         page_margins(column)
@@ -129,11 +129,12 @@ class AnimatePage(Page):
         if self.graph is None:
             self._make_graph()
         self.top.insertWidget(0, shared.viewer)
-        self.top.insertWidget(1, shared.properties)
-        self.outer.insertWidget(2, shared.timeline)
-        self.top.setStretchFactor(0, 1)
-        self.top.setStretchFactor(1, 0)
-        for index, stretch in enumerate((3, 3, 1)):
+        self.top.insertWidget(1, self.panel)
+        self.top.insertWidget(2, shared.properties)
+        self.outer.insertWidget(1, shared.timeline)
+        for index, stretch in enumerate((2, 3, 0)):
+            self.top.setStretchFactor(index, stretch)
+        for index, stretch in enumerate((3, 1)):
             self.outer.setStretchFactor(index, stretch)
         self._update_props()
 
@@ -141,10 +142,11 @@ class AnimatePage(Page):
         if not getattr(self, "_sized", False):  # first show: a large graph, the timeline's rows
             self._sized = True
             height = max(self.outer.height(), 700)
-            timeline = 190
-            graph = (height - timeline) * 9 // 20
-            self.outer.setSizes([height - timeline - graph, graph, timeline])
+            timeline = 220
+            self.outer.setSizes([height - timeline, timeline])
             width = max(self.top.width(), 1200)
-            self.top.setSizes([width - 320, 320])
+            properties = 316
+            room = width - properties
+            self.top.setSizes([room * 2 // 5, room * 3 // 5, properties])
             self.graph.frame_all()
         self.graph.update()

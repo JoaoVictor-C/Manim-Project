@@ -74,10 +74,10 @@ UNREADABLE_FILE = "cannot read the file"
 
 
 class CompactTable(QTableView):
-    """A table that may shrink to its header and one row (a small window gives the Mix card the room)."""
+    """A table that may shrink to little more than its header (a small window gives the Mix card the room)."""
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(80, 56)
+        return QSize(80, 34)
 
 
 class RowsModel(QAbstractTableModel):
@@ -368,10 +368,10 @@ class AudioPage(Page):
         self.right = self.centre
         self.top = gutter_splitter(
             Qt.Orientation.Horizontal
-        )  # Mix and tables | Narration | viewer, Properties
+        )  # Mix and tables | viewer, Properties | Narration
         self.top.addWidget(self.tables)
-        self.top.addWidget(self.narration_card)
         self.top.addWidget(self.centre)
+        self.top.addWidget(self.narration_card)  # at the right, as in the mock-up (Lumen, ADR 0063)
         self.outer = gutter_splitter(Qt.Orientation.Vertical)  # all of that over the timeline (placed)
         self.outer.addWidget(self.top)
         root = QWidget()
@@ -400,7 +400,7 @@ class AudioPage(Page):
         view.verticalHeader().setDefaultSectionSize(30)
         view.horizontalHeader().setHighlightSections(False)
         view.horizontalHeader().setMinimumSectionSize(56)
-        view.setMinimumHeight(56)
+        view.setMinimumHeight(34)
         return view
 
     def _button(self, text: str, icon: str, tip: str, *, icon_only: bool = False) -> QPushButton:
@@ -491,8 +491,8 @@ class AudioPage(Page):
         if not self._wired:
             self._connect()
             width, height = max(self.top.width(), 1200), max(self.outer.height(), 700)
-            narration_w, properties_w = 470, 320  # first show: the mix and the tables get the rest
-            self.top.setSizes([width - narration_w - properties_w, narration_w, properties_w])
+            narration_w, properties_w = 610, 320  # first show: the mix and the tables get the rest
+            self.top.setSizes([width - narration_w - properties_w, properties_w, narration_w])
             self.outer.setSizes([int(height * 0.74), int(height * 0.26)])
             room = int(height * 0.74)  # the left column: the mix, then the two tables
             self.tables.setSizes([int(room * 0.5), int(room * 0.24), int(room * 0.26)])

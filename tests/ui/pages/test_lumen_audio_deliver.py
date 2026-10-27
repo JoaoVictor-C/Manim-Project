@@ -199,7 +199,7 @@ def test_the_deliver_page_is_three_cards_with_the_viewer_in_the_middle(deliver_p
         "Video for the web",
         "Queue",
     ]
-    assert page.centre.widget(0) is win.viewer and page.centre.widget(1) is page.settings_card
+    assert page.centre.widget(0) is win.viewer_card and page.centre.widget(1) is page.settings_card
     assert page.outer.widget(0) is page.destination_card and page.outer.widget(2) is page.queue_card
     assert list(page.destinations) == ["web", "draft", "hd", "master", "python"]
     assert page.destinations["web"].isChecked() and not page.destinations["draft"].isChecked()

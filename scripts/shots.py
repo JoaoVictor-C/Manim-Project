@@ -36,6 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     os.environ["MANIM_STUDIO_SETTINGS"] = str(work / "settings.ini")
     os.environ.setdefault("MANIM_STUDIO_PREVIEW", "0")
+    os.environ.setdefault("MANIM_STUDIO_MOTION", "0")  # no half-finished slides in a still picture
     os.environ.setdefault("MANIM_STUDIO_CODE", "0")
     os.environ.setdefault("MANIM_STUDIO_AUDIO", "0")
     os.environ.setdefault("MANIM_STUDIO_RECOVERY", str(work / "recovery"))

@@ -2,12 +2,12 @@
 
 Three cards. At the left, **where is it going?**: large selectable destinations (a video for the web, a quick
 draft, Full HD, an archive master - each starts the form from a size and a quality - and the Python scene).
-In the middle, the shared viewer over the chosen destination's **settings** (file, size, frame rate, range,
-quality, subtitles, with estimate tiles) and *Render video* / *Add to queue*; for the Python destination, the
-readable/exact scene with *Save as...*. At the right, the **queue** of exports, run one after another through
-``ExportJob`` (each from the project as it was when it was added): the running job has a progress ring and the
-time left, the finished ones a check. The settings are the page's own state, not the project's; they start
-from the project's canvas.
+In the middle, the shared viewer beside (in a narrow window, over) the chosen destination's **settings**
+(file, size, frame rate, range, quality, subtitles, with estimate tiles) and *Render video* / *Add to queue*;
+for the Python destination, the readable/exact scene with *Save as...*. At the right, the **queue** of
+exports, run one after another through ``ExportJob`` (each from the project as it was when it was added): the
+running job has a progress ring and the time left, the finished ones a check. The settings are the page's own
+state, not the project's; they start from the project's canvas.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -159,6 +159,34 @@ def megabytes(size: float) -> str:
     return f"{size / 1e6:.1f} MB" if size < 1e8 else f"{round(size / 1e6)} MB"
 
 
+class _Reflow(QObject):
+    """Puts a splitter's two parts side by side when there is room (the mock-up: the viewer at the left, the
+    settings at the right) and one over the other when there is not."""
+
+    WIDE = 880
+
+    def __init__(self, splitter) -> None:
+        super().__init__(splitter)
+        self.splitter = splitter
+        splitter.installEventFilter(self)
+
+    def reflow(self, force: bool = False) -> None:
+        splitter = self.splitter
+        wide = splitter.width() >= self.WIDE
+        horizontal = splitter.orientation() == Qt.Orientation.Horizontal
+        if wide == horizontal and not force:
+            return
+        splitter.setOrientation(Qt.Orientation.Horizontal if wide else Qt.Orientation.Vertical)
+        extent = max(splitter.width() if wide else splitter.height(), 700)
+        first = 0.38 if wide else 0.42
+        splitter.setSizes([int(extent * first), int(extent * (1 - first))])
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.splitter and event.type() == QEvent.Type.Resize:
+            self.reflow()
+        return False
+
+
 class DeliverPage(Page):
     name = "deliver"
     title = "Deliver"
@@ -193,9 +221,10 @@ class DeliverPage(Page):
         self.settings_card = self._build_settings()
         self.queue_card = self._build_queue()
 
-        self.outer = gutter_splitter(Qt.Orientation.Horizontal)  # destinations | viewer over settings | queue
-        self.centre = gutter_splitter(Qt.Orientation.Vertical)
+        self.outer = gutter_splitter(Qt.Orientation.Horizontal)  # destinations | viewer, settings | queue
+        self.centre = gutter_splitter(Qt.Orientation.Horizontal)
         self.centre.addWidget(self.settings_card)
+        self._centre_watch = _Reflow(self.centre)
         self.outer.addWidget(self.destination_card)
         self.outer.addWidget(self.centre)
         self.outer.addWidget(self.queue_card)
@@ -544,14 +573,14 @@ class DeliverPage(Page):
 
     def place(self, shared: Shared) -> None:
         self.centre.insertWidget(0, shared.viewer)
+        self._centre_watch.reflow()
 
     def on_show(self) -> None:
         if not getattr(self, "_sized", False):  # first show: the side cards at their natural widths
             self._sized = True
             total = max(self.outer.width(), 1200)
             self.outer.setSizes([280, total - 280 - 360, 360])
-            height = max(self.centre.height(), 700)
-            self.centre.setSizes([int(height * 0.42), int(height * 0.58)])
+            self._centre_watch.reflow(force=True)
         self._follow_default_output()
         if self._python_stale:
             self.refresh_python()
