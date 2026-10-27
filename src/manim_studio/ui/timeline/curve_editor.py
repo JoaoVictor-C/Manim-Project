@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Signal
-from PySide6.QtGui import QPainter, QPainterPath, QPen
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QBrush, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -27,15 +27,14 @@ from PySide6.QtWidgets import (
 
 from ...core.engine import adapter
 from ...core.model.schema import Easing
-from ..style import theme
+from . import paint
+from .paint import colour
 
 Y_RANGE = (-0.5, 1.5)
 MARGIN = 14.0
 HANDLE_PX = 6.0
 GRAB_PX = 10.0
 SAMPLES = 96
-CURVE_COLOR = theme.qcolor(theme.THEME.curve)
-HANDLE_COLOR = theme.qcolor(theme.THEME.curve_handle)
 
 
 def to_widget(rect: QRectF, x: float, y: float) -> QPointF:
@@ -95,32 +94,61 @@ class CurveEditor(QWidget):
     # -- painting ------------------------------------------------------------------
 
     def paintEvent(self, event) -> None:
+        """Lumen (P17.4b): a hairline grid with mono labels, the curve in a gradient stroke with a soft
+        fill under it, its ends as rounded diamonds, the handles as dots on dashed stems."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), theme.qcolor(theme.THEME.track))
+        painter.fillRect(self.rect(), colour("track"))
         rect = self.plot_rect()
-        grid = QPen(theme.qcolor(theme.THEME.grid), 1)
-        painter.setPen(grid)
+        grid = colour("line")
+        for i in range(1, 4):  # quarters of time and of progress
+            a = to_widget(rect, i / 4, 0)
+            painter.fillRect(QRectF(round(a.x()), rect.top(), 1, rect.height()), grid)
+            painter.fillRect(QRectF(rect.left(), round(to_widget(rect, 0, i / 4).y()), rect.width(), 1), grid)
+        strong = colour("line_strong")
+        for y in (0.0, 1.0):  # where the motion starts and ends
+            painter.fillRect(QRectF(rect.left(), round(to_widget(rect, 0, y).y()), rect.width(), 1), strong)
+        painter.fillRect(QRectF(rect.left(), rect.top(), 1, rect.height()), strong)
+        painter.fillRect(QRectF(rect.right(), rect.top(), 1, rect.height()), strong)
+        painter.setFont(paint.font("caption", kind="mono", weight=QFont.Weight.Normal))
+        painter.setPen(colour("faint"))
         for y in (0.0, 1.0):
-            a, b = to_widget(rect, 0, y), to_widget(rect, 1, y)
-            painter.drawLine(a, b)
-        painter.drawLine(to_widget(rect, 0, Y_RANGE[0]), to_widget(rect, 0, Y_RANGE[1]))
-        painter.drawLine(to_widget(rect, 1, Y_RANGE[0]), to_widget(rect, 1, Y_RANGE[1]))
+            painter.drawText(to_widget(rect, 0, y) + QPointF(4, -4), f"{y:g}")
         rate = adapter.rate_func(self.ease)
-        path = QPainterPath(to_widget(rect, 0, rate(0.0)))
+        start = to_widget(rect, 0, rate(0.0))
+        path = QPainterPath(start)
         for i in range(1, SAMPLES + 1):
             x = i / SAMPLES
             path.lineTo(to_widget(rect, x, float(rate(x))))
-        painter.setPen(QPen(CURVE_COLOR, 2))
+        base = to_widget(rect, 0, 0).y()
+        area = QPainterPath(path)
+        area.lineTo(QPointF(rect.right(), base))
+        area.lineTo(QPointF(rect.left(), base))
+        area.closeSubpath()
+        painter.fillPath(area, colour("accent", 0.1))
+        stroke = QLinearGradient(rect.topLeft(), rect.topRight())
+        stroke.setColorAt(0.0, colour("accent"))
+        stroke.setColorAt(1.0, colour("curve"))
+        pen = QPen(QBrush(stroke), 3.0)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
+        ends = (to_widget(rect, 0, 0), to_widget(rect, 1, 1))
         if self.editable:
-            p1, p2 = self.handle_positions()
-            painter.setPen(QPen(HANDLE_COLOR, 1))
-            painter.drawLine(to_widget(rect, 0, 0), p1)
-            painter.drawLine(to_widget(rect, 1, 1), p2)
-            painter.setBrush(HANDLE_COLOR)
-            for p in (p1, p2):
-                painter.drawEllipse(p, HANDLE_PX, HANDLE_PX)
+            handle = colour("curve_handle")
+            stem = QPen(colour("faint"), 1, Qt.PenStyle.CustomDashLine)
+            stem.setDashPattern([3, 3])
+            painter.setPen(stem)
+            for end, p in zip(ends, self.handle_positions(), strict=True):
+                painter.drawLine(end, p)
+            painter.setPen(QPen(colour("key_edge"), 1.2))
+            painter.setBrush(handle)
+            for p in self.handle_positions():
+                painter.drawEllipse(p, HANDLE_PX - 1, HANDLE_PX - 1)
+        for end in ends:  # the segment's two keys
+            paint.paint_key(painter, end, 6.0, colour("key_selected"), False)
         painter.end()
 
     # -- dragging the handles ---------------------------------------------------------

@@ -41,6 +41,8 @@ A thin Qt layer over ``timeline.model`` (geometry and drag rules) and the
 from __future__ import annotations
 
 import contextlib
+import itertools
+import math
 import threading
 from bisect import bisect_right
 from dataclasses import dataclass, field
@@ -49,7 +51,17 @@ from pathlib import Path
 import numpy as np
 from pydantic import ValidationError
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPolygonF
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QKeySequence,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPolygonF,
+)
 from PySide6.QtWidgets import (
     QFileDialog,
     QGraphicsPolygonItem,
@@ -87,7 +99,6 @@ from ...core.sound import audio, subtitles
 from ...logging_config import get_logger
 from ..session import code_drag
 from ..session.document import Document
-from ..style import theme
 from . import curve_editor, graph_model
 from .model import (
     Edge,
@@ -106,13 +117,16 @@ from .model import (
     snap_candidates,
     snapped,
 )
+from .paint import BAR_PAD, colour, paint_bar, paint_key, shade, sub_band
+from .paint import font as _font
+from .paint import shape_pen as _shape_pen
 
 log = get_logger(__name__)
 
 ROW_HEIGHT = 28
 RULER_HEIGHT = 26
-HEADER_WIDTH = 140
-WIDE_HEADER_WIDTH = 200  # while a row is expanded: room for a property's name, value, diamond (P7.3)
+HEADER_WIDTH = 160  # the names column (Lumen: a kind chip, the name)
+WIDE_HEADER_WIDTH = 210  # while a row is expanded: room for a property's name, value, diamond (P7.3)
 SUB_ROW_HEIGHT = 22  # a property row under an expanded object (P7.3)
 TWIRL_X = 9  # the expand arrow's middle in the header, at depth 0
 TWIRL_GRAB = 7
@@ -124,48 +138,54 @@ FIT_MIN_WIDTH = 200  # narrower: not laid out yet, the fit waits
 INDENT_PX = 14  # per level of part layers (ADR 0012)
 EDGE_PX = 6
 CLIP_MARGIN = 4
-KEY_HALF = 4.5  # diamond half size, px
+KEY_HALF = 5.0  # diamond half size (centre to corner), px
 KEY_GRAB_PX = 5.0
 KEY_OFFSET = ROW_HEIGHT - 6  # diamond centre below the row top
 TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
-
-CATEGORY_COLORS = {  # clip categories (ADR 0022), from the theme (ADR 0040)
-    "content": theme.THEME.content,
-    "emphasis": theme.THEME.emphasis,
-    "motion": theme.THEME.motion,
-    "morph": theme.THEME.morph,
-}
-AUDIO_COLOR = theme.qcolor(theme.THEME.sound)
-CUE_COLOR = theme.qcolor(theme.THEME.cue)
-WAVE_COLOR = theme.qcolor(theme.THEME.wave)
 PEAKS_PER_SECOND = 100
 # a shorter sound's waveform is made at once (~0.1 s), a longer one in the background (B70)
 SYNC_PEAKS_SECONDS = 60.0
-LIFETIME_COLOR = theme.qcolor(theme.THEME.lifetime)
-PLAYHEAD_COLOR = theme.qcolor(theme.THEME.playhead)
-BACKGROUND = theme.qcolor(theme.THEME.track)
-RULER_BACKGROUND = theme.qcolor(theme.THEME.ruler)
-TEXT_COLOR = theme.qcolor(theme.THEME.text)
-BAR_TEXT = theme.qcolor(theme.THEME.bar_text)
-SELECTED_EDGE = theme.qcolor(theme.THEME.bar_selected)
-BAR_EDGE = theme.qcolor(theme.THEME.bar_edge)
-KEY_COLOR = theme.qcolor(theme.THEME.key)
-KEY_SELECTED = theme.qcolor(theme.THEME.key_selected)
-KEY_EDGE = theme.qcolor(theme.THEME.key_edge)
 MARKER_GRAB_PX = 6.0  # how near a marker's line a ruler click picks it (ADR 0037)
-GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # the line a snapped drag rests on
-END_COLOR = GUIDE_COLOR  # the scene's end on the timeline, draggable (P7.1)
-SHADE_COLOR = QColor(RULER_BACKGROUND)  # past the scene's end
-SHADE_COLOR.setAlpha(150)
-MUTED_COLOR = theme.qcolor(theme.THEME.muted)
-SUB_BAND = QColor(RULER_BACKGROUND)  # behind a property row (P7.3)
-SUB_BAND.setAlpha(110)
-SUB_CHOSEN = theme.qcolor(theme.THEME.accent)  # behind a property row chosen for the graph
-SUB_CHOSEN.setAlpha(70)
-RUBBER_FILL = QColor(SELECTED_EDGE)  # the rubber band being drawn (U4b)
-RUBBER_FILL.setAlpha(40)
 RUBBER_PX = 4  # a press on empty space moved further than this draws a rubber band
-DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
+
+# Lumen (P17.4b): how the painted timeline looks. Colours are read from ``theme.THEME`` each time
+# something paints (never kept here), so a theme switch repaints in the new colours.
+BAR_GLOW = 6.0  # px around a bar its shadow, ring and glow may reach (inside its bounding box)
+BAND_RADIUS = 6.0  # a layer's lifetime band
+CHIP = 18.0  # the kind chip in a row's header
+CHIP_RADIUS = 6.0
+WAVE_BAR = 2.5  # a waveform's bars and the gap between them
+WAVE_GAP = 1.5
+PILL_HEIGHT = 17.0  # the playhead's time pill on the ruler
+TEXT_KINDS = frozenset({"Text", "MathTex", "Tex", "DecimalNumber"})  # a row's chip: content
+CODE_KINDS = frozenset({"Code", "Python"})  # morph
+MEDIA_KINDS = frozenset({"ImageMobject", "SVGMobject"})  # emphasis; every other object: motion
+_LEGACY_COLOURS = {"BACKGROUND": "track"}  # old module colours, now read from the theme when asked
+
+
+def __getattr__(name: str):
+    """``BACKGROUND`` and the like, as the theme in use has them (they were module constants)."""
+    if name in _LEGACY_COLOURS:
+        return colour(_LEGACY_COLOURS[name])
+    raise AttributeError(name)
+
+
+def kind_token(layer: Layer) -> str:
+    """The clip colour a row's kind chip wears: text content, code morph, media emphasis, else motion."""
+    spec_type = layer.spec.type if layer.spec is not None else ""
+    if layer.spec is None or spec_type in TEXT_KINDS:
+        return "content"
+    if spec_type in CODE_KINDS:
+        return "morph"
+    if spec_type in MEDIA_KINDS:
+        return "emphasis"
+    return "motion"
+
+
+def clock(t: float) -> str:
+    """The playhead's time as its pill shows it: m:ss.cc."""
+    minutes, centis = divmod(round(max(0.0, t) * 100), 6000)
+    return f"{minutes}:{centis // 100:02d}.{centis % 100:02d}"
 
 
 def _number(value: float) -> str:
@@ -192,26 +212,26 @@ class _Layout:
     bottom: float = RULER_HEIGHT  # under the last layer row: the Subtitles row
 
 
-class ClipItem(QGraphicsRectItem):
+class _BarItem(QGraphicsRectItem):
+    """A bar that paints a little outside its rectangle (shadow, ring, glow); hits keep the rectangle."""
+
+    def boundingRect(self) -> QRectF:
+        return self.rect().adjusted(-BAR_GLOW, -BAR_GLOW, BAR_GLOW, BAR_GLOW)
+
+
+class ClipItem(_BarItem):
     def __init__(self, layer_id: str, clip: Clip, rect: QRectF, selected: bool) -> None:
         super().__init__(rect)
         self.layer_id, self.clip_id, self.kind = layer_id, clip.id, clip.kind
+        self.category = clip.info.category  # its colour: the theme's token of that name (ADR 0022)
         self.selected = selected
-        self.setBrush(QBrush(theme.qcolor(CATEGORY_COLORS[clip.info.category])))
-        self.setPen(QPen(SELECTED_EDGE if selected else BAR_EDGE, 2 if selected else 1))
+        self.setPen(_shape_pen(2 if selected else 1))
         self.setZValue(2)
 
     def paint(
         self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
     ) -> None:
-        rect = self.rect()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(self.brush())
-        painter.setPen(self.pen())
-        painter.drawRoundedRect(rect, 4, 4)
-        if rect.width() > 24:
-            painter.setPen(BAR_TEXT)
-            painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.kind)
+        paint_bar(painter, self.rect(), colour(self.category), self.selected, self.kind)
 
 
 class BandItem(QGraphicsRectItem):
@@ -220,9 +240,23 @@ class BandItem(QGraphicsRectItem):
     def __init__(self, layer_id: str, rect: QRectF, selected: bool) -> None:
         super().__init__(rect)
         self.layer_id = layer_id
-        self.setPen(QPen(SELECTED_EDGE, 1) if selected else QPen(Qt.PenStyle.NoPen))
-        self.setBrush(QBrush(LIFETIME_COLOR))
+        self.selected = selected
+        self.setPen(_shape_pen(1) if selected else QPen(Qt.PenStyle.NoPen))
         self.setZValue(1)
+
+    def paint(
+        self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
+    ) -> None:
+        rect = self.rect()
+        r = min(BAND_RADIUS, rect.height() / 2, rect.width() / 2)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(colour("lifetime"))
+        if self.selected:  # it drags the layer: a quiet accent edge says so
+            painter.setPen(QPen(colour("accent_line"), 1))
+            painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), r, r)
+        else:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(rect, r, r)
 
 
 class _PeaksLoader(QObject):
@@ -248,61 +282,79 @@ class _PeaksLoader(QObject):
                 self.ready.emit(path)
 
 
-class AudioItem(QGraphicsRectItem):
+class AudioItem(_BarItem):
     """A sound's bar (ADR 0034): its waveform over the part of the file it plays."""
 
     def __init__(self, clip: AudioClip, rect: QRectF, peaks, selected: bool) -> None:
         super().__init__(rect)
         self.audio_id, self.name = clip.id, clip.name or clip.id
         self.peaks, self.selected = peaks, selected
-        self.setPen(QPen(SELECTED_EDGE if selected else BAR_EDGE, 2 if selected else 1))
+        self.setPen(_shape_pen(2 if selected else 1))
+        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemUsesExtendedStyleOption)  # exposedRect
         self.setZValue(2)
 
     def paint(
         self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
     ) -> None:
         rect = self.rect()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(AUDIO_COLOR)
-        painter.setPen(self.pen())
-        painter.drawRoundedRect(rect, 4, 4)
-        if len(self.peaks):
-            painter.setPen(QPen(WAVE_COLOR, 1))
-            middle, half = rect.center().y(), rect.height() / 2 - 2
-            columns = max(1, int(rect.width()))
-            for i in range(columns):
-                peak = float(self.peaks[min(len(self.peaks) - 1, i * len(self.peaks) // columns)])
-                x = rect.left() + i + 0.5
-                painter.drawLine(QPointF(x, middle - peak * half), QPointF(x, middle + peak * half))
+        sound = colour("sound")
+        paint_bar(painter, rect, sound, self.selected, tint=True)
+        if len(self.peaks):  # rounded bars, each the loudest peak of the columns it covers
+            painter.save()
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setClipRect(rect.adjusted(2, 1, -2, -1))
+            sound.setAlphaF(0.85)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(sound)
+            middle, half = rect.center().y(), rect.height() / 2 - 3
+            step = WAVE_BAR + WAVE_GAP
+            count = len(self.peaks)
+            exposed = option.exposedRect if option is not None else rect
+            first = max(0, int((exposed.left() - rect.left()) // step) - 1)
+            last = min(int(rect.width() // step) + 1, int((exposed.right() - rect.left()) // step) + 2)
+            width = max(rect.width(), 1.0)
+            for i in range(first, last):
+                x = rect.left() + 3 + i * step
+                lo = int((x - rect.left()) / width * count)
+                hi = max(lo + 1, int((x + step - rect.left()) / width * count))
+                if lo >= count:
+                    break
+                peak = float(np.max(self.peaks[lo : min(hi, count)]))
+                h = max(peak * half, 1.0)
+                painter.drawRoundedRect(QRectF(x, middle - h, WAVE_BAR, 2 * h), 1.0, 1.0)
+            painter.restore()
         if rect.width() > 24:
-            painter.setPen(BAR_TEXT)
-            painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, self.name)
+            painter.save()
+            painter.setFont(_font("caption", weight=QFont.Weight.DemiBold))
+            inner = rect.adjusted(BAR_PAD - 4, 0, -BAR_PAD, 0)
+            metrics = painter.fontMetrics()
+            name = metrics.elidedText(self.name, Qt.TextElideMode.ElideRight, int(inner.width() - 10))
+            if name:  # on a chip, so the waveform does not run through the letters
+                chip = QRectF(inner.left(), rect.center().y() - 7, metrics.horizontalAdvance(name) + 10, 14)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(colour("panel", 0.82))
+                painter.drawRoundedRect(chip, 7, 7)
+                painter.setPen(colour("text"))
+                painter.drawText(chip, Qt.AlignmentFlag.AlignCenter, name)
+            painter.restore()
 
 
-class CueItem(QGraphicsRectItem):
+class CueItem(_BarItem):
     """A subtitle's bar (ADR 0035), showing its text."""
 
     def __init__(self, cue: Cue, rect: QRectF, selected: bool) -> None:
         super().__init__(rect)
         self.cue_id, self.text = cue.id, " ".join(cue.text.split())
-        self.setPen(QPen(SELECTED_EDGE if selected else BAR_EDGE, 2 if selected else 1))
+        self.selected = selected
+        self.setPen(_shape_pen(2 if selected else 1))
         self.setToolTip(cue.text)
         self.setZValue(2)
 
     def paint(
         self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
     ) -> None:
-        rect = self.rect()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(CUE_COLOR)
-        painter.setPen(self.pen())
-        painter.drawRoundedRect(rect, 4, 4)
-        if rect.width() > 24:
-            painter.setPen(BAR_TEXT)
-            label = painter.fontMetrics().elidedText(
-                self.text, Qt.TextElideMode.ElideRight, int(rect.width() - 10)
-            )
-            painter.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignmentFlag.AlignVCenter, label)
+        paint_bar(painter, self.rect(), colour("cue"), self.selected, self.text)
 
 
 class KeyItem(QGraphicsPolygonItem):
@@ -318,10 +370,19 @@ class KeyItem(QGraphicsPolygonItem):
         super().__init__(diamond)
         self.setPos(center)
         self.layer_id, self.t, self.props, self.selected = layer_id, t, props, selected
-        self.setBrush(QBrush(KEY_SELECTED if selected else KEY_COLOR))
-        self.setPen(QPen(SELECTED_EDGE if selected else KEY_EDGE, 1.5 if selected else 1))
+        self.setPen(_shape_pen(1.5 if selected else 1))
         self.setToolTip(f"{t:g} s: {', '.join(props)}")
         self.setZValue(3)
+
+    def boundingRect(self) -> QRectF:
+        reach = KEY_HALF + 5.0  # the selected halo
+        return QRectF(-reach, -reach, 2 * reach, 2 * reach)
+
+    def paint(
+        self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
+    ) -> None:
+        fill = colour("key_selected" if self.selected else "key")
+        paint_key(painter, QPointF(0, 0), KEY_HALF, fill, self.selected)
 
 
 class PropKeyItem(KeyItem):
@@ -347,6 +408,25 @@ class LayerHeader(QWidget):
     def __init__(self, view: TimelineView) -> None:
         super().__init__(view)
         self._view = view
+        self.hover: tuple | None = None  # the row under the pointer (``TimelineView.locate``), lit
+        self.setMouseTracking(True)
+
+    def mouseMoveEvent(self, event) -> None:
+        view = self._view
+        y = event.position().y()
+        hover = None
+        if view.project is not None and y >= RULER_HEIGHT:
+            hover = view.locate(y + view.verticalScrollBar().value())
+        if hover != self.hover:
+            self.hover = hover
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if self.hover is not None:
+            self.hover = None
+            self.update()
+        super().leaveEvent(event)
 
     def mousePressEvent(self, event) -> None:
         """A click on a name selects that object (Shift or Ctrl adds), a sound's name that sound;
@@ -383,18 +463,28 @@ class LayerHeader(QWidget):
             view.select_audio_row(view.project.audio[row].id)
 
     def paintEvent(self, event) -> None:
+        """Lumen lanes' heads: a kind chip and the name on the card colour, hairlines between rows,
+        the hovered row lit and the selected ones tinted with the accent."""
         painter = QPainter(self)
-        painter.fillRect(self.rect(), RULER_BACKGROUND)
         view = self._view
-        project = view.project
-        if project is None:
-            return
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         width = view.header_width
+        painter.fillRect(self.rect(), colour("panel"))
+        project = view.project
+        if project is not None:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            self._paint_rows(painter, view, project, width)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.fillRect(QRectF(0, 0, width, RULER_HEIGHT), colour("ruler"))
+        painter.fillRect(QRectF(0, RULER_HEIGHT - 1, width, 1), colour("line"))
+        painter.fillRect(QRectF(width - 1, 0, 1, self.height()), colour("line"))
+        painter.end()
+
+    def _paint_rows(self, painter: QPainter, view: TimelineView, project: Project, width: float) -> None:
         scroll = view.verticalScrollBar().value()
         rows = view.rows()
         index = view.layer_index()
         layout = view.layout()
+        lit = view.highlighted_rows()
         first = max(0, bisect_right(layout.tops, scroll + RULER_HEIGHT) - 1)
         for row in range(first, len(rows)):
             top = layout.tops[row] - scroll
@@ -402,68 +492,161 @@ class LayerHeader(QWidget):
                 break
             layer = rows[row]
             indent = INDENT_PX * depth(project, layer, index)
+            selected = layer.id in lit
+            self._row_back(painter, QRectF(0, top, width, ROW_HEIGHT), selected, ("layer", row, None))
             self._draw_twirl(painter, indent + TWIRL_X, top + ROW_HEIGHT / 2, bool(layout.subs[row]))
-            text = layer.label
-            if indent:
-                text = "\u21b3 " + text
-            painter.setPen(TEXT_COLOR)
-            rect = QRectF(NAME_X + indent, top, width - NAME_X - 4 - indent, ROW_HEIGHT)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, text)
+            size = CHIP - (4 if indent else 0)  # a part's chip is smaller: it hangs off its object
+            chip = QRectF(NAME_X + indent + 1, top + (ROW_HEIGHT - size) / 2, size, size)
+            self._draw_chip(painter, chip, kind_token(layer))
+            painter.setFont(_font("label", weight=QFont.Weight.DemiBold if selected else None))
+            painter.setPen(colour("text"))
+            name = QRectF(chip.right() + 8, top, width - chip.right() - 14, ROW_HEIGHT)
+            text = painter.fontMetrics().elidedText(
+                layer.label, Qt.TextElideMode.ElideRight, int(name.width())
+            )
+            painter.drawText(name, Qt.AlignmentFlag.AlignVCenter, text)
             for i, prop in enumerate(layout.subs[row]):
                 self._draw_prop_row(painter, layer, prop, indent, top + ROW_HEIGHT + i * SUB_ROW_HEIGHT)
-        painter.setPen(TEXT_COLOR)
+            bottom = top + ROW_HEIGHT + len(layout.subs[row]) * SUB_ROW_HEIGHT
+            painter.fillRect(QRectF(0, bottom - 1, width, 1), colour("line"))
         y = layout.bottom - scroll  # the subtitles (ADR 0035)
         if y + ROW_HEIGHT >= RULER_HEIGHT:
-            painter.drawText(QRectF(8, y, width - 12, ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, "Subtitles")
+            self._row_back(painter, QRectF(0, y, width, ROW_HEIGHT), False, ("subtitles", None, None))
+            self._draw_bubble(painter, QPointF(12 + 7, y + ROW_HEIGHT / 2))
+            self._quiet_name(painter, QRectF(36, y, width - 44, ROW_HEIGHT), "Subtitles")
+            painter.fillRect(QRectF(0, y + ROW_HEIGHT - 1, width, 1), colour("line"))
         for i, clip in enumerate(project.audio):  # sounds under the subtitles (ADR 0034)
             y = layout.bottom + (1 + i) * ROW_HEIGHT - scroll
-            if y + ROW_HEIGHT >= RULER_HEIGHT:
-                rect = QRectF(8, y, width - 12, ROW_HEIGHT)
-                painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, "\u266a " + (clip.name or clip.id))
-        painter.fillRect(0, 0, width, RULER_HEIGHT, RULER_BACKGROUND)
+            if y + ROW_HEIGHT < RULER_HEIGHT:
+                continue
+            if y > self.height():
+                break
+            rect = QRectF(0, y, width, ROW_HEIGHT)
+            self._row_back(painter, rect, clip.id == view.selected_audio, ("audio", i, None))
+            self._draw_speaker(painter, QPointF(12 + 7, y + ROW_HEIGHT / 2))
+            self._quiet_name(painter, QRectF(36, y, width - 44, ROW_HEIGHT), clip.name or clip.id)
+            painter.fillRect(QRectF(0, y + ROW_HEIGHT - 1, width, 1), colour("line"))
+
+    def _row_back(self, painter: QPainter, rect: QRectF, selected: bool, where: tuple) -> None:
+        if selected:
+            painter.fillRect(rect, colour("accent_soft"))
+        elif self.hover == where:
+            painter.fillRect(rect, colour("hover"))
+
+    @staticmethod
+    def _quiet_name(painter: QPainter, rect: QRectF, text: str) -> None:
+        """The Subtitles and sound rows' names: muted, as rows that hold no object."""
+        painter.setFont(_font("label"))
+        painter.setPen(colour("muted"))
+        shown = painter.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, int(max(rect.width(), 0)))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter, shown)
+
+    @staticmethod
+    def _draw_chip(painter: QPainter, rect: QRectF, token: str) -> None:
+        """A row's kind chip: its clip colour running into the accent's second end."""
+        base = colour(token)
+        gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        gradient.setColorAt(0.0, shade(base, 0.08))
+        end = colour("accent_2")
+        mixed = QColor(
+            (base.red() * 2 + end.red()) // 3,
+            (base.green() * 2 + end.green()) // 3,
+            (base.blue() * 2 + end.blue()) // 3,
+        )
+        gradient.setColorAt(1.0, mixed)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(gradient))
+        painter.drawRoundedRect(rect, CHIP_RADIUS, CHIP_RADIUS)
+        painter.setPen(QPen(colour("bar_text", 0.22), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), CHIP_RADIUS - 0.5, CHIP_RADIUS - 0.5)
+
+    @staticmethod
+    def _draw_bubble(painter: QPainter, c: QPointF) -> None:
+        """The Subtitles row's sign: a speech bubble."""
+        path = QPainterPath()
+        path.moveTo(c.x() - 6, c.y() - 5)
+        path.lineTo(c.x() + 6, c.y() - 5)
+        path.lineTo(c.x() + 6, c.y() + 3)
+        path.lineTo(c.x() - 2, c.y() + 3)
+        path.lineTo(c.x() - 6, c.y() + 6)
+        path.closeSubpath()
+        pen = QPen(colour("faint"), 1.4)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
+
+    @staticmethod
+    def _draw_speaker(painter: QPainter, c: QPointF) -> None:
+        """A sound row's sign: a speaker, in the sound colour."""
+        path = QPainterPath()
+        path.moveTo(c.x() - 6, c.y() - 2.5)
+        path.lineTo(c.x() - 3, c.y() - 2.5)
+        path.lineTo(c.x() + 1, c.y() - 6)
+        path.lineTo(c.x() + 1, c.y() + 6)
+        path.lineTo(c.x() - 3, c.y() + 2.5)
+        path.lineTo(c.x() - 6, c.y() + 2.5)
+        path.closeSubpath()
+        pen = QPen(colour("sound"), 1.4)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
+        painter.drawArc(QRectF(c.x() - 1, c.y() - 4, 8, 8), -50 * 16, 100 * 16)
 
     @staticmethod
     def _draw_twirl(painter: QPainter, x: float, y: float, expanded: bool) -> None:
-        """The arrow that expands a row: pointing right when closed, down when open."""
+        """The caret that expands a row: pointing right when closed, down when open."""
         h = 3.5
         if expanded:
-            shape = [QPointF(x - h, y - h / 2), QPointF(x + h, y - h / 2), QPointF(x, y + h)]
+            shape = [QPointF(x - h, y - h / 2), QPointF(x, y + h / 2 + 0.5), QPointF(x + h, y - h / 2)]
         else:
-            shape = [QPointF(x - h / 2, y - h), QPointF(x + h, y), QPointF(x - h / 2, y + h)]
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(MUTED_COLOR)
-        painter.drawPolygon(QPolygonF(shape))
+            shape = [QPointF(x - h / 2, y - h), QPointF(x + h / 2 + 0.5, y), QPointF(x - h / 2, y + h)]
+        pen = QPen(colour("muted"), 1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPolyline(QPolygonF(shape))
 
     def _draw_prop_row(self, painter: QPainter, layer: Layer, prop: str, indent: float, y: float) -> None:
         """A property row's header: its name, its value at the playhead and its key diamond,
         filled when the property has a key on the playhead's frame."""
         view = self._view
         chosen = view.prop_layer == layer.id and prop in view.selected_props
-        painter.fillRect(QRectF(0, y, view.header_width, SUB_ROW_HEIGHT), SUB_CHOSEN if chosen else SUB_BAND)
-        left = NAME_X + indent + 8
-        font = painter.font()
-        painter.setPen(TEXT_COLOR)
-        label = QRectF(left, y, 64, SUB_ROW_HEIGHT)
-        painter.drawText(label, Qt.AlignmentFlag.AlignVCenter, PROP_LABELS[prop])
-        small = QFont(font)
-        small.setPointSizeF(max(font.pointSizeF() - 1, 7))
-        painter.setFont(small)
-        painter.setPen(MUTED_COLOR)
+        row = QRectF(0, y, view.header_width, SUB_ROW_HEIGHT)
+        painter.fillRect(row, colour("accent_soft") if chosen else sub_band())
+        if not chosen and self.hover is not None and self.hover[0] == "prop":
+            where = view.locate(y + view.verticalScrollBar().value())
+            if where == self.hover:
+                painter.fillRect(row, colour("hover"))
+        left = NAME_X + indent + CHIP + 9
+        painter.setFont(_font("label", weight=QFont.Weight.Normal))
+        painter.setPen(colour("text" if chosen else "muted"))
+        painter.drawText(
+            QRectF(left, y, 64, SUB_ROW_HEIGHT), Qt.AlignmentFlag.AlignVCenter, PROP_LABELS[prop]
+        )
+        painter.setFont(_font("caption", kind="mono", weight=QFont.Weight.Normal))
+        painter.setPen(colour("faint"))
         value = QRectF(left + 60, y, KEY_BUTTON_X - KEY_BUTTON_GRAB - left - 62, SUB_ROW_HEIGHT)
         text = painter.fontMetrics().elidedText(
             view.value_text(layer, prop), Qt.TextElideMode.ElideLeft, int(max(value.width(), 0))
         )
         painter.drawText(value, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, text)
-        painter.setFont(font)
-        h, cx, cy = KEY_HALF, KEY_BUTTON_X, y + SUB_ROW_HEIGHT / 2
-        keyed = view.keyed_at_playhead(layer, prop)
-        painter.setPen(QPen(KEY_EDGE if keyed else MUTED_COLOR, 1))
-        painter.setBrush(KEY_COLOR if keyed else Qt.BrushStyle.NoBrush)
-        painter.drawPolygon(
-            QPolygonF([QPointF(cx, cy - h), QPointF(cx + h, cy), QPointF(cx, cy + h), QPointF(cx - h, cy)])
-        )
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+        centre = QPointF(KEY_BUTTON_X, y + SUB_ROW_HEIGHT / 2)
+        if view.keyed_at_playhead(layer, prop):
+            paint_key(painter, centre, KEY_HALF - 0.5, colour("key"), False)
+        else:  # no key on this frame: an outline to click
+            side = (KEY_HALF - 0.5) * 1.4142
+            painter.save()
+            painter.translate(centre)
+            painter.rotate(45)
+            painter.setPen(QPen(colour("faint"), 1.2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(QRectF(-side / 2, -side / 2, side, side), 1.5, 1.5)
+            painter.restore()
 
 
 @dataclass
@@ -561,7 +744,6 @@ class TimelineView(QGraphicsView):
         self.setScene(QGraphicsScene(self))
         self.setAcceptDrops(True)
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        self.setBackgroundBrush(BACKGROUND)
         self.header_width = HEADER_WIDTH  # wider while a row is expanded (P7.3)
         self.setViewportMargins(HEADER_WIDTH, 0, 0, 0)
         self.setMouseTracking(True)
@@ -674,6 +856,9 @@ class TimelineView(QGraphicsView):
             return
         selected = (layer_id, clip_id) if layer_id and clip_id else None
         selected_key = (layer_id, key_time) if layer_id and key_time is not None else None
+        if layer_id != self._layer_id:  # the selected row is tinted
+            self.header.update()
+            self.viewport().update()
         self._layer_id = layer_id
         dropped = self.prop_layer is not None and layer_id != self.prop_layer
         if dropped:  # another object: its properties were not chosen (P7.3)
@@ -692,6 +877,13 @@ class TimelineView(QGraphicsView):
         if ids != self.picked_rows:
             self.picked_rows = ids
             self.sync()
+
+    def highlighted_rows(self) -> set[str]:
+        """The rows drawn selected: the selected object and every selected layer."""
+        rows = set(self.picked_rows)
+        if self._layer_id is not None:
+            rows.add(self._layer_id)
+        return rows
 
     def rows_draggable(self) -> set[str]:
         """The layers whose band drags them: the selected rows, while no clip or key is picked."""
@@ -1372,100 +1564,185 @@ class TimelineView(QGraphicsView):
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
         """The property rows' bands, only those in view: as scene items, a thousand full-width
         rectangles made every rebuild's ``QGraphicsScene.clear`` superlinear (B68)."""
-        super().drawBackground(painter, rect)
-        if not self.expanded or self.project is None:
+        painter.fillRect(rect, colour("track"))
+        project = self.project
+        if project is None:
             return
         layout, rows = self.layout(), self.rows()
+        left, span = rect.left(), rect.width()
+        lit = self.highlighted_rows()
+        hairline = colour("line")
         first = max(0, bisect_right(layout.tops, rect.top()) - 1)
-        for row in range(first, len(rows)):
+        for row in range(first, len(rows)):  # the selected rows tinted, the property rows banded
             top = layout.tops[row]
             if top > rect.bottom():
                 break
-            chosen_row = self.prop_layer == rows[row].id
+            layer = rows[row]
+            if layer.id in lit:
+                painter.fillRect(QRectF(left, top, span, ROW_HEIGHT), colour("accent_soft"))
+            chosen_row = self.prop_layer == layer.id
             for i, prop in enumerate(layout.subs[row]):
-                band = SUB_CHOSEN if chosen_row and prop in self.selected_props else SUB_BAND
+                chosen = chosen_row and prop in self.selected_props
                 y = top + ROW_HEIGHT + i * SUB_ROW_HEIGHT
-                painter.fillRect(QRectF(rect.left(), y, rect.width(), SUB_ROW_HEIGHT), band)
+                painter.fillRect(
+                    QRectF(left, y, span, SUB_ROW_HEIGHT), colour("accent_soft") if chosen else sub_band()
+                )
+                self._draw_key_span(painter, layer, prop, y + SUB_ROW_HEIGHT / 2, chosen)
+        # the time grid: a faint line at every ruler step
+        step = _tick_step(self.scale.px_per_second)
+        t = max(0.0, math.floor(self.scale.t(left) / step) * step)
+        while (x := self.scale.x(t)) <= rect.right():
+            painter.fillRect(QRectF(round(x), max(rect.top(), RULER_HEIGHT), 1, rect.height()), hairline)
+            t += step
+        # a hairline under every row
+        bottoms = [
+            layout.tops[row] + ROW_HEIGHT + len(layout.subs[row]) * SUB_ROW_HEIGHT for row in range(len(rows))
+        ]
+        bottoms += [layout.bottom + (1 + i) * ROW_HEIGHT for i in range(1 + len(project.audio))]
+        for bottom in bottoms:
+            if rect.top() <= bottom <= rect.bottom() + 1:
+                painter.fillRect(QRectF(left, bottom - 1, span, 1), hairline)
+
+    def _draw_key_span(self, painter: QPainter, layer: Layer, prop: str, y: float, chosen: bool) -> None:
+        """On a property row, the line from each key to the next: the accent's gradient."""
+        keys = sorted(key.t for key in layer.tracks.get(prop, []))
+        if len(keys) < 2:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        opacity = 0.75 if chosen else 0.5
+        for a, b in itertools.pairwise(keys):
+            xa, xb = self.scale.x(a), self.scale.x(b)
+            gradient = QLinearGradient(QPointF(xa, y), QPointF(xb, y))
+            gradient.setColorAt(0.0, colour("accent", opacity))
+            gradient.setColorAt(1.0, colour("accent_2", opacity))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(gradient))
+            painter.drawRoundedRect(QRectF(xa, y - 1, xb - xa, 2), 1, 1)
+        painter.restore()
 
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
         project = self.project
         painter.save()
         painter.resetTransform()  # viewport coordinates: ruler and playhead stay put
         width = self.viewport().width()
-        painter.fillRect(0, 0, width, RULER_HEIGHT, RULER_BACKGROUND)
+        height = self.viewport().height()
+        painter.fillRect(QRectF(0, 0, width, RULER_HEIGHT), colour("ruler"))
+        painter.fillRect(QRectF(0, RULER_HEIGHT - 1, width, 1), colour("line"))
         if project is not None:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             end_x = self._viewport_x(project.canvas.duration)
             if end_x < width:  # past the scene's end: dimmed, with the end line to drag (P7.1)
                 painter.fillRect(
-                    QRectF(max(end_x, 0), RULER_HEIGHT, width - max(end_x, 0), self.viewport().height()),
-                    SHADE_COLOR,
+                    QRectF(max(end_x, 0), RULER_HEIGHT, width - max(end_x, 0), height),
+                    colour("ruler", 0.6),
                 )
             self._draw_ticks(painter, width, max(project.canvas.duration, self.reach()))
             if 0 <= end_x <= width:
-                painter.setPen(QPen(END_COLOR, 2))
-                painter.drawLine(QPointF(end_x, 0), QPointF(end_x, self.viewport().height()))
+                painter.setPen(QPen(colour("guide"), 2))
+                painter.drawLine(QPointF(end_x, 0), QPointF(end_x, height))
             self._draw_markers(painter, width, project)
             if self.guide is not None:
                 gx = self._viewport_x(self.guide)
-                painter.setPen(QPen(GUIDE_COLOR, 1, Qt.PenStyle.DashLine))
-                painter.drawLine(QPointF(gx, 0), QPointF(gx, self.viewport().height()))
+                pen = QPen(colour("guide"), 1, Qt.PenStyle.CustomDashLine)
+                pen.setDashPattern([4, 3])
+                painter.setPen(pen)
+                painter.drawLine(QPointF(gx, 0), QPointF(gx, height))
             if self.drop_at is not None:  # dragged code lands here: a line and a flag on the ruler
                 dx = self._viewport_x(self.drop_at)
-                painter.setPen(QPen(DROP_COLOR, 2))
-                painter.drawLine(QPointF(dx, 0), QPointF(dx, self.viewport().height()))
-                painter.setBrush(DROP_COLOR)
+                painter.setPen(QPen(colour("accent"), 2))
+                painter.drawLine(QPointF(dx, 0), QPointF(dx, height))
+                painter.setBrush(colour("accent"))
                 painter.drawPolygon(QPolygonF([QPointF(dx - 5, 0), QPointF(dx + 5, 0), QPointF(dx, 7)]))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-            x = self._viewport_x(self.playhead)
-            painter.setPen(QPen(PLAYHEAD_COLOR, 2))
-            painter.drawLine(QPointF(x, 0), QPointF(x, self.viewport().height()))
+            self._draw_playhead(painter, self._viewport_x(self.playhead), height)
             if self.rubber is not None:  # the rubber band being drawn (U4b)
-                painter.setPen(QPen(SELECTED_EDGE, 1, Qt.PenStyle.DashLine))
-                painter.setBrush(RUBBER_FILL)
-                painter.drawRect(self.mapFromScene(self.rubber).boundingRect())
+                painter.setPen(QPen(colour("accent_line"), 1))
+                painter.setBrush(colour("accent_soft"))
+                box = QRectF(self.mapFromScene(self.rubber).boundingRect())
+                painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.restore()
 
+    def _draw_playhead(self, painter: QPainter, x: float, height: float) -> None:
+        """A 2 px line in the accent's gradient with a soft glow, and its time in a pill on the ruler."""
+        glow = colour("accent_2")
+        for spread, alpha in ((7.0, 0.06), (4.0, 0.12)):
+            glow.setAlphaF(alpha)
+            painter.fillRect(QRectF(x - spread / 2, 0, spread, height), glow)
+        gradient = QLinearGradient(QPointF(x, 0), QPointF(x, height))
+        gradient.setColorAt(0.0, colour("accent_2"))
+        gradient.setColorAt(1.0, colour("accent"))
+        painter.fillRect(QRectF(x - 1, 0, 2, height), QBrush(gradient))
+        painter.setFont(_font("caption", kind="mono", weight=QFont.Weight.DemiBold))
+        label = clock(self.playhead)
+        text_width = painter.fontMetrics().horizontalAdvance(label)
+        pill_width = text_width + 14
+        left = min(max(x - pill_width / 2, 1.0), self.viewport().width() - pill_width - 1)  # kept in view
+        pill = QRectF(left, (RULER_HEIGHT - PILL_HEIGHT) / 2, pill_width, PILL_HEIGHT)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(colour("shadow", 0.35))
+        painter.drawRoundedRect(pill.translated(0, 1), 7, 7)
+        painter.setBrush(colour("accent"))
+        painter.drawRoundedRect(pill, 7, 7)
+        painter.setPen(colour("on_accent"))
+        painter.drawText(pill, Qt.AlignmentFlag.AlignCenter, label)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
     def _draw_ticks(self, painter: QPainter, width: int, duration: float) -> None:
+        """Tick marks in the strong hairline at the ruler's foot, mono labels above them in faint."""
         step = _tick_step(self.scale.px_per_second)
-        painter.setPen(TEXT_COLOR)
-        painter.setFont(QFont(painter.font().family(), 8))
+        painter.setFont(_font("caption", kind="mono", weight=QFont.Weight.Normal))
+        metrics = painter.fontMetrics()
+        tick, label = colour("line_strong"), colour("faint")
         first = max(0, int(self.scale.t(self.mapToScene(0, 0).x()) / step))
         t = first * step
         while t <= duration + 1e-9:
             x = self._viewport_x(t)
             if x > width:
                 break
-            painter.drawLine(QPointF(x, RULER_HEIGHT - 6), QPointF(x, RULER_HEIGHT))
-            painter.drawText(QPointF(x + 3, RULER_HEIGHT - 9), _tick_label(t, step))
+            painter.fillRect(QRectF(round(x), RULER_HEIGHT - 7, 1, 6), tick)
+            middle = self._viewport_x(t + step / 2)  # a half step: a shorter tick
+            if middle <= width:
+                painter.fillRect(QRectF(round(middle), RULER_HEIGHT - 4, 1, 3), tick)
+            text = _tick_label(t, step)
+            left = max(x - metrics.horizontalAdvance(text) / 2, 3.0)
+            painter.setPen(label)
+            painter.drawText(QPointF(left, RULER_HEIGHT - 11), text)
             t += step
 
     def _draw_markers(self, painter: QPainter, width: int, project: Project) -> None:
-        """Flags on the ruler with their names, and a faint line through the rows (ADR 0037)."""
-        font = QFont(painter.font().family(), 8)
+        """Flags on the ruler with their names, and a faint line through the rows (ADR 0037). Marker
+        colours are the document's; the chip behind a name and the edges are the theme's."""
         height = self.viewport().height()
         for marker in project.markers:
             x = self._viewport_x(marker.t)
             if x < -40 or x > width:
                 continue
-            colour = QColor(marker.colour)
+            ink = QColor(marker.colour)
             selected = marker.id == self.selected_marker
-            line = QColor(colour)
-            line.setAlpha(110)
+            line = QColor(ink)
+            line.setAlphaF(0.45)
             painter.setPen(QPen(line, 1))
             painter.drawLine(QPointF(x, RULER_HEIGHT), QPointF(x, height))
-            painter.setPen(QPen(SELECTED_EDGE if selected else colour.darker(150), 1.5 if selected else 1))
-            painter.setBrush(colour)
-            painter.drawPolygon(QPolygonF([QPointF(x, 2), QPointF(x + 9, 6), QPointF(x, 10), QPointF(x, 2)]))
-            painter.drawLine(QPointF(x, 2), QPointF(x, RULER_HEIGHT))
+            painter.setPen(QPen(ink, 1.5))
+            painter.drawLine(QPointF(x, 3), QPointF(x, RULER_HEIGHT - 1))
+            flag = QPainterPath()
+            flag.addRoundedRect(QRectF(x - 0.75, 2, 9, 8), 2.5, 2.5)
+            painter.setPen(
+                QPen(colour("bar_selected") if selected else colour("key_edge"), 1.5 if selected else 1)
+            )
+            painter.setBrush(ink)
+            painter.drawPath(flag)
             if marker.name:
-                font.setBold(selected)
-                painter.setFont(font)
-                text = painter.fontMetrics().boundingRect(marker.name)
-                box = QRectF(x + 11, 1, text.width() + 6, 12)
-                painter.fillRect(box, RULER_BACKGROUND)
-                painter.setPen(colour.lighter(130) if not selected else SELECTED_EDGE)
-                painter.drawText(box.adjusted(3, 0, 0, 0), Qt.AlignmentFlag.AlignVCenter, marker.name)
+                painter.setFont(_font("caption", weight=QFont.Weight.DemiBold if selected else None))
+                text_width = painter.fontMetrics().horizontalAdvance(marker.name)
+                box = QRectF(x + 11, 1, text_width + 10, 13)
+                painter.setPen(QPen(colour("accent_line") if selected else colour("line"), 1))
+                painter.setBrush(colour("raised"))
+                painter.drawRoundedRect(box, 6.5, 6.5)
+                painter.setPen(colour("text") if selected else ink)
+                painter.drawText(box, Qt.AlignmentFlag.AlignCenter, marker.name)
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def _viewport_x(self, t: float) -> float:
