@@ -50,6 +50,11 @@ machine (twelve cores, 15.6 GB), with `examples/euler.json` open and every helpe
      helper to stop at once instead of one after another.
 
   `MANIM_STUDIO_LIFELINE=0` turns layers 1 and 2 off, to debug a helper that must outlive the editor.
+
+  Ending a helper on purpose is the same call: cancelling an export kills the render's whole tree and waits for it
+  (`lifeline.wait_gone`) before the partial video is removed. On Windows a killed ffmpeg lets go of its file a
+  moment later; the cancel test failed in a third of its runs for that reason, and in most once the helpers were
+  in the job.
 - **Helpers start when there is work and rest when there is none.** The build worker starts with the first request
   (`WorkerProcess(lazy=True)`; library defaults are warmed when a project opens or the New project dialog opens, not at
   start-up, so the welcome page runs no helper), and the build worker, the frame renderer and the code renderer's ready
@@ -105,6 +110,7 @@ machine (twelve cores, 15.6 GB), with `examples/euler.json` open and every helpe
 
 - Test: `tests/test_lifeline.py` (job object, watcher, `kill_tree`, thread cap)
 - Test: `tests/ui/services/test_children.py` (environment, start, `stop_all`)
+- Test: `tests/ui/deliver/test_export_job.py::test_cancel_kills_the_render_and_keeps_the_old_video`
 - Test: `tests/ui/services/test_idle_release.py` (release and restart of the three helpers; lazy start)
 - Test: `tests/test_editor_lifetime.py::test_killing_the_editor_leaves_no_helper_behind`,
   `::test_killing_the_editor_ends_a_code_render_stuck_in_an_endless_loop`,
