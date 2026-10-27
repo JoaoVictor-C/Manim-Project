@@ -97,7 +97,6 @@ NAMES: dict[str, str] = {
     # Lumen panels (P17.4a): carets, the filter, layer kinds
     "caret-down": "caret-down",
     "caret-right": "caret-right",
-    "search": "magnifying-glass",
     "more": "dots-three",
     "lock": "lock-simple",
     "maths": "math-operations",
@@ -106,7 +105,6 @@ NAMES: dict[str, str] = {
     "line": "line-segment",
     "axes": "chart-line",
     "group": "selection-all",
-    "image": "image",
     "number": "hash",
     "object": "cube",
     "part": "puzzle-piece",
