@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 
 from ...core.editing import library
 from ...render import preset_thumbs
-from ..style import theme
+from ..style import icons, theme
 
 PRESET_ROLE = Qt.ItemDataRole.UserRole  # the Preset on a card
 USER_ROLE = Qt.ItemDataRole.UserRole + 1  # True for a preset of the user's own
@@ -140,15 +140,27 @@ def card_icon(pixmap: QPixmap) -> QIcon:
 
 
 def grid_style(c: theme.Colours | None = None) -> str:
-    """The cards' look, from the tokens."""
+    """The cards' look, from the tokens (Lumen: a recessed grid of rounded cards; the chosen one is
+    tinted with the accent and ringed, as a selected layer row is)."""
     c = c or theme.THEME
-    r, s = theme.RADIUS, theme.SPACE
+    r, s = theme.RADIUS_ROW, theme.SPACE
     return f"""
-QListView#presetGrid {{ background: {c.field}; padding: {s}px; }}
-QListView#presetGrid::item {{ border-radius: {r}px; padding: {s}px; color: {c.text}; }}
-QListView#presetGrid::item:hover {{ background: {c.raised}; }}
-QListView#presetGrid::item:selected {{ background: {c.accent}; color: {c.on_accent}; }}
+QListView#presetGrid {{
+    background: {c.field}; padding: {2 * s}px; border: 1px solid {theme.css(c.line)};
+    border-radius: {theme.RADIUS_CARD}px;
+}}
+QListView#presetGrid::item {{
+    border-radius: {r}px; padding: {s}px; color: {c.text}; border: 1px solid transparent;
+}}
+QListView#presetGrid::item:hover {{ background: {c.raised}; border-color: {theme.css(c.line)}; }}
+QListView#presetGrid::item:selected {{
+    background: {theme.css(c.accent_soft)}; color: {c.text}; border-color: {theme.css(c.accent_line)};
+}}
+QLineEdit#presetSearch {{ min-height: 24px; }}
 """
+
+
+theme.register_rules(grid_style)
 
 
 class PresetGrid(QListWidget):
@@ -171,7 +183,6 @@ class PresetGrid(QListWidget):
         self.setSelectionMode(QListView.SelectionMode.SingleSelection)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.viewport().setMouseTracking(True)
-        self.setStyleSheet(grid_style())
         self.itemDoubleClicked.connect(lambda item: self.applyRequested.emit(item))
 
     def viewportEvent(self, event: QEvent) -> bool:
@@ -207,6 +218,8 @@ class PresetsBrowser(QDialog):
         self._pixmaps: dict[tuple[str, bool], list[QPixmap]] = {}
 
         self.search = QLineEdit()
+        self.search.setObjectName("presetSearch")
+        self.search.addAction(icons.icon("search", tint="faint"), QLineEdit.ActionPosition.LeadingPosition)
         self.search.setPlaceholderText("Search presets by name or description")
         self.search.setClearButtonEnabled(True)
         self.search.setToolTip("Only the presets whose name or description has every word typed")
@@ -223,23 +236,33 @@ class PresetsBrowser(QDialog):
         self.grid.currentItemChanged.connect(self._on_current)
         self.status = QLabel()
         self.status.setWordWrap(True)
-        self.status.setProperty("role", "readout")
+        self.status.setProperty("role", "muted")
         self.apply_button = QPushButton("Apply")
         self.apply_button.setToolTip("Put the chosen preset on the selected layers (one undo step)")
         self.apply_button.setAutoDefault(False)
+        self.apply_button.setProperty("role", "primary")  # the one primary action of the dialog
         self.apply_button.clicked.connect(self.apply_current)
         self.close_button = QPushButton("Close")
         self.close_button.setToolTip("Close the browser; what was applied stays")
         self.close_button.setAutoDefault(False)
+        self.close_button.setProperty("role", "ghost")
         self.close_button.clicked.connect(self.close)
 
+        # Lumen dialog: the search and the tabs on top, the cards, then the status and the actions
+        # (right-aligned, the primary last).
+        head = QHBoxLayout()
+        head.setSpacing(3 * theme.SPACE)
+        head.addWidget(self.tabs, 1)
+        head.addWidget(self.search, 1)
         buttons = QHBoxLayout()
+        buttons.setSpacing(2 * theme.SPACE)
         buttons.addWidget(self.status, 1)
-        buttons.addWidget(self.apply_button)
         buttons.addWidget(self.close_button)
+        buttons.addWidget(self.apply_button)
         layout = QVBoxLayout(self)
-        layout.addWidget(self.search)
-        layout.addWidget(self.tabs)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(3 * theme.SPACE)
+        layout.addLayout(head)
         layout.addWidget(self.grid, 1)
         layout.addLayout(buttons)
 

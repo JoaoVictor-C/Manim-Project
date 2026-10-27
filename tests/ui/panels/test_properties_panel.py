@@ -471,3 +471,53 @@ def test_editing_a_part_key_retargets_it_or_is_refused(part_panel) -> None:
     part_panel.fields["part.occurrence"].commit(2)  # there is one c^2
     assert part_panel.project.layer("b").part.occurrence == 0
     assert part_panel.messages and "occurs 1 time, not 2" in part_panel.messages[-1]
+
+
+# -- Lumen sections and fields (P17.4a) -------------------------------------------------------
+
+
+def test_sections_collapse_and_stay_collapsed_for_the_next_selection(panel) -> None:
+    panel.show_layer("box")
+    assert {"Layer", "Square", "Style", "Transform", "Lifetime"} <= set(panel.sections)
+    panel.sections["Style"].caret.click()
+    assert not panel.fields["style.fill"].widget.isVisibleTo(panel)
+    panel.show_layer("dot")
+    assert panel.sections["Style"].is_collapsed()
+    assert not panel.sections["Transform"].is_collapsed()  # the others stay open
+    panel.sections["Style"].caret.click()
+    panel.show_layer("box")
+    assert not panel.sections["Style"].is_collapsed()
+
+
+def test_labels_sit_inside_number_fields_and_the_title_shows_the_kind(panel) -> None:
+    panel.show_layer("ball")
+    assert panel.fields["base.scale"].widget.inside.label.text() == "Scale"
+    assert panel.fields["base.rotation"].widget.inside.unit.text() == "deg"
+    assert panel.fields["base.position"].x.inside.label.text() == "X"
+    assert panel.fields["style.fill_opacity"].widget.inside.label.text() == "Opacity"
+    assert panel.title.name.text() == "ball" and panel.title.detail.text() == "Circle"
+    assert panel.title.chip.kind.key == "shape"
+    panel.show_clip("ball", "i")
+    assert panel.title.chip.kind.key == "clip" and "Indicate" in panel.title.name.text()
+
+
+def test_the_transform_diamond_shows_and_sets_keyframes(panel) -> None:
+    panel.show_layer("ball")  # its scale is keyed
+    button, toggles = panel._section_keys
+    assert button.isChecked() and len(toggles) == 4
+    menu = button.menu()
+    menu.aboutToShow.emit()
+    actions = {a.text(): a for a in menu.actions()}
+    assert actions["Animate scale"].isChecked() and not actions["Animate position"].isChecked()
+    actions["Animate position"].trigger()
+    assert "position" in layer(panel, "ball").tracks
+    assert undo_texts(panel)[-1] == "Animate position"
+
+
+def test_opacity_is_a_slider_that_commits_once(panel) -> None:
+    panel.show_layer("box")
+    field = panel.fields["base.opacity"]
+    assert field.widget.readout.text() == "100%"
+    field.widget.slider.setValue(500)
+    assert layer(panel, "box").base.opacity == pytest.approx(0.5)
+    assert undo_texts(panel)[-1] == "Change opacity"

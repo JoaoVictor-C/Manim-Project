@@ -35,7 +35,7 @@ from ...core.model import glyph_colours as gc
 from ...core.model import parts
 from ...core.model.schema import Project
 from ..style import theme
-from ..style.fields import pick_colour
+from ..style.fields import SwatchButton, pick_colour, set_error
 
 MARGIN = 24  # px around the glyphs in the preview
 SWATCH = 24  # px: one square of the strip
@@ -269,14 +269,18 @@ class TwoColoursDialog(QDialog):
         self.setWindowTitle(title)
         form = QFormLayout(self)
         self.buttons_ = []
+        form.setContentsMargins(16, 16, 16, 16)
+        form.setSpacing(2 * theme.SPACE)
         for label, colour in zip(labels, colours, strict=True):
-            button = QPushButton()
+            button = SwatchButton()
             button.setToolTip(f"Choose the {label.lower()} colour")
             button.clicked.connect(lambda _=False, b=button: self._pick(b))
             self._show(button, colour)
             form.addRow(f"{label}:", button)
             self.buttons_.append(button)
         box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        box.button(QDialogButtonBox.StandardButton.Ok).setProperty("role", "primary")
+        box.button(QDialogButtonBox.StandardButton.Cancel).setProperty("role", "ghost")
         box.accepted.connect(self.accept)
         box.rejected.connect(self.reject)
         form.addRow(box)
@@ -287,10 +291,10 @@ class TwoColoursDialog(QDialog):
             self._show(button, colour)
 
     @staticmethod
-    def _show(button: QPushButton, colour: str) -> None:
+    def _show(button: SwatchButton, colour: str) -> None:
         button.setProperty("colour", colour)
         button.setText(colour)
-        button.setStyleSheet(f"background: {colour}; color: {theme.readable_on(colour)};")
+        button.set_colour(colour)
 
     def colours(self) -> tuple[str, str]:
         first, second = (b.property("colour") for b in self.buttons_)
@@ -389,6 +393,11 @@ class GlyphColoursDialog(QDialog):
         )
         self.ok_button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         self.ok_button.setToolTip("Apply the colours (one undo step)")
+        self.ok_button.setProperty("role", "primary")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setProperty("role", "ghost")
+        self.reset_button.setProperty("role", "ghost")
+        self.status.setProperty("role", "muted")
+        self.status.setProperty("normalRole", "muted")
         self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setToolTip(
             "Close without changing anything"
         )
@@ -401,7 +410,10 @@ class GlyphColoursDialog(QDialog):
         )
         hint.setWordWrap(True)
         hint.setObjectName("hint")
+        hint.setProperty("role", "hint")
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(3 * theme.SPACE)
         layout.addWidget(hint)
         layout.addWidget(self.preview, 1)
         layout.addWidget(strip_area)
@@ -459,7 +471,7 @@ class GlyphColoursDialog(QDialog):
             self.status.setText(
                 f"Cannot colour the characters here: {self.problem}. The object is drawn as a placeholder."
             )
-            self.status.setStyleSheet(f"color: {theme.css(theme.THEME.error_text)};")
+            set_error(self.status, True)
             return
         n, chosen = len(self.paths), len(self.selected)
         text = f"{n} glyph{'s' * (n != 1)}, {chosen} selected."

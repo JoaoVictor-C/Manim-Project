@@ -321,3 +321,49 @@ def test_new_shapes_are_placed_where_they_cover_nothing_and_texts_show_their_wor
     text = Layer(id="text-1", spec=Spec(type="Text", params={"text": "Hello world"}))
     panel.document.replace(Project(canvas=CANVAS, layers=[text]))
     assert [item.text(0) for item in panel.items()] == ["Hello world"]
+
+
+# -- Lumen rows (P17.4a) -----------------------------------------------------------------
+
+
+def kinds_of(panel) -> dict[str, str]:
+    from manim_studio.ui.panels.layers_panel import ID_ROLE, KIND_ROLE
+
+    return {item.data(0, ID_ROLE): item.data(0, KIND_ROLE) for item in panel.items()}
+
+
+def test_rows_carry_their_kind_and_are_36_px(panel) -> None:
+    from manim_studio.ui.panels.layers_panel import ROW_HEIGHT
+
+    assert kinds_of(panel) == {"front": "shape", "mid": "shape", "back": "shape"}
+    group = Layer(id="g", spec=Spec(type="Group"))
+    code = Layer(id="code", spec=Spec(type="Code", params={"code": "x = 1"}))
+    maths = Layer(id="eq", parent_id="g", spec=Spec(type="MathTex", params={"text": "x"}))
+    panel.document.replace(Project(canvas=CANVAS, layers=[group, maths, code]))
+    assert kinds_of(panel) == {"g": "group", "eq": "maths", "code": "code"}
+    index = panel.list.indexFromItem(panel.items()[0])
+    assert panel.list.visualRect(index).height() == ROW_HEIGHT + 2
+    assert not panel.list.grab().isNull()  # the delegate paints chips, words and carets
+
+
+def test_the_filter_keeps_matches_and_what_holds_them(panel) -> None:
+    group = Layer(id="g", name="Axes group", spec=Spec(type="Group"))
+    dot = Layer(id="dot", parent_id="g", spec=Spec(type="Dot"))
+    other = Layer(id="sq", spec=Spec(type="Square"))
+    panel.document.replace(Project(canvas=CANVAS, layers=[group, dot, other]))
+    panel.filter.setText("dot")
+    assert [item.text(0) for item in panel.items() if not item.isHidden()] == ["Axes group", "dot"]
+    panel.document.apply(edits.update_layer(panel.project, "sq", name="dotted"), "Rename")
+    shown = [item.text(0) for item in panel.items() if not item.isHidden()]
+    assert shown == ["dotted", "Axes group", "dot"]  # still filtered after the rebuild
+    panel.filter.clear()
+    assert all(not item.isHidden() for item in panel.items())
+
+
+def test_a_closed_row_stays_closed_across_rebuilds(panel) -> None:
+    group = Layer(id="g", spec=Spec(type="Group"))
+    dot = Layer(id="dot", parent_id="g", spec=Spec(type="Dot"))
+    panel.document.replace(Project(canvas=CANVAS, layers=[group, dot]))
+    panel.items()[0].setExpanded(False)
+    panel.sync()
+    assert not panel.items()[0].isExpanded()

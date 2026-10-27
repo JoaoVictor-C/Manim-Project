@@ -94,6 +94,26 @@ NAMES: dict[str, str] = {
     "player-loop-off": "mdi6.repeat-off",
     "player-volume": "mdi6.volume-high",
     "player-mute": "mdi6.volume-off",
+    # Lumen panels (P17.4a): carets, the filter, layer kinds
+    "caret-down": "caret-down",
+    "caret-right": "caret-right",
+    "search": "magnifying-glass",
+    "more": "dots-three",
+    "lock": "lock-simple",
+    "maths": "math-operations",
+    "shape": "polygon",
+    "circle": "circle",
+    "line": "line-segment",
+    "axes": "chart-line",
+    "group": "selection-all",
+    "image": "image",
+    "number": "hash",
+    "object": "cube",
+    "part": "puzzle-piece",
+    "trace": "path",
+    "simulation": "atom",
+    "scene": "film-strip",
+    "presets": "squares-four",
 }
 
 # icons drawn in another theme colour than the text: Record's red dot, the Python logos, the helpers
