@@ -142,6 +142,18 @@ def test_kill_tree_ends_a_process_and_what_it_started(spawned) -> None:
     assert wait_until(lambda: not any(lifeline.process_alive(p) for p in [child, *below]))
 
 
+def test_wait_gone_waits_for_killed_processes_and_gives_up_on_running_ones(spawned) -> None:
+    sleeper = spawned(SLEEP)
+    started = time.monotonic()
+    assert (
+        lifeline.wait_gone([sleeper.pid], timeout=0.3) is False
+    )  # still running: it gives up at the timeout
+    assert 0.25 <= time.monotonic() - started < 5
+    lifeline.kill_tree(sleeper.pid)
+    assert lifeline.wait_gone([sleeper.pid, 0, -1]) is True  # (what is not a process is not waited for)
+    assert lifeline.wait_gone([]) is True
+
+
 def test_kill_tree_of_a_process_that_is_gone_is_not_an_error() -> None:
     lifeline.kill_tree(2**22 + 17)
     lifeline.kill_tree(0)

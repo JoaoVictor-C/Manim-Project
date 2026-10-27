@@ -19,6 +19,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, Signal
 
+from ... import lifeline
 from ...core.model.schema import Project
 from ...logging_config import get_logger
 from ...render.cairo_export import partial_path
@@ -100,6 +101,10 @@ class ExportJob(QObject):
             return
         self._cancelled = True
         process = self._process
+        pid = int(process.processId())
+        tree = [pid, *lifeline.descendants(pid)]
+        lifeline.kill_tree(pid)  # the render and what it started: ffmpeg has the partial video open
+        lifeline.wait_gone(tree)  # ... and lets go of it a moment after it is killed (Windows)
         process.kill()
         process.waitForFinished(3000)
         self._cleanup(remove_partial=True)

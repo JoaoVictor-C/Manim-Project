@@ -30,6 +30,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 
 EDITOR_PID = "MANIM_STUDIO_EDITOR_PID"  # set for every helper: the editor that started it
 SWITCH = "MANIM_STUDIO_LIFELINE"  # "0": no job object and no watcher (to debug a helper that must outlive it)
@@ -241,6 +242,20 @@ def kill_tree(pid: int) -> None:
         for victim in reversed(found):  # the youngest first: nothing is left to start more
             _terminate(victim)
     _terminate(pid)
+
+
+def wait_gone(pids: list[int], timeout: float = 3.0, step: float = 0.01) -> bool:
+    """Wait until none of ``pids`` is running (True), or ``timeout`` seconds have passed (False).
+
+    A process that was killed lets go of its files a moment later, on Windows: deleting a file it had open
+    fails until then, so whoever kills a render and then removes its output waits for it here first."""
+    end = time.monotonic() + timeout
+    left = [pid for pid in pids if pid > 0]
+    while True:
+        left = [pid for pid in left if process_alive(pid)]
+        if not left or time.monotonic() >= end:
+            return not left
+        time.sleep(step)
 
 
 def _terminate(pid: int) -> None:

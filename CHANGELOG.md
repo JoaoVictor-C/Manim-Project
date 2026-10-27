@@ -186,6 +186,8 @@ All notable changes to this project are documented here. The format follows
   (about 3.5 MB for every project opened in a session), and panels kept their windows alive through connections
   that Qt holds; the editor now stays at the same size however many projects are opened, and the test suite
   no longer grows to gigabytes.
+- **Cancelling an export** waits until the render and what it started (ffmpeg) are gone before it removes the
+  partial video; on Windows the file was still open for a moment, so removing it failed now and then.
 - Auto-key on a part of an equation that enters (writes itself in, fades in...) animates the part from
   its start instead of just moving it: a part has the entrance of its parent.
 
