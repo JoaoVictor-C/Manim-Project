@@ -6,12 +6,15 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from dataclasses import replace
+
 import pytest
 
 pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QFileDialog
 
+from manim_studio import plugins
 from manim_studio.core.editing import edits
 from manim_studio.core.model.schema import Canvas, Cue, Layer, Project, Spec, VoiceChoice
 from manim_studio.core.voice import narration
@@ -247,6 +250,10 @@ def test_an_online_service_is_not_contacted_just_by_showing_the_page(make, qt_ap
 
 
 def test_an_online_providers_voices_load_on_request_and_change_nothing(make, qt_app, monkeypatch) -> None:
+    # The provider can run here, whether or not the optional edge-tts package is installed (without it the
+    # panel says "not available" and offers no button).
+    edge = plugins.voice_providers()["edge"]
+    monkeypatch.setitem(plugins.VOICES, "edge", replace(edge, check=lambda: None))
     win, panel = make("hello", voice=VoiceChoice(provider="edge", voice="en-US-AndrewNeural"))
     asked = []
     monkeypatch.setattr(panel.client, "list_voices", lambda name: asked.append(name))

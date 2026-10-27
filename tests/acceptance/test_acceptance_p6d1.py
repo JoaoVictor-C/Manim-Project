@@ -52,10 +52,15 @@ def test_quit_and_start_again_everything_as_left(qt_app, tmp_path, monkeypatch) 
     assert not first.timeline.follow_playhead
     qt_app.processEvents()
     kept_right = first.pages.pages["animate"].top.sizes()[1]
+    first_size = first.size()
     first.close()
 
     # session 2: the empty start still greets - with the recent files; opening one returns the page
     second = start(qt_app)
+    # The offscreen screen is 800 px wide, so the restored window was cut to it - narrower than the Animate
+    # page's three panes can be (Lumen, ADR 0063): their sizes only come back in a window as wide as it was.
+    second.resize(first_size)
+    qt_app.processEvents()
     try:
         assert second.welcome.isVisible() and second.page == "compose"
         assert [b.text() for b in second.welcome.recent_links] == ["outro.json", "intro.json"]
