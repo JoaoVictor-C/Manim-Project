@@ -75,6 +75,7 @@ class Document(QObject):
         super().__init__(parent)
         self._project = project
         self._drag_start: Project | None = None
+        self._field_edit_preview = False
         self.undo_stack = QUndoStack(self)
 
     @property
@@ -84,6 +85,11 @@ class Document(QObject):
     @property
     def dragging(self) -> bool:
         return self._drag_start is not None
+
+    @property
+    def field_edit_preview(self) -> bool:
+        """Whether the current drag is a live property-field edit."""
+        return self.dragging and self._field_edit_preview
 
     # -- whole-document changes -----------------------------------------------
 
@@ -106,6 +112,9 @@ class Document(QObject):
         edit extends that step instead (e.g. an arrow key held down, ADR 0016).
         """
         if self.dragging:
+            if self._field_edit_preview:
+                self.preview(edit)
+                return
             raise RuntimeError("finish or cancel the drag before applying another edit")
         after = scene_length.grow_to_fit(edit.project)  # the scene covers what the edit placed (P7.1)
         if after == self._project:
@@ -115,21 +124,26 @@ class Document(QObject):
 
     # -- drags ---------------------------------------------------------------
 
-    def begin_preview(self) -> None:
+    def begin_preview(self, *, field_edit: bool = False) -> None:
+        """Begin a drag preview; field edits also retain normal apply growth behavior."""
         if self.dragging:
             raise RuntimeError("a drag is already in progress")
         self._drag_start = self._project
+        self._field_edit_preview = field_edit
 
     def preview(self, edit: edits.Edit) -> None:
         """Show ``edit`` without recording it (call between begin and commit/cancel)."""
         if not self.dragging:
             raise RuntimeError("preview() outside a drag; call begin_preview() first")
-        self._set(edit.project)
+        project = scene_length.grow_to_fit(edit.project) if self._field_edit_preview else edit.project
+        if project != self._project:
+            self._set(project)
 
     def commit_preview(self, text: str) -> None:
         """End the drag: one undo step from the drag start to the current snapshot."""
         before = self._drag_start
         self._drag_start = None
+        self._field_edit_preview = False
         if before is None:
             return
         if before is not self._project:
@@ -143,6 +157,7 @@ class Document(QObject):
         """End the drag and restore the snapshot it started from."""
         before = self._drag_start
         self._drag_start = None
+        self._field_edit_preview = False
         if before is not None:
             self._set(before)
             self.dragFinished.emit()

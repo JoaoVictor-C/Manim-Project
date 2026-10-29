@@ -90,6 +90,16 @@ def preview_camera(view: PreviewView, camera: Camera | None = None) -> m.Camera:
     return scene_camera(view, camera)
 
 
+def set_preview_centre(camera: m.Camera, centre: tuple[float, float]) -> None:
+    """Pan a preview camera and discard Cairo contexts whose transform used its old centre.
+
+    Manim caches those contexts by pixel-array identity, and their matrix includes
+    ``frame_center``. Updating the camera alone leaves vector mobjects drawn at the old centre.
+    """
+    camera.frame_center = np.array([centre[0], centre[1], 0.0])
+    camera.pixel_array_to_cairo_context.clear()
+
+
 def keep_in_frame(camera: m.Camera, overlay: Iterable[m.Mobject]) -> None:
     """What is drawn over the scene (burned-in subtitles, ADR 0035) stays flat on the screen when
     the camera is turned: Manim's fixed-in-frame mobjects. Nothing to do for the 2D camera."""

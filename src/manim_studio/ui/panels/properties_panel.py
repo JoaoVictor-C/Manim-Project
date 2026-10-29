@@ -975,6 +975,10 @@ class PropertiesPanel(QWidget):
                     continue
                 if inner:
                     field.set_label(inner[0])
+                description = (
+                    (inner[0] if inner else label) or path.rsplit(".", 1)[-1].replace("_", " ")
+                )
+                self._wire_field_preview(field, description)
                 main.append(field)
             inside = bool(label) and len(main) == 1 and len(cells[0]) == 2 and main[0].set_label(label)
             line = QHBoxLayout()
@@ -994,6 +998,37 @@ class PropertiesPanel(QWidget):
             else:
                 section.add_layout(line)
         return section
+
+    def _wire_field_preview(self, field: Field, description: str) -> None:
+        """Make a field's mouse gesture a live document preview with one undo step."""
+        labels = field.scrub_labels()
+        slider = field.widget.slider if isinstance(field, SliderField) else None
+        if not labels and slider is None:
+            return
+
+        def begin() -> None:
+            if self.document.dragging:
+                return
+            field.begin_scrub_preview()
+            self.document.begin_preview(field_edit=True)
+
+        def finish() -> None:
+            if not self.document.field_edit_preview:
+                return
+            start, final = field.end_scrub_preview()
+            if final == start:
+                self.document.cancel_preview()
+                return
+            self.document.commit_preview(f"Change {description.lower()}")
+            # A cold edit was held back during the drag; submit only its final value now.
+            field.on_commit(final)
+
+        for scrub_label in labels:
+            scrub_label.scrubStarted.connect(begin)
+            scrub_label.scrubFinished.connect(finish)
+        if slider is not None:
+            slider.sliderPressed.connect(begin)
+            slider.sliderReleased.connect(finish)
 
     def _register(self, path: str, getter: Callable[[Layer], Any]) -> None:
         self._getters[path] = getter
@@ -1550,7 +1585,10 @@ class PropertiesPanel(QWidget):
                 return  # a widget of a previous selection (e.g. losing focus while deleted)
             bound = partial(_call, op, layer_id=layer_id, value=value)
             try:
-                self.builds.submit(bound, text, supersede=key, value=value)
+                if self.document.field_edit_preview:
+                    self.builds.preview(bound)
+                else:
+                    self.builds.submit(bound, text, supersede=key, value=value)
             except (edits.EditError, ValidationError) as exc:
                 self.message.emit(f"{text}: {_first_error(exc)}")
                 self.refresh(force=True)

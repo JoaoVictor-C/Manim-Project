@@ -7,9 +7,10 @@ end of a drag — never per keystroke. ``None`` means "not set / default" where 
 field allows it.
 
 In Lumen a number field is 30 px high with its label *inside* it at the left and its unit at the right;
-dragging the label sideways scrubs the number (``scrub_label``: Shift fine, Ctrl coarse, a double-click
-types) and commits once when the drag ends. A colour field is a swatch and the hex; opacity is a slider
-with a readout. ``Section`` is a collapsible group of fields with a hairline under it.
+dragging the label horizontally or vertically scrubs and previews the number (``scrub_label``: Shift fine,
+Ctrl coarse, the cursor wraps at the screen edge, and a double-click types), then commits once when the drag
+ends. A colour field is a swatch and the hex; opacity is a slider with a readout. ``Section`` is a collapsible
+group of fields with a hairline under it.
 """
 
 from __future__ import annotations
@@ -129,7 +130,7 @@ class _Inside:
 
 
 class _ScrubBox:
-    """What the number fields' spin boxes share: an inside label that scrubs, a unit, 30 px, mono digits."""
+    """What number fields' spin boxes share: an inside scrub label, a unit, 30 px, mono digits."""
 
     inside: _Inside
     _start = 0.0
@@ -137,6 +138,7 @@ class _ScrubBox:
     def _setup(self) -> None:
         self.setMinimumHeight(FIELD_HEIGHT)
         self.setFont(theme.font("body", kind="mono"))
+        self.preview_during_scrub = False
         # the arrows are hidden by the stylesheet (NoButtons would collapse the edit to nothing there)
         self.inside = _Inside(self, self.lineEdit(), scrub=True)
         self.inside.special = lambda: bool(self.specialValueText()) and self.value() == self.minimum()
@@ -162,8 +164,12 @@ class _ScrubBox:
         return self._start + steps * self.singleStep()
 
     def _scrub(self, steps: float) -> None:
-        with QSignalBlocker(self):  # shown while dragging, committed once at the end
-            self.setValue(self._scrubbed_value(steps))
+        value = self._scrubbed_value(steps)
+        if self.preview_during_scrub:
+            self.setValue(value)  # send each change through the field for a live scene preview
+        else:
+            with QSignalBlocker(self):  # standalone fields keep the original commit-on-release behavior
+                self.setValue(value)
 
     def _scrub_finished(self) -> None:
         final = self.value()
@@ -248,6 +254,34 @@ class Field:
     def __init__(self, on_commit: Commit) -> None:
         self.on_commit = on_commit
         self._shown: Any = None
+        self._scrub_preview = False
+        self._scrub_start: Any = None
+
+    def begin_scrub_preview(self) -> None:
+        self._scrub_preview = True
+        self._scrub_start = self._shown
+        for box in self._scrub_boxes():
+            box.preview_during_scrub = True
+
+    def end_scrub_preview(self) -> tuple[Any, Any]:
+        start, final = self._scrub_start, self._shown
+        self._scrub_preview = False
+        self._scrub_start = None
+        for box in self._scrub_boxes():
+            box.preview_during_scrub = False
+        return start, final
+
+    def _scrub_boxes(self) -> list[_ScrubBox]:
+        boxes = []
+        for name in ("widget", "x", "y"):
+            widget = getattr(self, name, None)
+            if isinstance(widget, _ScrubBox):
+                boxes.append(widget)
+        return boxes
+
+    def scrub_labels(self) -> tuple[ScrubLabel, ...]:
+        """Labels that start scrubbing this field, if it supports mouse scrubbing."""
+        return tuple(box.inside.label for box in self._scrub_boxes())
 
     def set_value(self, value: Any, pending: bool = False) -> None:
         self._shown = value
@@ -698,7 +732,7 @@ class SliderField(Field):
         super().__init__(on_commit)
         box = SliderBox(minimum, maximum)
         box.slider.valueChanged.connect(
-            lambda _v: None if box.slider.isSliderDown() else self.commit(box.value())
+            lambda _v: None if box.slider.isSliderDown() and not self._scrub_preview else self.commit(box.value())
         )
         box.slider.sliderReleased.connect(lambda: self.commit(box.value()))
         self.widget = box

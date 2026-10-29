@@ -97,6 +97,16 @@ class BuildService(QObject):
         self.pendingChanged.emit()
         return False
 
+    def preview(self, op: Operation) -> bool:
+        """Preview a warm field edit during its drag; cold text edits wait until release."""
+        if not self.document.field_edit_preview:
+            return False
+        edit = op(self.document.project)
+        if self._cold(edit):
+            return False
+        self.document.preview(edit)
+        return True
+
     def prewarm(self, specs: list[Spec]) -> None:
         """Warm objects the user is likely to create (the library defaults)."""
         if self.client.available:

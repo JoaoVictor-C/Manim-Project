@@ -25,7 +25,7 @@ from ...core.code.code_frame import CodeFrame
 from ...core.engine.evaluator import Evaluator
 from ...core.model.schema import CONNECTOR_TYPES, Camera, Canvas
 from ...render.cairo_export import render_frame
-from ...render.preview import PreviewView, preview_camera
+from ...render.preview import PreviewView, preview_camera, set_preview_centre
 from ...render.qt_paths import vmobject_path
 from ..session import code_drag
 from ..style import theme
@@ -254,7 +254,7 @@ class CanvasWidget(QWidget):
             self._camera = preview_camera(view, seen_from)
             self._camera_angles = seen_from
         elif view.centre != self._camera_view.centre:  # a pan: same camera, moved
-            self._camera.frame_center = np.array([view.centre[0], view.centre[1], 0.0])
+            set_preview_centre(self._camera, view.centre)
         self._camera_view = view
         if self.camera_turned:  # outlines and handles are flat: they would be drawn in the wrong place
             self._render_turned(t, view)
@@ -723,20 +723,32 @@ class CanvasWidget(QWidget):
         if self._canvas is None:
             super().wheelEvent(event)
             return
-        delta = event.angleDelta()
-        notches = (delta.y() or delta.x()) / 120
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self.zoom(viewport.ZOOM_STEP**notches, event.position())
-        elif event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-            self.pan(notches * WHEEL_PAN_PX, 0.0)
+        pixel_delta = event.pixelDelta()
+        if not pixel_delta.isNull():  # smooth scrolling devices report pixels instead of wheel notches
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                distance = pixel_delta.y() or pixel_delta.x()
+                self.zoom(viewport.ZOOM_STEP ** (distance / WHEEL_PAN_PX), event.position())
+            elif event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                distance = pixel_delta.y() or pixel_delta.x()
+                self.pan(float(distance), 0.0)
+            else:
+                self.pan(float(pixel_delta.x()), float(pixel_delta.y()))
         else:
-            self.pan(delta.x() / 120 * WHEEL_PAN_PX, delta.y() / 120 * WHEEL_PAN_PX)
+            delta = event.angleDelta()
+            notches = (delta.y() or delta.x()) / 120
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                self.zoom(viewport.ZOOM_STEP**notches, event.position())
+            elif event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self.pan(notches * WHEEL_PAN_PX, 0.0)
+            else:
+                self.pan(delta.x() / 120 * WHEEL_PAN_PX, delta.y() / 120 * WHEEL_PAN_PX)
         event.accept()
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.MiddleButton and self._canvas is not None:
             if not self._dragging():
                 self._pan_from = QPointF(event.position())  # middle-drag pans
+            event.accept()
             return
         if not self._tool_input() or event.button() != Qt.MouseButton.LeftButton:
             super().mousePressEvent(event)
@@ -760,6 +772,7 @@ class CanvasWidget(QWidget):
             delta = event.position() - self._pan_from
             self._pan_from = QPointF(event.position())
             self.pan(delta.x(), delta.y())
+            event.accept()
             return
         if self._tool_input():
             self.tool.move(event.position(), event.modifiers())
@@ -767,6 +780,7 @@ class CanvasWidget(QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_from = None
+            event.accept()
             return
         if self._tool_input():
             self.tool.release()
