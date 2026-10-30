@@ -15,7 +15,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QDialogButtonBox
 
-from manim_studio.core.editing.equation_steps import MATCHING
+from manim_studio.core.editing.equation_steps import REPLACING
 from manim_studio.core.model.schema import Canvas, Layer, Project, Spec
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.panels.equation_steps_dialog import EquationStepsDialog
@@ -56,11 +56,11 @@ def builds(qt_app):
 
 def test_typing_lines_previews_the_steps_and_the_morphs_between_them(builds) -> None:
     dialog = EquationStepsDialog(1.5, builds)
-    assert not ok_button(dialog).isEnabled() and "Type the steps" in dialog.status.text()
+    assert not ok_button(dialog).isEnabled() and "Type an equation with LaTeX" in dialog.status.text()
     dialog.text.setPlainText("\n".join(PYTHAGORAS[:2]) + "\n% a note\n")
     assert dialog.steps == PYTHAGORAS[:2]
     assert rows(dialog)[0].startswith(r"1.  A = L \times L")
-    assert rows(dialog)[1] == "    then a matching morph (1 new term)"
+    assert rows(dialog)[1] == "    then a Smart Transform (1 new run)"
     assert rows(dialog)[2].startswith("2.  L = a+b")
     assert dialog.start.value() == 1.5  # the playhead
     assert all(
@@ -219,7 +219,11 @@ def test_the_steps_wait_for_the_worker_then_are_one_undo_step_and_selected(panel
     roots = panel.project.roots()
     assert [r.name for r in roots] == ["", "Step 1", "Step 2"]
     one, two = roots[1:]
-    assert one.clips[0].start == 0.5 and one.clips[1].to_layer == two.id and one.clips[1].kind == MATCHING
+    assert (
+        one.clips[0].start == 0.5
+        and one.clips[1].to_layer == two.id
+        and one.clips[1].kind == REPLACING
+    )
     assert [p.part.tex for p in panel.project.children(two.id)] == ["+ 1", "+ 1"]
     assert panel.selected_ids() == [two.id, one.id]  # both new objects (front first)
     stack = panel.document.undo_stack

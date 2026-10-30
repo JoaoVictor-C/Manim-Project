@@ -5,12 +5,11 @@ MathTex layer per step with a morph from each step to the next (``edits.add_equa
 This module is the pure part, working on LaTeX strings only (no Manim, no Qt):
 
 * ``parse_steps``: the lines of the text box as steps;
-* ``derive``: the next line from a line, by an operation on both sides of ``LHS = RHS`` (add,
-  subtract, multiply or divide by a term; square, square root, reciprocal, ``\\ln``, ``e^x``;
-  substitute a value for a symbol);
-* ``plan_transition``: what to do between two steps - which pieces both share (they move to
-  their new places), which are new in the second (they can be coloured, as part layers that
-  ``parts`` can resolve), and which morph kind fits.
+* ``derive``: the next line from a line, by an algebra operation or named function on both sides
+  of ``LHS = RHS`` (balance operations, logarithms, trigonometric and hyperbolic functions, and
+  substitution);
+* ``plan_transition``: the token pieces the steps share and newly introduced runs, used for
+  colouring changes.
 
 A small tokenizer reads LaTeX into a tree of nodes: single tokens (a letter, a number, a
 command such as ``\\alpha`` or ``\\times``, an operator), groups (``{...}``, ``(...)``,
@@ -34,8 +33,8 @@ MAX_STEPS = 40
 MAX_LINE = 400  # characters in one line
 BASE_COLOUR = "#FFFFFF"  # content: Manim's default fill for text
 HIGHLIGHT_COLOUR = "#FFFF00"  # content: Manim's YELLOW, the colour of its indications
-MATCHING = "TransformMatchingTex"  # shared pieces move, the rest fades (ADR 0020)
-REPLACING = "Transform"  # Studio's Transform is Manim's ReplacementTransform (ADR 0005)
+MATCHING = "TransformMatchingTex"  # classification: the equations share visible text pieces
+REPLACING = "Transform"  # the equation steps' generic morph clip; matching follows project settings
 
 
 class StepsError(ValueError):
@@ -443,6 +442,35 @@ OPERATIONS: dict[str, Operation] = {
 }
 
 
+@dataclass(frozen=True)
+class Function:
+    """A named function applied to both sides of an equation."""
+
+    name: str
+    label: str
+    command: str
+    term: str = ""
+
+
+FUNCTIONS: dict[str, Function] = {
+    function.name: function
+    for function in (
+        Function("log", "Logarithm (choose base)", r"\log", "the base, e.g. 10"),
+        Function("log10", "Common logarithm (base 10)", r"\log_{10}"),
+        Function("log2", "Binary logarithm (base 2)", r"\log_{2}"),
+        Function("sin", "Sine", r"\sin"),
+        Function("cos", "Cosine", r"\cos"),
+        Function("tan", "Tangent", r"\tan"),
+        Function("arcsin", "Inverse sine", r"\arcsin"),
+        Function("arccos", "Inverse cosine", r"\arccos"),
+        Function("arctan", "Inverse tangent", r"\arctan"),
+        Function("sinh", "Hyperbolic sine", r"\sinh"),
+        Function("cosh", "Hyperbolic cosine", r"\cosh"),
+        Function("tanh", "Hyperbolic tangent", r"\tanh"),
+    )
+}
+
+
 def split_equation(tex: str) -> tuple[str, str]:
     """The two sides of ``LHS = RHS``, split at the one ``=`` outside braces and brackets."""
     nodes = parse(tex)
@@ -461,22 +489,35 @@ def split_equation(tex: str) -> tuple[str, str]:
 
 def derive(line: str, operation: str, term: str = "") -> str:
     """The line ``operation`` makes from ``line`` (an equation ``LHS = RHS``)."""
-    if operation not in OPERATIONS:
-        raise StepsError(f"unknown operation {operation!r}; known: {', '.join(OPERATIONS)}")
+    if operation not in OPERATIONS and operation not in FUNCTIONS:
+        known = ", ".join((*OPERATIONS, *FUNCTIONS))
+        raise StepsError(f"unknown operation {operation!r}; known: {known}")
     if operation == "substitute":
         return substitute(line, *_substitution(term))
+    function = FUNCTIONS.get(operation)
     lhs, rhs = split_equation(line)
     term = term.strip()
-    if OPERATIONS[operation].term:
+    requirement = function.term if function is not None else OPERATIONS[operation].term
+    if requirement:
         if not term:
-            raise StepsError(f"type {OPERATIONS[operation].term.split(',')[0]}")
+            raise StepsError(f"type {requirement.split(',')[0]}")
         term_nodes = parse(term)
         if any(n.kind == "leaf" and n.token.text == "=" for n in term_nodes):
             raise StepsError("the term cannot contain '='")
     else:
         term_nodes = []
     sides = [(side, parse(side)) for side in (lhs, rhs)]
+    if function is not None:
+        return " = ".join(_apply_function(function, side, nodes, term) for side, nodes in sides)
     return " = ".join(_apply(operation, side, nodes, term, term_nodes) for side, nodes in sides)
+
+
+def _apply_function(function: Function, side: str, nodes: list[Node], term: str) -> str:
+    """Apply one common mathematical function to a complete side, preserving its grouping."""
+    command = function.command
+    if function.name == "log":
+        command += f"_{{{term}}}"
+    return f"{command}{_wrap(side, nodes)}"
 
 
 def _apply(operation: str, side: str, nodes: list[Node], term: str, term_nodes: list[Node]) -> str:
@@ -669,7 +710,7 @@ class Piece:
 
 @dataclass(frozen=True)
 class NewPiece:
-    """A run of new pieces in a step, as the part key ``(tex, occurrence)`` that finds it."""
+    """A newly introduced LCS run, as the part key ``(tex, occurrence)`` that finds it."""
 
     tex: str
     occurrence: int
@@ -679,16 +720,11 @@ class NewPiece:
 
 @dataclass(frozen=True)
 class Transition:
-    kind: str  # MATCHING or REPLACING
+    kind: str  # shared-text classification used to decide which new runs can be highlighted
     shared: tuple[str, ...]  # the pieces both steps share, in order (their TeX)
-    new: tuple[NewPiece, ...]  # what is new in the second step, ready for part colouring
+    new: tuple[NewPiece, ...]  # target LCS runs outside the common sequence, for part colouring
     gone: tuple[str, ...]  # runs of the first step that are not in the second
     skipped: tuple[tuple[str, str], ...] = ()  # new runs that cannot be parts, and why
-
-    @property
-    def label(self) -> str:
-        return "matching morph" if self.kind == MATCHING else "replacement morph"
-
 
 def pieces(tex: str, nodes: list[Node] | None = None) -> tuple[list[Piece], list[tuple[Node, int, int]]]:
     """``tex`` flattened in reading order, and each node with its range of pieces."""
@@ -744,13 +780,11 @@ def _lcs(a: list[str], b: list[str]) -> list[tuple[int, int]]:
 
 
 def plan_transition(a: str, b: str) -> Transition:
-    """What happens between step ``a`` and step ``b``.
+    """LCS classification and highlight runs between steps ``a`` and ``b``.
 
-    Pieces are matched along a longest common subsequence of the two flattened steps; the
-    pieces of ``b`` outside it are new. A morph keeps what both share and fades the rest:
-    ``TransformMatchingTex`` (it matches glyphs by shape, parts by TeX, ADR 0020), or a plain
-    replacement ``Transform`` when the steps share nothing. Lines that cannot be read are
-    replaced too (LaTeX will say why)."""
+    Pieces are matched along a longest common subsequence of the two flattened steps. New runs
+    can be highlighted; the morph itself uses the project's Transform matching preference.
+    Lines the tokenizer cannot read still get a replacement classification (LaTeX will say why)."""
     try:
         nodes_a, nodes_b = parse(a), parse(b)
     except StepsError as error:
@@ -834,10 +868,10 @@ class StepsReport:
     def summary(self) -> str:
         counts = Counter(self.transitions)
         parts_text = [f"{len(self.layer_ids)} step{'s' * (len(self.layer_ids) != 1)}"]
-        if counts[MATCHING]:
-            parts_text.append(f"{counts[MATCHING]} matching morph{'s' * (counts[MATCHING] != 1)}")
         if counts[REPLACING]:
-            parts_text.append(f"{counts[REPLACING]} replacement morph{'s' * (counts[REPLACING] != 1)}")
+            parts_text.append(f"{counts[REPLACING]} Transform morph{'s' * (counts[REPLACING] != 1)}")
+        if counts[MATCHING]:
+            parts_text.append(f"{counts[MATCHING]} matching classification{'s' * (counts[MATCHING] != 1)}")
         if self.highlighted:
             n = len(self.highlighted)
             parts_text.append(f"{n} new term{'s' * (n != 1)} coloured")

@@ -12,7 +12,7 @@ import manim as m
 import pytest
 
 from manim_studio.core.editing import edits
-from manim_studio.core.editing.equation_steps import MATCHING, REPLACING
+from manim_studio.core.editing.equation_steps import REPLACING
 from manim_studio.core.engine import adapter
 from manim_studio.core.engine.evaluator import Evaluator
 from manim_studio.core.model.schema import Canvas, Layer, Project, Spec
@@ -42,13 +42,21 @@ def test_one_mathtex_per_step_named_and_placed_with_morphs_back_to_back() -> Non
     one, two, three = roots
     assert [(c.kind, c.start, c.duration, c.to_layer) for c in one.clips] == [
         ("Write", 0.5, 1.0, None),
-        (MATCHING, 2.0, 1.0, two.id),
+        (REPLACING, 2.0, 1.0, two.id),
     ]
-    assert [(c.kind, c.start, c.duration, c.to_layer) for c in two.clips] == [(MATCHING, 3.5, 1.0, three.id)]
+    assert [(c.kind, c.start, c.duration, c.to_layer) for c in two.clips] == [
+        (REPLACING, 3.5, 1.0, three.id)
+    ]
     assert three.clips == []
     assert report.layer_ids == (one.id, two.id, three.id)
-    assert report.transitions == (MATCHING, MATCHING) and report.end == 4.5
-    assert report.summary() == "Added 3 steps, 2 matching morphs"
+    assert report.transitions == (REPLACING, REPLACING) and report.end == 4.5
+    assert report.summary() == "Added 3 steps, 2 Transform morphs"
+    assert all(
+        clip.params == {"match": "smart"}
+        for root in (one, two)
+        for clip in root.clips
+        if clip.to_layer
+    )
     # Lifetimes come from the clips alone (ADR 0005): each step only in its own window.
     assert edit.project.lifetime(one.id) == (0.5, 3.0)
     assert edit.project.lifetime(two.id) == (3.0, 4.5)
@@ -82,15 +90,15 @@ def test_steps_go_on_top_of_what_is_there_with_fresh_ids() -> None:
     assert report.layer_ids == ("mathtex-2", "mathtex-3", "mathtex-4")
 
 
-def test_one_step_is_just_its_entrance_and_nothing_shared_is_a_replacement() -> None:
+def test_one_step_has_only_its_entrance_and_every_transition_uses_transform() -> None:
     edit, report = steps(["x = 1"])
     (only,) = edit.project.roots()
     assert [c.kind for c in only.clips] == ["Write"] and report.transitions == ()
     replaced, report = steps(["x = 1", "y^2 + 7"])
     assert report.transitions == (REPLACING,)
     assert replaced.project.roots()[0].clips[1].params == {"match": "smart"}  # ADR 0056
-    matching, _ = steps()
-    assert matching.project.roots()[0].clips[1].params == {}  # TransformMatchingTex has no choice
+    shared, _ = steps()
+    assert shared.project.roots()[0].clips[1].params == {"match": "smart"}
 
 
 @pytest.mark.parametrize(

@@ -20,19 +20,20 @@ third-party algebra-animation library's code or documentation was consulted.
 
 | slice | scope | state |
 |---|---|---|
-| **P11.1 steps generator** | `core/editing/equation_steps.py` (lines, a small LaTeX tokenizer, operations on both sides of `LHS = RHS`, transition planning), `edits.add_equation_steps` (one MathTex per step, entrance, morphs back to back, highlight of new terms as coloured parts), the Equation steps dialog (Layers > Add, Animate menu) with live checks through the build worker | **done** |
+| **P11.1 steps generator** | `core/editing/equation_steps.py` (lines, LaTeX tokenizer, algebra operations and functions, transition and highlight-run planning), `edits.add_equation_steps` (one MathTex per step, entrance, Smart/Classic Transform clips, highlights as coloured parts), the Equation steps dialog with live checks through the build worker | **done** |
 | **P11.2 later** | an optional computer-algebra extra (not a required dependency) for *simplify* and *solve for x* suggestions in the dialog; **highlight and annotate**: braces or brackets under a term with a note ("factor", "+2 both sides") between two steps | open |
 
 ## P11.1 as built
 
 - Operations: add, subtract, multiply (`\cdot`), divide (`\frac`), square, square root,
-  reciprocal, `\ln`, `e^{...}`, substitute `symbol = value`. "Move a term to the other side" was
+  reciprocal, named logarithm/trigonometric/hyperbolic functions, `e^{...}`, substitute `symbol = value`. "Move a term to the other side" was
   left out on purpose (subtract does it in two visible steps).
 - Timing: the first step enters at `start`; every animation lasts the step duration and is
   followed by the hold; the last step stays and the scene grows to hold it.
-- The morph is TransformMatchingTex when the steps share a piece, else Transform
-  (ReplacementTransform). New runs of a step become part layers coloured with the highlight
-  colour (only on matching transitions); runs the parts cannot isolate are skipped and reported.
+- Each transition is a `Transform` clip using the project's Smart or Classic matching setting
+  (Smart by default). Smart matching pairs glyphs by shape and placement; it does not interpret
+  algebraic meaning. New LaTeX runs are highlighted when a step shares tokens with the preceding
+  line; runs that cannot be marked as parts are skipped and reported.
 - The dialog never builds LaTeX in the UI thread: syntax at once, LaTeX through the worker; on a
   computer without LaTeX the steps are added at once as placeholders.
 - Tests: `tests/core/editing/test_equation_steps.py`, `tests/core/editing/test_equation_steps_layers.py`,
@@ -47,7 +48,8 @@ third-party algebra-animation library's code or documentation was consulted.
 ## Not done (P11.1)
 
 - No simplification or solving (P11.2).
-- Shared terms are matched by glyph shape at render time (ADR 0020); parts on shared terms
-  would steer repeated symbols - left to Parts > Split into terms.
+- Smart Transform matching follows glyph shape and placement; it does not prove that the lines
+  are algebraically equivalent. Generic TransformMatchingTex still uses glyph shape, with part
+  TeX keys when both sides have matching part layers (ADR 0020).
 - Free-spot placement measures the steps only once their formulas are warm (else the centre), so
   the editor never builds LaTeX in the UI thread to place them.
