@@ -2,7 +2,8 @@
 
 ``hit_layers(layers, point, px_per_unit)`` takes ``Evaluator.frame_layers(t)``
 and a point in Manim units, and returns the ids of every layer under it,
-front-most first. Rules:
+front-most first. The optional bounds mode also treats the object's bounding
+rectangle as selectable, which helps with thin or hard-to-hit objects. Rules:
 
 * only what is drawn counts: fill or stroke alpha must exceed ``VISIBLE_ALPHA``
   (an object at the first frame of its FadeIn has full geometry and alpha 0);
@@ -44,11 +45,43 @@ def hit_layers(
     point: Sequence[float],
     px_per_unit: float,
     tolerance_px: float = TOLERANCE_PX,
+    select_by_bounds: bool = False,
 ) -> list[str]:
-    """Ids of the layers under ``point`` (Manim units), front-most first."""
+    """Ids of layers under ``point`` (Manim units), front-most first.
+
+    With ``select_by_bounds``, points inside a visible object's bounds count as
+    hits too. This is intentionally an interaction option: the rendered pixels
+    and precise hit-testing rules are unchanged.
+    """
     p = np.asarray(point, dtype=float)[:2]
     tolerance = tolerance_px / px_per_unit
-    return [layer_id for layer_id, mob in reversed(layers) if hits(mob, p, tolerance)]
+    return [
+        layer_id
+        for layer_id, mob in reversed(layers)
+        if hits(mob, p, tolerance) or (select_by_bounds and within_bounds(mob, p, tolerance))
+    ]
+
+
+def within_bounds(mob: m.Mobject, p: np.ndarray, tolerance: float = 0.0) -> bool:
+    """Whether ``p`` lies in the visible object's rectangular selection bounds."""
+    if isinstance(mob, CodeFrame):
+        alpha = mob.crop.pixels[..., 3]
+        if mob.opacity <= VISIBLE_ALPHA or not alpha.size:
+            return False
+        if float(np.max(alpha)) * mob.opacity <= VISIBLE_ALPHA * 255:
+            return False
+        return _quad_hit(mob.points, p)
+    if isinstance(mob, m.ImageMobject):
+        return _image_hit(mob, p)
+    family = [
+        sub
+        for sub in mob.family_members_with_points()
+        if isinstance(sub, m.VMobject) and (_fill_visible(sub) or _stroke_visible(sub))
+    ]
+    if not family:
+        return False
+    lo, hi = bounds(family)
+    return bool((p >= lo - tolerance).all() and (p <= hi + tolerance).all())
 
 
 def hits(mob: m.Mobject, p: np.ndarray, tolerance: float) -> bool:
@@ -141,7 +174,12 @@ def _image_hit(image: m.ImageMobject, p: np.ndarray) -> bool:
     """Inside the image's rectangle (corners UL, UR, DL, DR; may be rotated) and visible."""
     if float(np.max(image.pixel_array[..., 3])) / 255.0 <= VISIBLE_ALPHA:
         return False
-    ul, ur, dl = (image.points[i, :2] for i in (0, 1, 2))
+    return _quad_hit(image.points, p)
+
+
+def _quad_hit(points: np.ndarray, p: np.ndarray) -> bool:
+    """Inside the affine rectangle with corners UL, UR, DL, DR (or CodeFrame crop)."""
+    ul, ur, dl = (points[i, :2] for i in (0, 1, 2))
     basis = np.column_stack([ur - ul, dl - ul])
     if abs(np.linalg.det(basis)) < 1e-12:
         return False

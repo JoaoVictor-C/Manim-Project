@@ -160,6 +160,18 @@ class Evaluator:
         # Roots evaluated as trees: with parts (ADR 0012) or child objects (ADR 0029). A group is
         # not one (ADR 0050): each of its children is evaluated as a root, carried by the group.
         self._groups = {layer.id for layer in self.project.layers if layer.is_group}
+        self._visible: dict[str, bool] = {}
+
+        def is_visible(layer_id: str) -> bool:
+            if layer_id not in self._visible:
+                layer = self._layers[layer_id]
+                self._visible[layer_id] = layer.visible and (
+                    layer.parent_id is None or is_visible(layer.parent_id)
+                )
+            return self._visible[layer_id]
+
+        for layer in self.project.layers:
+            is_visible(layer.id)
         self._trees_of = {
             root.id
             for layer in self.project.layers
@@ -377,6 +389,8 @@ class Evaluator:
         return self._object_at(self._ltree.root_of(layer_id), t)
 
     def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
+        if not self._visible[root.id]:
+            return []
         if root.id in self._groups:  # its children, in stacking order, carried by it (ADR 0050)
             if not self._alive(root, t):
                 return []
@@ -638,6 +652,10 @@ class Evaluator:
     def world_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
         """``(a, b)`` with ``world = a @ local + b`` for a root or child object at ``t`` (its
         layer transform, a child's carried by its parent's): where canvas handles sit (ADR 0043)."""
+        if layer.is_part:
+            tree = self._tree(self._ltree.root_of(layer.id))
+            a, b, _opacity = self._member_affine(tree, layer, t)
+            return a, b
         return self._world_affine(layer, t)
 
     def _connector_drawing(self, layer: Layer, t: float) -> m.Mobject:
@@ -1094,6 +1112,8 @@ class Evaluator:
         out = []
         for member in tree.members:
             layer = self._layers[member]
+            if not self._visible[layer.id]:
+                continue
             glyphs = tree.owned[member]
             if not glyphs and member not in overlays:
                 continue
@@ -1273,7 +1293,7 @@ def layer_transform(layer: Layer, t: float) -> Transform2D:
     base = layer.base
     values = {
         name: _sample(layer.tracks.get(name), t, getattr(base, name))
-        for name in ("position", "scale", "rotation", "opacity")
+        for name in ("position", "scale", "scale_x", "scale_y", "rotation", "opacity")
     }
     return Transform2D(**values, anchor=base.anchor)  # the anchor is never keyed (ADR 0021)
 
@@ -1285,8 +1305,9 @@ def _affine(tr: Transform2D, pivot: np.ndarray | None = None) -> tuple[np.ndarra
     ADR 0021).
     """
     angle = math.radians(tr.rotation)
-    c, s = math.cos(angle) * tr.scale, math.sin(angle) * tr.scale
-    a = np.array([[c, -s], [s, c]])
+    c, s = math.cos(angle), math.sin(angle)
+    rotation = np.array([[c, -s], [s, c]])
+    a = rotation @ np.diag([tr.scale * tr.scale_x, tr.scale * tr.scale_y])
     b = np.array(tr.position, dtype=float)
     centre = np.array(tr.anchor, dtype=float)
     if pivot is not None:

@@ -124,6 +124,62 @@ def update_layer(project: Project, layer_id: str, **fields: Any) -> Edit:
     return _replace_layer(project, layer_id, fields)
 
 
+def add_code_folder(project: Project, name: str) -> Edit:
+    """Create a flat folder in the Code page; empty folders are kept in the project file."""
+    name = str(name).strip()
+    if not name or len(name) > 64 or any(char in name for char in "/\\"):
+        raise EditError("folder names must be 1-64 characters and cannot contain slashes")
+    if any(existing.casefold() == name.casefold() for existing in project.code_folders):
+        raise EditError(f"a folder named {name!r} already exists")
+    return _set_code_folders(project, {**project.code_folders, name: []})
+
+
+def rename_code_folder(project: Project, old: str, new: str) -> Edit:
+    """Rename a Code page folder without moving its code layers."""
+    if old not in project.code_folders:
+        raise EditError(f"no folder named {old!r}")
+    new = str(new).strip()
+    if not new or len(new) > 64 or any(char in new for char in "/\\"):
+        raise EditError("folder names must be 1-64 characters and cannot contain slashes")
+    if any(name != old and name.casefold() == new.casefold() for name in project.code_folders):
+        raise EditError(f"a folder named {new!r} already exists")
+    folders = {new if name == old else name: members for name, members in project.code_folders.items()}
+    return _set_code_folders(project, folders)
+
+
+def delete_code_folder(project: Project, name: str) -> Edit:
+    """Delete a Code page folder and leave its layers at the root of the explorer."""
+    if name not in project.code_folders:
+        raise EditError(f"no folder named {name!r}")
+    return _set_code_folders(
+        project, {key: members for key, members in project.code_folders.items() if key != name}
+    )
+
+
+def move_code_layer_to_folder(project: Project, layer_id: str, folder: str = "") -> Edit:
+    """Move a Code page layer into a folder, or to the explorer root when ``folder`` is empty."""
+    layer = _layer(project, layer_id)
+    if layer.spec is None or layer.spec.type not in RUNS_CODE:
+        raise EditError(f"{layer.label!r} is not a code layer or Python object")
+    if folder and folder not in project.code_folders:
+        raise EditError(f"no folder named {folder!r}")
+    folders = {
+        name: [key for key in members if key != layer_id]
+        for name, members in project.code_folders.items()
+    }
+    if folder:
+        folders[folder].append(layer_id)
+    return _set_code_folders(project, folders)
+
+
+def _set_code_folders(project: Project, folders: dict[str, list[str]]) -> Edit:
+    try:
+        new = _rebuilt(project, code_folders=folders)
+    except ValidationError as error:
+        raise EditError(str(error.errors()[0]["msg"]).removeprefix("Value error, ")) from None
+    return Edit(new, "timing", frozenset())
+
+
 # -- structure: layers and clips (S2) ---------------------------------------------
 
 
@@ -364,6 +420,8 @@ def _carried(layer: Layer, outer: Transform2D) -> Layer:
     maps = {
         "position": point,
         "scale": lambda v: v * outer.scale,
+        "scale_x": lambda v: v,
+        "scale_y": lambda v: v,
         "rotation": lambda v: v + outer.rotation,
         "opacity": lambda v: v * outer.opacity,
     }
@@ -666,12 +724,13 @@ def add_equation_steps(
 
     The first step enters with ``entrance`` at ``start``; every animation runs ``step_duration``
     and is followed by ``hold`` seconds of stillness. Step k morphs into step k+1 (``to_layer``)
-    with the kind ``equation_steps.plan_transition`` picks, so each step is visible only between
-    the morph that brings it and the morph that turns it into the next (lifetimes are inferred,
-    ADR 0005); the last one stays. With ``highlight_colour``, the pieces new in a step are part
-    layers in that colour (ADR 0049) - the next step's copies are plain again; pieces the parts
-    cannot isolate are skipped and reported. All steps sit at ``position``; the scene grows to
-    hold the last step for ``hold`` seconds when it grows with its content."""
+    with a ``Transform`` clip using the project's Smart/Classic matching preference, so each step
+    is visible only between the morph that brings it and the morph that turns it into the next
+    (lifetimes are inferred, ADR 0005); the last one stays. With ``highlight_colour``, new LCS runs
+    in steps that share visible text with their predecessor become part layers in that colour
+    (ADR 0049) - the next step's copies are plain again; runs the parts cannot isolate are skipped
+    and reported. All steps sit at ``position``; the scene grows to hold the last step for ``hold``
+    seconds when it grows with its content."""
     steps = [str(s).strip() for s in steps]
     if not steps:
         raise EditError("type at least one equation")
@@ -710,7 +769,7 @@ def add_equation_steps(
                 Clip(id=_free_id(entrance, set()), kind=entrance, start=start, duration=step_duration)
             )
         if index < len(steps) - 1:
-            kind = plans[index].kind
+            kind = equation_steps.REPLACING
             clips.append(
                 Clip(
                     id=_free_id(kind, {c.id for c in clips}),
@@ -718,7 +777,7 @@ def add_equation_steps(
                     start=start + (index + 1) * cycle,
                     duration=step_duration,
                     to_layer=ids[index + 1],
-                    params=new_clip_params(kind, project.morph_matching),  # as the project chose (ADR 0056)
+                    params=new_clip_params(kind, project.morph_matching),
                 )
             )
         root = Layer(
@@ -761,7 +820,7 @@ def add_equation_steps(
         raise EditError(f"cannot add equation steps: {message}") from None
     report = equation_steps.StepsReport(
         layer_ids=tuple(ids),
-        transitions=tuple(plan.kind for plan in plans),
+        transitions=tuple(equation_steps.REPLACING for _ in plans),
         highlighted=tuple(highlighted),
         skipped=tuple(skipped),
         end=end,
@@ -885,7 +944,7 @@ def set_anchor(project: Project, layer_id: str, anchor: Any, t: float) -> Edit:
 
     The position is compensated by ``(I - A)(old - new)``, ``A`` being the layer's
     rotation and scale at ``t``: on the base, and on every position key (a rigid
-    shift of the path). Exact at all times unless rotation or scale is keyed
+    shift of the path). Exact at all times unless a scale or rotation is keyed
     (``anchor_shifts_elsewhere``). Never creates keys.
     """
     from ..engine.evaluator import layer_transform  # sampling rules live with the evaluator (imports Manim)
@@ -893,9 +952,11 @@ def set_anchor(project: Project, layer_id: str, anchor: Any, t: float) -> Edit:
     layer = _layer(project, layer_id)
     tr = layer_transform(layer, t)
     angle = math.radians(tr.rotation)
-    c, s = math.cos(angle) * tr.scale, math.sin(angle) * tr.scale
-    ox, oy = layer.base.anchor[0] - float(anchor[0]), layer.base.anchor[1] - float(anchor[1])
-    dx, dy = ox - (c * ox - s * oy), oy - (s * ox + c * oy)
+    c, s = math.cos(angle), math.sin(angle)
+    rotation = np.array([[c, -s], [s, c]])
+    own = rotation @ np.diag([tr.scale * tr.scale_x, tr.scale * tr.scale_y])
+    delta_anchor = np.asarray(layer.base.anchor, dtype=float) - np.asarray(anchor, dtype=float)
+    dx, dy = (np.eye(2) - own) @ delta_anchor
 
     def shifted(value) -> tuple[float, float]:
         return (value[0] + dx, value[1] + dy)
@@ -918,6 +979,30 @@ def set_params(project: Project, layer_id: str, params: dict[str, Any], shift: A
         raise EditError(f"layer {layer_id!r} has no object")
     spec = layer.spec.model_copy(update={"params": {**layer.spec.params, **params}})
     fields: dict[str, Any] = {"spec": spec}
+    dx, dy = float(shift[0]), float(shift[1])
+    if dx or dy:
+
+        def shifted(value) -> tuple[float, float]:
+            return (value[0] + dx, value[1] + dy)
+
+        base = layer.base.model_dump()
+        base["position"] = shifted(layer.base.position)
+        fields["base"] = base
+        if layer.tracks.get("position"):
+            moved = [k.model_copy(update={"value": shifted(k.value)}) for k in layer.tracks["position"]]
+            fields["tracks"] = {**layer.tracks, "position": moved}
+    return _replace_layer(project, layer_id, fields)
+
+
+def set_python_values(
+    project: Project, layer_id: str, values: dict[str, float], shift: Any = (0.0, 0.0)
+) -> Edit:
+    """Change numeric ``PARAMS`` values on a Python object, preserving its other values and position."""
+    layer = _layer(project, layer_id)
+    if layer.spec is None or layer.spec.type != "Python":
+        raise EditError(f"layer {layer_id!r} is not a Python object")
+    params = {**layer.spec.params, "values": {**(layer.spec.params.get("values") or {}), **values}}
+    fields: dict[str, Any] = {"spec": layer.spec.model_copy(update={"params": params})}
     dx, dy = float(shift[0]), float(shift[1])
     if dx or dy:
 
@@ -982,8 +1067,13 @@ def reset_camera(project: Project) -> Edit:
 
 
 def anchor_shifts_elsewhere(layer: Layer) -> bool:
-    """Whether moving the anchor keeps the drawing only at the edit time (keyed rotation/scale)."""
-    return bool(layer.tracks.get("rotation") or layer.tracks.get("scale"))
+    """Whether moving the anchor keeps the drawing only at the edit time (a keyed scale or rotation)."""
+    return bool(
+        layer.tracks.get("rotation")
+        or layer.tracks.get("scale")
+        or layer.tracks.get("scale_x")
+        or layer.tracks.get("scale_y")
+    )
 
 
 def retime_keys(
@@ -1185,6 +1275,7 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "camera": project.camera,
         "morph_matching": project.morph_matching,
         "helpers": project.helpers,
+        "code_folders": project.code_folders,
         "voice": project.voice,
         "pronunciations": project.pronunciations,
     }
@@ -1500,9 +1591,11 @@ def _group_or_none(layers: dict[str, Layer], parent_id: str | None) -> bool:
 def _layer_kind(a: Layer, b: Layer, regrouped: bool = False) -> EditKind | None:
     if a == b:
         return None
+    if a.visible != b.visible and a.model_copy(update={"visible": b.visible}) == b:
+        return "timing"  # visibility gates drawing; the cached object and its animation stay valid
     moved = a.parent_id != b.parent_id and not regrouped
     if a.spec != b.spec or a.part != b.part or moved or a.style != b.style:
-        return "spec"  # a part's colours (ADR 0049) are in its object's states: the tree is redone
+        return "spec"  # a part's colours (ADR 0049) or geometry changed, so rebuild its tree
     if [c.id for c in a.clips] != [c.id for c in b.clips]:
         return "clip"  # added, removed or reordered: predecessors changed
     timing = False
@@ -1570,7 +1663,16 @@ def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> E
 
 def _replace_layers(project: Project, layers: list[Layer]) -> Edit:
     # Unchanged layers are reused as-is; the project-level validator still runs.
-    new_project = _rebuilt(project, layers=layers)
+    code_layer_ids = {
+        layer.id
+        for layer in layers
+        if layer.spec is not None and layer.spec.type in RUNS_CODE
+    }
+    folders = {
+        name: [layer_id for layer_id in layer_ids if layer_id in code_layer_ids]
+        for name, layer_ids in project.code_folders.items()
+    }
+    new_project = _rebuilt(project, layers=layers, code_folders=folders)
     kind, layer_ids = classify(project, new_project)
     return Edit(new_project, kind, layer_ids)
 

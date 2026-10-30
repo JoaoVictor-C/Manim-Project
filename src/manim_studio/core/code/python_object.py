@@ -311,6 +311,65 @@ def call_values(code: str, values: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+@dataclass(frozen=True)
+class PyHandle:
+    """A named point handle declared by ``HANDLES`` and backed by two numeric parameters."""
+
+    label: str
+    x: str
+    y: str
+    x_kind: PyKind
+    y_kind: PyKind
+    x_minimum: float | None = None
+    x_maximum: float | None = None
+    y_minimum: float | None = None
+    y_maximum: float | None = None
+
+
+@lru_cache(maxsize=256)
+def read_handles(code: str) -> tuple[PyHandle, ...]:
+    """Read optional ``HANDLES = {label: (x_param, y_param)}`` without running user code.
+
+    Only coordinates backed by numeric ``PARAMS`` are accepted. Invalid or incomplete declarations
+    simply provide no handles, so editing a half-written object never executes or breaks its code.
+    """
+    try:
+        tree = ast.parse(code, FILENAME)
+        params = read_params(code)
+    except (SyntaxError, ValueError, CodeProblem):
+        return ()
+    assignments = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        and any(isinstance(target, ast.Name) and target.id == "HANDLES" for target in _targets(node))
+    ]
+    if not assignments or assignments[-1].value is None:
+        return ()
+    try:
+        declared = ast.literal_eval(assignments[-1].value)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return ()
+    if not isinstance(declared, dict):
+        return ()
+    numeric = {param.name: param for param in params if param.kind in ("float", "int")}
+    out = []
+    for label, pair in declared.items():
+        if (
+            not isinstance(label, str)
+            or not label.strip()
+            or not isinstance(pair, (tuple, list))
+            or len(pair) != 2
+            or not all(isinstance(name, str) and name in numeric for name in pair)
+        ):
+            return ()
+        x, y = numeric[pair[0]], numeric[pair[1]]
+        out.append(
+            PyHandle(label, x.name, y.name, x.kind, y.kind, x.minimum, x.maximum, y.minimum, y.maximum)
+        )
+    return tuple(out)
+
+
 def kept_values(code: str, values: dict[str, Any]) -> dict[str, Any]:
     """The ``values`` that still fit new ``code`` (a parameter removed or retyped drops its value)."""
     params, problem = _read(code)
@@ -330,6 +389,11 @@ def trust_everything(on: bool = True) -> None:
     """Let every Python object's code run in this process (the user asked: ``--trust-code``)."""
     global _trust_everything
     _trust_everything = on
+
+
+def trusts_everything() -> bool:
+    """Is every Python object's code allowed to run in this process (``--trust-code``)?"""
+    return _trust_everything
 
 
 def is_trusted(code: str) -> bool:

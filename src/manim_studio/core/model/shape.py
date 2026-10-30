@@ -198,7 +198,7 @@ def freeze_problem(project: Project, layer_id: str) -> str | None:
 
     Besides its kind: a layer with parts or child objects (parts name pieces of its LaTeX, a
     graph is plotted on its axes), and clips that need the object's own type (letter by letter
-    on a Text, counting on a Number, TransformMatchingTex at either end). Whether it is drawn -
+    on a Text, counting on a Number, a TeX match at either end). Whether it is drawn -
     not a placeholder, not failing - is asked of the built object (``adapter.freeze_data``)."""
     layer = project.layer(layer_id)
     problem = kind_problem(layer)

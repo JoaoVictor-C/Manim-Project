@@ -2,7 +2,7 @@
 
 A project is a list of layers. Each layer builds one Manim mobject from a spec,
 owns one lane of non-overlapping animation clips (ADR 0004), and keyframe tracks
-for its layer transform (position, scale, rotation, opacity).
+for its layer transform (position, uniform and independent scale, rotation, opacity).
 
 This module is pure data and must not import Manim: it is used to validate
 documents in tools that never render. The table of clip kinds lives here for
@@ -308,6 +308,8 @@ class Clip(BaseModel):
 class Transform2D(BaseModel):
     position: Vec2 = (0.0, 0.0)
     scale: float = 1.0
+    scale_x: float = Field(default=1.0, ge=0.01, le=100.0)
+    scale_y: float = Field(default=1.0, ge=0.01, le=100.0)
     rotation: float = 0.0  # degrees, counter-clockwise
     opacity: float = Field(default=1.0, ge=0, le=1)
     # The pivot of rotating and scaling, in local units (ADR 0021): base only, never keyed.
@@ -318,6 +320,9 @@ class Transform2D(BaseModel):
         data = handler(self)
         if tuple(self.anchor) == (0.0, 0.0):
             data.pop("anchor", None)  # files without anchors save as before
+        for name in ("scale_x", "scale_y"):
+            if getattr(self, name) == 1.0:
+                data.pop(name, None)  # projects without independent sizing save as before
         return data
 
 
@@ -328,8 +333,8 @@ class Lifetime(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-TrackName = Literal["position", "scale", "rotation", "opacity"]
-TRACK_NAMES: tuple[TrackName, ...] = ("position", "scale", "rotation", "opacity")
+TrackName = Literal["position", "scale", "scale_x", "scale_y", "rotation", "opacity"]
+TRACK_NAMES: tuple[TrackName, ...] = ("position", "scale", "scale_x", "scale_y", "rotation", "opacity")
 
 
 class PartKey(BaseModel):
@@ -394,10 +399,13 @@ class Layer(BaseModel):
     clips: list[Clip] = Field(default_factory=list)
     # Parts only (ADR 0049): the colours of the part's glyphs, the keys Spec.style uses.
     style: dict[str, Any] = Field(default_factory=dict)
+    visible: bool = True  # editor visibility toggle; false layers remain in the timeline and project
 
     @model_serializer(mode="wrap")
     def _omit_empty_style(self, handler):
         data = handler(self)
+        if self.visible:
+            data.pop("visible", None)  # existing project files save as before
         if not self.style:
             data.pop("style", None)  # files without coloured parts save as before
         return data
@@ -450,6 +458,13 @@ class Layer(BaseModel):
             raise ValueError(
                 f"layer {self.id!r}: a group has no clips (not yet): put the clips on its objects"
             )
+        if self.is_group and (
+            self.base.scale_x != 1.0
+            or self.base.scale_y != 1.0
+            or "scale_x" in self.tracks
+            or "scale_y" in self.tracks
+        ):
+            raise ValueError(f"layer {self.id!r}: a group can only use uniform scale")
         if self.style and not self.is_part:
             raise ValueError(f"layer {self.id!r}: only part layers have a style (an object has spec.style)")
         if self.style and (problem := _style_problem(self.style)):
@@ -469,6 +484,10 @@ class Layer(BaseModel):
         for name, track in self.tracks.items():
             if name != "position" and any(key.curved for key in track):
                 raise ValueError(f"layer {self.id!r}: only position keys can have path tangents")
+            if name in ("scale_x", "scale_y") and any(
+                not isinstance(key.value, (int, float)) or not 0.01 <= key.value <= 100.0 for key in track
+            ):
+                raise ValueError(f"layer {self.id!r}: {name} keys must be from 0.01 to 100")
         if self.spec is not None and self.spec.type in PYTHON_TYPES:
             from ..code.python_object import spec_problem  # reads PARAMS without running the code
 
@@ -519,14 +538,23 @@ class Layer(BaseModel):
 
 
 def keyable_props(layer: Layer) -> tuple[TrackName, ...]:
-    """Transform properties the layer may key (ADR 0024: a locked child keys opacity only)."""
-    return ("opacity",) if layer.locked else TRACK_NAMES
+    """Transform properties the layer may key (locked children: opacity; groups: uniform scale)."""
+    if layer.locked:
+        return ("opacity",)
+    if layer.is_group:
+        return tuple(name for name in TRACK_NAMES if name not in ("scale_x", "scale_y"))
+    return TRACK_NAMES
 
 
 def _check_locked(layer: Layer) -> None:
     base = layer.base
     own = (
-        base.position != (0.0, 0.0) or base.scale != 1.0 or base.rotation != 0.0 or base.anchor != (0.0, 0.0)
+        base.position != (0.0, 0.0)
+        or base.scale != 1.0
+        or base.scale_x != 1.0
+        or base.scale_y != 1.0
+        or base.rotation != 0.0
+        or base.anchor != (0.0, 0.0)
     )
     if own or set(layer.tracks) - {"opacity"}:
         raise ValueError(
@@ -694,6 +722,7 @@ class Project(BaseModel):
     # changes no existing clip. Smart is the default and is not written to the file.
     morph_matching: Literal["smart", "classic"] = "smart"
     helpers: list[Helper] = Field(default_factory=list)  # importable by code (ADR 0058)
+    code_folders: dict[str, list[str]] = Field(default_factory=dict)  # Code page folders: name -> layer ids
     voice: VoiceChoice | None = None  # the narration's voice for cues without their own (ADR 0060)
     pronunciations: dict[str, str] = Field(default_factory=dict)  # written -> spoken, before synthesis
 
@@ -708,6 +737,8 @@ class Project(BaseModel):
             data.pop("morph_matching", None)
         if not self.helpers:
             data.pop("helpers", None)  # files without helpers save as before (ADR 0058)
+        if not self.code_folders:
+            data.pop("code_folders", None)
         if not self.audio:
             data.pop("audio", None)  # files without sound save as before
         if not self.subtitles:
@@ -729,6 +760,7 @@ class Project(BaseModel):
         duplicates = {i for i, count in Counter(ids).items() if count > 1}  # linear (B53)
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
+        self._code_folder_rules()
         self.subtitles = sorted(self.subtitles, key=lambda cue: cue.start)
         for a, b in itertools.pairwise(self.subtitles):
             if b.start < a.end - 1e-9:
@@ -775,6 +807,28 @@ class Project(BaseModel):
                     )
                 targeted[clip.to_layer] = layer.id
         return self
+
+    def _code_folder_rules(self) -> None:
+        """Code page folders are flat, uniquely named and contain only code layers."""
+        names = [name.casefold() for name in self.code_folders]
+        if len(names) != len(set(names)):
+            raise ValueError("Code page folder names must be unique, ignoring case")
+        by_id = {layer.id: layer for layer in self.layers}
+        assigned: set[str] = set()
+        for name, layer_ids in self.code_folders.items():
+            if not name.strip() or name != name.strip() or len(name) > 64 or any(c in name for c in "/\\"):
+                raise ValueError(f"invalid Code page folder name {name!r}")
+            if not isinstance(layer_ids, list) or any(not isinstance(item, str) for item in layer_ids):
+                raise ValueError(f"Code page folder {name!r} must contain layer ids")
+            if len(layer_ids) != len(set(layer_ids)):
+                raise ValueError(f"Code page folder {name!r} contains a layer more than once")
+            for layer_id in layer_ids:
+                layer = by_id.get(layer_id)
+                if layer is None or layer.spec is None or layer.spec.type not in CODE_TYPES | PYTHON_TYPES:
+                    raise ValueError(f"Code page folder {name!r} refers to non-code layer {layer_id!r}")
+                if layer_id in assigned:
+                    raise ValueError(f"code layer {layer_id!r} is in more than one folder")
+                assigned.add(layer_id)
 
     def _helper_rules(self) -> None:
         """ADR 0058: at most ``MAX_HELPERS`` helpers, with different names."""

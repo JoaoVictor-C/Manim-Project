@@ -35,6 +35,12 @@ Manim updater (ADR 0033)::
 units (not re-centred); ``point(state, params)`` gives ``(x, y)``, the point a
 traced path follows (default: the drawing's centre).
 
+For an object plugin, set ``point_handle=True`` on a point parameter to expose
+it as a draggable geometry handle. Only use this for a point used by the
+object's geometry, not for ranges or other two-number settings::
+
+    Param("tip", "point", (1.5, 0.0), "Tip", point_handle=True)
+
 A plugin can also add a *voice provider* for the Narration section of the Audio page
 (ADR 0060)::
 

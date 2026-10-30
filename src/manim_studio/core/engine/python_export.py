@@ -137,7 +137,13 @@ def readable_problems(project: Project) -> list[str]:
         if _keyed(layer):  # drawn through the Keyed helper, which applies the transform after the clips
             out += [f"{name(layer)}: {why}" for why in _keyed_problems(project, layer)]
         base = layer.base
-        turned = base.rotation != 0 or base.scale != 1 or tuple(base.anchor) != (0.0, 0.0)
+        turned = (
+            base.rotation != 0
+            or base.scale != 1
+            or base.scale_x != 1
+            or base.scale_y != 1
+            or tuple(base.anchor) != (0.0, 0.0)
+        )
         if layer.clips and turned and not _drawn_by_keyed(project, layer):
             out.append(f"{name(layer)}: clips on a turned or scaled object animate before its transform")
         if any(c.info.category == "motion" and c.params.get("rotate") == "along" for c in layer.clips):
@@ -313,7 +319,14 @@ def _connector_problems(project: Project, layer: Layer) -> list[str]:
     if any(tuple(params.get(n) or (0.0, 0.0))[:2] != (0.0, 0.0) for n in ("source_offset", "target_offset")):
         out.append("a connector from points off the centres")
     base = layer.base
-    if tuple(base.position) != (0.0, 0.0) or base.scale != 1 or base.rotation != 0 or base.opacity != 1:
+    if (
+        tuple(base.position) != (0.0, 0.0)
+        or base.scale != 1
+        or base.scale_x != 1
+        or base.scale_y != 1
+        or base.rotation != 0
+        or base.opacity != 1
+    ):
         out.append("a moved, turned, scaled or faded connector")
     morphing = {c.to_layer for x in project.layers for c in x.clips if c.to_layer}
     morphing |= {x.id for x in project.layers if any(c.to_layer for c in x.clips)}
@@ -330,9 +343,19 @@ def _connector_problems(project: Project, layer: Layer) -> list[str]:
     return list(dict.fromkeys(out))
 
 
-def _clusters(project: Project) -> list[tuple[float, float, list[tuple[Layer, Clip]]]]:
+def _clusters(
+    project: Project, layer_ids: set[str] | None = None
+) -> list[tuple[float, float, list[tuple[Layer, Clip]]]]:
     """Clips grouped where they overlap in time: each group plays as one ``self.play``."""
-    clips = sorted(((layer, c) for layer in project.layers for c in layer.clips), key=lambda lc: lc[1].start)
+    clips = sorted(
+        (
+            (layer, clip)
+            for layer in project.layers
+            if layer_ids is None or layer.id in layer_ids
+            for clip in layer.clips
+        ),
+        key=lambda lc: lc[1].start,
+    )
     groups: list[tuple[float, float, list[tuple[Layer, Clip]]]] = []
     for layer, clip in clips:
         if groups and clip.start < groups[-1][1] - EPS:
@@ -378,11 +401,27 @@ class Keyed(Group):
     """
 
     def __init__(
-        self, scene, source, anchor=(0.0, 0.0), position=(0.0, 0.0), scale=1.0, rotation=0.0, opacity=1.0
+        self,
+        scene,
+        source,
+        anchor=(0.0, 0.0),
+        position=(0.0, 0.0),
+        scale=1.0,
+        scale_x=1.0,
+        scale_y=1.0,
+        rotation=0.0,
+        opacity=1.0,
     ):
         super().__init__()
         self.scene, self.source, self.anchor = scene, source, anchor
-        self.keys = {"position": position, "scale": scale, "rotation": rotation, "opacity": opacity}
+        self.keys = {
+            "position": position,
+            "scale": scale,
+            "scale_x": scale_x,
+            "scale_y": scale_y,
+            "rotation": rotation,
+            "opacity": opacity,
+        }
         self.overlays = []  # what an overlay clip (Flash) draws besides the object, while it plays
         fps = config.frame_rate
         # A dt updater, so Manim redraws it in waits too, at the frame's own time on the frame grid.
@@ -401,10 +440,18 @@ class Keyed(Group):
         if self.overlays:
             drawing = Group(drawing, *(overlay.copy() for overlay in self.overlays))
             drawing.set_z_index(self.source.z_index)
-        (x, y), scale, opacity = self.value("position", t), self.value("scale", t), self.value("opacity", t)
+        (x, y), scale, sx, sy, opacity = (
+            self.value("position", t),
+            self.value("scale", t),
+            self.value("scale_x", t),
+            self.value("scale_y", t),
+            self.value("opacity", t),
+        )
         angle = self.value("rotation", t) * DEGREES
-        c, s = np.cos(angle) * scale, np.sin(angle) * scale
-        matrix = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+        c, s = np.cos(angle), np.sin(angle)
+        matrix = np.array(
+            [[c * scale * sx, -s * scale * sy, 0.0], [s * scale * sx, c * scale * sy, 0.0], [0.0, 0.0, 1.0]]
+        )
         pivot = np.array([*self.anchor, 0.0])
         shift = np.array([x, y, 0.0]) + pivot - matrix @ pivot
         for part in drawing.get_family():
@@ -529,6 +576,9 @@ class _Readable:
     def __init__(self, project: Project, scene_name: str) -> None:
         self.project = project
         self.scene_name = scene_name
+        # Readable exports exclude child trees, so roots' own visibility is enough here.
+        # Exact exports preserve the project JSON and use Evaluator's inherited visibility.
+        self.visible_ids = {layer.id for layer in project.layers if layer.visible}
         self.names = _variable_names(project)
         self.keyed = {layer.id for layer in project.layers if _drawn_by_keyed(project, layer)}
         self.drawings = _drawing_names(project, self.names, self.keyed)  # keyed layer -> its Keyed
@@ -581,7 +631,18 @@ class _Readable:
             lines += ["", *inspect.getsource(adapter.cubic_bezier).splitlines(), ""]
         if "colour_glyphs" in self.helpers:  # the editor's own function (ADR 0055)
             lines += ["", *inspect.getsource(adapter.colour_glyphs).splitlines(), ""]
-        imports = (["import math"] if self.builders else []) + (["import numpy as np"] if self.shapes else [])
+        has_axes_grid = any(
+            layer.spec is not None
+            and layer.spec.type == "Axes"
+            and (
+                layer.spec.params.get("grid_x", "yes") == "yes"
+                or layer.spec.params.get("grid_y", "yes") == "yes"
+            )
+            for layer in self.project.layers
+        )
+        imports = (["import math"] if self.builders or has_axes_grid else []) + (
+            ["import numpy as np"] if self.shapes else []
+        )
         if imports:
             lines[lines.index("from manim import *")] = (
                 "\n".join(imports) + "\n\nimport manim as m\nfrom manim import *"
@@ -622,6 +683,8 @@ class _Readable:
                 continue
             out.append(f"{var} = {self._construct(layer)}")
             out += [f"{var}.{call}" for call in _style_calls(adapter.text_style(layer.spec)[1])]
+            if layer.spec.type == "Axes":
+                out += self._axes_grid(var, layer.id, layer.spec)
             if layer.spec.params.get(GLYPH_COLOURS):  # after the style, as the editor (ADR 0055)
                 self.helpers.add("colour_glyphs")
                 out.append(f"colour_glyphs({var}, {layer.spec.params[GLYPH_COLOURS]!r})")
@@ -679,13 +742,70 @@ class _Readable:
             return f"{self.builders[code]}({_literal(values)})"
         return _construct(layer.spec)
 
+    @staticmethod
+    def _axes_grid(var: str, layer_id: str, spec) -> list[str]:
+        """Rebuild an Axes object's custom grid behind its axes in readable Manim code."""
+        x0, x1 = (float(v) for v in spec.params.get("x_range", (-5.0, 5.0))[:2])
+        y0, y1 = (float(v) for v in spec.params.get("y_range", (-3.0, 3.0))[:2])
+        safe_id = re.sub(r"\W+", "_", layer_id)
+        grid_name = f"_studio_grid_{safe_id}"
+        out = [f"{grid_name} = VGroup()"]
+        axes = (
+            ("x", "grid_x", "grid_x_step", x0, x1, y0, y1),
+            ("y", "grid_y", "grid_y_step", y0, y1, x0, x1),
+        )
+        added = False
+        for direction, enabled_name, step_name, low, high, across_low, across_high in axes:
+            enabled = spec.params.get(enabled_name, "yes") == "yes"
+            step = float(spec.params.get(step_name, 1.0))
+            if not enabled or step <= 0 or high <= low:
+                continue
+            added = True
+            first = f"{grid_name}_{direction}_first"
+            last = f"{grid_name}_{direction}_last"
+            stride = f"{grid_name}_{direction}_stride"
+            index = f"{grid_name}_{direction}_index"
+            value = f"{grid_name}_{direction}_value"
+            out += [
+                f"{first} = math.ceil({low!r} / {step!r} - 1e-9)",
+                f"{last} = math.floor({high!r} / {step!r} + 1e-9)",
+                f"{stride} = max(1, math.ceil(({last} - {first} + 1) / 1200))",
+                f"for {index} in range({first}, {last} + 1):",
+                f"    if ({index} - {first}) % {stride} == 0 or {index} == 0:",
+                f"        {value} = {index} * {step!r}",
+                f"        if abs({value}) > 1e-9:",
+            ]
+            if direction == "x":
+                start = f"{var}.c2p({value}, {across_low!r})"
+                end = f"{var}.c2p({value}, {across_high!r})"
+            else:
+                start = f"{var}.c2p({across_low!r}, {value})"
+                end = f"{var}.c2p({across_high!r}, {value})"
+            out.append(f"            {grid_name}.add(Line({start}, {end}))")
+        if not added:
+            return []
+        out += [
+            f"{grid_name}.set_stroke(color={spec.params.get('grid_colour', '#64748B')!r}, "
+            f"width={_num(float(spec.params.get('grid_width', 1.0)))}, "
+            f"opacity={_num(float(spec.params.get('grid_opacity', 0.35)))})",
+            f"{var}.add_to_back({grid_name})",
+        ]
+        return out
+
     def _keyed(self, layer: Layer) -> str:
         """The layer's Keyed drawing: its keys as tables, its unkeyed transform as constants."""
         base = layer.base
         args = []
         if tuple(base.anchor) != (0.0, 0.0):
             args.append(f"anchor={_pair(base.anchor)}")
-        rest = {"position": (0.0, 0.0), "scale": 1.0, "rotation": 0.0, "opacity": 1.0}
+        rest = {
+            "position": (0.0, 0.0),
+            "scale": 1.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0,
+            "opacity": 1.0,
+        }
         for prop, default in rest.items():
             track = layer.tracks.get(prop)
             if track:
@@ -730,9 +850,11 @@ class _Readable:
         the frames left until the next event, as the editor's export draws them."""
         events: list[tuple[float, int, list[str]]] = []
         for t, layer_id, what in _lifetime_events(self.project):
+            if layer_id not in self.visible_ids:
+                continue
             order = 0 if what == "remove" else 1
             events.append((t, order, [f"self.{what}({self._drawn(layer_id)})"]))
-        clusters = _clusters(self.project)
+        clusters = _clusters(self.project, self.visible_ids)
         for start, end, members in clusters:
             events.append((start, 2, self._play(start, end, members)))
         fps = self.project.canvas.fps
@@ -915,6 +1037,103 @@ def _construct(spec) -> str:
             f"x_length={_num(axes('x_length'))}, y_length={_num(axes('y_length'))}, "
             f'axis_config={{"include_numbers": {numbers}}})'
         )
+    if spec.type in {"Pentagon", "Hexagon", "Octagon", "Nonagon", "Decagon"}:
+        sides = {"Pentagon": 5, "Hexagon": 6, "Octagon": 8, "Nonagon": 9, "Decagon": 10}[spec.type]
+        return f"RegularPolygon(n={sides})"
+    if spec.type == "RegularPolygram":
+        values = {
+            param.name: spec.params.get(param.name, param.default)
+            for param in adapter.MOBJECT_PARAMS[spec.type]
+        }
+        return (
+            f"RegularPolygram({int(values['num_vertices'])}, density={int(values['density'])}, "
+            f"radius={_num(values['radius'])})"
+        )
+    if spec.type in {"Rhombus", "Parallelogram", "Trapezoid"}:
+        vertices = {
+            "Rhombus": ((0.0, 1.0), (1.0, 0.0), (0.0, -1.0), (-1.0, 0.0)),
+            "Parallelogram": ((-1.0, -1.0), (0.0, -1.0), (1.0, 1.0), (0.0, 1.0)),
+            "Trapezoid": ((-1.0, -1.0), (1.0, -1.0), (0.65, 1.0), (-0.65, 1.0)),
+        }[spec.type]
+        points = ", ".join(_vector(point) for point in vertices)
+        return f"Polygon({points})"
+    if spec.type in {"Polygon", "Polyline"}:
+        values = {
+            param.name: spec.params.get(param.name, param.default)
+            for param in adapter.MOBJECT_PARAMS[spec.type]
+        }
+        points = ", ".join(_vector(values[f"point_{i}"]) for i in range(1, 4))
+        if spec.type == "Polygon":
+            return f"Polygon({points})"
+        return f"VMobject().set_points_as_corners([{points}])"
+    if spec.type == "CubicBezier":
+        values = {
+            param.name: spec.params.get(param.name, param.default)
+            for param in adapter.MOBJECT_PARAMS[spec.type]
+        }
+        points = ", ".join(_vector(values[f"point_{i}"]) for i in range(1, 5))
+        return f"CubicBezier({points})"
+    if spec.type == "ArcBetweenPoints":
+        values = {
+            param.name: spec.params.get(param.name, param.default)
+            for param in adapter.MOBJECT_PARAMS[spec.type]
+        }
+        return (
+            f"ArcBetweenPoints({_vector(values['start'])}, {_vector(values['end'])}, "
+            f"angle={_num(values['angle'])})"
+        )
+    if spec.type in {"CurvedArrow", "CurvedDoubleArrow"}:
+        values = {
+            param.name: spec.params.get(param.name, param.default)
+            for param in adapter.MOBJECT_PARAMS[spec.type]
+        }
+        return f"{spec.type}({_vector(values['start_point'])}, {_vector(values['end_point'])})"
+    if spec.type == "BraceBetweenPoints":
+        values = {
+            param.name: spec.params.get(param.name, param.default)
+            for param in adapter.MOBJECT_PARAMS[spec.type]
+        }
+        return (
+            f"BraceBetweenPoints({_vector(values['point_1'])}, {_vector(values['point_2'])}, "
+            f"direction={_vector(values['direction'])})"
+        )
+    if spec.type in {"Angle", "RightAngle"}:
+        params = {
+            name: spec.params.get(name, adapter._param_default(spec.type, name))
+            for name in ("point_a", "vertex", "point_b")
+        }
+        first = f"Line({_vector(params['vertex'])}, {_vector(params['point_a'])})"
+        second = f"Line({_vector(params['vertex'])}, {_vector(params['point_b'])})"
+        if spec.type == "Angle":
+            radius = float(spec.params.get("radius", adapter._param_default("Angle", "radius")))
+            return f"Angle({first}, {second}, radius={_num(radius)})"
+        length = float(spec.params.get("length", adapter._param_default("RightAngle", "length")))
+        return f"RightAngle({first}, {second}, length={_num(length)})"
+    if spec.type == "NumberLine":
+        def number_line(name: str):
+            return spec.params.get(name, adapter._param_default("NumberLine", name))
+
+        return (
+            f"NumberLine(x_range=[{_num(number_line('x_min'))}, {_num(number_line('x_max'))}, "
+            f"{_num(number_line('x_step'))}], length={_num(number_line('length'))}, "
+            "include_numbers=False)"
+        )
+    if spec.type == "NumberPlane":
+        def number_plane(name: str):
+            return spec.params.get(name, adapter._param_default("NumberPlane", name))
+
+        return (
+            f"NumberPlane(x_range=[{_num(number_plane('x_min'))}, {_num(number_plane('x_max'))}, "
+            f"{_num(number_plane('x_step'))}], y_range=[{_num(number_plane('y_min'))}, "
+            f"{_num(number_plane('y_max'))}, {_num(number_plane('y_step'))}], "
+            f"x_length={_num(number_plane('x_length'))}, y_length={_num(number_plane('y_length'))})"
+        )
+    if spec.type == "Prism":
+        dimensions = [
+            float(spec.params.get(name, adapter._param_default("Prism", name)))
+            for name in ("width", "depth", "height")
+        ]
+        return f"Prism(dimensions={dimensions!r})"
     if spec.type == "RightTriangle":  # not a Manim class: an outline and the mark of its right angle
         angle = float(spec.params.get("angle", 45.0))
         side = float(spec.params.get("side_length", 3.0))
@@ -957,6 +1176,10 @@ def _transform_calls(layer: Layer, at: float | None = None) -> list[str]:
     base = layer.base if at is None else layer_transform(layer, at)
     pivot = _vector(base.anchor)
     out = []
+    if base.scale_x != 1:
+        out.append(f"stretch({_num(base.scale_x)}, dim=0, about_point={pivot})")
+    if base.scale_y != 1:
+        out.append(f"stretch({_num(base.scale_y)}, dim=1, about_point={pivot})")
     if base.scale != 1:
         out.append(f"scale({_num(base.scale)}, about_point={pivot})")
     if base.rotation != 0:

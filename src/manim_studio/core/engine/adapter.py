@@ -202,11 +202,74 @@ m.MarkupText._text2svg = _locked(m.MarkupText._text2svg)
 
 # --- mobjects ---------------------------------------------------------------
 
-_SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "Line", "Arrow", "Dot", "Star"}
+_SHAPES = {
+    "Circle",
+    "Ellipse",
+    "Square",
+    "Rectangle",
+    "RoundedRectangle",
+    "Triangle",
+    "RightTriangle",
+    "RegularPolygon",
+    "RegularPolygram",
+    "Pentagon",
+    "Hexagon",
+    "Octagon",
+    "Nonagon",
+    "Decagon",
+    "Rhombus",
+    "Parallelogram",
+    "Trapezoid",
+    "Polygon",
+    "Star",
+    "Cross",
+    "Dot",
+    "Line",
+    "DashedLine",
+    "Arrow",
+    "DoubleArrow",
+    "Vector",
+    "CurvedArrow",
+    "CurvedDoubleArrow",
+    "Arc",
+    "ArcBetweenPoints",
+    "CubicBezier",
+    "Sector",
+    "Annulus",
+    "AnnularSector",
+    "Polyline",
+    "Angle",
+    "RightAngle",
+    "BraceBetweenPoints",
+    "Cube",
+    "Sphere",
+    "Cylinder",
+    "Cone",
+    "Torus",
+    "Prism",
+    "Tetrahedron",
+    "Octahedron",
+    "Dodecahedron",
+    "Icosahedron",
+}
+_COORDINATE_SYSTEMS = {"NumberLine", "NumberPlane", "ComplexPlane", "PolarPlane", "ThreeDAxes"}
+_MOBJECT_ALIASES = {
+    "Pentagon": m.RegularPolygon,
+    "Hexagon": m.RegularPolygon,
+    "Octagon": m.RegularPolygon,
+    "Nonagon": m.RegularPolygon,
+    "Decagon": m.RegularPolygon,
+    "Rhombus": m.Polygon,
+    "Parallelogram": m.Polygon,
+    "Trapezoid": m.Polygon,
+    "Polyline": m.VMobject,
+}
 
 MOBJECT_TYPES: dict[str, type] = {
-    name: getattr(m, name)
-    for name in sorted(_SHAPES | TEXT_TYPES | MEDIA_TYPES | NUMBER_TYPES | {"Axes", "TracedPath"})
+    name: _MOBJECT_ALIASES.get(name, getattr(m, name, None))
+    for name in sorted(
+        _SHAPES | _COORDINATE_SYSTEMS | TEXT_TYPES | MEDIA_TYPES | NUMBER_TYPES | {"Axes", "TracedPath"}
+    )
 }
 MOBJECT_TYPES["Connector"] = m.Line  # drawn frame by frame by the evaluator (ADR 0036)
 MOBJECT_TYPES["RightTriangle"] = (
@@ -235,6 +298,7 @@ class Param:
     choices: tuple[str, ...] = ()
     multiline: bool = False  # long text (LaTeX) gets a text box
     file_filter: str = ""  # path params: the file dialog's filter (blank = images)
+    point_handle: bool = False  # this point-valued parameter is a draggable geometry point
 
     @property
     def title(self) -> str:
@@ -261,8 +325,26 @@ _FONT_SIZE = Param("font_size", "float", 48.0, "Font size", minimum=4, maximum=4
 # layer transform are separate.
 MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
     "Circle": (Param("radius", "float", 1.0, **_SIZE),),
+    "Pentagon": (),
+    "Hexagon": (),
+    "Octagon": (),
+    "Nonagon": (),
+    "Decagon": (),
+    "Rhombus": (),
+    "Parallelogram": (),
+    "Trapezoid": (),
+    "Cross": (),
+    "Ellipse": (
+        Param("width", "float", 2.0, minimum=0.05, maximum=50.0, step=0.1),
+        Param("height", "float", 1.0, minimum=0.05, maximum=50.0, step=0.1),
+    ),
     "Square": (Param("side_length", "float", 2.0, "Side length", **_SIZE),),
     "Rectangle": (Param("width", "float", 4.0, **_SIZE), Param("height", "float", 2.0, **_SIZE)),
+    "RoundedRectangle": (
+        Param("width", "float", 4.0, **_SIZE),
+        Param("height", "float", 2.0, **_SIZE),
+        Param("corner_radius", "float", 0.35, "Corner radius", minimum=0.0, maximum=10.0),
+    ),
     "Triangle": (),
     "RightTriangle": (
         Param("angle", "float", 45.0, "Acute angle (degrees)", minimum=15.0, maximum=75.0, step=1.0),
@@ -272,13 +354,125 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
         Param("n", "int", 5, "Points", minimum=3, maximum=24, step=1),
         Param("outer_radius", "float", 1.0, "Radius", **_SIZE),
     ),
+    "RegularPolygon": (Param("n", "int", 6, "Sides", minimum=3, maximum=24, step=1),),
+    "RegularPolygram": (
+        Param("num_vertices", "int", 5, "Points", minimum=3, maximum=24, step=1),
+        Param("density", "int", 2, "Star density", minimum=1, maximum=12, step=1),
+        Param("radius", "float", 1.0, **_SIZE),
+    ),
+    "Polygon": (
+        Param("point_1", "point", (-1.0, -1.0), "Vertex 1", point_handle=True),
+        Param("point_2", "point", (1.0, -1.0), "Vertex 2", point_handle=True),
+        Param("point_3", "point", (0.0, 1.0), "Vertex 3", point_handle=True),
+    ),
+    "Polyline": (
+        Param("point_1", "point", (-1.0, 0.0), "Point 1", point_handle=True),
+        Param("point_2", "point", (0.0, 1.0), "Point 2", point_handle=True),
+        Param("point_3", "point", (1.0, 0.0), "Point 3", point_handle=True),
+    ),
     "Dot": (Param("radius", "float", 0.08, minimum=0.01, maximum=5.0, step=0.01),),
-    "Line": (Param("start", "point", (-1.0, 0.0)), Param("end", "point", (1.0, 0.0))),
+    "Line": (
+        Param("start", "point", (-1.0, 0.0), point_handle=True),
+        Param("end", "point", (1.0, 0.0), point_handle=True),
+    ),
     "Arrow": (
-        Param("start", "point", (-1.0, 0.0)),
-        Param("end", "point", (1.0, 0.0)),
+        Param("start", "point", (-1.0, 0.0), point_handle=True),
+        Param("end", "point", (1.0, 0.0), point_handle=True),
         Param("buff", "float", 0.25, "Gap at ends", minimum=0.0, maximum=5.0, step=0.05),
     ),
+    "DashedLine": (
+        Param("start", "point", (-1.0, 0.0), point_handle=True),
+        Param("end", "point", (1.0, 0.0), point_handle=True),
+        Param("dash_length", "float", 0.05, minimum=0.01, maximum=2.0, step=0.01),
+    ),
+    "DoubleArrow": (
+        Param("start", "point", (-1.0, 0.0), point_handle=True),
+        Param("end", "point", (1.0, 0.0), point_handle=True),
+        Param("buff", "float", 0.0, "Gap at ends", minimum=0.0, maximum=5.0, step=0.05),
+    ),
+    "Vector": (
+        Param("direction", "point", (1.5, 0.0), "Direction", point_handle=True),
+        Param("buff", "float", 0.0, "Gap at origin", minimum=0.0, maximum=5.0, step=0.05),
+    ),
+    "CurvedArrow": (
+        Param("start_point", "point", (-1.0, -0.5), "Start", point_handle=True),
+        Param("end_point", "point", (1.0, 0.5), "End", point_handle=True),
+    ),
+    "CurvedDoubleArrow": (
+        Param("start_point", "point", (-1.0, -0.5), "Start", point_handle=True),
+        Param("end_point", "point", (1.0, 0.5), "End", point_handle=True),
+    ),
+    "CubicBezier": (
+        Param("point_1", "point", (-2.0, -1.0), "Start", point_handle=True),
+        Param("point_2", "point", (-1.0, 1.0), "Control 1", point_handle=True),
+        Param("point_3", "point", (1.0, 1.0), "Control 2", point_handle=True),
+        Param("point_4", "point", (2.0, -1.0), "End", point_handle=True),
+    ),
+    "Arc": (
+        Param("radius", "float", 1.0, **_SIZE),
+        Param("start_angle", "float", 0.0, "Start angle (radians)", minimum=-6.283, maximum=6.283),
+        Param("angle", "float", math.pi / 2, "Sweep (radians)", minimum=-6.283, maximum=6.283),
+    ),
+    "ArcBetweenPoints": (
+        Param("start", "point", (-1.0, 0.0), "Start", point_handle=True),
+        Param("end", "point", (1.0, 0.0), "End", point_handle=True),
+        Param("angle", "float", math.pi / 2, "Bend (radians)", minimum=-6.283, maximum=6.283),
+    ),
+    "Sector": (
+        Param("radius", "float", 1.0, **_SIZE),
+        Param("start_angle", "float", 0.0, "Start angle (radians)", minimum=-6.283, maximum=6.283),
+        Param("angle", "float", math.pi / 2, "Sweep (radians)", minimum=0.01, maximum=6.283),
+    ),
+    "Annulus": (
+        Param("inner_radius", "float", 0.6, minimum=0.01, maximum=25.0),
+        Param("outer_radius", "float", 1.0, minimum=0.02, maximum=50.0),
+    ),
+    "AnnularSector": (
+        Param("inner_radius", "float", 0.5, minimum=0.0, maximum=25.0),
+        Param("outer_radius", "float", 1.0, minimum=0.02, maximum=50.0),
+        Param("start_angle", "float", 0.0, "Start angle (radians)", minimum=-6.283, maximum=6.283),
+        Param("angle", "float", math.pi / 2, "Sweep (radians)", minimum=0.01, maximum=6.283),
+    ),
+    "Angle": (
+        Param("point_a", "point", (1.0, 0.0), "First ray", point_handle=True),
+        Param("vertex", "point", (0.0, 0.0), "Vertex", point_handle=True),
+        Param("point_b", "point", (0.0, 1.0), "Second ray", point_handle=True),
+        Param("radius", "float", 0.5, minimum=0.05, maximum=10.0),
+    ),
+    "RightAngle": (
+        Param("point_a", "point", (1.0, 0.0), "First ray", point_handle=True),
+        Param("vertex", "point", (0.0, 0.0), "Vertex", point_handle=True),
+        Param("point_b", "point", (0.0, 1.0), "Second ray", point_handle=True),
+        Param("length", "float", 0.3, minimum=0.05, maximum=5.0),
+    ),
+    "BraceBetweenPoints": (
+        Param("point_1", "point", (-1.0, 0.0), "Start", point_handle=True),
+        Param("point_2", "point", (1.0, 0.0), "End", point_handle=True),
+        Param("direction", "point", (0.0, -1.0), "Direction"),
+    ),
+    "Cube": (Param("side_length", "float", 2.0, "Side length", minimum=0.1, maximum=20.0),),
+    "Sphere": (Param("radius", "float", 1.0, **_SIZE),),
+    "Cylinder": (
+        Param("radius", "float", 1.0, **_SIZE),
+        Param("height", "float", 2.0, minimum=0.1, maximum=50.0),
+    ),
+    "Cone": (
+        Param("base_radius", "float", 1.0, "Base radius", **_SIZE),
+        Param("height", "float", 1.0, minimum=0.1, maximum=50.0),
+    ),
+    "Torus": (
+        Param("major_radius", "float", 1.5, "Major radius", minimum=0.1, maximum=25.0),
+        Param("minor_radius", "float", 0.5, "Tube radius", minimum=0.05, maximum=10.0),
+    ),
+    "Prism": (
+        Param("width", "float", 3.0, minimum=0.1, maximum=50.0),
+        Param("depth", "float", 2.0, minimum=0.1, maximum=50.0),
+        Param("height", "float", 1.0, minimum=0.1, maximum=50.0),
+    ),
+    "Tetrahedron": (Param("edge_length", "float", 1.5, "Edge length", minimum=0.1, maximum=20.0),),
+    "Octahedron": (Param("edge_length", "float", 1.5, "Edge length", minimum=0.1, maximum=20.0),),
+    "Dodecahedron": (Param("edge_length", "float", 1.5, "Edge length", minimum=0.1, maximum=20.0),),
+    "Icosahedron": (Param("edge_length", "float", 1.5, "Edge length", minimum=0.1, maximum=20.0),),
     "Text": (
         Param("text", "text", "Text"),
         _FONT_SIZE,
@@ -310,7 +504,33 @@ MOBJECT_PARAMS: dict[str, tuple[Param, ...]] = {
         Param("x_length", "float", 10.0, "Width", minimum=0.5, maximum=50.0),
         Param("y_length", "float", 6.0, "Height", minimum=0.5, maximum=50.0),
         Param("numbers", "choice", "no", "Numbers", choices=("no", "yes")),
+        Param("grid_x", "choice", "yes", "Vertical grid", choices=("no", "yes")),
+        Param("grid_x_step", "float", 1.0, "Vertical spacing", minimum=0.01, maximum=1000.0),
+        Param("grid_y", "choice", "yes", "Horizontal grid", choices=("no", "yes")),
+        Param("grid_y_step", "float", 1.0, "Horizontal spacing", minimum=0.01, maximum=1000.0),
+        Param("grid_colour", "colour", "#64748B", "Grid colour"),
+        Param("grid_opacity", "float", 0.35, "Grid opacity", minimum=0.0, maximum=1.0, step=0.05),
+        Param("grid_width", "float", 1.0, "Grid line width", minimum=0.1, maximum=5.0, step=0.1),
     ),
+    "NumberLine": (
+        Param("x_min", "float", -5.0, "From", minimum=-1000.0, maximum=1000.0),
+        Param("x_max", "float", 5.0, "To", minimum=-1000.0, maximum=1000.0),
+        Param("x_step", "float", 1.0, "Tick step", minimum=0.01, maximum=1000.0),
+        Param("length", "float", 10.0, minimum=0.5, maximum=50.0),
+    ),
+    "NumberPlane": (
+        Param("x_min", "float", -7.0, "x from", minimum=-1000.0, maximum=1000.0),
+        Param("x_max", "float", 7.0, "x to", minimum=-1000.0, maximum=1000.0),
+        Param("x_step", "float", 1.0, "x step", minimum=0.01, maximum=1000.0),
+        Param("y_min", "float", -4.0, "y from", minimum=-1000.0, maximum=1000.0),
+        Param("y_max", "float", 4.0, "y to", minimum=-1000.0, maximum=1000.0),
+        Param("y_step", "float", 1.0, "y step", minimum=0.01, maximum=1000.0),
+        Param("x_length", "float", 14.0, "Width", minimum=0.5, maximum=50.0),
+        Param("y_length", "float", 8.0, "Height", minimum=0.5, maximum=50.0),
+    ),
+    "ComplexPlane": (),
+    "PolarPlane": (),
+    "ThreeDAxes": (),
     "Graph": (
         Param("expression", "text", "sin(x)", "y ="),
         Param("x_range", "point", (-5.0, 5.0), "x from / to"),
@@ -375,31 +595,134 @@ LIBRARY: list[tuple[str, tuple[str, ...]]] = [
         "Shapes",
         (
             "Circle",
+            "Ellipse",
             "Square",
             "Rectangle",
+            "RoundedRectangle",
             "Triangle",
             "RightTriangle",
+            "RegularPolygon",
+            "RegularPolygram",
+            "Pentagon",
+            "Hexagon",
+            "Octagon",
+            "Nonagon",
+            "Decagon",
+            "Rhombus",
+            "Parallelogram",
+            "Trapezoid",
+            "Polygon",
             "Star",
+            "Cross",
             "Dot",
-            "Line",
-            "Arrow",
+            "Sector",
+            "Annulus",
+            "AnnularSector",
             "Connector",
+        ),
+    ),
+    (
+        "Lines & Arrows",
+        ("Line", "DashedLine", "Arrow", "DoubleArrow", "Vector", "CurvedArrow", "CurvedDoubleArrow"),
+    ),
+    (
+        "Curves & Annotations",
+        ("Arc", "ArcBetweenPoints", "CubicBezier", "Angle", "RightAngle", "BraceBetweenPoints", "Polyline"),
+    ),
+    (
+        "3D Solids",
+        (
+            "Cube",
+            "Sphere",
+            "Cylinder",
+            "Cone",
+            "Torus",
+            "Prism",
+            "Tetrahedron",
+            "Octahedron",
+            "Dodecahedron",
+            "Icosahedron",
         ),
     ),
     ("Text", ("Text", "MathTex", "Tex", "DecimalNumber")),
     ("Media", ("ImageMobject", "SVGMobject")),
     ("Graphing", ("Axes",)),
+    ("Coordinates", ("NumberLine", "NumberPlane", "ComplexPlane", "PolarPlane", "ThreeDAxes")),
     ("Simulation", ("TracedPath",)),
     ("Python", ("Code",)),
 ]
 
-_REQUIRED = {"text", "path", "code", "expression", "graph", "target", "source"}  # always written to the spec
+_REQUIRED = {
+    "text",
+    "path",
+    "code",
+    "expression",
+    "graph",
+    "target",
+    "source",
+    "direction",
+}  # always written to the spec
+_REQUIRED |= {
+    "num_vertices",
+    "start_point",
+    "end_point",
+    "point_1",
+    "point_2",
+    "point_3",
+    "point_4",
+    "inner_radius",
+    "outer_radius",
+    "corner_radius",
+    "buff",
+}
+_REQUIRED_BY_TYPE = {
+    "Arrow": {"start", "end"},
+    "DoubleArrow": {"start", "end"},
+    "ArcBetweenPoints": {"start", "end"},
+    "Torus": {"major_radius", "minor_radius"},
+}
 LIBRARY_LABELS = {
     "ImageMobject": "Image",
     "SVGMobject": "SVG",
     "TracedPath": "Traced path",
     "DecimalNumber": "Number",
     "RightTriangle": "Right triangle",
+    "Pentagon": "Pentagon",
+    "Hexagon": "Hexagon",
+    "Octagon": "Octagon",
+    "Nonagon": "Nonagon",
+    "Decagon": "Decagon",
+    "Rhombus": "Rhombus",
+    "Parallelogram": "Parallelogram",
+    "Trapezoid": "Trapezoid",
+    "RoundedRectangle": "Rounded rectangle",
+    "RegularPolygon": "Regular polygon",
+    "RegularPolygram": "Star polygon",
+    "Polygon": "Custom polygon",
+    "Polyline": "Custom line path",
+    "DoubleArrow": "Double arrow",
+    "CurvedArrow": "Curved arrow",
+    "CurvedDoubleArrow": "Curved double arrow",
+    "ArcBetweenPoints": "Arc between points",
+    "CubicBezier": "Cubic Bézier curve",
+    "RightAngle": "Right-angle marker",
+    "BraceBetweenPoints": "Brace",
+    "AnnularSector": "Ring sector",
+    "Cube": "Cube",
+    "Sphere": "Sphere",
+    "Cylinder": "Cylinder",
+    "Cone": "Cone",
+    "Torus": "Torus",
+    "Prism": "Prism",
+    "Tetrahedron": "Tetrahedron",
+    "Octahedron": "Octahedron",
+    "Dodecahedron": "Dodecahedron",
+    "Icosahedron": "Icosahedron",
+    "NumberLine": "Number line",
+    "NumberPlane": "Number plane",
+    "ComplexPlane": "Complex plane",
+    "PolarPlane": "Polar plane",
+    "ThreeDAxes": "3D axes",
 }
 SIMULATION_CHECKPOINT = 30  # a simulation state is kept every this many steps (B46: replays are cheap)
 
@@ -408,7 +731,8 @@ def default_spec(type_name: str, **params: Any) -> Spec:
     """A new object of ``type_name`` as the library creates it."""
     if type_name not in MOBJECT_PARAMS:
         raise ValueError(f"unsupported mobject type {type_name!r}")
-    required = {p.name: p.default for p in MOBJECT_PARAMS[type_name] if p.name in _REQUIRED}
+    required_names = _REQUIRED | _REQUIRED_BY_TYPE.get(type_name, set())
+    required = {p.name: p.default for p in MOBJECT_PARAMS[type_name] if p.name in required_names}
     return Spec(type=type_name, params={**required, **params})
 
 
@@ -549,6 +873,7 @@ def _plugin_cached(spec_json: str) -> m.Mobject | str:
         log.warning("plugin object %s failed: %s", spec.type, exc)
         return f"the {spec.type} plugin failed: {type(exc).__name__}: {exc}"
     _apply_style(mob, spec.style)
+    mob._studio_origin = np.asarray(mob.get_center()[:2], dtype=float).copy()
     mob.move_to(m.ORIGIN)
     return mob
 
@@ -696,6 +1021,7 @@ def _python_cached(spec_json: str, signature: str = TRUSTED) -> m.Mobject | Code
         message = f"{type(exc).__name__}: {lines[0] if lines else ''}".rstrip(": ")[:300]
         return _problem_at(message, exc, code, sources)
     _apply_style(mob, spec.style)  # only what the user set (ADR 0051)
+    mob._studio_origin = np.asarray(mob.get_center()[:2], dtype=float).copy()
     mob.move_to(m.ORIGIN)
     return mob
 
@@ -1111,7 +1437,38 @@ def colour_glyphs(mobject, colours):
     return mobject
 
 
+_build_guard: tuple[Callable[[Spec], bool], Any] | None = None  # (which specs, the lock to hold) - ADR 0065
+
+
+def guard_builds(slow: Callable[[Spec], bool], lock: Any) -> None:
+    """Hold ``lock`` (a context manager shared between processes) while building a spec ``slow`` picks out:
+    the processes of one export draw frames side by side and must not compile the same LaTeX at once."""
+    global _build_guard
+    _build_guard = (slow, lock)
+
+
+def _param_default(type_name: str, name: str) -> Any:
+    return next(param.default for param in MOBJECT_PARAMS[type_name] if param.name == name)
+
+
+def _params_with_defaults(type_name: str, params: dict[str, Any]) -> dict[str, Any]:
+    values = {param.name: params.get(param.name, param.default) for param in MOBJECT_PARAMS[type_name]}
+    for param in MOBJECT_PARAMS[type_name]:
+        value = values[param.name]
+        if param.kind == "point" and len(value) == 2:
+            values[param.name] = (*value, 0.0)
+    return values
+
+
 def _build(spec: Spec) -> m.Mobject:
+    guard = _build_guard
+    if guard is not None and guard[0](spec):
+        with guard[1]:
+            return _make(spec)
+    return _make(spec)
+
+
+def _make(spec: Spec) -> m.Mobject:
     cls = MOBJECT_TYPES[spec.type]
     params = dict(spec.params)
     for param in MOBJECT_PARAMS.get(spec.type, ()):
@@ -1121,7 +1478,67 @@ def _build(spec: Spec) -> m.Mobject:
     spans = params.pop(parts.SPANS_PARAM, None)
     extra, style = text_style(spec)
     params.update(extra)
-    if spec.type == "RightTriangle":
+    if spec.type in {"Pentagon", "Hexagon", "Octagon", "Nonagon", "Decagon"}:
+        sides = {"Pentagon": 5, "Hexagon": 6, "Octagon": 8, "Nonagon": 9, "Decagon": 10}[spec.type]
+        mob = m.RegularPolygon(n=sides)
+    elif spec.type == "RegularPolygram":
+        p = _params_with_defaults(spec.type, params)
+        mob = m.RegularPolygram(p["num_vertices"], density=p["density"], radius=p["radius"])
+    elif spec.type in {"Rhombus", "Parallelogram", "Trapezoid"}:
+        vertices = {
+            "Rhombus": ((0.0, 1.0), (1.0, 0.0), (0.0, -1.0), (-1.0, 0.0)),
+            "Parallelogram": ((-1.0, -1.0), (0.0, -1.0), (1.0, 1.0), (0.0, 1.0)),
+            "Trapezoid": ((-1.0, -1.0), (1.0, -1.0), (0.65, 1.0), (-0.65, 1.0)),
+        }[spec.type]
+        mob = m.Polygon(*(np.array([x, y, 0.0]) for x, y in vertices))
+    elif spec.type in {"Polygon", "Polyline"}:
+        p = _params_with_defaults(spec.type, params)
+        points = np.array([p[f"point_{i}"] for i in range(1, 4)], dtype=float)
+        mob = m.Polygon(*points) if spec.type == "Polygon" else m.VMobject().set_points_as_corners(points)
+    elif spec.type == "CubicBezier":
+        p = _params_with_defaults(spec.type, params)
+        mob = m.CubicBezier(*(np.array(p[f"point_{i}"]) for i in range(1, 5)))
+    elif spec.type == "ArcBetweenPoints":
+        p = _params_with_defaults(spec.type, params)
+        mob = m.ArcBetweenPoints(p["start"], p["end"], angle=p["angle"])
+    elif spec.type in {"CurvedArrow", "CurvedDoubleArrow"}:
+        p = _params_with_defaults(spec.type, params)
+        mob = cls(p["start_point"], p["end_point"])
+    elif spec.type == "BraceBetweenPoints":
+        p = _params_with_defaults(spec.type, params)
+        mob = m.BraceBetweenPoints(p["point_1"], p["point_2"], direction=p["direction"])
+    elif spec.type == "Angle":
+        p = _params_with_defaults(spec.type, params)
+        a, vertex, b = (np.array(p[name], dtype=float) for name in ("point_a", "vertex", "point_b"))
+        mob = m.Angle(m.Line(vertex, a), m.Line(vertex, b), radius=p["radius"])
+    elif spec.type == "RightAngle":
+        p = _params_with_defaults(spec.type, params)
+        a, vertex, b = (np.array(p[name], dtype=float) for name in ("point_a", "vertex", "point_b"))
+        mob = m.RightAngle(m.Line(vertex, a), m.Line(vertex, b), length=p["length"])
+    elif spec.type == "NumberLine":
+        p = _params_with_defaults(spec.type, params)
+        mob = m.NumberLine(
+            x_range=[p["x_min"], p["x_max"], p["x_step"]],
+            length=p["length"],
+            include_numbers=False,
+        )
+    elif spec.type == "NumberPlane":
+        p = _params_with_defaults(spec.type, params)
+        mob = m.NumberPlane(
+            x_range=[p["x_min"], p["x_max"], p["x_step"]],
+            y_range=[p["y_min"], p["y_max"], p["y_step"]],
+            x_length=p["x_length"],
+            y_length=p["y_length"],
+        )
+    elif spec.type == "Prism":
+        mob = m.Prism(
+            dimensions=[
+                params.get("width", 3.0),
+                params.get("depth", 2.0),
+                params.get("height", 1.0),
+            ]
+        )
+    elif spec.type == "RightTriangle":
         mob = _build_right_triangle(params)
     elif spec.type == "Axes":
         mob = _build_axes(spec)
@@ -1139,6 +1556,9 @@ def _build(spec: Spec) -> m.Mobject:
     else:
         mob = cls(**params)
     _apply_style(mob, style)
+    if spec.type == "Axes":
+        _style_axes_grid(mob, spec)
+    mob._studio_origin = np.asarray(mob.get_center()[:2], dtype=float).copy()
     mob.move_to(m.ORIGIN)
     return mob
 
@@ -1176,16 +1596,55 @@ def _whole(value: float) -> float | int:
 
 
 def _build_axes(spec: Spec) -> m.Axes:
-    """Axes from the editor's params (ranges as [from, to] plus a step; numbers yes/no)."""
+    """Axes from the editor's ranges, tick steps and independently spaced grid lines."""
     x0, x1 = (_whole(v) for v in _axes_param(spec, "x_range")[:2])
     y0, y1 = (_whole(v) for v in _axes_param(spec, "y_range")[:2])
-    return m.Axes(
+    axes = m.Axes(
         x_range=[x0, x1, _whole(_axes_param(spec, "x_step"))],
         y_range=[y0, y1, _whole(_axes_param(spec, "y_step"))],
         x_length=_axes_param(spec, "x_length"),
         y_length=_axes_param(spec, "y_length"),
         axis_config={"include_numbers": _axes_param(spec, "numbers") == "yes"},
     )
+    grid = m.VGroup()
+    if _axes_param(spec, "grid_x") == "yes" and x1 > x0:
+        for value in _grid_values(x0, x1, float(_axes_param(spec, "grid_x_step"))):
+            if abs(value) > 1e-9:
+                grid.add(m.Line(axes.c2p(value, y0), axes.c2p(value, y1)))
+    if _axes_param(spec, "grid_y") == "yes" and y1 > y0:
+        for value in _grid_values(y0, y1, float(_axes_param(spec, "grid_y_step"))):
+            if abs(value) > 1e-9:
+                grid.add(m.Line(axes.c2p(x0, value), axes.c2p(x1, value)))
+    axes.add_to_back(grid)
+    axes._studio_grid_group = grid
+    return axes
+
+
+_MAX_GRID_LINES_PER_AXIS = 1200
+
+
+def _grid_values(low: float, high: float, step: float) -> list[float]:
+    """Grid coordinates at multiples of ``step``; thin extreme densities to keep canvases responsive."""
+    if step <= 0 or not math.isfinite(step):
+        return []
+    first = math.ceil(low / step - 1e-9)
+    last = math.floor(high / step + 1e-9)
+    count = last - first + 1
+    if count <= 0:
+        return []
+    stride = max(1, math.ceil(count / _MAX_GRID_LINES_PER_AXIS))
+    return [index * step for index in range(first, last + 1) if (index - first) % stride == 0 or index == 0]
+
+
+def _style_axes_grid(axes: m.Axes, spec: Spec) -> None:
+    """Keep the user-selected grid appearance separate from the Axes object's general style."""
+    grid = getattr(axes, "_studio_grid_group", None)
+    if grid is not None:
+        grid.set_stroke(
+            color=_axes_param(spec, "grid_colour"),
+            width=float(_axes_param(spec, "grid_width")),
+            opacity=float(_axes_param(spec, "grid_opacity")),
+        )
 
 
 def build_child(parent: Spec, spec: Spec, graphs: dict[str, Spec] | None = None) -> m.Mobject:

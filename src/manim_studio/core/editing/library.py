@@ -286,7 +286,7 @@ def apply_preset(project: Project, layer_id: str, preset: Preset, t: float) -> E
 def _absolute(prop: str, value: float | Vec2, now: Any) -> float | Vec2:
     if prop == "position":
         return (now[0] + value[0], now[1] + value[1])
-    if prop == "scale":
+    if prop in ("scale", "scale_x", "scale_y"):
         return now * value
     if prop == "rotation":
         return now + value
@@ -336,7 +336,7 @@ def preset_from_layer(layer: Layer, name: str, category: Category) -> Preset:
 def _relative(prop: str, value: float | Vec2, first: float | Vec2) -> float | Vec2:
     if prop == "position":
         return (value[0] - first[0], value[1] - first[1])
-    if prop == "scale":
+    if prop in ("scale", "scale_x", "scale_y"):
         return value / first if first else 1.0
     if prop == "rotation":
         return value - first
@@ -346,9 +346,61 @@ def _relative(prop: str, value: float | Vec2, first: float | Vec2) -> float | Ve
 # -- themes -------------------------------------------------------------------------------------------
 
 _TEXTS = TEXT_TYPES | NUMBER_TYPES | {"AxisLabels", "GraphLabel"}
-_LINES = {"Graph"} | CONNECTOR_TYPES | TRACE_TYPES  # drawn in the accent colour
+_LINES = {
+    "Graph",
+    "Line",
+    "DashedLine",
+    "Arrow",
+    "DoubleArrow",
+    "Vector",
+    "CurvedArrow",
+    "CurvedDoubleArrow",
+    "Arc",
+    "ArcBetweenPoints",
+    "CubicBezier",
+    "Polyline",
+    "Angle",
+    "RightAngle",
+    "BraceBetweenPoints",
+} | CONNECTOR_TYPES | TRACE_TYPES  # drawn in the accent colour
 _MARKS = {"Point", "Area", "RiemannRectangles"}  # filled shapes on axes, in the accent
-_SHAPES = {"Circle", "Square", "Rectangle", "Triangle", "RightTriangle", "Star", "Dot", "Line", "Arrow"}
+_COORDINATES = {"Axes", "NumberLine", "NumberPlane", "ComplexPlane", "PolarPlane", "ThreeDAxes"}
+_SHAPES = {
+    "Circle",
+    "Ellipse",
+    "Square",
+    "Rectangle",
+    "RoundedRectangle",
+    "Triangle",
+    "RightTriangle",
+    "RegularPolygon",
+    "RegularPolygram",
+    "Pentagon",
+    "Hexagon",
+    "Octagon",
+    "Nonagon",
+    "Decagon",
+    "Rhombus",
+    "Parallelogram",
+    "Trapezoid",
+    "Polygon",
+    "Star",
+    "Cross",
+    "Dot",
+    "Sector",
+    "Annulus",
+    "AnnularSector",
+    "Cube",
+    "Sphere",
+    "Cylinder",
+    "Cone",
+    "Torus",
+    "Prism",
+    "Tetrahedron",
+    "Octahedron",
+    "Dodecahedron",
+    "Icosahedron",
+}
 _SHAPES |= PYTHON_TYPES  # coloured like a shape; its Style can be reset to the code's colours (ADR 0051)
 _SHAPES |= SHAPE_TYPES  # a frozen object: its frozen colours are the baseline, as code's are (ADR 0052)
 
@@ -362,7 +414,7 @@ def themed_style(type_name: str, style: dict[str, Any], theme: Theme) -> dict[st
         return {**style, "stroke": theme.accent}
     if type_name in _MARKS:
         return {**style, "fill": theme.accent, "stroke": theme.accent}
-    if type_name == "Axes":
+    if type_name in _COORDINATES:
         return {**style, "stroke": theme.text}
     if type_name in _SHAPES:
         return {**style, "fill": theme.shape, "stroke": theme.shape}
