@@ -223,7 +223,7 @@ def _set_key_ease(project: Project, layer_id: str, value: Easing, prop: str, t: 
 def _key_value_field(prop: str, commit: Callable[[Any], None]) -> Field:
     if prop == "position":
         return PointField(commit)
-    if prop == "scale":
+    if prop in ("scale", "scale_x", "scale_y"):
         return FloatField(commit, 0.01, 100, 0.05, 3)
     if prop == "rotation":
         return FloatField(commit, -3600, 3600, 1, 1, suffix=" deg")
@@ -1409,9 +1409,13 @@ class PropertiesPanel(QWidget):
         rows = []
         toggles: list[tuple[str, KeyToggle]] = []
         keyable = keyable_props(layer)  # a graph keeps only its opacity (ADR 0024)
+        if layer.is_group:
+            keyable = tuple(name for name in keyable if name not in ("scale_x", "scale_y"))
         for name, label, field_type in (
             ("position", "Position", lambda c: PointField(c)),
             ("scale", "Scale", lambda c: FloatField(c, 0.01, 100, 0.05, 3)),
+            ("scale_x", "Width scale", lambda c: FloatField(c, 0.01, 100, 0.05, 3)),
+            ("scale_y", "Height scale", lambda c: FloatField(c, 0.01, 100, 0.05, 3)),
             ("rotation", "Rotation", lambda c: FloatField(c, -3600, 3600, 1, 1, suffix=" deg")),
             ("opacity", "Opacity", lambda c: SliderField(c, 0, 1)),
         ):

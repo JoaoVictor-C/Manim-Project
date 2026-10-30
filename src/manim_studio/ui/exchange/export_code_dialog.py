@@ -38,7 +38,7 @@ class ExportCodeDialog(QDialog):
         self,
         entries: list[ExportEntry],
         *,
-        checked: set[str] | None = None,
+        checked: set[str] | bool | None = None,
         folder: str = "",
         options: ExportOptions | None = None,
         parent: QWidget | None = None,
@@ -73,7 +73,8 @@ class ExportCodeDialog(QDialog):
             for entry in members:
                 item = QListWidgetItem(f"{entry.name}  ({'object' if entry.kind == 'object' else 'scene'})")
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                on = checked is None or entry.key in checked
+                # Some callers use a boolean to mean "all" or "none".
+                on = checked if isinstance(checked, bool) else checked is None or entry.key in checked
                 item.setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
                 item.setToolTip(entry.description or entry.name)
                 self.list.addItem(item)

@@ -324,6 +324,7 @@ class CodePage(Page):
         self.explorer.opened.connect(self._on_opened)
         self.explorer.menuRequested.connect(self._on_row_menu)
         self.explorer.filesDropped.connect(self._import_dropped)
+        self.explorer.layerDropped.connect(self.move_code_layer)
 
         self.new_button = self._button(
             "New",
@@ -337,6 +338,9 @@ class CodePage(Page):
         self.new_button.setProperty("menu", True)
         self.new_menu = QMenu(self.new_button)
         self.new_actions: dict[str, QAction] = {}
+        self.new_actions["folder"] = self.new_menu.addAction("Folder...", self.new_code_folder)
+        self.new_actions["folder"].setToolTip("Create an organizational folder for this project's code")
+        self.new_menu.addSeparator()
         self.new_actions["layer"] = self.new_menu.addAction("Code layer (a Manim scene)", self.new_layer)
         self.new_actions["layer"].setToolTip("Add a code layer with a starter scene")
         self.new_actions["object"] = self.new_menu.addAction(
@@ -1348,7 +1352,11 @@ class CodePage(Page):
             return
         if not self.confirm("Delete preset", f"Delete the preset “{preset.name}”? This cannot be undone."):
             return
-        self.window.code_presets.remove(preset.id)
+        try:
+            self.window.code_presets.remove(preset.id)
+        except (OSError, KeyError, ValueError) as error:
+            self.window.statusBar().showMessage(f"Could not delete preset: {error}", 10000)
+            return
         self.close_preset()
         self.window.codePresetsChanged.emit()
 
@@ -1748,6 +1756,19 @@ class CodePage(Page):
         if source is None:
             row = self.chosen_row()
             source, key = row if row is not None else ("", "")
+        if source == "project":
+            menu = QMenu(self.explorer)
+            menu.addAction("New folder...", self.new_code_folder).setToolTip(
+                "Create a folder for code layers and Python objects"
+            )
+            return menu
+        if source == "folder":
+            menu = QMenu(self.explorer)
+            menu.addAction("Rename folder...", partial(self.rename_code_folder, key or ""))
+            menu.addAction("Delete folder", partial(self.delete_code_folder, key or "")).setToolTip(
+                "Remove the folder; its code layers stay in the project"
+            )
+            return menu
         if source == "helper":
             return self.helper_actions.row_menu(key or "", self.explorer)
         if source == "helpers":  # the Helpers section's header
@@ -1763,6 +1784,23 @@ class CodePage(Page):
                 ("Delete", self.delete_layer, "Delete the code layer (Delete)"),
             ):
                 menu.addAction(text, slot).setToolTip(tip)
+            project = self.window.project
+            if project is not None:
+                menu.addSeparator()
+                folder_menu = menu.addMenu("Move to folder")
+                assigned = next(
+                    (name for name, ids in project.code_folders.items() if key in ids),
+                    "",
+                )
+                root_action = folder_menu.addAction("Unfiled")
+                root_action.setCheckable(True)
+                root_action.setChecked(not assigned)
+                root_action.triggered.connect(partial(self.move_code_layer, key, ""))
+                for folder in project.code_folders:
+                    action = folder_menu.addAction(folder)
+                    action.setCheckable(True)
+                    action.setChecked(assigned == folder)
+                    action.triggered.connect(partial(self.move_code_layer, key, folder))
         elif source == "preset":
             preset = self._preset(key)
             menu.addAction("Add to project", self.add_preset_to_project)
@@ -1791,11 +1829,14 @@ class CodePage(Page):
 
     def _on_row_menu(self, source: str, key: str, where: QPoint) -> None:
         if source == "section":
-            source = "helpers" if key == "helpers" else ""
+            source = {"helpers": "helpers", "project": "project"}.get(key, "")
         self.row_menu(source, key).exec(where)
 
     def rename_item(self) -> None:
-        if self.chosen_preset() is not None or self.preset_id is not None:
+        folder = self.explorer.selected_folder()
+        if folder is not None:
+            self.rename_code_folder(folder)
+        elif self.chosen_preset() is not None or self.preset_id is not None:
             self.rename_preset()
         elif self.chosen_helper() is not None:
             self.helper_actions.rename(self.chosen_helper())
@@ -1803,12 +1844,54 @@ class CodePage(Page):
             self.rename_layer()
 
     def delete_item(self) -> None:
-        if self.chosen_preset() is not None or self.preset_id is not None:
+        folder = self.explorer.selected_folder()
+        if folder is not None:
+            self.delete_code_folder(folder)
+        elif self.chosen_preset() is not None or self.preset_id is not None:
             self.delete_preset()
         elif self.chosen_helper() is not None:
             self.helper_actions.delete(self.chosen_helper())
         else:
             self.delete_layer()
+
+    def new_code_folder(self) -> None:
+        """Create an empty, project-backed folder in the Code explorer."""
+        if self.window.project is None:
+            return
+        name = self.ask_name("")
+        if name is None:
+            return
+        self._submit_code_folder_edit(partial(edits.add_code_folder, name=name), "Create code folder")
+
+    def rename_code_folder(self, old: str) -> None:
+        project = self.window.project
+        if project is None or old not in project.code_folders:
+            return
+        new = self.ask_name(old)
+        if new is None or new.strip() == old:
+            return
+        self._submit_code_folder_edit(
+            partial(edits.rename_code_folder, old=old, new=new), "Rename code folder"
+        )
+
+    def delete_code_folder(self, name: str) -> None:
+        if self.window.project is None:
+            return
+        self._submit_code_folder_edit(partial(edits.delete_code_folder, name=name), "Delete code folder")
+
+    def move_code_layer(self, layer_id: str, folder: str) -> None:
+        if self.window.project is None:
+            return
+        self._submit_code_folder_edit(
+            partial(edits.move_code_layer_to_folder, layer_id=layer_id, folder=folder),
+            "Move code layer",
+        )
+
+    def _submit_code_folder_edit(self, operation, label: str) -> None:
+        try:
+            self.window.builds.submit(operation, label)
+        except (edits.EditError, ValidationError) as error:
+            self.window.statusBar().showMessage(f"{label}: {_first_error(error)}", 10000)
 
     def rename_layer(self) -> None:
         layer_id = self.chosen_layer()
@@ -2296,7 +2379,13 @@ class CodePage(Page):
 
     def _sections(self) -> list[Section]:
         layers = self._layers()
+        project = self.window.project
         dirty = self.dirty_layers()
+        folder_for = {
+            layer_id: folder
+            for folder, layer_ids in (project.code_folders.items() if project is not None else ())
+            for layer_id in layer_ids
+        }
         project_rows = []
         for layer in layers:
             status = self.status(layer.id)
@@ -2313,7 +2402,17 @@ class CodePage(Page):
             if layer.id in dirty:
                 tip = "Unapplied changes: Run applies them"
             project_rows.append(
-                Row(layer.id, layer.label, kind, "layer", tip, layer.id in dirty, state, badge=badge)
+                Row(
+                    layer.id,
+                    layer.label,
+                    kind,
+                    "layer",
+                    tip,
+                    layer.id in dirty,
+                    state,
+                    badge=badge,
+                    folder=folder_for.get(layer.id, ""),
+                )
             )
         sections = [
             Section(
@@ -2321,6 +2420,7 @@ class CodePage(Page):
                 "This project",
                 tuple(project_rows),
                 empty="No code yet - add a layer, a file or a preset",
+                folders=tuple(project.code_folders) if project is not None else (),
             ),
             Section("helpers", "Helpers", self.helper_actions.rows(dirty), empty=NO_HELPERS),  # ADR 0058
         ]
@@ -2347,7 +2447,7 @@ class CodePage(Page):
 
     def _refresh_list(self, force: bool = False) -> None:
         sections = self._sections()
-        signature = tuple((s.key, s.rows) for s in sections)
+        signature = tuple((s.key, s.rows, s.folders) for s in sections)
         if signature != self._signature or force:
             self._signature = signature
             current = ("preset", self.preset_id) if self.preset_id else (self._source(), self.layer_id)

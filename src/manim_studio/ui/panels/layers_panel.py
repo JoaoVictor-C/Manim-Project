@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -51,7 +52,7 @@ from PySide6.QtWidgets import (
 )
 
 from ... import plugins
-from ...core.code import python_object
+from ...core.code import python_object, python_templates
 from ...core.code.python_object import PYTHON_TYPE
 from ...core.editing import clipboard, edits
 from ...core.engine import adapter, placement
@@ -85,6 +86,7 @@ ID_ROLE = Qt.ItemDataRole.UserRole
 KIND_ROLE = Qt.ItemDataRole.UserRole + 1  # the key of the layer's kind (kinds.KINDS)
 LOCKED_ROLE = Qt.ItemDataRole.UserRole + 2  # follows its parent exactly (a graph on its axes)
 MISSING_ROLE = Qt.ItemDataRole.UserRole + 3  # a part whose TeX is not found
+VISIBLE_ROLE = Qt.ItemDataRole.UserRole + 4  # whether the layer is included in preview and export
 ROW_HEIGHT = 36  # px (Lumen): one layer row
 ROW_GAP = 1  # px above and below a row
 ROW_SIDE = 6  # px between a row and the list's sides
@@ -126,7 +128,11 @@ class LayerDelegate(QStyledItemDelegate):
 
     def caret_rect(self, rect: QRect) -> QRectF:
         row = self.row_rect(rect)
-        return QRectF(row.right() - 10 - CARET, row.center().y() - CARET / 2, CARET, CARET)
+        return QRectF(row.right() - 34 - CARET, row.center().y() - CARET / 2, CARET, CARET)
+
+    def visibility_rect(self, rect: QRect) -> QRectF:
+        row = self.row_rect(rect)
+        return QRectF(row.right() - 23, row.center().y() - 7, 14, 14)
 
     def name_left(self, rect: QRect) -> float:
         return self.row_rect(rect).left() + 12 + CHIP + 9
@@ -150,7 +156,10 @@ class LayerDelegate(QStyledItemDelegate):
         kind = KINDS.get(index.data(KIND_ROLE) or "", KINDS["shape"])
         chip = QRectF(row.left() + 12, row.center().y() - CHIP / 2, CHIP, CHIP)
         paint_chip(painter, chip, kind, theme.RADIUS_SMALL, enabled)
-        left, right = self.name_left(option.rect), row.right() - 10
+        eye = self.visibility_rect(option.rect)
+        icon = "hidden" if index.data(VISIBLE_ROLE) is False else "visible"
+        icons.icon(icon, tint="muted").paint(painter, eye.toRect())
+        left, right = self.name_left(option.rect), eye.left() - 6
         if self.tree.model().hasChildren(index):
             caret = self.caret_rect(option.rect)
             name = "caret-down" if self.tree.isExpanded(index) else "caret-right"
@@ -196,7 +205,16 @@ class LayerDelegate(QStyledItemDelegate):
         return box.left() - 6
 
     def editorEvent(self, event, model, option: QStyleOptionViewItem, index: QModelIndex) -> bool:
-        """A click on the caret opens or closes the row."""
+        """The eye toggles visibility; the caret opens or closes a row."""
+        if (
+            event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.visibility_rect(option.rect).adjusted(-4, -4, 4, 4).contains(event.position())
+        ):
+            layer_id = str(index.data(ID_ROLE) or "")
+            if layer_id:
+                self.tree.visibilityToggled.emit(layer_id, index.data(VISIBLE_ROLE) is False)
+            return True
         if (
             event.type() == QEvent.Type.MouseButtonRelease
             and model.hasChildren(index)
@@ -226,6 +244,7 @@ class LayerTree(QTreeWidget):
     """
 
     rowDropped = Signal(str, int)  # object id, new top-level row (0 = front)
+    visibilityToggled = Signal(str, bool)  # layer id, new visible state
     codeDropped = Signal(dict)  # a Code workspace drag (code_drag payload) (P12.7)
     filesDropped = Signal(list)  # .py files dropped from the desktop (P12.7)
 
@@ -516,6 +535,7 @@ class LayersPanel(QWidget):
         self.list.itemSelectionChanged.connect(self._on_selection_changed)
         self.list.itemChanged.connect(self._on_item_renamed)
         self.list.rowDropped.connect(self._on_row_dropped)
+        self.list.visibilityToggled.connect(self._on_visibility_toggled)
         self.list.codeDropped.connect(self.codeDropped)
         self.list.filesDropped.connect(self.filesDropped)
 
@@ -523,7 +543,9 @@ class LayersPanel(QWidget):
         self.add_button.setMenu(self._library_menu())
         self.add_button.setIcon(icons.icon("add"))  # (ADR 0040)
         self.add_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.add_button.setToolTip("Add an object, a simulation or a template")
+        self.add_button.setToolTip("Browse every object type, including plugins")
+        self.add_button.setAccessibleName("All object types")
+        self.quick_add_buttons = self._quick_add_buttons()
         self.delete_button = self._button(
             "Delete", self.delete_selected, QKeySequence.StandardKey.Delete, "delete"
         )
@@ -574,7 +596,21 @@ class LayersPanel(QWidget):
             self.buttons.addWidget(button)
         top = QVBoxLayout()
         top.setContentsMargins(10, 10, 10, 4)
+        top.setSpacing(7)
         top.addWidget(self.filter)
+        quick_header = QLabel("QUICK ADD")
+        quick_header.setProperty("role", "section")
+        quick_header.setFont(theme.font("section"))
+        top.addWidget(quick_header)
+        quick_grid = QGridLayout()
+        quick_grid.setContentsMargins(0, 0, 0, 0)
+        quick_grid.setHorizontalSpacing(6)
+        quick_grid.setVerticalSpacing(5)
+        quick_grid.setColumnStretch(0, 1)
+        quick_grid.setColumnStretch(1, 1)
+        for i, button in enumerate(self.quick_add_buttons.values()):
+            quick_grid.addWidget(button, i // 2, i % 2)
+        top.addLayout(quick_grid)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -654,8 +690,84 @@ class LayersPanel(QWidget):
                         "Type the steps of a derivation, one equation per line: one MathTex per step, "
                         "morphing into the next"
                     )
+        self._add_python_objects_menu(menu)
         self.library_menu = menu
         return menu
+
+    def _add_python_objects_menu(self, menu: QMenu) -> QMenu:
+        """Add ready-to-edit Python objects that complement the native Manim types."""
+        submenu = menu.addMenu("Python objects")
+        submenu.setToolTipsVisible(True)
+        for name, code in python_templates.LAYER_TEMPLATES.items():
+            action = submenu.addAction(name, partial(self.add_python_object, code))
+            action.setToolTip(f"Add the editable {name.lower()} Python object")
+        return submenu
+
+    def _quick_add_buttons(self) -> dict[str, QToolButton]:
+        """A small, categorized front door to the full library (the footer keeps the full menu)."""
+        definitions = (
+            ("Shapes", "shape", ("Shapes",), None),
+            ("Lines", "line", ("Lines & Arrows", "Curves & Annotations"), None),
+            ("Text", "text", ("Text",), "plain"),
+            ("Math", "maths", ("Text",), "math"),
+            ("Media", "image", ("Media",), None),
+            ("Graphs", "axes", ("Graphing", "Coordinates"), None),
+            ("3D", "object", ("3D Solids",), None),
+            ("More", "more", None, None),  # simulations, code and plugin sections
+        )
+        buttons: dict[str, QToolButton] = {}
+        built_in_sections = {
+            "Shapes",
+            "Lines & Arrows",
+            "Curves & Annotations",
+            "Text",
+            "Media",
+            "Graphing",
+            "Coordinates",
+            "3D Solids",
+            "Simulation",
+            "Python",
+        }
+        for label, icon_name, sections, text_kind in definitions:
+            menu = QMenu(self)
+            menu.setToolTipsVisible(True)
+            for library_section, types in adapter.LIBRARY:
+                if sections is not None and library_section not in sections:
+                    continue
+                if label == "More" and library_section in built_in_sections and library_section not in {
+                    "Simulation",
+                    "Python",
+                }:
+                    continue
+                visible_types = types
+                if text_kind == "plain" and library_section == "Text":
+                    visible_types = tuple(t for t in types if t not in {"MathTex", "Tex"})
+                elif text_kind == "math" and library_section == "Text":
+                    visible_types = tuple(t for t in types if t in {"MathTex", "Tex"})
+                if not visible_types:
+                    continue
+                menu.addSection("Math" if label == "Math" and library_section == "Text" else library_section)
+                for type_name in visible_types:
+                    action = menu.addAction(adapter.LIBRARY_LABELS.get(type_name, type_name))
+                    action.triggered.connect(partial(self.add_object, type_name))
+                    if type_name == "MathTex":
+                        action.setToolTip("Build a LaTeX equation")
+                        steps = menu.addAction("Equation steps...", self.add_equation_steps)
+                        steps.setToolTip("Create a derivation with one equation per step")
+            if label == "More":
+                self._add_python_objects_menu(menu)
+            button = QToolButton(text=label, popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+            button.setObjectName(f"quickAdd{label.replace(' ', '')}")
+            button.setMenu(menu)
+            button.setIcon(icons.icon(icon_name))
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            button.setProperty("role", "outlined")
+            button.setMinimumHeight(29)
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            button.setToolTip(f"Add {label.lower()} to the scene")
+            button.setAccessibleName(f"Add {label.lower()}")
+            buttons[label] = button
+        return buttons
 
     # -- state ----------------------------------------------------------------------
 
@@ -737,6 +849,7 @@ class LayersPanel(QWidget):
         item.setData(0, ID_ROLE, layer.id)
         item.setData(0, KIND_ROLE, kind_of(layer).key)
         item.setData(0, LOCKED_ROLE, layer.locked)
+        item.setData(0, VISIBLE_ROLE, layer.visible)
         if layer.is_part:
             tip = f"{layer.id} - part {layer.part.tex!r} (occurrence {layer.part.occurrence + 1})"
             if layer.id in orphans:
@@ -803,7 +916,7 @@ class LayersPanel(QWidget):
 
     # -- actions --------------------------------------------------------------------
 
-    def add_object(self, type_name: str) -> None:
+    def add_object(self, type_name: str, position: tuple[float, float] | None = None) -> None:
         extra = {}
         if type_name in MEDIA_TYPES:
             path = self.choose_image() if type_name in RASTER_TYPES else self.choose_svg()
@@ -828,7 +941,9 @@ class LayersPanel(QWidget):
         if type_name in CODE_TYPES:
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene
         self._select_new = True
-        self._submit(partial(add_placed, spec=spec, t=self.playhead()), f"Add {type_name}")
+        self._submit(
+            partial(add_placed, spec=spec, t=self.playhead(), position=position), f"Add {type_name}"
+        )
 
     def add_python_object(self, code: str | None = None) -> None:
         """A Python object (ADR 0051), from a template (the right triangle by default): made on the
@@ -1131,6 +1246,11 @@ class LayersPanel(QWidget):
             return
         self._submit(partial(edits.move_layer, layer_id=layer_id, index=index), "Reorder layers")
 
+    def _on_visibility_toggled(self, layer_id: str, visible: bool) -> None:
+        if layer_id in {layer.id for layer in self.project.layers}:
+            verb = "Show layer" if visible else "Hide layer"
+            self._submit(partial(edits.update_layer, layer_id=layer_id, visible=visible), verb)
+
     def _choose_image_dialog(self) -> str:
         name, _ = QFileDialog.getOpenFileName(
             self, "Add image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
@@ -1148,7 +1268,12 @@ class LayersPanel(QWidget):
         return text if ok else None
 
     def _ask_steps_dialog(self, start: float) -> StepsRequest | None:
-        dialog = EquationStepsDialog(start, self.builds, parent=self)
+        dialog = EquationStepsDialog(
+            start,
+            self.builds,
+            matching=self.project.morph_matching,
+            parent=self,
+        )
         return dialog.request() if dialog.exec() == QDialog.DialogCode.Accepted else None
 
     def _ask_part_dialog(self, parent_id: str) -> tuple[str, int] | None:

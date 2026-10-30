@@ -31,7 +31,7 @@ from ..session import code_drag
 from ..style import theme
 from ..style.render_activity import spinner
 from . import motion_overlay, param_handles, viewport
-from .gizmo import HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, oriented_box
+from .gizmo import GRAB_PX, HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, affine_box
 
 OUTLINE_COLOR = theme.qcolor(theme.THEME.outline)
 MOTION_COLOR = theme.qcolor(theme.THEME.motion_path)  # the motion path (ADR 0026)
@@ -92,6 +92,7 @@ class CanvasWidget(QWidget):
 
     resized = Signal()
     view_changed = Signal()  # zoom or pan: the window renders again and updates the readout
+    addRequested = Signal(str, float, float)  # text/shape tool: kind and scene position in units
     codeDropped = Signal(dict, float, float)  # a Code workspace drag (code_drag payload), x, y in units
     filesDropped = Signal(list, float, float)  # .py files dropped from the desktop, x, y in units
 
@@ -116,6 +117,8 @@ class CanvasWidget(QWidget):
         self._busy_timer.setInterval(100)
         self._busy_timer.timeout.connect(self.update)
         self.show_overlays = True  # outlines, handles and motion paths; off on the Code page (P12)
+        self.show_edit_handles = True  # point and independent-width handles; corners stay available
+        self.select_by_bounds = True  # let object bounds count as canvas hits (View toggle)
         self.presenting = False  # full screen: what lies outside the frame is black, no border (P12)
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
         self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
@@ -123,7 +126,9 @@ class CanvasWidget(QWidget):
         self.outline: Outline | None = None
         self.readout: tuple[QPointF, str] | None = None  # a value shown next to the cursor while dragging
         self.tool = None  # receives mouse/key input (canvas_tools.MoveTool)
-        self.view = viewport.View()  # editor state, not saved (ADR 0023)
+        self.interaction_mode = "select"  # select, hand, anchor, text, or shape (Stage tool rail)
+        self.view = viewport.View()  # editor state, remembered per project in Preferences (ADR 0023)
+        self.view_locked = False  # stop accidental pan and zoom gestures on the stage
         self.motion: motion_overlay.MotionPath | None = None  # the selected layer's path (ADR 0026)
         self.playing = False  # the motion path hides while playing
         self.render_ahead = None  # frames rendered ahead (ui.render_ahead.RenderAhead, ADR 0028)
@@ -132,6 +137,7 @@ class CanvasWidget(QWidget):
         self.param_handles: list[param_handles.ParamHandle] = []  # the selected object's sizes (ADR 0043)
         self.guides: list[tuple[tuple[float, float], tuple[float, float]]] = []  # snapped edges, units
         self._rest: dict[str, np.ndarray] = {}  # built drawings' points by spec, for the handles
+        self._rest_origin: dict[str, np.ndarray] = {}  # their pre-centre origins in parameter space
 
     @property
     def evaluator(self) -> Evaluator | None:
@@ -182,9 +188,27 @@ class CanvasWidget(QWidget):
             self.view = view
             self.view_changed.emit()
 
+    def set_view_locked(self, locked: bool) -> None:
+        """Ignore stage navigation until the user unlocks the canvas view."""
+        self.view_locked = bool(locked)
+        if self.view_locked:
+            self._pan_from = None
+
+    def set_interaction_mode(self, mode: str) -> None:
+        if mode not in {"select", "hand", "anchor", "text", "shape"}:
+            raise ValueError(f"unknown Stage tool {mode!r}")
+        if self.interaction_mode != mode:
+            self.interaction_mode = mode
+            self._pan_from = None
+            self.unsetCursor()
+            if mode == "hand":
+                self.setCursor(Qt.CursorShape.OpenHandCursor)
+            elif mode == "anchor" or mode in {"text", "shape"}:
+                self.setCursor(Qt.CursorShape.CrossCursor)
+
     def zoom(self, factor: float, pos: QPointF | None = None) -> None:
         """Zoom about a widget position (default: the centre)."""
-        if self._canvas is None or self._dragging():
+        if self.view_locked or self._canvas is None or self._dragging():
             return
         pos = pos if pos is not None else QPointF(self.width() / 2, self.height() / 2)
         self.set_view(
@@ -194,16 +218,18 @@ class CanvasWidget(QWidget):
         )
 
     def pan(self, dx: float, dy: float) -> None:
-        if self._canvas is None or self._dragging():
+        if self.view_locked or self._canvas is None or self._dragging():
             return
         self.set_view(viewport.pan(self.view, self._canvas, self.width(), self.height(), dx, dy))
 
     def fit(self) -> None:
+        if self.view_locked:
+            return
         self.set_view(viewport.View())
 
     def frame_selection(self) -> None:
         """Show the selected objects as large as fit (Unity's F); with nothing selected, Fit."""
-        if self._canvas is None or self._evaluator is None:
+        if self.view_locked or self._canvas is None or self._evaluator is None:
             return
         if self.camera_turned:  # flat bounds would frame the wrong place (ADR 0048)
             self.fit()
@@ -231,7 +257,7 @@ class CanvasWidget(QWidget):
         )
 
     def actual_size(self) -> None:
-        if self._canvas is not None:
+        if not self.view_locked and self._canvas is not None:
             self.set_view(viewport.at_scale(self.view, self._canvas, self.width(), self.height(), 1.0))
 
     def _dragging(self) -> bool:
@@ -305,6 +331,20 @@ class CanvasWidget(QWidget):
         else:
             self.update()
 
+    def set_edit_handles(self, shown: bool) -> None:
+        """Show geometry-point and independent width/height handles on the selected object."""
+        if shown == self.show_edit_handles:
+            return
+        self.show_edit_handles = shown
+        if self._evaluator is not None and self._canvas is not None:
+            self.render_at(self._t)
+        else:
+            self.update()
+
+    def set_select_by_bounds(self, enabled: bool) -> None:
+        """Let clicks inside an object's bounds select it, even away from visible geometry."""
+        self.select_by_bounds = enabled
+
     @property
     def camera_turned(self) -> bool:
         """The project's camera is not the flat 2D view (ADR 0048): the picture is seen from an angle,
@@ -364,25 +404,72 @@ class CanvasWidget(QWidget):
         return motion_overlay.build(layer, *self._evaluator.position_frame(layer, t))
 
     def _param_handles(self, t: float) -> list[param_handles.ParamHandle]:
-        """The selected object's parameter handles at ``t`` (roots only; none while playing)."""
-        if self.playing or self.outline is None or not self.selected_layer or self._evaluator is None:
+        """The selected object's editable handles at ``t`` (none while playing)."""
+        if (
+            not self.show_edit_handles
+            or self.playing
+            or self.outline is None
+            or not self.selected_layer
+            or self._evaluator is None
+        ):
             return []
         if self.other_layers:  # several objects: they move together, no sizes (ADR 0043)
             return []
         project = self._evaluator.project
         layer = next((x for x in project.layers if x.id == self.selected_layer), None)
-        if layer is None or layer.parent_id is not None or layer.spec is None:
+        if layer is None or layer.is_part or layer.spec is None:
+            return []
+        if layer.is_group or not param_handles.supports_object_handles(layer.spec):
             return []
         if layer.spec.type in CONNECTOR_TYPES:
-            return param_handles.connector_handles(layer.spec, self._evaluator.connector_frames(layer, t))
-        if layer.spec.type not in param_handles.SIZES and layer.spec.type not in param_handles.LINES:
-            return []
-        a, b = self._evaluator.world_affine(layer, t)
-        found = param_handles.object_handles(layer.spec, self.rest_points(layer.spec), a, b)
+            found = param_handles.connector_handles(layer.spec, self._evaluator.connector_frames(layer, t))
+        else:
+            built = self._evaluator.built(layer.spec)
+            if not isinstance(built, m.Mobject):  # an untrusted or invalid Python object has no handles yet
+                return []
+            a, b = self._evaluator.world_affine(layer, t)
+            found = param_handles.object_handles(
+                layer.spec, self.rest_points(layer.spec), self.rest_origin(layer.spec), a, b, built
+            )
+        clear_of_resize = 12.0 / self.px_per_unit()
+        mids = np.array(
+            [
+                (self.outline.box.corners[0] + self.outline.box.corners[1]) / 2,
+                (self.outline.box.corners[1] + self.outline.box.corners[2]) / 2,
+                (self.outline.box.corners[2] + self.outline.box.corners[3]) / 2,
+                (self.outline.box.corners[3] + self.outline.box.corners[0]) / 2,
+            ]
+        )
+        transform_handles = np.vstack([self.outline.box.corners, mids])
+        point_gap = 14.0 / self.px_per_unit()
+        point_collision = 2 * GRAB_PX / self.px_per_unit()
+        adjusted = []
+        for handle in found:
+            if not handle.point_control and handle.mode != "point":
+                reach = max(float(np.linalg.norm(handle.a @ handle.axis)), 1e-9)
+                offset = handle.axis * clear_of_resize / reach
+                adjusted.append(replace(handle, display_offset=tuple(offset)))
+                continue
+            if (handle.point_control or handle.mode == "point") and min(
+                np.linalg.norm(transform_handles - handle.world, axis=1)
+            ) < point_collision:
+                toward = handle.to_local(self.outline.box.centre) - handle.local
+                reach = float(np.linalg.norm(handle.a @ toward))
+                offset = toward * min(1.0, point_gap / max(reach, 1e-9))
+                adjusted.append(replace(handle, display_offset=tuple(offset)))
+                continue
+            adjusted.append(handle)
+        found = adjusted
+        if layer.spec.type in CONNECTOR_TYPES:
+            return found
         # On a small object the handles would cover its middle, where a press moves it: zoom in.
         clear = CLEAR_OF_MIDDLE_PX / self.px_per_unit()
         middles = (np.asarray(self.outline.anchor), self.outline.box.centre)
-        return [h for h in found if min(np.linalg.norm(h.world - c) for c in middles) >= clear]
+        return [
+            h
+            for h in found
+            if h.point_control or min(np.linalg.norm(h.world - c) for c in middles) >= clear
+        ]
 
     def rest_points(self, spec) -> np.ndarray:
         """The points of ``spec``'s drawing as built (centred on the origin), kept per spec."""
@@ -390,11 +477,23 @@ class CanvasWidget(QWidget):
         if key not in self._rest:
             if len(self._rest) > 32:
                 self._rest.clear()
-            family = self._evaluator.built(spec).family_members_with_points()
+                self._rest_origin.clear()
+            built = self._evaluator.built(spec)
+            if not isinstance(built, m.Mobject):
+                self._rest[key] = np.zeros((0, 2))
+                self._rest_origin[key] = np.zeros(2)
+                return self._rest[key]
+            family = built.family_members_with_points()
             self._rest[key] = (
                 np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((0, 2))
             )
+            self._rest_origin[key] = np.asarray(getattr(built, "_studio_origin", (0.0, 0.0)), float)[:2]
         return self._rest[key]
+
+    def rest_origin(self, spec) -> np.ndarray:
+        """The built object's centre before the adapter moved it to the origin."""
+        self.rest_points(spec)
+        return self._rest_origin.get(spec.model_dump_json(), np.zeros(2))
 
     def _others(self) -> list[str]:
         """The other selected layers that still exist."""
@@ -443,12 +542,11 @@ class CanvasWidget(QWidget):
                 path.addPath(vmobject_path(sub))
             points = np.concatenate([sub.points[:, :2] for sub in family]) if family else np.zeros((1, 2))
         layer = project.layer(self.selected_layer)
-        pivot, rotation, _ = self._evaluator.layer_frame(layer, t)
+        pivot, _rotation, _ = self._evaluator.layer_frame(layer, t)
         anchor = (float(pivot[0]), float(pivot[1]))
-        box = oriented_box(points, anchor, rotation, MIN_BOX_PX / self.px_per_unit())
-        snaps = oriented_box(
-            points, anchor, rotation
-        ).snap_points()  # a line snaps to its ends, not beside them
+        a, b = self._evaluator.world_affine(layer, t)
+        box = affine_box(points, anchor, a, b, MIN_BOX_PX / self.px_per_unit())
+        snaps = box.snap_points()  # a line snaps to its ends, not beside them
         return Outline(path, path.boundingRect(), anchor, box, snaps)
 
     def paintEvent(self, event) -> None:
@@ -698,16 +796,35 @@ class CanvasWidget(QWidget):
         half = HANDLE_PX / 2
         for corner in corners:
             painter.drawRect(QRectF(corner.x() - half, corner.y() - half, HANDLE_PX, HANDLE_PX))
+        layer = next(
+            (item for item in self._evaluator.project.layers if item.id == self.selected_layer), None
+        )
+        if self.show_edit_handles and layer is not None and not layer.is_group:
+            mids = [
+                (box.corners[0] + box.corners[1]) / 2,
+                (box.corners[1] + box.corners[2]) / 2,
+                (box.corners[2] + box.corners[3]) / 2,
+                (box.corners[3] + box.corners[0]) / 2,
+            ]
+            for midpoint in mids:
+                centre = to_px.map(QPointF(*midpoint))
+                painter.drawRect(QRectF(centre.x() - half, centre.y() - half, HANDLE_PX, HANDLE_PX))
         knob = to_px.map(QPointF(*box.knob(KNOB_OFFSET_PX / self.px_per_unit())))
         top_middle = (corners[2] + corners[3]) / 2
         painter.drawLine(top_middle, knob)
         painter.drawEllipse(knob, half, half)
         # parameter handles: round, filled with the outline colour (ADR 0043)
-        painter.setBrush(OUTLINE_COLOR)
-        painter.setPen(QPen(BADGE, 1.5))
-        radius = PARAM_HANDLE_PX / 2
-        for handle in self.param_handles:
-            painter.drawEllipse(to_px.map(QPointF(*handle.world)), radius, radius)
+        if self.show_edit_handles:
+            painter.setBrush(OUTLINE_COLOR)
+            painter.setPen(QPen(BADGE, 1.5))
+            radius = PARAM_HANDLE_PX / 2
+            for handle in self.param_handles:
+                if handle.mode == "point" and handle.display_offset is not None:
+                    start = handle.a @ handle.local + handle.b
+                    painter.setPen(QPen(OUTLINE_COLOR, 1.0))
+                    painter.drawLine(to_px.map(QPointF(*start)), to_px.map(QPointF(*handle.world)))
+                    painter.setPen(QPen(BADGE, 1.5))
+                painter.drawEllipse(to_px.map(QPointF(*handle.world)), radius, radius)
 
     # -- input: forwarded to the tool ---------------------------------------------
 
@@ -722,6 +839,9 @@ class CanvasWidget(QWidget):
         """Ctrl+wheel zooms about the cursor; wheel pans (Shift: sideways) - ADR 0023."""
         if self._canvas is None:
             super().wheelEvent(event)
+            return
+        if self.view_locked:
+            event.accept()
             return
         pixel_delta = event.pixelDelta()
         if not pixel_delta.isNull():  # smooth scrolling devices report pixels instead of wheel notches
@@ -745,8 +865,20 @@ class CanvasWidget(QWidget):
         event.accept()
 
     def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.interaction_mode == "hand":
+            if not self.view_locked and not self._dragging():
+                self._pan_from = QPointF(event.position())
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self.interaction_mode in {"text", "shape"}:
+            if self._tool_input():
+                point = self.to_units(event.position())
+                self.addRequested.emit(self.interaction_mode, float(point[0]), float(point[1]))
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.MiddleButton and self._canvas is not None:
-            if not self._dragging():
+            if not self.view_locked and not self._dragging():
                 self._pan_from = QPointF(event.position())  # middle-drag pans
             event.accept()
             return
@@ -774,10 +906,18 @@ class CanvasWidget(QWidget):
             self.pan(delta.x(), delta.y())
             event.accept()
             return
+        if self.interaction_mode == "hand":
+            return
         if self._tool_input():
             self.tool.move(event.position(), event.modifiers())
 
     def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.interaction_mode == "hand":
+            self._pan_from = None
+            if not self.view_locked:
+                self.setCursor(Qt.CursorShape.OpenHandCursor)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_from = None
             event.accept()

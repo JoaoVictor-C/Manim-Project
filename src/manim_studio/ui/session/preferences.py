@@ -3,7 +3,8 @@
 The file is ``MANIM_STUDIO_SETTINGS`` or, by default, ``manim-studio.ini`` in the user's
 configuration folder (the registry is never used). It holds the recent files, the
 window's geometry and state, each page's splitter sizes, the view toggles (snap to
-objects, half-resolution playback, render ahead) and the last page shown.
+objects, half-resolution playback, render ahead), each project's canvas view and the
+last page shown.
 
 The recent-file rules (``push_recent``, ``existing``) are plain functions over lists of
 paths; ``Preferences`` wraps ``QSettings`` around them. Tests point the environment
@@ -12,12 +13,15 @@ variable at a fresh file each, so windows in tests start at the defaults.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QSettings, QStandardPaths
 
+from ..canvas.viewport import View
 from .editor_settings import EditorSettings, from_json, to_json
 
 MAX_RECENT = 10
@@ -30,6 +34,11 @@ LAYOUT_VERSION = (
 def _key(path: str | Path) -> str:
     """Two spellings of one file give one key (case counts only where the system's does)."""
     return os.path.normcase(str(Path(path).resolve()))
+
+
+def _canvas_view_key(path: str | Path) -> str:
+    """A stable settings key that does not expose a project's path in the INI key names."""
+    return hashlib.sha256(_key(path).encode("utf-8")).hexdigest()
 
 
 def push_recent(items: list[str], path: str | Path, limit: int = MAX_RECENT) -> list[str]:
@@ -159,6 +168,36 @@ class Preferences:
 
     def set_toggle(self, name: str, value: bool) -> None:
         self._settings.setValue(f"view/{name}", bool(value))
+        self._settings.sync()
+
+    def canvas_view(self, path: str | Path) -> View | None:
+        """The last canvas framing for a project file, if it was saved and is valid."""
+        raw = self._settings.value(f"canvas_views/{_canvas_view_key(path)}", "")
+        try:
+            data = json.loads(str(raw))
+            if not isinstance(data, dict):
+                return None
+            fit, scale, centre = data["fit"], data["scale"], data["centre"]
+            if (
+                type(fit) is not bool
+                or isinstance(scale, bool)
+                or not isinstance(scale, (int, float))
+                or not math.isfinite(scale)
+                or scale <= 0
+                or not isinstance(centre, list)
+                or len(centre) != 2
+                or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in centre)
+                or any(not math.isfinite(value) for value in centre)
+            ):
+                return None
+            return View(fit, float(scale), (float(centre[0]), float(centre[1])))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+
+    def set_canvas_view(self, path: str | Path, view: View) -> None:
+        """Remember a project's zoom and centre without adding editor state to its project file."""
+        data = {"fit": view.fit, "scale": view.scale, "centre": list(view.centre)}
+        self._settings.setValue(f"canvas_views/{_canvas_view_key(path)}", json.dumps(data))
         self._settings.sync()
 
     # -- appearance (Lumen, ADR 0063) -------------------------------------------------------------

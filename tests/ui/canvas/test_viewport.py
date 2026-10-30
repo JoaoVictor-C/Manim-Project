@@ -147,6 +147,22 @@ def test_wheel_and_middle_drag_pan(window, qt_app) -> None:
     assert window.document.undo_stack.count() == 0  # the view is not an edit
 
 
+def test_hand_tool_pans_with_left_drag_and_respects_the_stage_lock(window, qt_app) -> None:
+    canvas = window.canvas
+    canvas.set_interaction_mode("hand")
+    start, end = QPointF(300, 300), QPointF(350, 280)
+    before = canvas.to_units(start)
+    drag(window, start, end, qt_app)
+    assert canvas.to_units(end) == pytest.approx(before)
+    assert window.document.undo_stack.count() == 0
+
+    window._set_stage_view_locked(True)
+    before_locked = canvas.view
+    drag(window, end, end + QPointF(70, 40), qt_app)
+    assert canvas.view == before_locked
+    window._set_stage_view_locked(False)  # do not leak a saved editor preference into later UI tests
+
+
 def test_the_view_waits_while_something_is_dragged(window, qt_app) -> None:
     canvas = window.canvas
     start = px(window, 1.0, 0.0)

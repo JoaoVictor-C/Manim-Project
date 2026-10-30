@@ -87,6 +87,9 @@ NAMES: dict[str, str] = {
     "sidebar": "mdi6.dock-left",
     "panel": "mdi6.dock-bottom",
     "outline": "mdi6.vector-selection",
+    "tool-select": "cursor",
+    "tool-hand": "hand-grabbing",
+    "anchor": "crosshair",
     # the panel buttons and full screen (P12)
     "sidebar-right": "mdi6.dock-right",
     "fullscreen": "mdi6.fullscreen",
@@ -105,6 +108,7 @@ NAMES: dict[str, str] = {
     "caret-right": "caret-right",
     "more": "dots-three",
     "lock": "lock-simple",
+    "lock-open": "mdi6.lock-open",
     "maths": "math-operations",
     "shape": "polygon",
     "circle": "circle",

@@ -116,6 +116,28 @@ def test_click_selects_the_front_most_object_and_outlines_it(window) -> None:
     assert window.document.undo_stack.count() == 0  # a click is not an edit
 
 
+def test_stage_text_tool_places_an_object_at_the_click_and_returns_to_select(window) -> None:
+    window.stage_tool_buttons["text"].click()
+    pos = px(window, -2.0, 1.0)
+    click(window, pos)
+
+    text = next(layer for layer in window.project.layers if layer.spec.type == "Text")
+    assert text.base.position == pytest.approx((-2.0, 1.0), abs=0.02)
+    assert window.canvas.interaction_mode == "select"
+    assert window.stage_tool_buttons["select"].isChecked()
+
+
+def test_anchor_tool_drags_the_selected_objects_anchor(window, qt_app) -> None:
+    window.selection.select_layer("dot")
+    window.refresh()
+    window.stage_tool_buttons["anchor"].click()
+    before = window.project.layer("dot").base.anchor
+    start = px(window, 0.0, 0.0)
+    drag(window, start, start + QPointF(35, 20), qt_app)
+
+    assert window.project.layer("dot").base.anchor != before
+
+
 def test_click_on_nothing_clears_the_selection(window) -> None:
     click(window, px(window, 1.0, 0.0))
     click(window, px(window, -6.0, -3.5))

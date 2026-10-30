@@ -190,7 +190,7 @@ def test_the_canvas_moves_into_the_presenter_plain_and_comes_back(window, qt_app
     window.presenter.finish()
     qt_app.processEvents()
     assert canvas.parent() is window.stage and canvas.show_overlays and canvas.view == before_view
-    assert window.stage.layout().indexOf(canvas) == 0 and canvas.isVisibleTo(window)
+    assert window.stage.layout().indexOf(canvas) == 1 and canvas.isVisibleTo(window)
 
 
 def test_the_editor_window_itself_is_not_made_full_screen(window, qt_app) -> None:

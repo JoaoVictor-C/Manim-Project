@@ -166,7 +166,7 @@ class Presenter(QWidget):
         canvas.unsetCursor()
         self.unsetCursor()
         self._layout.removeWidget(canvas)
-        window.stage.layout().insertWidget(0, canvas, 1)
+        window.stage.layout().insertWidget(1, canvas, 1)
         canvas.setFocusPolicy(focus)
         canvas.presenting = False
         canvas.set_overlays(overlays)

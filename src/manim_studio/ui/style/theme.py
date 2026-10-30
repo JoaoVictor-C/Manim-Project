@@ -143,6 +143,8 @@ class Colours:
     curve_x: str
     curve_y: str
     curve_scale: str
+    curve_width: str
+    curve_height: str
     curve_rotation: str
     curve_opacity: str
 
@@ -219,6 +221,8 @@ INK = Colours(
     curve_x="#ff7b93",
     curve_y="#4ade80",
     curve_scale="#7aa2ff",
+    curve_width="#fbbf24",
+    curve_height="#fb7185",
     curve_rotation="#c792ea",
     curve_opacity="#2dd4bf",
 )
@@ -295,6 +299,8 @@ PAPER = Colours(
     curve_x="#cf2148",
     curve_y="#15803d",
     curve_scale="#2563eb",
+    curve_width="#b45309",
+    curve_height="#be123c",
     curve_rotation="#7c3aed",
     curve_opacity="#0f766e",
 )

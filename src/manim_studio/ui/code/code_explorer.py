@@ -39,6 +39,8 @@ NAME_ROLE = Qt.ItemDataRole.UserRole + 3
 STATE_ROLE = Qt.ItemDataRole.UserRole + 4
 DIRTY_ROLE = Qt.ItemDataRole.UserRole + 5
 BADGE_ROLE = Qt.ItemDataRole.UserRole + 6
+FOLDER_ROLE = Qt.ItemDataRole.UserRole + 7
+DROP_TARGET_ROLE = Qt.ItemDataRole.UserRole + 8
 ROW_HEIGHT = 38  # a 36 px row and its 1 px margins
 HEADER_HEIGHT = 30
 
@@ -59,6 +61,7 @@ class Row:
     badge: str = (
         ""  # a quiet chip at the right when nothing more urgent is said ("built", "built in", "mine")
     )
+    folder: str = ""
 
 
 @dataclass(frozen=True)
@@ -68,6 +71,7 @@ class Section:
     rows: tuple[Row, ...] = ()
     empty: str = ""  # shown (greyed) when there are no rows
     extra: dict = field(default_factory=dict)
+    folders: tuple[str, ...] = ()  # named folders that may be empty
 
 
 def row_chip(state: str, dirty: bool, badge: str) -> tuple[str, str] | None:
@@ -101,11 +105,17 @@ class ExplorerDelegate(QStyledItemDelegate):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if not index.parent().isValid():  # a section
+            drop_target = bool(index.data(DROP_TARGET_ROLE))
+            if drop_target:
+                target = rect.adjusted(5, 2, -5, -1)
+                painter.setPen(QPen(theme.qcolor(colours.accent_line), 1))
+                painter.setBrush(theme.qcolor(colours.accent_soft))
+                painter.drawRoundedRect(target, theme.RADIUS_ROW, theme.RADIUS_ROW)
             font = theme.font("section")
             font.setPixelSize(10)
             font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 110)
             painter.setFont(font)
-            painter.setPen(theme.qcolor(colours.faint))
+            painter.setPen(theme.qcolor(colours.accent if drop_target else colours.faint))
             text = str(index.data(Qt.ItemDataRole.DisplayRole) or "").upper()
             area = rect.adjusted(14, 0, -28, -2)
             painter.drawText(area, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom, text)
@@ -113,6 +123,42 @@ class ExplorerDelegate(QStyledItemDelegate):
             item = tree.itemFromIndex(index) if isinstance(tree, QTreeWidget) else None
             if item is not None and item.childCount():
                 self._chevron(painter, QPointF(rect.right() - 18, rect.bottom() - 9), item.isExpanded())
+            painter.restore()
+            return
+        folder = index.data(FOLDER_ROLE)
+        if folder is not None:
+            row = rect.adjusted(6, 1, -6, -1)
+            drop_target = bool(index.data(DROP_TARGET_ROLE))
+            selected = bool(option.state & QStyle.StateFlag.State_Selected)
+            hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+            if drop_target:
+                painter.setPen(QPen(theme.qcolor(colours.accent_line), 1.5))
+                painter.setBrush(theme.qcolor(colours.accent_soft))
+                painter.drawRoundedRect(
+                    row.adjusted(0.5, 0.5, -0.5, -0.5), theme.RADIUS_ROW, theme.RADIUS_ROW
+                )
+            elif selected:
+                painter.setPen(QPen(theme.qcolor(colours.accent_line), 1))
+                painter.setBrush(theme.qcolor(colours.accent_soft))
+                painter.drawRoundedRect(
+                    row.adjusted(0.5, 0.5, -0.5, -0.5), theme.RADIUS_ROW, theme.RADIUS_ROW
+                )
+            elif hovered:
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(theme.qcolor(colours.raised))
+                painter.drawRoundedRect(row, theme.RADIUS_ROW, theme.RADIUS_ROW)
+            painter.setFont(theme.font("label"))
+            tone = colours.accent if drop_target else colours.text if selected else colours.muted
+            painter.setPen(theme.qcolor(tone))
+            painter.drawText(
+                row.adjusted(12, 0, -24, 0),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                str(folder),
+            )
+            tree = option.widget
+            item = tree.itemFromIndex(index) if isinstance(tree, QTreeWidget) else None
+            if item is not None and item.childCount():
+                self._chevron(painter, QPointF(row.right() - 12, row.center().y()), item.isExpanded())
             painter.restore()
             return
         if index.data(KEY_ROLE) is None:  # a greyed note ("No match", "Import a folder ...")
@@ -179,6 +225,7 @@ class CodeExplorer(QTreeWidget):
     chosen = Signal(str, str)  # source, key: the current row changed
     menuRequested = Signal(str, str, QPoint)  # source, key ("" for a section header), global position
     filesDropped = Signal(list)  # .py files dragged in from the desktop
+    layerDropped = Signal(str, str)  # project code layer id, target folder
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -193,16 +240,17 @@ class CodeExplorer(QTreeWidget):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setExpandsOnDoubleClick(False)
         self.setDragEnabled(True)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.setDropIndicatorShown(True)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_menu)
         self.setAcceptDrops(True)
         self.currentItemChanged.connect(self._on_current)
         self.itemActivated.connect(self._on_activated)
-        self.itemDoubleClicked.connect(self._on_activated)
         self._filter = ""
         self._sections: list[Section] = []
         self._collapsed: set[str] = set()
+        self._drop_target_item: QTreeWidgetItem | None = None
         self._spin_timer = QTimer(self)  # turns the spinner of the rows that are rendering (ADR 0059)
         self._spin_timer.setInterval(INTERVAL_MS)
         self._spin_timer.timeout.connect(self._spin)
@@ -224,9 +272,14 @@ class CodeExplorer(QTreeWidget):
 
     def current(self) -> tuple[str, str] | None:
         item = self.currentItem()
-        if item is None or item.parent() is None:
+        if item is None or item.parent() is None or item.data(0, KEY_ROLE) is None:
             return None
         return item.data(0, SOURCE_ROLE), item.data(0, KEY_ROLE)
+
+    def selected_folder(self) -> str | None:
+        item = self.currentItem()
+        folder = None if item is None else item.data(0, FOLDER_ROLE)
+        return str(folder) if folder is not None else None
 
     def select(self, source: str, key: str) -> bool:
         item = self._find(source, key)
@@ -239,8 +292,7 @@ class CodeExplorer(QTreeWidget):
         """(section, source, key) of the rows shown, top to bottom."""
         out = []
         for top in self._tops():
-            for i in range(top.childCount()):
-                child = top.child(i)
+            for child in self._children(top):
                 if child.data(0, KEY_ROLE) is not None:
                     out.append((top.data(0, KEY_ROLE), child.data(0, SOURCE_ROLE), child.data(0, KEY_ROLE)))
         return out
@@ -250,19 +302,30 @@ class CodeExplorer(QTreeWidget):
         for top in self._tops():
             if top.data(0, KEY_ROLE) == section:
                 return [
-                    top.child(i).text(0)
-                    for i in range(top.childCount())
-                    if top.child(i).data(0, KEY_ROLE) is not None
+                    item.text(0)
+                    for item in self._children(top)
+                    if item.data(0, KEY_ROLE) is not None
                 ]
         return []
 
     def _tops(self) -> list[QTreeWidgetItem]:
         return [self.topLevelItem(i) for i in range(self.topLevelItemCount())]
 
+    @staticmethod
+    def _children(parent: QTreeWidgetItem) -> list[QTreeWidgetItem]:
+        """The selectable rows below a section, including rows nested in folders."""
+        out = []
+        for i in range(parent.childCount()):
+            child = parent.child(i)
+            if child.data(0, FOLDER_ROLE) is not None:
+                out.extend(CodeExplorer._children(child))
+            else:
+                out.append(child)
+        return out
+
     def _find(self, source: str, key: str) -> QTreeWidgetItem | None:
         for top in self._tops():
-            for i in range(top.childCount()):
-                child = top.child(i)
+            for child in self._children(top):
                 if child.data(0, SOURCE_ROLE) == source and child.data(0, KEY_ROLE) == key:
                     return child
         return None
@@ -270,6 +333,7 @@ class CodeExplorer(QTreeWidget):
     def _rebuild(self, current: tuple[str, str] | None) -> None:
         colours = theme.THEME
         self.blockSignals(True)
+        self._set_drop_target(None)
         self.clear()
         for section in self._sections:
             top = QTreeWidgetItem([section.title])
@@ -280,9 +344,30 @@ class CodeExplorer(QTreeWidget):
             top.setFont(0, font)
             self.addTopLevelItem(top)
             shown = [row for row in section.rows if self._matches(row)]
-            for row in shown:
+            root_rows = [row for row in shown if not row.folder]
+            has_visible = bool(root_rows)
+            for row in root_rows:
                 top.addChild(self._item(row))
-            if not shown and (section.empty or self._filter):
+            for folder in section.folders:
+                folder_rows = [row for row in shown if row.folder == folder]
+                folder_item = QTreeWidgetItem([folder])
+                folder_item.setData(0, FOLDER_ROLE, folder)
+                folder_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                for row in folder_rows:
+                    folder_item.addChild(self._item(row))
+                if not folder_rows and not self._filter:
+                    note = QTreeWidgetItem(["Empty folder"])
+                    note.setFlags(Qt.ItemFlag.NoItemFlags)
+                    note.setForeground(0, QBrush(QColor(colours.muted)))
+                    folder_item.addChild(note)
+                filter_words = self._filter.split()
+                folder_matches = all(word in folder.casefold() for word in filter_words)
+                if folder_rows or not self._filter or folder_matches:
+                    top.addChild(folder_item)
+                    has_visible = True
+                    folder_key = f"folder:{section.key}:{folder}"
+                    folder_item.setExpanded(folder_key not in self._collapsed or bool(self._filter))
+            if not has_visible and (section.empty or self._filter):
                 note = QTreeWidgetItem(["No match" if self._filter and section.rows else section.empty])
                 note.setFlags(Qt.ItemFlag.NoItemFlags)
                 note.setForeground(0, QBrush(QColor(colours.muted)))
@@ -300,9 +385,9 @@ class CodeExplorer(QTreeWidget):
     def _running_items(self) -> list[QTreeWidgetItem]:
         found = []
         for top in self._tops():
-            for i in range(top.childCount()):
-                if top.child(i).data(0, STATE_ROLE) == "running":
-                    found.append(top.child(i))
+            for item in self._children(top):
+                if item.data(0, STATE_ROLE) == "running":
+                    found.append(item)
         return found
 
     def _spin(self) -> None:
@@ -317,7 +402,7 @@ class CodeExplorer(QTreeWidget):
     def _matches(self, row: Row) -> bool:
         if not self._filter:
             return True
-        words = f"{row.label} {row.match}".casefold()
+        words = f"{row.label} {row.match} {row.folder}".casefold()
         return all(word in words for word in self._filter.split())
 
     def _item(self, row: Row) -> QTreeWidgetItem:
@@ -358,8 +443,11 @@ class CodeExplorer(QTreeWidget):
         return item
 
     def _remember(self, item: QTreeWidgetItem, collapsed: bool) -> None:
-        if item.parent() is None and not self._filter:
-            key = item.data(0, KEY_ROLE)
+        if not self._filter and (item.parent() is None or item.data(0, FOLDER_ROLE) is not None):
+            if item.parent() is None:
+                key = item.data(0, KEY_ROLE)
+            else:
+                key = f"folder:{item.parent().data(0, KEY_ROLE)}:{item.data(0, FOLDER_ROLE)}"
             (self._collapsed.add if collapsed else self._collapsed.discard)(key)
 
     # -- events -------------------------------------------------------------------------------
@@ -369,9 +457,18 @@ class CodeExplorer(QTreeWidget):
             self.chosen.emit(item.data(0, SOURCE_ROLE), item.data(0, KEY_ROLE))
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """A click on a section's label folds or unfolds it (the label is its arrow in Lumen)."""
+        """A click on a section or folder label folds or unfolds it."""
         item = self.itemAt(event.position().toPoint())
         if item is not None and item.parent() is None and event.button() == Qt.MouseButton.LeftButton:
+            item.setExpanded(not item.isExpanded())
+            event.accept()
+            return
+        if (
+            item is not None
+            and item.data(0, FOLDER_ROLE) is not None
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            self.setCurrentItem(item)
             item.setExpanded(not item.isExpanded())
             event.accept()
             return
@@ -379,13 +476,14 @@ class CodeExplorer(QTreeWidget):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         item = self.itemAt(event.position().toPoint())
-        if item is not None and item.parent() is None:  # the press already folded it
+        if item is not None and (item.parent() is None or item.data(0, FOLDER_ROLE) is not None):
+            # The press already folded/unfolded this header.
             event.accept()
             return
         super().mouseDoubleClickEvent(event)
 
     def _on_activated(self, item: QTreeWidgetItem, _column: int = 0) -> None:
-        if item.parent() is None:
+        if item.parent() is None or item.data(0, FOLDER_ROLE) is not None:
             item.setExpanded(not item.isExpanded())
         elif item.data(0, KEY_ROLE) is not None:
             self.opened.emit(item.data(0, SOURCE_ROLE), item.data(0, KEY_ROLE))
@@ -397,6 +495,8 @@ class CodeExplorer(QTreeWidget):
             self.menuRequested.emit("", "", where)
         elif item.parent() is None:
             self.menuRequested.emit("section", item.data(0, KEY_ROLE), where)
+        elif item.data(0, FOLDER_ROLE) is not None:
+            self.menuRequested.emit("folder", item.data(0, FOLDER_ROLE), where)
         elif item.data(0, KEY_ROLE) is not None:
             self.setCurrentItem(item)
             self.menuRequested.emit(item.data(0, SOURCE_ROLE), item.data(0, KEY_ROLE), where)
@@ -415,23 +515,75 @@ class CodeExplorer(QTreeWidget):
         )
         drag = QDrag(self)
         drag.setMimeData(mime)
-        drag.exec(Qt.DropAction.CopyAction, Qt.DropAction.CopyAction)
+        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction, Qt.DropAction.CopyAction)
+
+    def _drop_target_at(self, position: QPoint) -> tuple[QTreeWidgetItem | None, str | None]:
+        item = self.itemAt(position)
+        if item is None:
+            return None, None
+        if item.parent() is None and item.data(0, KEY_ROLE) == "project":
+            return item, ""  # dropping on the project heading moves the item back to the root
+        folder = item.data(0, FOLDER_ROLE)
+        target = item
+        if folder is None and item.parent() is not None:
+            target = item.parent()
+            folder = target.data(0, FOLDER_ROLE)
+        if folder is None:
+            return None, None
+        return target, str(folder)
+
+    def _set_drop_target(self, item: QTreeWidgetItem | None) -> None:
+        if item is self._drop_target_item:
+            return
+        if self._drop_target_item is not None:
+            self._drop_target_item.setData(0, DROP_TARGET_ROLE, None)
+        self._drop_target_item = item
+        if item is not None:
+            item.setData(0, DROP_TARGET_ROLE, True)
+        self.viewport().update()
 
     # -- files dropped from the desktop -------------------------------------------------------
 
     def dragEnterEvent(self, event) -> None:
-        if code_drag.python_files(event.mimeData()):
+        payload = code_drag.decode(event.mimeData())
+        if (payload is not None and payload["from"] == "layer") or code_drag.python_files(
+            event.mimeData()
+        ):
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event) -> None:
-        if code_drag.python_files(event.mimeData()):
+        payload = code_drag.decode(event.mimeData())
+        target, _folder = self._drop_target_at(event.position().toPoint())
+        if payload is not None and payload["from"] == "layer" and target is not None:
+            self._set_drop_target(target)
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+        elif code_drag.python_files(event.mimeData()):
+            self._set_drop_target(None)
             event.acceptProposedAction()
         else:
+            self._set_drop_target(None)
             event.ignore()
 
+    def dragLeaveEvent(self, event) -> None:
+        self._set_drop_target(None)
+        super().dragLeaveEvent(event)
+
     def dropEvent(self, event) -> None:
+        payload = code_drag.decode(event.mimeData())
+        if payload is not None:
+            target, folder = self._drop_target_at(event.position().toPoint())
+            self._set_drop_target(None)
+            if payload["from"] == "layer" and target is not None and folder is not None:
+                event.setDropAction(Qt.DropAction.MoveAction)
+                event.accept()
+                layer_id = payload["id"]
+                QTimer.singleShot(0, lambda: self.layerDropped.emit(layer_id, folder))
+            else:
+                event.ignore()
+            return
         files = code_drag.python_files(event.mimeData())
         if not files:
             event.ignore()

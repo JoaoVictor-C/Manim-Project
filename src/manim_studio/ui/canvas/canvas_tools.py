@@ -11,8 +11,8 @@
 * drag: move the selected object, previewed live and recorded as one undo step
   ("Move layer"); Shift locks the dominant axis; Escape cancels;
 * arrow keys: nudge 1 px (Shift: 10 px); a held key is one undo step;
-* handles (P2a): a corner scales about the layer's pivot (Shift: steps of
-  10 %), the knob rotates about it (Shift: 15 degree steps);
+* handles (P2a): a corner scales uniformly about the layer's pivot (Shift: steps of
+  10 %), a side changes width or height independently, the knob rotates about it (Shift: 15 degree steps);
 * the motion path (P3d, ADR 0026): drag a key's square to move that key, a
   tangent handle to bend the path (a smooth key's other handle stays opposite,
   keeping its length; Alt moves one handle only); double-click a square to
@@ -54,6 +54,7 @@ from .gizmo import (
     angle_delta,
     handle_at,
     nearest,
+    scale_axis_from,
     scale_from,
     snap_angle,
 )
@@ -75,7 +76,7 @@ ARROWS = {
 @dataclass
 class _Drag:
     layer_id: str
-    prop: str  # "position", "scale", "rotation" or "anchor"
+    prop: str  # transform property, "anchor", or an interaction such as "param" or "marquee"
     press: np.ndarray  # cursor at press, Manim units
     start: object  # the property's value at press
     pivot: np.ndarray  # the world pivot: scaling and rotating happen about it
@@ -86,9 +87,10 @@ class _Drag:
     turned: float = 0.0  # rotation: total angle swept so far
     to_anchor: np.ndarray | None = None  # anchor: world move of the pivot -> change of the anchor
     snaps: np.ndarray | None = None  # anchor: where Ctrl snaps the pivot (world)
+    axis_matrix: np.ndarray | None = None  # independent resize: local axes at drag start
     key: motion_overlay.MotionKey | None = None  # motion path: the key (or its handle) dragged
     param: param_handles.ParamHandle | None = None  # a parameter handle (ADR 0043)
-    origin: np.ndarray | None = None  # a line end: where its parameter space sat at press
+    origin: np.ndarray | None = None  # point edits: where the object's parameter space sat at press
     box: tuple[np.ndarray, np.ndarray] | None = None  # moves: the moved drawing's box at press (world)
     targets: snap_guides.Targets | None = None  # what moves and handles snap to (ADR 0043)
     group: list[tuple[str, float | None, tuple, np.ndarray]] = field(default_factory=list)  # the
@@ -104,6 +106,8 @@ VERBS = {
     "out": "Bend path",
     "position": "Move layer",
     "scale": "Scale layer",
+    "scale_x": "Resize width",
+    "scale_y": "Resize height",
     "rotation": "Rotate layer",
     "anchor": "Move anchor",
     "param": "Resize layer",
@@ -147,8 +151,15 @@ class MoveTool(QObject):
         point = self.canvas.to_units(pos)
         current = self.selection.layer_id
         alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
+        if self.canvas.interaction_mode == "anchor":
+            if current is not None:
+                self._start_drag(current, "anchor", point)
+            return
         if modifiers & Qt.KeyboardModifier.ControlModifier and self._cross_under(point):
             self._start_drag(current, "anchor", point)  # 1. Ctrl on the pivot cross
+            return
+        if current is not None and not alt and self._cross_under(point):
+            self._start_drag(current, "position", point)  # the centre cross is the easy place to grab
             return
         param = None if alt else self._param_under(point)
         if param is not None:  # 2. a parameter handle: a size, a line's end (ADR 0043)
@@ -156,7 +167,7 @@ class MoveTool(QObject):
             return
         handle = None if alt else self._handle_under(point)
         if handle is not None:  # 3. a corner or the knob of the selected layer
-            self._start_drag(current, "scale" if handle == "scale" else "rotation", point)
+            self._start_drag(current, "rotation" if handle == "rotate" else handle, point)
             return
         motion = self._motion_under(point)
         if motion is not None and alt and motion[0] == "key":
@@ -165,7 +176,12 @@ class MoveTool(QObject):
             self._start_motion_drag(current, *motion, point)
             return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
-        hits = hit_layers(layers, point, self.canvas.px_per_unit())
+        hits = hit_layers(
+            layers,
+            point,
+            self.canvas.px_per_unit(),
+            select_by_bounds=self.canvas.select_by_bounds,
+        )
         if alt:
             if hits:  # cycle behind the current selection
                 index = hits.index(current) + 1 if current in hits else 0
@@ -219,7 +235,12 @@ class MoveTool(QObject):
             self._toggle_smooth(motion[1])
             return
         layers = self.canvas.evaluator.frame_layers(self.playhead())
-        hits = hit_layers(layers, point, self.canvas.px_per_unit())
+        hits = hit_layers(
+            layers,
+            point,
+            self.canvas.px_per_unit(),
+            select_by_bounds=self.canvas.select_by_bounds,
+        )
         if not hits:
             return
         chain = [hits[0], *(a.id for a in self.project.ancestors(hits[0]))]  # the part up to its object
@@ -356,6 +377,18 @@ class MoveTool(QObject):
         elif drag.prop == "scale":
             value = scale_from(drag.pivot, drag.press, point, drag.start, snap=shift)
             readout = f"{value * 100:.0f} %"
+        elif drag.prop in ("scale_x", "scale_y"):
+            axis = 0 if drag.prop == "scale_x" else 1
+            value = scale_axis_from(
+                drag.pivot,
+                drag.press,
+                point,
+                drag.axis_matrix if drag.axis_matrix is not None else np.eye(2),
+                axis,
+                drag.start,
+                snap=shift,
+            )
+            readout = f"{value * 100:.0f} %"
         else:
             drag.turned += angle_delta(drag.pivot, drag.previous, point)
             drag.previous = point
@@ -367,7 +400,11 @@ class MoveTool(QObject):
     # -- keyboard ------------------------------------------------------------------
 
     def wants_key(self, event: QKeyEvent) -> bool:
-        return event.key() in ARROWS and self.selection.layer_id is not None and self._drag is None
+        return (
+            self.selection.layer_id is not None
+            and self._drag is None
+            and (event.key() in ARROWS or event.key() == Qt.Key.Key_Delete)
+        )
 
     def key(self, event: QKeyEvent) -> bool:
         if event.key() == Qt.Key.Key_Escape and self._drag is not None:
@@ -380,6 +417,11 @@ class MoveTool(QObject):
         )
         if event.key() == Qt.Key.Key_Escape and layer is not None and (layer.is_part or in_group):
             self.selection.select_layer(layer.parent_id)  # back out of a part, or of a group's object
+            return True
+        if event.key() == Qt.Key.Key_Delete and self.selection.layer_ids and self._drag is None:
+            chosen = self.selection.layer_ids
+            verb = "Delete layers" if len(chosen) > 1 else "Delete layer"
+            self.document.apply(edits.remove_layers(self.project, chosen), verb)
             return True
         if not self.wants_key(event):
             return False
@@ -480,6 +522,8 @@ class MoveTool(QObject):
         self._drag = _Drag(
             layer_id, prop, point, start, pivot, key_time, self.project, to_local, previous=point
         )
+        if prop in ("scale_x", "scale_y"):
+            self._drag.axis_matrix = self.canvas.evaluator.world_affine(layer, at)[0]
         if prop == "anchor":
             self._drag.to_anchor = self._to_anchor(layer, at, to_local)
             self._drag.snaps = self._selected_outline().snaps
@@ -523,8 +567,11 @@ class MoveTool(QObject):
         self._drag = _Drag(
             layer_id, "param", point, handle.start, handle.world, None, self.project, np.eye(2), param=handle
         )
-        if layer.spec.type in param_handles.LINES:
-            self._drag.origin = param_handles.line_origin(layer.spec, self.canvas.rest_points(layer.spec))
+        if handle.point_control:
+            if layer.spec.type in param_handles.LINES:
+                self._drag.origin = param_handles.line_origin(layer.spec, self.canvas.rest_points(layer.spec))
+            else:
+                self._drag.origin = self.canvas.rest_origin(layer.spec)
         self._drag.targets = self._snapping_for([layer_id])[1]
         self.document.begin_preview()
 
@@ -536,19 +583,45 @@ class MoveTool(QObject):
         world = handle.world + (point - drag.press)
         self.canvas.guides = []
         if snapping and drag.targets is not None and not shift:
-            found = snap_guides.snap(world, world, drag.targets, self._snap_radius())
+            offset = np.asarray(handle.display_offset or (0.0, 0.0), float)
+            value_point = world - handle.a @ offset
+            found = snap_guides.snap(value_point, value_point, drag.targets, self._snap_radius())
             world = world + found.offset
             self.canvas.guides = found.guides
         value = param_handles.value_at(handle, handle.to_local(world), step=shift)
         spec = drag.base.layer(drag.layer_id).spec
         shift_by = np.zeros(2)
-        if drag.origin is not None:  # a line is re-centred when built: move it so the other end stays
+        if handle.python_names is not None:
+            values = dict(spec.params.get("values") or {})
+            for name, coordinate in zip(handle.python_names, value, strict=True):
+                values[name] = coordinate
+            moved = spec.model_copy(update={"params": {**spec.params, "values": values}})
+        else:
             moved = spec.model_copy(update={"params": {**spec.params, handle.param: value}})
-            origin = param_handles.line_origin(moved, self.canvas.rest_points(moved))
+        if drag.origin is not None:  # recentering changes the drawing origin; keep other points still
+            origin = (
+                param_handles.line_origin(moved, self.canvas.rest_points(moved))
+                if spec.type in param_handles.LINES
+                else self.canvas.rest_origin(moved)
+            )
             shift_by = handle.a @ (origin - drag.origin)
+            parent_id = drag.base.layer(drag.layer_id).parent_id
+            if parent_id is not None:
+                parent_a, _parent_b = self.canvas.evaluator.world_affine(
+                    drag.base.layer(parent_id), self.playhead()
+                )
+                shift_by = np.linalg.pinv(parent_a) @ shift_by
         shown = f"{value[0]:.2f}, {value[1]:.2f}" if isinstance(value, tuple) else f"{value:g}"
         self.canvas.readout = (pos, f"{handle.title} {shown}")
-        edit = edits.set_params(drag.base, drag.layer_id, {handle.param: value}, tuple(shift_by))
+        if handle.python_names is not None:
+            edit = edits.set_python_values(
+                drag.base,
+                drag.layer_id,
+                dict(zip(handle.python_names, value, strict=True)),
+                tuple(shift_by),
+            )
+        else:
+            edit = edits.set_params(drag.base, drag.layer_id, {handle.param: value}, tuple(shift_by))
         self.document.preview(edit)
 
     def _snap_radius(self) -> float:
@@ -588,7 +661,8 @@ class MoveTool(QObject):
         """World move of the pivot -> change of the anchor: the parent's inverse, then the layer's."""
         tr = layer_transform(layer, t)
         angle = np.radians(tr.rotation)
-        own = tr.scale * np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+        rotation = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+        own = rotation @ np.diag([tr.scale * tr.scale_x, tr.scale * tr.scale_y])
         return np.linalg.pinv(own) @ to_local  # pinv: a layer scaled to 0 must not raise
 
     def _centre_anchor(self) -> None:
@@ -652,7 +726,11 @@ class MoveTool(QObject):
         if outline is None:
             return None
         ppu = self.canvas.px_per_unit()
-        return handle_at(outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu)
+        layer = self.project.layer(self.selection.layer_id)
+        independent = self.canvas.show_edit_handles and not layer.is_group
+        return handle_at(
+            outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu, independent=independent
+        )
 
     # -- the motion path (ADR 0026) ------------------------------------------------
 

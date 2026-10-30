@@ -732,7 +732,9 @@ class SliderField(Field):
         super().__init__(on_commit)
         box = SliderBox(minimum, maximum)
         box.slider.valueChanged.connect(
-            lambda _v: None if box.slider.isSliderDown() and not self._scrub_preview else self.commit(box.value())
+            lambda _v: None
+            if box.slider.isSliderDown() and not self._scrub_preview
+            else self.commit(box.value())
         )
         box.slider.sliderReleased.connect(lambda: self.commit(box.value()))
         self.widget = box

@@ -133,7 +133,14 @@ TWIRL_GRAB = 7
 NAME_X = 18  # a row's name starts after the arrow
 KEY_BUTTON_X = WIDE_HEADER_WIDTH - 14  # a property row's diamond: add or remove its key at the playhead
 KEY_BUTTON_GRAB = 8
-PROP_LABELS = {"position": "Position", "scale": "Scale", "rotation": "Rotation", "opacity": "Opacity"}
+PROP_LABELS = {
+    "position": "Position",
+    "scale": "Scale",
+    "scale_x": "Width",
+    "scale_y": "Height",
+    "rotation": "Rotation",
+    "opacity": "Opacity",
+}
 FIT_MIN_WIDTH = 200  # narrower: not laid out yet, the fit waits
 INDENT_PX = 14  # per level of part layers (ADR 0012)
 EDGE_PX = 6
@@ -141,7 +148,7 @@ CLIP_MARGIN = 4
 KEY_HALF = 5.0  # diamond half size (centre to corner), px
 KEY_GRAB_PX = 5.0
 KEY_OFFSET = ROW_HEIGHT - 6  # diamond centre below the row top
-TRANSFORM_PROPS = ("position", "scale", "rotation", "opacity")
+TRANSFORM_PROPS = ("position", "scale", "scale_x", "scale_y", "rotation", "opacity")
 PEAKS_PER_SECOND = 100
 # a shorter sound's waveform is made at once (~0.1 s), a longer one in the background (B70)
 SYNC_PEAKS_SECONDS = 60.0

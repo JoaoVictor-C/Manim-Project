@@ -12,6 +12,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
+from PySide6.QtTest import QTest
 
 from manim_studio.core.editing import edits
 from manim_studio.core.engine import adapter
@@ -145,6 +146,19 @@ def test_rename_through_the_list(panel) -> None:
     panel.items()[2].setText(0, "  ")  # blank -> back to the id
     assert panel.project.layer("back").name == ""
     assert undo_texts(panel) == ["Rename layer", "Rename layer"]
+
+
+def test_eye_button_hides_a_layer_persistently_and_undoes(panel) -> None:
+    item = panel.list.topLevelItem(0)
+    index = panel.list.indexFromItem(item)
+    eye = panel.delegate.visibility_rect(panel.list.visualRect(index)).center().toPoint()
+    QTest.mouseClick(panel.list.viewport(), Qt.MouseButton.LeftButton, pos=eye)
+
+    assert panel.project.layer("front").visible is False
+    assert Project.model_validate_json(panel.project.model_dump_json()).layer("front").visible is False
+    assert undo_texts(panel) == ["Hide layer"]
+    panel.document.undo_stack.undo()
+    assert panel.project.layer("front").visible is True
 
 
 def test_undo_keeps_the_list_in_sync(panel) -> None:

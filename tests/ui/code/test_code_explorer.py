@@ -10,7 +10,8 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QMimeData, Qt
+from PySide6.QtCore import QMimeData, QPointF, Qt
+from PySide6.QtTest import QTest
 
 from manim_studio.ui.code.code_explorer import CodeExplorer, Row, Section
 from manim_studio.ui.session import code_drag
@@ -132,3 +133,55 @@ def test_a_row_drags_out_as_a_code_payload(tree, monkeypatch) -> None:
     tree.setCurrentItem(tree.topLevelItem(0))  # a header: nothing to drag
     tree.startDrag(Qt.DropAction.CopyAction)
     assert captured == {}
+
+
+def test_folders_fold_retain_state_and_accept_layer_drops(tree, qt_app) -> None:
+    grouped = Section(
+        "project",
+        "This project",
+        (
+            Row("orbit", "Orbit", "scene", "layer", folder="Scenes"),
+            Row("tri", "Triangle", "object", "layer"),
+        ),
+        folders=("Scenes", "Empty"),
+    )
+    tree.set_sections([grouped])
+    project = tree.topLevelItem(0)
+    scenes = project.child(1)
+    assert scenes.text(0) == "Scenes" and scenes.isExpanded()
+    assert scenes.child(0).text(0) == "Orbit"
+    assert project.child(2).child(0).text(0) == "Empty folder"
+
+    QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=tree.visualItemRect(scenes).center())
+    assert not scenes.isExpanded()
+    tree.set_sections([grouped])
+    scenes = tree.topLevelItem(0).child(1)
+    assert not scenes.isExpanded()
+    QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=tree.visualItemRect(scenes).center())
+    assert scenes.isExpanded()
+
+    target = tree.visualItemRect(scenes).center()
+    assert tree._drop_target_at(target) == (scenes, "Scenes")
+    events = []
+    tree.layerDropped.connect(lambda layer_id, folder: events.append((layer_id, folder)))
+    mime = code_drag.encode("layer", "tri", "Triangle", "object")
+
+    class Drop:
+        def mimeData(self):  # noqa: N802 - Qt event protocol
+            return mime
+
+        def position(self):
+            return QPointF(target)
+
+        def setDropAction(self, _action):  # noqa: N802 - Qt event protocol
+            pass
+
+        def accept(self):
+            pass
+
+        def ignore(self):
+            raise AssertionError("a drop on a folder must be accepted")
+
+    tree.dropEvent(Drop())
+    qt_app.processEvents()
+    assert events == [("tri", "Scenes")]

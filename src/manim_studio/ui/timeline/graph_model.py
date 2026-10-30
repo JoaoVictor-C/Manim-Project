@@ -53,6 +53,8 @@ CURVES: tuple[Curve, ...] = (
     Curve("x", "position", 0, "Position x", 1.0, "curve_x"),
     Curve("y", "position", 1, "Position y", 1.0, "curve_y"),
     Curve("scale", "scale", None, "Scale", 0.5, "curve_scale"),
+    Curve("scale_x", "scale_x", None, "Width scale", 0.5, "curve_width"),
+    Curve("scale_y", "scale_y", None, "Height scale", 0.5, "curve_height"),
     Curve("rotation", "rotation", None, "Rotation", 45.0, "curve_rotation"),
     Curve("opacity", "opacity", None, "Opacity", 1.0, "curve_opacity"),
 )
@@ -82,6 +84,8 @@ def clamp_value(curve: Curve, number: float) -> float:
     """A value the property can hold: opacity stays within 0..1."""
     if curve.prop == "opacity":
         return min(max(number, 0.0), 1.0)
+    if curve.prop in ("scale_x", "scale_y"):
+        return min(max(number, 0.01), 100.0)
     return number
 
 

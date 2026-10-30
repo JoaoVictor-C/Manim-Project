@@ -22,8 +22,11 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QDesktopServices, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QDialog,
     QFileDialog,
+    QFrame,
+    QHBoxLayout,
     QInputDialog,
     QMainWindow,
     QMessageBox,
@@ -157,7 +160,16 @@ class MainWindow(QMainWindow):
         self.code = make_code_renderer(adapter.cache_dir(), self.trust, self)
         # Manim scenes are imported by recording them in another process (P10.3, ADR 0053).
         self.code_presets = PresetLibrary()  # built-in, yours and downloaded presets (P12.2)
-        self.code_presets.import_legacy(self.prefs.python_code_templates())
+        legacy_presets = self.prefs.python_code_templates()
+        if legacy_presets:
+            try:
+                self.code_presets.import_legacy(legacy_presets)
+            except OSError as error:
+                log.warning("could not migrate old code presets: %s", error)
+            else:
+                # Drop the old source after it is safely in the library; otherwise deleted migrated
+                # presets would be re-imported every time the application starts.
+                self.prefs.set_python_code_templates({})
         self.importer = CodeImporter(self)  # code into the project (P12.4)
         self.scene_importer = SceneImporter(adapter.cache_dir(), parent=self)
         self.scene_importer.finished.connect(self._on_scene_recorded)
@@ -168,6 +180,11 @@ class MainWindow(QMainWindow):
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)
         self.canvas.view_changed.connect(self.refresh)
+        self._canvas_view_save_timer = QTimer(self)
+        self._canvas_view_save_timer.setSingleShot(True)
+        self._canvas_view_save_timer.setInterval(300)
+        self._canvas_view_save_timer.timeout.connect(self._save_canvas_view)
+        self.canvas.view_changed.connect(self._queue_canvas_view_save)
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.valueChanged.connect(self._on_slider)
         self.play_button = PlayButton()
@@ -181,9 +198,42 @@ class MainWindow(QMainWindow):
         self.time_label.setProperty("role", "hint")
 
         self.stage = QWidget()  # the canvas, with the transport floating over its bottom (ADR 0063)
-        layout = QVBoxLayout(self.stage)
+        layout = QHBoxLayout(self.stage)
         layout.setContentsMargins(0, 0, 0, 0)
+        self.stage_tools = QFrame(self.stage)
+        self.stage_tools.setObjectName("stageToolRail")
+        self.stage_tools.setFixedWidth(44)
+        rail = QVBoxLayout(self.stage_tools)
+        rail.setContentsMargins(4, 6, 4, 6)
+        rail.setSpacing(4)
+        self.stage_tool_buttons: dict[str, QToolButton] = {}
+        self.stage_tool_group = QButtonGroup(self.stage_tools)
+        self.stage_tool_group.setExclusive(True)
+        for mode, label, icon in (
+            ("select", "Select", "tool-select"),
+            ("hand", "Hand", "tool-hand"),
+            ("text", "Place text", "text"),
+            ("shape", "Place circle", "shape"),
+            ("anchor", "Move anchor", "anchor"),
+        ):
+            button = QToolButton(self.stage_tools)
+            button.setObjectName("iconButton")
+            button.setFixedSize(34, 34)
+            button.setAutoRaise(True)
+            button.setCheckable(True)
+            button.setIcon(icons.icon(icon))
+            button.setToolTip(
+                label if mode in {"select", "hand", "anchor"} else f"{label} by clicking on the Stage"
+            )
+            button.setAccessibleName(label)
+            self.stage_tool_group.addButton(button)
+            self.stage_tool_buttons[mode] = button
+            rail.addWidget(button)
+            button.clicked.connect(lambda _checked=False, selected=mode: self._set_stage_tool(selected))
+        rail.addStretch(1)
+        layout.addWidget(self.stage_tools)
         layout.addWidget(self.canvas, 1)
+        self.stage_tool_buttons["select"].setChecked(True)
         self.transport = TransportPill(
             self.play_button,
             self.slider,
@@ -211,6 +261,7 @@ class MainWindow(QMainWindow):
         self.idle_timer.timeout.connect(self._on_idle)
 
         self.layers = LayersPanel(self.builds)
+        self.canvas.addRequested.connect(self._add_from_stage)
         self.layers.playhead = lambda: self.t  # new objects are placed where they are free then (GP)
         self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.layers.trust_code = lambda code: self.trust.trust([code])
@@ -533,6 +584,7 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         self._add_appearance_menu(view_menu)
         view_menu.addSeparator()  # the canvas view (ADR 0023)
+        self.canvas_view_actions: list[QAction] = []
         for text, keys, slot, tip in (
             ("Zoom &In", ("Ctrl+=", "Ctrl++"), lambda: self.canvas.zoom(ZOOM_STEP), "Zoom in on the canvas"),
             (
@@ -560,6 +612,36 @@ class MainWindow(QMainWindow):
             action.setShortcuts([QKeySequence(k) for k in keys])
             action.triggered.connect(slot)
             view_menu.addAction(action)
+            self.canvas_view_actions.append(action)
+        self.stage_view_lock_action = QAction("Lock Stage View", self, checkable=True)
+        self.stage_view_lock_action.setToolTip(
+            "Prevent accidental panning and zooming of the stage with the wheel, middle mouse, "
+            "or view commands"
+        )
+        self.stage_view_lock_action.toggled.connect(self._set_stage_view_locked)
+        view_menu.addAction(self.stage_view_lock_action)
+        self.stage_view_lock_button = QToolButton()
+        self.stage_view_lock_button.setObjectName("iconButton")
+        self.stage_view_lock_button.setFixedSize(30, 30)
+        self.stage_view_lock_button.setAutoRaise(True)
+        self.stage_view_lock_button.setCheckable(True)
+        self.stage_view_lock_button.setAccessibleName("Lock Stage View")
+        self.stage_view_lock_button.toggled.connect(self.stage_view_lock_action.setChecked)
+        self.stage_view_lock_action.toggled.connect(self._sync_stage_view_lock_button)
+        self.viewer_card.add_action(self.stage_view_lock_button)
+        self._sync_stage_view_lock_button(self.stage_view_lock_action.isChecked())
+        self.edit_handles_action = QAction("Show Object Edit Handles", self, checkable=True, checked=True)
+        self.edit_handles_action.setToolTip(
+            "Show editable geometry, size and endpoint handles plus independent width/height resizing"
+        )
+        self.edit_handles_action.toggled.connect(self.canvas.set_edit_handles)
+        view_menu.addAction(self.edit_handles_action)
+        self.select_by_bounds_action = QAction("Select by Object Bounds", self, checkable=True)
+        self.select_by_bounds_action.setToolTip(
+            "Select an object by clicking anywhere inside its canvas bounds, even away from its visible lines"
+        )
+        self.select_by_bounds_action.toggled.connect(self.canvas.set_select_by_bounds)
+        view_menu.addAction(self.select_by_bounds_action)
         fit_timeline = QAction("Fit &Timeline", self)
         fit_timeline.setShortcut(QKeySequence("Shift+F"))
         fit_timeline.setToolTip("Zoom the timeline so the whole scene fits its width")
@@ -702,6 +784,7 @@ class MainWindow(QMainWindow):
                 log.exception("could not create %s", path)
                 QMessageBox.critical(self, "Could not create the project", str(exc))
                 return
+        self._flush_canvas_view_save()
         self.path = path
         self.document.replace(project)
         if path is not None:
@@ -755,6 +838,7 @@ class MainWindow(QMainWindow):
         if self._offer_recovery(self.autosave.offered(path)):  # a crash left newer work (ADR 0038)
             return
         log.info("opened %s (%d layers)", path, len(project.layers))
+        self._flush_canvas_view_save()
         self.path = path
         self.document.replace(project)
 
@@ -815,6 +899,7 @@ class MainWindow(QMainWindow):
             log.exception("could not open the example %s", EXAMPLE)
             QMessageBox.critical(self, "Could not open the example", str(exc))
             return
+        self._flush_canvas_view_save()
         self.path = None
         self.document.replace(project)
 
@@ -891,10 +976,44 @@ class MainWindow(QMainWindow):
         motion.set_reduced(on)
         self.prefs.set_toggle("reduce_motion", on)
 
+    def _set_stage_view_locked(self, on: bool) -> None:
+        self.canvas.set_view_locked(on)
+        for action in self.canvas_view_actions:
+            action.setEnabled(not on)
+        self.prefs.set_toggle("stage_view_locked", on)
+
+    def _set_stage_tool(self, mode: str) -> None:
+        self.canvas.set_interaction_mode(mode)
+        button = self.stage_tool_buttons.get(mode)
+        if button is not None and not button.isChecked():
+            button.setChecked(True)
+
+    def _add_from_stage(self, mode: str, x: float, y: float) -> None:
+        type_name = {"text": "Text", "shape": "Circle"}.get(mode)
+        if type_name is None:
+            return
+        self.layers.add_object(type_name, position=(x, y))
+        self._set_stage_tool("select")
+
+    def _sync_stage_view_lock_button(self, locked: bool) -> None:
+        self.stage_view_lock_button.setChecked(locked)
+        self.stage_view_lock_button.setIcon(
+            icons.icon("lock" if locked else "lock-open", "accent" if locked else "muted")
+        )
+        tip = (
+            "Stage view locked. Click to unlock."
+            if locked
+            else "Lock the stage view against accidental panning and zooming"
+        )
+        self.stage_view_lock_button.setToolTip(tip)
+
     def _toggles(self) -> tuple[tuple[str, QAction, bool], ...]:
         """The view toggles that are remembered: name in the file, action, default."""
         return (
             ("snap", self.snap_action, True),
+            ("stage_view_locked", self.stage_view_lock_action, False),
+            ("object_edit_handles", self.edit_handles_action, True),
+            ("select_by_bounds", self.select_by_bounds_action, True),
             ("half_resolution", self.half_action, False),
             ("follow_playhead", self.follow_action, True),
             ("render_ahead", self.render_ahead_action, True),
@@ -907,8 +1026,12 @@ class MainWindow(QMainWindow):
         """View > Full Screen (F11): the animation alone, filling the screen; again to leave."""
         if self.presenter.active:
             self.presenter.finish()
-        elif not self.presenter.start():
-            self.statusBar().showMessage("Open or create a project to see its animation full screen", 5000)
+        else:
+            self._flush_canvas_view_save()
+            if not self.presenter.start():
+                self.statusBar().showMessage(
+                    "Open or create a project to see its animation full screen", 5000
+                )
 
     def _on_page_changed(self, name: str) -> None:
         self.prefs.set_last_page(name)
@@ -919,10 +1042,29 @@ class MainWindow(QMainWindow):
             self.prefs.set_page_sizes(name, sizes)
 
     def _save_preferences(self) -> None:
+        self._flush_canvas_view_save()
         self.prefs.save_window(self.saveGeometry(), self.saveState())
         for name, action, _ in self._toggles():
             self.prefs.set_toggle(name, action.isChecked())
         self._save_page_sizes()
+
+    def _queue_canvas_view_save(self) -> None:
+        if self.path is None or not self._has_project:
+            return
+        if getattr(self, "presenter", None) is not None and self.presenter.active:
+            return
+        self._canvas_view_save_timer.start()
+
+    def _save_canvas_view(self) -> None:
+        if self.path is None or not self._has_project:
+            return
+        if getattr(self, "presenter", None) is not None and self.presenter.active:
+            return
+        self.prefs.set_canvas_view(self.path, self.canvas.view)
+
+    def _flush_canvas_view_save(self) -> None:
+        self._canvas_view_save_timer.stop()
+        self._save_canvas_view()
 
     def _restore_last_page(self) -> None:
         """The first project opened in this run brings back the page the editor was left on."""
@@ -980,6 +1122,7 @@ class MainWindow(QMainWindow):
             log.exception("could not restore %s", entry.project_file)
             QMessageBox.critical(self, "Could not restore", f"{entry.project_file}:\n{exc}")
             return False
+        self._flush_canvas_view_save()
         self.path = entry.path
         self.document.replace(project)
         self.document.undo_stack.resetClean()  # unsaved: Save writes it to the original file
@@ -1010,6 +1153,10 @@ class MainWindow(QMainWindow):
         self.slider.setRange(0, int(project.canvas.duration * self.SLIDER_STEPS_PER_SECOND))
         self._update_title()
         self.seek(0.0)
+        if self.path is not None:
+            saved_view = self.prefs.canvas_view(self.path)
+            if saved_view is not None:
+                self.canvas.set_view(saved_view)
         # What an earlier project left is garbage now; frozen, its reference cycles would never be collected
         # (3 MB for every project opened), so everything is thawed and collected before it is frozen again.
         gc.unfreeze()
@@ -1098,6 +1245,8 @@ class MainWindow(QMainWindow):
         self.canvas.set_scene(project.canvas, self.evaluator)
         if same_shape:
             self.canvas.view = view
+        else:
+            self._queue_canvas_view_save()
         if self.render_ahead is not None:
             self.render_ahead.reset(project)
         self._length_changed(project)
@@ -1976,6 +2125,7 @@ class MainWindow(QMainWindow):
         if self.path is None:
             self.save_as()
             return
+        self._flush_canvas_view_save()
         self.path.write_text(self.project.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
         self._remember(self.path)
         self.document.undo_stack.setClean()
@@ -1989,6 +2139,7 @@ class MainWindow(QMainWindow):
         start = self.path or self.default_folder() / "untitled.json"
         name, _ = QFileDialog.getSaveFileName(self, "Save project", str(start), "*.json")
         if name:
+            self._flush_canvas_view_save()
             self.path = Path(name)
             self.save()
 

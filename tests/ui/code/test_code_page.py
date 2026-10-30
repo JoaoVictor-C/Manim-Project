@@ -20,6 +20,7 @@ from PySide6.QtTest import QTest
 from acceptance.test_acceptance_v1 import menu_action
 from manim_studio.core.editing import edits
 from manim_studio.core.model.schema import Canvas, Layer, Project, Spec
+from manim_studio.ui.code.code_explorer import FOLDER_ROLE
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.services.code_render import CodeStatus
 from manim_studio.ui.style import theme
@@ -677,7 +678,15 @@ def test_code_layers_are_renamed_and_deleted_from_the_list(window, qt_app) -> No
     assert window.document.undo_stack.undoText() == "Rename layer"
     menu = code.list_menu()
     names = [a.text() for a in menu.actions() if a.text()]
-    assert names == ["Open", "Rename...", "Duplicate", "Save as preset...", "Export...", "Delete"]
+    assert names == [
+        "Open",
+        "Rename...",
+        "Duplicate",
+        "Save as preset...",
+        "Export...",
+        "Delete",
+        "Move to folder",
+    ]
     assert all(a.toolTip() for a in menu.actions() if a.text())
     count = len(window.project.layers)
     code.delete_button.click()
@@ -689,3 +698,35 @@ def test_code_layers_are_renamed_and_deleted_from_the_list(window, qt_app) -> No
     code.explorer.setCurrentItem(None)
     code.delete_layer()  # nothing chosen: nothing deleted
     assert len(window.project.layers) == count
+
+
+def test_project_folders_move_code_and_survive_undo_and_json_round_trip(window, qt_app) -> None:
+    code = page(window)
+    code.ask_name = lambda _current: "Scenes"
+    code.new_code_folder()
+    qt_app.processEvents()
+    assert window.project.code_folders == {"Scenes": []}
+
+    code.move_code_layer("orbit", "Scenes")
+    qt_app.processEvents()
+    assert window.project.code_folders == {"Scenes": ["orbit"]}
+    restored = Project.model_validate_json(window.project.model_dump_json(by_alias=True))
+    assert restored.code_folders == {"Scenes": ["orbit"]}
+    project_rows = page(window).explorer.topLevelItem(0)
+    assert [
+        project_rows.child(i).text(0)
+        for i in range(project_rows.childCount())
+        if project_rows.child(i).data(0, FOLDER_ROLE) is not None
+    ] == ["Scenes"]
+
+    code.ask_name = lambda _current: "Animations"
+    code.rename_code_folder("Scenes")
+    qt_app.processEvents()
+    assert window.project.code_folders == {"Animations": ["orbit"]}
+
+    code.delete_code_folder("Animations")
+    qt_app.processEvents()
+    assert window.project.code_folders == {}
+    assert window.project.layer("orbit").spec.params["code"] == ORBIT
+    window.document.undo_stack.undo()
+    assert window.project.code_folders == {"Animations": ["orbit"]}
