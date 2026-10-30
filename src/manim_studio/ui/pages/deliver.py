@@ -76,6 +76,20 @@ SUBTITLE_LABELS = (
     ("srt", "An .srt beside the video only"),
     ("none", "None"),
 )
+ENCODER_LABELS = (
+    ("auto", "Automatic"),
+    ("gpu", "Graphics card (NVENC)"),
+    ("cpu", "Processor (x264)"),
+)
+PROCESS_LABELS = (
+    (None, "Automatic"),
+    (1, "1 (this process alone)"),
+    (2, "2"),
+    (3, "3"),
+    (4, "4"),
+    (6, "6"),
+    (8, "8"),
+)
 STATUS_TEXT = {
     Status.QUEUED: "Queued",
     Status.DONE: "Done",
@@ -376,6 +390,22 @@ class DeliverPage(Page):
         for key, label in SUBTITLE_LABELS:
             self.subtitles.addItem(label, key)
 
+        self.encoder = QComboBox()
+        for key, label in ENCODER_LABELS:
+            self.encoder.addItem(label, key)
+        self.encoder.setToolTip(
+            "What turns the pictures into H.264. Automatic uses the graphics card's encoder (NVIDIA NVENC) "
+            "for longer exports when there is one, else the processor (x264). The pictures are drawn on the "
+            "processor either way, so the video looks the same; the card is faster and leaves the cores free."
+        )
+        self.processes = QComboBox()
+        for count, label in PROCESS_LABELS:
+            self.processes.addItem(label, count)
+        self.processes.setToolTip(
+            "How many processes draw frames (and render code layers) side by side. Automatic picks from "
+            "your cores and free memory, and keeps short or light exports in one. Each takes about 400 MB."
+        )
+
         form = QGridLayout()
         form.setHorizontalSpacing(theme.GUTTER * 2)
         form.setVerticalSpacing(4)
@@ -393,8 +423,12 @@ class DeliverPage(Page):
         form.addLayout(markers_row, 7, 0, 1, 2)
         form.addWidget(self._label("Subtitles"), 8, 0, 1, 2)
         form.addWidget(self.subtitles, 9, 0, 1, 2)
-        form.addWidget(self._label("Save to"), 10, 0, 1, 2)
-        form.addLayout(path_row, 11, 0, 1, 2)
+        form.addWidget(self._label("Encoder"), 10, 0)
+        form.addWidget(self.encoder, 11, 0)
+        form.addWidget(self._label("Render processes"), 10, 1)
+        form.addWidget(self.processes, 11, 1)
+        form.addWidget(self._label("Save to"), 12, 0, 1, 2)
+        form.addLayout(path_row, 13, 0, 1, 2)
 
         self.summary = QLabel()
         self.summary.setProperty("role", "readout")
@@ -746,6 +780,8 @@ class DeliverPage(Page):
             end=end,
             crf=self.quality.currentData(),
             subtitles=self.subtitles.currentData() if self.subtitles.isEnabled() else None,
+            encoder=self.encoder.currentData(),
+            jobs=self.processes.currentData(),
         )
 
     def _refresh_summary(self, *_args) -> None:
@@ -849,6 +885,7 @@ class DeliverPage(Page):
             parent=self.widget,
         )
         export.progress.connect(lambda frame, total: self._on_progress(job, frame, total))
+        export.stage.connect(lambda text: self._on_stage(job, text))
         export.finished.connect(lambda path, warning: self._on_finished(job, path, warning))
         export.failed.connect(lambda message: self._on_failed(job, message))
         self._export = export
@@ -859,6 +896,12 @@ class DeliverPage(Page):
         self._update_buttons()
         log.info("deliver: rendering %s (%s)", job.output, job.summary)
         export.start()
+
+    def _on_stage(self, job: QueueJob, text: str) -> None:
+        """Before the first frame: what the renderer is busy with (the code layers it plays first)."""
+        if job.status is Status.RENDERING and self._first_progress is None:
+            self.queue_status.setText(f"{job.output.name}: {text}")
+            self._status_message(f"{job.output.name}: {text}")
 
     def _on_progress(self, job: QueueJob, frame: int, total: int) -> None:
         if job.status is not Status.RENDERING:
@@ -883,8 +926,9 @@ class DeliverPage(Page):
         if job.status is not Status.RENDERING:  # a late signal from a cancelled job
             return
         self._measure(job)
+        how = f" - {self._export.how}" if self._export is not None and self._export.how else ""
         self.queue.finish(job, Path(path), warning)
-        self._after_job(job, f"Exported to {path}" + (f"\n{warning}" if warning else ""))
+        self._after_job(job, f"Exported to {path}{how}" + (f"\n{warning}" if warning else ""))
 
     def _measure(self, job: QueueJob) -> None:
         """Remember how fast this export went (pixels x frames per second) for the render-time estimate."""

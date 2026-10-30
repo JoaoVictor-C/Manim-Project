@@ -59,6 +59,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="burn: drawn in the video and an .srt beside it; srt: only the .srt; none: neither "
         "(default: as the project)",
     )
+    render.add_argument(
+        "--encoder",
+        choices=("auto", "gpu", "cpu"),
+        default="auto",
+        help="what encodes the video: the graphics card (NVENC), the processor (x264), or auto: the card "
+        "when it has one and the video is big enough to pay (default: auto; ADR 0065)",
+    )
+    render.add_argument(
+        "--jobs",
+        type=int,
+        help="processes that draw frames side by side (default: as many as pay, by cores and free memory; "
+        "1: this process alone; ADR 0065)",
+    )
 
     python = sub.add_parser("python", help="write a project.json as a Manim scene file (ADR 0031)")
     python.add_argument("project", type=Path)
@@ -130,6 +143,8 @@ def main(argv: list[str] | None = None) -> int:
             end=args.end,
             crf=args.crf,
             subtitles=args.subtitles,
+            encoder=args.encoder,
+            jobs=args.jobs,
         )
     except OptionsError as exc:
         return _fail(str(exc))
@@ -175,7 +190,9 @@ def _render(
         from .core.code import python_object
 
         python_object.trust_everything()
-    warnings = _render_code_layers(sized, trust_code, mode)  # at the size being exported (ADR 0042)
+    warnings = _render_code_layers(
+        sized, trust_code, mode, options.jobs
+    )  # at the size being exported (ADR 0042)
     warnings += _untrusted_objects(sized)
     try:
         result = export_video(project, output, progress, options=options)
@@ -185,9 +202,10 @@ def _render(
     if mode == "json":
         for warning in warnings:
             _emit({"warning": warning})
+        _emit({"how": result.how})
         _emit({"done": str(result.path)})
     else:
-        print(f"\nwrote {result.path}")
+        print(f"\nwrote {result.path} ({result.how})")
         for warning in warnings:
             print(f"warning: {warning}", file=sys.stderr)
     log.info("rendered %s -> %s in %.1fs", project_path, result.path, time.perf_counter() - start)
@@ -342,11 +360,18 @@ def _narrate(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
-def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
-    """Render code layers missing from the cache (ADR 0019); warnings for those left as placeholders."""
+def _render_code_layers(project, trust_code: bool, mode: str, jobs: int | None = None) -> list[str]:
+    """Render code layers missing from the cache (ADR 0019); warnings for those left as placeholders.
+
+    Layers are independent, so several are rendered at once, in runner processes (``jobs`` as for the frames;
+    ADR 0065); one layer, or ``jobs`` 1, is rendered here as before. Layers with the same code render once."""
+    import threading
+
     from .core.code import helpers
+    from .core.engine import adapter
     from .core.engine.evaluator import Evaluator
     from .core.model.schema import CODE_TYPES
+    from .processes import code_batch
     from .processes.code_runner import CodeError, Job, render_code
 
     evaluator = Evaluator(project)
@@ -354,6 +379,8 @@ def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
     # A code layer runs only with --trust-code, which trusts the helpers too (ADR 0058).
     pairs = tuple(sorted(helpers.sources(project).items()))
     trusted = tuple(name for name, _ in pairs)
+    todo: dict[str, tuple[str, Job]] = {}  # cache key -> (the first layer with that code, its job)
+    sharing: dict[str, list[str]] = {}  # cache key -> every layer with that code
     for layer in project.layers:
         if layer.spec is None or layer.spec.type not in CODE_TYPES:
             continue
@@ -363,29 +390,55 @@ def _render_code_layers(project, trust_code: bool, mode: str) -> list[str]:
         if not trust_code:
             warnings.append(f"code layer {layer.id!r} is not rendered (pass --trust-code to run its code)")
             continue
-        if mode == "text":
-            print(f"rendering code layer {layer.id}...", flush=True)
+        sharing.setdefault(key, []).append(layer.id)
+        if key in todo:
+            continue
         code = str(layer.spec.params.get("code", ""))
-        job = Job(
-            key,
-            code,
-            canvas.width_px,
-            canvas.height_px,
-            canvas.fps,
-            canvas.frame_height,
-            pairs,
-            trusted,
-            int(layer.spec.params.get("start_frame", 0) or 0),
-            (float(t) if (t := layer.spec.params.get("start_time")) is not None else None),
+        todo[key] = (
+            layer.id,
+            Job(
+                key,
+                code,
+                canvas.width_px,
+                canvas.height_px,
+                canvas.fps,
+                canvas.frame_height,
+                pairs,
+                trusted,
+                int(layer.spec.params.get("start_frame", 0) or 0),
+                (float(t) if (t := layer.spec.params.get("start_time")) is not None else None),
+            ),
         )
-        try:
-            render_code(job, evaluator.code_cache)
-        except CodeError as error:
-            where = f" (line {error.line})" if error.line else ""
-            if error.where != "code":
-                at = f", line {error.helper_line}" if error.helper_line else ""
-                where = f" (in helper {error.where.removeprefix('helper:')}{at})"
-            warnings.append(f"code layer {layer.id!r} failed{where}: {error}")
+    announced, say = [0], threading.Lock()
+
+    def announce(layer_id: str) -> None:
+        with say:  # layers start in several threads: one line at a time
+            announced[0] += 1
+            if mode == "text":
+                print(f"rendering code layer {layer_id}...", flush=True)
+            else:
+                _emit({"stage": f"Rendering code layer {layer_id} ({announced[0]} of {len(todo)})"})
+
+    workers = code_batch.plan(jobs, len(todo))
+    failures: dict[str, CodeError] = {}
+    if workers > 1:
+        failures = code_batch.render_all(list(todo.values()), adapter.cache_dir(), workers, announce)
+    else:
+        for layer_id, job in todo.values():
+            announce(layer_id)
+            try:
+                render_code(job, evaluator.code_cache)
+            except CodeError as error:
+                failures[layer_id] = error
+    for key, (layer_id, _) in todo.items():
+        error = failures.get(layer_id)
+        if error is None:
+            continue
+        where = f" (line {error.line})" if error.line else ""
+        if error.where != "code":
+            at = f", line {error.helper_line}" if error.helper_line else ""
+            where = f" (in helper {error.where.removeprefix('helper:')}{at})"
+        warnings += [f"code layer {name!r} failed{where}: {error}" for name in sharing[key]]
     return warnings
 
 

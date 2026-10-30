@@ -115,6 +115,7 @@ class ExportDialog(QDialog):
         project = self.snapshot()
         self.job = ExportJob(project, output, self.cache_dir, trust_code=self.trusted(project), parent=self)
         self.job.progress.connect(self._on_progress)
+        self.job.stage.connect(self._set_status)
         self.job.finished.connect(self._on_finished)
         self.job.failed.connect(self._on_failed)
         self.bar.setRange(0, 0)  # busy until the first frame
@@ -155,6 +156,8 @@ class ExportDialog(QDialog):
         self.bar.setRange(0, 1)
         self.bar.setValue(1)
         text = f"Exported to {path}"
+        if self.job is not None and self.job.how:
+            text += f" - {self.job.how}"
         if warning:
             text += f"\n{warning}"
         self._set_status(text)

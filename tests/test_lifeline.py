@@ -257,7 +257,15 @@ def test_adopting_a_missing_process_says_so() -> None:
 
 def test_every_process_entry_point_ends_with_its_editor() -> None:
     root = Path(SRC) / "manim_studio"
-    for name in ("worker", "preview", "code_runner", "helper_check", "voice", "scene_recorder"):
+    for name in (
+        "worker",
+        "preview",
+        "code_runner",
+        "helper_check",
+        "voice",
+        "scene_recorder",
+        "frame_worker",
+    ):
         text = (root / "processes" / f"{name}.py").read_text(encoding="utf-8")
         assert "lifeline.die_with_editor()" in text, name
     assert "lifeline.die_with_editor()" in (root / "cli.py").read_text(encoding="utf-8")  # the export

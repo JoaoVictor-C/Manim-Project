@@ -27,6 +27,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +46,7 @@ def code_hash(code: str) -> str:
     return hashlib.sha256(normalize_code(code).encode("utf-8")).hexdigest()
 
 
+@lru_cache(maxsize=256)  # a frame asks for it again for every code layer: tokenising a scene took 3.6 ms
 def render_hash(code: str) -> str:
     """The identity of what a scene RENDERS (ADR 0061): its Python token stream, so comments, blank lines,
     line endings, spacing inside a line and the width of an indent never change it. Strings and docstrings

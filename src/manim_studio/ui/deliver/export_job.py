@@ -4,8 +4,10 @@
 ``<cache_dir>/exports/<uuid>.json`` and runs ``python -m manim_studio render``
 with ``--cache-dir`` and ``--progress json`` in a ``QProcess``. It reports
 ``progress(frame, total)``, then ``finished(path, warning)`` or
-``failed(message)``. ``options`` (size, fps, range, quality, subtitles) become flags of that
-command (ADR 0042). ``cancel()`` kills the process and removes the partial video; the
+``failed(message)``; before the first frame ``stage(text)`` says what it is busy with (the code layers
+it renders first, ADR 0065), and ``how`` names what drew and encoded the video once it is done.
+``options`` (size, fps, range, quality, subtitles, encoder, render processes) become flags of that
+command (ADR 0042, 0065). ``cancel()`` kills the process and removes the partial video; the
 snapshot file is always removed when the job ends.
 """
 
@@ -33,6 +35,7 @@ STDERR_LINES = 8  # shown when the render fails without an "error:" line
 
 class ExportJob(QObject):
     progress = Signal(int, int)  # frame, total
+    stage = Signal(str)  # "Rendering code layer scene-torque (3 of 7)"
     finished = Signal(str, str)  # path, warning ("" if none)
     failed = Signal(str)  # message
 
@@ -58,6 +61,7 @@ class ExportJob(QObject):
         self._stderr = b""
         self._done_path: str | None = None
         self._warning = ""
+        self.how = ""  # "GPU (NVENC), 4 render processes": known when it finishes
         self._cancelled = False
 
     @property
@@ -121,6 +125,10 @@ class ExportJob(QObject):
             message = json.loads(line)
             if "frame" in message:
                 self.progress.emit(int(message["frame"]), int(message["total"]))
+            elif "stage" in message:
+                self.stage.emit(str(message["stage"]))
+            elif "how" in message:
+                self.how = str(message["how"])
             elif "warning" in message:
                 self._warning = message["warning"]
             elif "done" in message:

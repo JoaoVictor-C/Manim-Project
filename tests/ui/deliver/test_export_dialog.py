@@ -101,7 +101,7 @@ def test_export_runs_while_editing_and_renders_the_scene_as_it_was(window, qt_ap
     assert win.project.layer("sq").base.position == (3.0, 0.0)
 
     wait_until(qt_app, lambda: not dialog.running)
-    assert dialog.status.text() == f"Exported to {out}"
+    assert dialog.status.text() == f"Exported to {out} - CPU (x264)"  # and how it was made (ADR 0065)
     assert dialog.open_button.isEnabled()
     with av.open(str(out)) as container:
         frames = [f.to_ndarray(format="rgb24") for f in container.decode(video=0)]

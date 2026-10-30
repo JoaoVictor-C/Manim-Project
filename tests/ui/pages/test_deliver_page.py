@@ -47,8 +47,10 @@ class FakeExport(QObject):
 
     instances: ClassVar[list[FakeExport]] = []
     progress = Signal(int, int)
+    stage = Signal(str)
     finished = Signal(str, str)
     failed = Signal(str)
+    how = ""
 
     def __init__(self, project, output, cache_dir, *, trust_code=False, options=None, parent=None):
         super().__init__(parent)
