@@ -13,6 +13,7 @@ times are seconds.
 | `canvas` | Canvas | | |
 | `layers` | Layer[] | `[]` | first = back, last = front |
 | `helpers` | Helper[] | `[]` | modules the code imports (ADR 0058); saved only when not empty |
+| `code_folders` | `{folder: layer_id[]}` | `{}` | named Code page folders for code layers and Python objects; saved only when not empty |
 
 ## Canvas
 
@@ -30,12 +31,13 @@ times are seconds.
 |---|---|---|
 | `id` | string | unique; referenced by `to_layer` |
 | `name` | string | display name |
+| `visible` | bool | defaults to `true`; `false` hides this layer and its descendants in preview and renders while keeping them editable |
 | `spec` | Spec | the Manim object; `null` on a part layer |
 | `parent_id` | string | child layers only: the object (or part) it belongs to — a part, a child object such as a graph, or an object in a group (ADR 0050) |
 | `part` | `{"tex": s, "occurrence": n}` | part layers only: the `n`-th match (from 0) of `tex` in the parent's text |
 | `base` | Transform2D | static transform when a track has no keyframes |
 | `lifetime` | `{"in": s, "out": s}` | optional; inferred from clips when absent (below) |
-| `tracks` | `{property: Keyframe[]}` | `position`, `scale`, `rotation`, `opacity` |
+| `tracks` | `{property: Keyframe[]}` | `position`, `scale`, `scale_x`, `scale_y`, `rotation`, `opacity` |
 | `clips` | Clip[] | must not overlap in time (validated) |
 | `style` | `{"fill": c, ...}` | part layers only, optional (left out when empty): the colours of the part's glyphs, the keys of a Spec's `style` (ADR 0049) |
 
@@ -45,6 +47,9 @@ morph that targets this layer. Hidden after the first remover (FadeOut,
 Uncreate, …) or morph clip on its lane. The lifetime gates everything: a clip
 outside the layer's lifetime does not make it visible. A part's lifetime is
 clamped to its parent's.
+
+The separate `visible` setting is a manual layer switch. Hidden layers keep their clips and timing;
+turning them visible again restores them without rebuilding their animation.
 
 **Part layers** (ADR 0012) animate a piece of a `MathTex`/`Tex` object — one
 term of an equation. A part has no spec; it draws the glyphs of its key's span
@@ -88,8 +93,9 @@ axes takes their graphs along.
 **Groups** (ADR 0050): a root layer with `"spec": { "type": "Group" }` draws
 nothing; the layers whose `parent_id` is the group are its objects, each with
 its own `spec`, clips, keys and lifetime, drawn in their list order where the
-group is stacked. The group's `base` and `tracks` (position, scale, rotation,
-anchor, opacity) apply after each object's own transform, opacities multiplied.
+group is stacked. The group's `base` and `tracks` (position, uniform scale,
+rotation, anchor, opacity) apply after each object's own transform, opacities
+multiplied. Groups do not support independent width and height scale.
 Its lifetime is its own `lifetime` when set, else the span of its objects'
 lifetimes, and its objects are clamped to it. A group has no clips and no
 parent; its objects are whole plain objects (not parts, not objects on axes, not
@@ -188,10 +194,15 @@ that is missing or unreadable is silent.
 { "type": "MathTex", "params": { "text": "e^{i\\pi}+1=0", "font_size": 72 }, "style": { "fill": "#facc15" } }
 ```
 
-- `type`: `Circle`, `Square`, `Rectangle`, `Triangle`, `Line`, `Arrow`, `Dot`,
-  `Star`, `Text`, `MathTex`, `Tex`, `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`, `Python`, `Shape`,
-  `Axes`, `TracedPath`, `Connector`; `Graph`, `Point`, `Area`, `RiemannRectangles`, `AxisLabels`,
-  `GraphLabel` (only as children of `Axes`); any type an installed plugin
+- `type`: `Circle`, `Ellipse`, `Square`, `Rectangle`, `RoundedRectangle`, `Triangle`, `RightTriangle`,
+  `RegularPolygon`, `RegularPolygram`, `Pentagon`, `Hexagon`, `Octagon`, `Nonagon`, `Decagon`, `Rhombus`,
+  `Parallelogram`, `Trapezoid`, `Polygon`, `Polyline`, `Star`, `Cross`, `Dot`, `Line`, `DashedLine`,
+  `Arrow`, `DoubleArrow`, `Vector`, `CurvedArrow`, `CurvedDoubleArrow`, `Arc`, `ArcBetweenPoints`, `CubicBezier`, `Sector`,
+  `Annulus`, `AnnularSector`, `Angle`, `RightAngle`, `BraceBetweenPoints`, `Text`, `MathTex`, `Tex`,
+  `DecimalNumber`, `ImageMobject`, `SVGMobject`, `Code`, `Python`, `Shape`, `Axes`, `NumberLine`,
+  `NumberPlane`, `ComplexPlane`, `PolarPlane`, `ThreeDAxes`, `Cube`, `Sphere`, `Cylinder`, `Cone`, `Torus`,
+  `Prism`, `Tetrahedron`, `Octahedron`, `Dodecahedron`, `Icosahedron`, `TracedPath`, `Connector`; `Graph`, `Point`,
+  `Area`, `RiemannRectangles`, `AxisLabels`, `GraphLabel` (only as children of `Axes`); any type an installed plugin
   provides (ADR 0032, 0033) - without the plugin it is drawn as a placeholder.
 - `Code` (ADR 0019) holds Python in `params.code`: one `Scene` subclass
   (`from manim import *` and `numpy as np` are implied). It is rendered once
@@ -275,15 +286,19 @@ The object is built centred on the origin; `base`/`tracks` place it.
 
 ## Transform2D
 
-`{"position": [x, y], "scale": 1.0, "rotation": 0.0, "opacity": 1.0}` —
+`scale_x` and `scale_y` are optional independent width and height multipliers;
+each defaults to `1.0` and is omitted when default. `scale` remains the uniform
+multiplier shared by both axes.
+
+`{"position": [x, y], "scale": 1.0, "scale_x": 1.0, "scale_y": 1.0, "rotation": 0.0, "opacity": 1.0}` —
 rotation in degrees counter-clockwise; opacity multiplies the object's own opacity.
 
 Optional `"anchor": [x, y]` (default `[0, 0]`, not written when default) is
 the point the object rotates and scales about, in its own units: its build
 centre for objects, its rest centre for parts, moved by the anchor (ADR 0021).
 A point `p` of the drawing lands at `A (p - P) + P + position`, `A` being
-rotation × scale and `P` the pivot. The anchor only lives in `base`; it has no
-track.
+rotation × `diag(scale * scale_x, scale * scale_y)` and `P` the pivot. The
+anchor only lives in `base`; it has no track.
 
 ## Keyframe
 

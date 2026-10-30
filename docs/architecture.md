@@ -147,8 +147,8 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 
 | path | responsibility | key tests |
 |---|---|---|
-| `model/schema.py` | the project document (pydantic): Project, Layer, Clip, keys, canvas, camera, sounds, cues, markers; validation; clip kind info; lifetime inference | `core/model/test_schema.py`, `core/model/test_lifetime.py` |
-| `editing/edits.py` | every edit: a validated snapshot plus its edit kind (timing / transform / clip / spec) | `core/editing/test_edits.py`, `core/engine/test_invalidation.py`, `core/editing/test_properties.py` |
+| `model/schema.py` | the project document (pydantic): Project, Layer, Clip, keys, canvas, camera, sounds, cues, markers, Code page folders; validation; clip kind info; lifetime inference | `core/model/test_schema.py`, `core/model/test_lifetime.py` |
+| `editing/edits.py` | every edit: a validated snapshot plus its edit kind (timing / transform / clip / spec), including Code page folder operations | `core/editing/test_edits.py`, `core/engine/test_invalidation.py`, `core/editing/test_properties.py` |
 | `engine/evaluator.py` | `frame(t)`: checkpoints, active clips, keyframes, morphs, parts and child trees, simulations, `invalidate` | `core/engine/test_random_access.py`, `core/engine/test_transforms.py` |
 | `engine/adapter.py` | the only Manim-aware module: builders, object library, clip registry and allow-list, easing, patches, Python object builds | `core/engine/test_adapter.py`, `core/engine/test_registry.py`, `core/features/test_clip_kinds.py` |
 | `model/layer_index.py` | the layer tree indexed once per snapshot (O(1) tree questions) | `core/model/test_layer_index.py` |
@@ -166,7 +166,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `code/trust.py` | which code may run: sha256 hashes in a per-user store | `core/code/test_code_layers.py`, `core/code/test_python_objects.py` |
 | `code/python_object.py`, `code/python_templates.py` | Python objects: `PARAMS` read without running, values, trust, time limit; templates | `core/code/test_python_objects.py`, `core/code/test_python_templates.py` |
 | `model/shape.py` | Shape objects: an object frozen into plain vector data, and which layers can be frozen (P10.2, ADR 0052) | `core/model/test_shapes.py` |
-| `editing/equation_steps.py` | equation steps: lines, a small LaTeX tokenizer, operations on both sides, planning the morph between steps (P11, ADR 0054) | `core/editing/test_equation_steps.py`, `core/editing/test_equation_steps_layers.py` |
+| `editing/equation_steps.py` | equation steps: lines, a small LaTeX tokenizer, algebra operations and named functions on both sides, transition plans and highlight runs (P11, ADR 0054) | `core/editing/test_equation_steps.py`, `core/editing/test_equation_steps_layers.py` |
 | `model/glyph_colours.py` | colour characters: a text's `glyph_colours` list (one colour per drawn glyph), gradients, rainbow, alternate, ranges, validation (ADR 0055) | `core/model/test_glyph_colour_helpers.py`, `core/model/test_glyph_colours.py` |
 | `engine/morph.py` | smart morph matching: pieces paired by place/size/outline (Hungarian), holes with holes, loops started where they travel least and cut at each other's corners, OKLab colour blends, the gallery's measures; numpy only (ADR 0056) | `core/engine/test_morph.py`, `core/engine/test_morph_frames.py` |
 | `engine/python_export.py` | the project as Manim code, readable or exact, and why | `core/engine/test_python_export.py`, `core/engine/test_python_export_keyed.py` |
@@ -210,9 +210,9 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `playback/audio_player.py` | plays the mix; its clock drives playback | `ui/playback/test_audio_ui.py` |
 | `shell/clipboard_actions.py`, `shell/autosave.py` | Edit > Cut/Copy/Paste/Duplicate; recovery copies every 30 s | `ui/shell/test_clipboard_ui.py`, `ui/shell/test_autosave.py` |
 | `code/code_editor.py`, `code/code_syntax.py`, `code/code_drafts.py` | the Code page's editor, lexer and drafts | `ui/code/test_code_syntax.py`, `ui/code/test_code_page.py` |
-| `session/preferences.py`, `session/places.py`, `shell/welcome.py` | the settings file; where files are kept and suggested; the welcome panel | `ui/session/test_preferences.py`, `ui/session/test_places.py` |
+| `session/preferences.py`, `session/places.py`, `shell/welcome.py` | the settings file and per-project canvas framing; where files are kept and suggested; the welcome panel | `ui/session/test_preferences.py`, `ui/session/test_places.py` |
 | `panels/presets_browser.py`, `shell/shortcuts_help.py`, `shell/plugins_dialog.py` | Animate > Browse Presets, Help > Keyboard Shortcuts, Help > Plugins | `ui/panels/test_presets_browser.py`, `ui/shell/test_shortcuts_help.py`, `ui/shell/test_plugins_ui.py` |
-| `panels/equation_steps_dialog.py` | Layers > Add > Equation steps... (P11): the lines, derive the next line, checks through the worker | `ui/panels/test_equation_steps_ui.py` |
+| `panels/equation_steps_dialog.py` | Layers > Add > Equation steps... (P11): line editor, sequence editing, derivation functions, checks through the worker | `ui/panels/test_equation_steps_ui.py` |
 | `panels/glyph_colours_dialog.py` | Colour characters...: the glyphs painted large, click/Shift/Ctrl/rubber-band selection, swatch strip, gradient/rainbow/alternate (ADR 0055) | `ui/panels/test_glyph_colours_ui.py` |
 | `style/theme.py`, `style/icons.py`, `style/elided_label.py` | design tokens, stylesheet, contrast; icons; eliding label | `ui/style/test_theme.py`, `ui/test_layout_checks.py` |
 
@@ -224,7 +224,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | Part / child | a layer under another: a term of an equation (part), a graph or object on axes (child) - evaluated with its root | ADR 0012, 0024, 0029, 0030 |
 | Group | a layer that draws nothing; its transform carries its objects | ADR 0050 |
 | Clip | a Manim animation on a layer's lane; categories content / emphasis / motion / morph; overlay clips draw beside the object | ADR 0004, 0005, 0022 |
-| Keyframes | position, scale, rotation, opacity tracks applied after clips; the stopwatch and auto-key rules | ADR 0004, 0018 |
+| Keyframes | position, uniform/width/height scale, rotation, opacity tracks applied after clips; the stopwatch and auto-key rules | ADR 0004, 0018 |
 | Checkpoint | cached state of a layer after a clip | ADR 0002 |
 | Edit kind | timing / transform / clip / spec, computed by `core/editing/edits.py` - decides what `Evaluator.apply` drops | ADR 0008, 0013 |
 | Allow-list | clip kinds x object types verified random-access-safe | ADR 0007, 0022 |

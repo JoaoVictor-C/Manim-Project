@@ -7,6 +7,27 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Stage tools and layer visibility.** Select, Hand, Text, Shape and Anchor tools sit in a vertical rail;
+  click to place text or a circle, drag with Hand to pan, or drag the selected anchor. Each layer has a
+  saved eye toggle that hides it (and, for groups, its descendants) in preview and renders.
+- **Lock Stage View.** Prevent accidental panning and zooming of the stage from View or the Stage header;
+  the lock preference and each saved project's last zoom and centre are remembered.
+- **Clearer Code folder drops.** The folder or project heading lights up as a code item is dragged over it.
+- **Smart transforms for equation steps.** Equation steps use the project's Smart or Classic
+  Transform matching setting; new projects use Smart matching by default.
+- **A more capable equation-step editor.** Compose equations by typing LaTeX or using the symbol
+  keyboard, edit and reorder steps, and derive lines with arbitrary-base logarithms, base-10 and
+  base-2 logs, trigonometric functions, inverse trig functions and hyperbolic functions.
+- **A much larger object library.** Add rounded and editable custom polygons, regular star polygons, rings and
+  sectors, arcs and Bézier curves, angle and brace annotations, vectors and curved or dashed arrows, number lines and planes,
+  3D coordinate axes and ten solid primitives. The Layers panel also offers editable Matrix, Grid, Labeled
+  vector and Right triangle Python objects.
+- **A quicker way to add scene objects.** The Layers panel now groups the library into Shapes, Text, Math,
+  Media, Graphs and More, with the full object and plugin catalog still available from Add.
+- **Folders in the Code page.** Group project code layers and Python objects into named folders, including
+  empty folders; rename or remove folders, fold or unfold them, and drag items between folders or back to the root.
+- **Preset deletion stays deleted.** Migrated code presets are removed from the legacy settings store after
+  they are safely copied to the preset library, so deleting one no longer brings it back at startup.
 - **A new project starts like one does in a game engine's hub.** *File > New* (and the welcome page's cards) open
   a dialog with the starting points on the left - a blank scene and the example scenes - and, on the right, the
   project's name and folder, its size (HD, Full HD, 4K, draft, vertical, square), frame rate, length and

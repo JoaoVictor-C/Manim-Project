@@ -28,7 +28,10 @@ and mute (a scene with sound), and a button to leave. While it plays, the bar an
 rests (a paused animation keeps the bar). Keys: `Space` or a click plays and pauses, `Left`/`Right` step a frame
 (`Shift`: ten), `Home`/`End` jump to the start and end, `L` repeat, `M` mute, `Up`/`Down` volume, and `Esc`, `F11` or
 a double-click leave.
-The Code page also has its own buttons for its explorer (`Ctrl+B`) and output (`Ctrl+J`).
+The Code page also has its own buttons for its explorer (`Ctrl+B`) and output (`Ctrl+J`). In the explorer,
+**Folder...** creates a project folder. Right-click a folder to rename or remove it; right-click a code layer
+or Python object to move it into a folder or back to the root, or drag it onto a folder or the project heading.
+Folders and their contents are saved with the project.
 
 ## The viewer: canvas and transport
 
@@ -43,6 +46,11 @@ the zoom, and - while frames are rendered ahead - how many are ready (`ahead 120
   **Actual Size (100 %)** (`Ctrl+1`), **Zoom In** / **Zoom Out** (`Ctrl+=` / `Ctrl+-`).
   `F` on the canvas frames the selected objects (the whole frame when nothing is selected),
   also **View > Frame Selection**.
+- **View > Lock Stage View**, or the padlock in the Stage header, disables stage panning and zooming,
+  including wheel and middle-button gestures and the View zoom commands. The lock setting is remembered
+  between launches; each saved project also restores its last zoom and centre.
+- The Stage tool rail switches between **Select**, **Hand** (left-drag to pan), **Place text**,
+  **Place circle**, and **Move anchor**. The view lock also prevents panning with the Hand tool.
 - **View > Half-resolution playback** draws the canvas at half resolution for heavy scenes.
 - **View > Render Ahead** (on by default) renders frames ahead of the playhead in a second
   process and keeps them, so playing and scrubbing are smooth once they are ready. An edit only
@@ -52,20 +60,27 @@ the zoom, and - while frames are rendered ahead - how many are ready (`ahead 120
 
 - **Select:** click an object; `Alt+Click` picks the one behind it. `Shift+Click` adds or
   removes an object; a drag from empty canvas selects everything the rectangle touches.
+  **View > Select by Object Bounds** (on by default) also selects an object from empty space inside its canvas bounds.
 - **Move:** drag (`Shift`: one axis only; `Alt`: no snapping; `Escape` cancels). Arrow keys
   nudge by 1 px (`Shift`: 10 px).
-- **Scale / rotate:** drag a corner handle / the round knob (`Shift` snaps to 10 % / 15°). Both
-  turn about the object's **anchor**, the small cross: `Ctrl+Drag` the cross to move it
-  (`Shift` snaps to the box's corners, edge midpoints and centre), `Ctrl+Double-click` centres it.
-- **Size handles:** the round handles on an object's edges change its own size - a
-  rectangle's width or height, a circle's radius, a text's size (`Shift`: steps of 4 points) -
-  and those on a line's ends move that end only. Sizes are not keyable: a handle changes the
-  object for its whole life.
+- **Scale / rotate:** drag a corner handle for uniform scale or the round knob to rotate
+  (`Shift` snaps to 10 % / 15°). Drag the left or right side midpoint to change width, or the
+  top or bottom midpoint to change height. Side resizing can be animated with the property's
+  **Keys** toggle in Properties. These transforms turn about the object's **anchor**, the small
+  cross: `Ctrl+Drag` the cross to move it (`Shift` snaps to the box's corners, edge midpoints
+  and centre), `Ctrl+Double-click` centres it.
+- **Object edit handles:** round handles edit geometry points, object parameters such as a
+  circle's radius or text's font size, and line endpoints. Parameter edits affect the object for
+  its whole life. **View > Show Object Edit Handles** hides these and the width/height side
+  handles; corner scaling and rotation stay available.
+- **Delete:** press `Delete` while the canvas is focused to remove the selected object or objects.
 - **Snapping:** moved objects and dragged handles snap to the edges and centres of other
   objects and of the frame, and a guide shows where. Hold `Alt` to place freely, or turn it off
   with **View > Snap to Objects** (`Ctrl+;`).
 - **Parts and groups:** a click selects the whole equation or group; double-click selects the
   term or object inside, `Escape` goes back up.
+- **Layer visibility:** click a layer's eye in the Layers list to hide or show it. Hidden layers remain
+  on the timeline and return with the same clips when shown again; hiding a group also hides its children.
 - **Motion paths:** when the selected object has position keys, its path shows with a square
   per key - see [Animation](animation.md#motion-paths).
 
@@ -93,7 +108,8 @@ Properties edits whatever is selected; each finished field is one undo step.
 - **Nothing selected:** the **Scene** (length, Grow with content, size, frame rate,
   background, **Fit Length to Content**) and the **Camera** (also **Edit > Scene Settings...**).
 - **An object:** its own parameters (text, LaTeX, radius, colours...), **Style**,
-  **Transform** (position, anchor point, scale, rotation, opacity, each with a **Keys** toggle)
+  **Transform** (position, anchor point, scale, width scale, height scale, rotation, opacity,
+  each with a **Keys** toggle)
   and **Lifetime** (Appears at / Disappears at; Auto when empty).
 - **A clip, a key, a sound, a subtitle or a marker:** its timing and options.
 
@@ -131,8 +147,9 @@ Everything about animating on the timeline is in [Animation](animation.md).
 
 Manim Studio remembers the recent files (**File > Open Recent**, ten at most, with
 **Clear Recent**), the window, the panel sizes of every page, the view toggles (snap to
-objects, half-resolution playback, render ahead, follow playhead) and the last page. They are
-kept in one file, `manim-studio.ini` - see [where files live](troubleshooting.md#where-files-live).
+objects, object edit handles, select by object bounds, half-resolution playback, render ahead,
+follow playhead) and the last page. They are kept in one file, `manim-studio.ini` - see
+[where files live](troubleshooting.md#where-files-live).
 Delete it to start fresh.
 
 ## See also

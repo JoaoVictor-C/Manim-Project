@@ -1,8 +1,8 @@
 # Objects
 
 Everything on the canvas is an object (a *layer*): it has a type with its own parameters, a
-style, a transform (position, anchor, scale, rotation, opacity), a lifetime, and a lane of
-animation clips. Objects are added from the **Add** button of the Layers panel (or a
+style, a transform (position, anchor, uniform, width and height scale, rotation, opacity), a
+lifetime, and a lane of animation clips. Objects are added from the **Add** button of the Layers panel (or a
 right-click on empty space there: **Add object**); new ones are placed at the centre or, if
 that is taken, beside the others, and the new object is selected.
 
@@ -10,12 +10,17 @@ that is taken, beside the others, and the new object is selected.
 
 | Add menu section | objects | parameters in Properties |
 |---|---|---|
-| **Shapes** | Circle, Square, Rectangle, Triangle, RightTriangle, Star, Dot, Line, Arrow, Connector | radius, side length, width/height, points, line ends, ... |
+| **Shapes** | Circle, Ellipse, Square, Rectangle, Rounded rectangle, Triangle, Right triangle, regular polygons and star polygons, Pentagon through Decagon, Rhombus, Parallelogram, Trapezoid, Custom polygon, Cross, Dot, Sector, Annulus, Ring sector, Connector | radii, sides, corner radius, vertices, ... |
+| **Lines & Arrows** | Line, Dashed line, Arrow, Double arrow, Vector, Curved arrow, Curved double arrow | endpoints, direction, gap, dash length, ... |
+| **Curves & Annotations** | Arc, Arc between points, Cubic Bézier curve, Angle, Right-angle marker, Brace, Custom line path | control points, angles, radius, length, ... |
+| **3D Solids** | Cube, Sphere, Cylinder, Cone, Torus, Prism, Tetrahedron, Octahedron, Dodecahedron, Icosahedron | dimensions where available; layer scale |
 | **Text** | Text, MathTex, Tex, Number | the text or LaTeX, font size; Text also font, weight, slant |
 | **Media** | Image, SVG | the file (an SVG also its height) |
-| **Graphing** | Axes | x and y ranges and tick steps, width, height, numbers |
+| **Graphing** | Axes | x and y ranges, tick and grid spacing, grid style, width, height, numbers |
+| **Coordinates** | Number line, Number plane, Complex plane, Polar plane, 3D axes | ranges, tick steps and dimensions where applicable |
 | **Simulation** | Traced path | the object traced, the point on it, how long the trail lasts |
 | **Python** | Code (a code layer) | the Manim code |
+| **Python objects** | Matrix, Grid, Labeled vector, Right triangle, Orbital satellite | entries, grid size, vector components, orbit and satellite points |
 | **Templates** | Callout, Counter, Equation reveal, Lower third, Section header, Title card, and your own | - |
 
 Plugins can add more sections (see [Plugins](#plugins)). Every object has a **Style** group
@@ -27,6 +32,23 @@ groups described in [Animation](animation.md#keyframes).
 **Add > Shapes > RightTriangle**: a base length (0.5-8) and the acute angle at the end of the
 base (15-75°), with the right angle marked. Fill and colour it like any shape. The readable
 Python export writes it out as plain shapes.
+
+### Custom geometry
+
+**Custom polygon** exposes three editable vertex fields and closes the triangle. **Custom line
+path** exposes three editable points and stays open. Use a Python object when you need a path with
+more points or custom construction logic. Regular polygons expose their side count, and star
+polygons expose their point count and density. Arcs use radians for their start and sweep angles.
+Drag a selected object's point handles to move editable vertices and control points directly.
+Python objects can opt in by declaring `HANDLES = {"Tip": ("x", "y")}` beside `PARAMS`; each
+entry names a visible handle and the two numeric parameter names used for its coordinates. Object
+plugins can mark a geometry point with `Param(..., point_handle=True)`.
+
+The **Python objects** submenu adds ready-to-edit objects built with Manim code. **Matrix** has
+editable row/column counts and cell values; **Grid** has adjustable rows, columns and dimensions;
+**Labeled vector** has editable components and a symbol. **Orbital satellite** demonstrates named
+`HANDLES` for the planet centre, orbit extent and satellite position. The **Code** item remains
+available for a whole custom Manim scene.
 
 ### Text and equations
 
@@ -84,7 +106,7 @@ Select two or more objects and choose **Edit > Group** (`Ctrl+G`); **Edit > Ungr
 (`Ctrl+Shift+G`) takes them out again, each looking as it did (a group with keys asks to bake
 them first). A group draws nothing itself: its position, scale, rotation, anchor and opacity -
 base values and keys - carry its objects, which keep their own clips, keys and lifetimes. A
-click on one of its objects selects the group, which moves, scales and turns as one;
+click on one of its objects selects the group, which moves, uniformly scales and turns as one;
 double-click enters it. Its lifetime is its objects' span unless you set one.
 
 Not yet possible: clips on a group itself, groups inside groups, and equations with parts or
@@ -102,6 +124,12 @@ The elements of an SVG cannot be animated separately.
 ## Axes and graphs
 
 1. **Add > Graphing > Axes**, then set the ranges, tick steps, size and numbers in Properties.
+   Both grid directions start enabled and can be switched independently, with separate spacing and
+   a shared colour, opacity and line width. Select the axes to drag the four range endpoints or the
+   two visible grid-spacing handles directly on the canvas; the width and height handles resize
+   the plotting area.
+   **Coordinates** also has standalone number lines, number planes, complex planes, polar planes
+   and 3D axes.
 2. With the axes selected, **Parts > Add graph...** and type a function of `x`, such as
    `sin(x)`, `x**2/10 - 1` or `exp(-x**2)`. Allowed: numbers, `x`, `pi`, `e`, `+ - * / **` and
    `sin cos tan exp log sqrt abs` - nothing else, and nothing is ever run as Python.

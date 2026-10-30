@@ -72,7 +72,13 @@ editor's own code by `scripts/gen_smart_transform.py`.
 ### Equation steps
 
 To animate algebra one step at a time, choose **Layers > Add > Equation steps...** (or
-**Animate > Equation Steps...**) and type the steps, one LaTeX equation per line:
+**Animate > Equation Steps...**). Type LaTeX directly into the equation field or use the symbol
+keyboard for numbers, variables, operators, fractions, powers, roots, functions and Greek
+letters. The live preview shows the line you are composing; **Add as new step** adds it to the
+sequence. Select a step to edit it, then click **Update selected step** or press **Ctrl+Enter**;
+**Revert** discards the draft. Resolve the current draft before selecting another step. Use the
+step list's context menu or toolbar to duplicate, delete or reorder a step. Open **Edit
+LaTeX source (advanced)** to write or paste the steps directly, one equation per line:
 
 ```text
 A = L \times L
@@ -81,23 +87,27 @@ A = (a+b) \times (a+b)
 ```
 
 Lines starting with `%` are comments. **Derive the next line** makes a step for you from the last
-line (or from the step selected in the preview): pick an operation, type its term and click
-**Add line**. The operations work on both sides of the equation's `=`: add, subtract, multiply or
-divide by a term, square, square root, reciprocal, natural log, exponential, and **Substitute**
-(type `L = a+b`: every `L` becomes `(a+b)`, with parentheses only where they are needed).
+line (or from the step selected in the preview): pick an operation, type its term if needed and
+click **Add line**. The operations work on both sides of the equation's `=`: add, subtract,
+multiply or divide by a term; square, take a square root or reciprocal; take a natural, common
+(base 10), binary (base 2) or arbitrary-base logarithm; apply sine, cosine, tangent, inverse
+trigonometric or hyperbolic functions; exponentiate; and **Substitute** (type `L = a+b`: every
+`L` becomes `(a+b)`, with parentheses only where they are needed). **Ctrl+Shift+Enter** derives
+the next line; in the step list, **Alt+Up/Down** reorders, **Ctrl+D** duplicates and **Delete**
+removes the selected step.
 
-The preview lists the steps and, between two steps, the morph they will get: a **matching
-morph** (TransformMatchingTex) moves the terms both share to their new places and fades the
-rest; a **replacement morph** (Transform) is used when they share nothing. Each line is checked
-as you type - a missing brace at once, LaTeX errors a moment later - and **Add steps** stays off
-while a line cannot be built. On a computer without LaTeX the dialog says so and the steps are
-still added, drawn as placeholders until LaTeX is installed.
+The step list shows a Transform between each pair. Each clip uses the project's Smart or Classic
+matching setting (Smart by default); Smart matching pairs glyphs by shape and placement. The
+**Colour new terms** option highlights LaTeX runs that are new relative to the preceding step.
+Each line is checked as you type - a missing brace at once, LaTeX errors a moment later - and
+**Add steps** stays off while a line cannot be built. On a computer without LaTeX the dialog says
+so and the steps are still added, drawn as placeholders until LaTeX is installed.
 
 The options: **Start** (the playhead), **Step duration** (the first step's entrance and each
 morph), **Hold** (how long each step stays still), font size, how the first step enters (Write or
-FadeIn), the colour, **Colour new terms** (the terms new in a step get the highlight colour as
-coloured [parts](objects.md#parts-of-an-equation); in the next step they are plain again) and
-where the steps go. The dialog remembers them.
+FadeIn), the colour, **Colour new terms** (new LaTeX runs get the highlight colour as coloured
+[parts](objects.md#parts-of-an-equation); in the next step they are plain again) and where the
+steps go. The dialog remembers them.
 
 **Add steps** adds one MathTex per step, named *Step 1*, *Step 2*..., with its clips, as one undo
 step, and selects them. They are ordinary objects: move them, change a step's text or a clip's
@@ -126,8 +136,9 @@ shape (a circle, a graph, a line). In Properties pick another path, and set **Tu
 
 ## Keyframes
 
-Every object's **Transform** in Properties has position, anchor point, scale, rotation and
-opacity. Each keyable property has a **Keys** toggle - the stopwatch:
+An ordinary object's **Transform** in Properties has position, anchor point, uniform scale, width
+scale, height scale, rotation and opacity. Groups keep a uniform scale so their children do not
+shear. Each keyable property has a **Keys** toggle - the stopwatch:
 
 - **Keys off:** changing the value (in Properties or on the canvas) changes it for the whole
   life of the object.
@@ -171,8 +182,8 @@ it (hold `Alt` to move one handle only).
 
 `Ctrl+2`: the viewer and Properties on top, the **graph editor** in the middle, the timeline at
 the bottom. The graph shows the selected object's keys as curves of value over time - x, y,
-scale, rotation and opacity, each in its colour. Click property names in the expanded timeline
-row to show only those curves (`Shift`/`Ctrl` to add or remove); with none chosen, all are shown.
+scale, width, height, rotation and opacity, each in its colour. Click property names in the expanded
+timeline row to show only those curves (`Shift`/`Ctrl` to add or remove); with none chosen, all are shown.
 
 - Drag a key sideways to retime it, up or down to change its value (`Shift` keeps it on one
   axis, `Escape` cancels).
