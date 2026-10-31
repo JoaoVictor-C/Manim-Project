@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Draft preview while editing** ([ADR 0070](docs/adr/0070-draft-preview-while-editing.md)). When a drag, a scrub or
+  playback of a heavy scene makes the canvas slow, its frames are drawn at half size and marked DRAFT, and drawn in full
+  as soon as you pause. View > Draft Preview While Editing turns it off.
 - **Import a script** ([ADR 0069](docs/adr/0069-script-to-timeline.md)). File > Import Script... turns pasted or loaded
   text (plain or Markdown) into subtitles, a sentence or a paragraph each, timed by reading speed after the existing
   ones, with an optional placeholder Text layer per paragraph. One undo step; the Audio page narrates the cues.

@@ -98,3 +98,4 @@ need one.
 | [0067](0067-code-errors-know-their-time.md) | Code errors know their time: an error says how far the scene got, and the page can show that frame | Accepted |
 | [0068](0068-named-project-snapshots.md) | Named project snapshots: milestones kept beside the file, apart from undo | Accepted |
 | [0069](0069-script-to-timeline.md) | Script to timeline: a written script becomes timed subtitle cues, with optional placeholders | Accepted |
+| [0070](0070-draft-preview-while-editing.md) | Draft preview while editing: heavy edits are drawn small and marked, and in full when the user pauses | Accepted |

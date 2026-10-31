@@ -586,6 +586,12 @@ class MainWindow(QMainWindow):
         self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
         self.half_action.toggled.connect(self._set_half_resolution)
         view_menu.addAction(self.half_action)
+        self.draft_action = QAction("&Draft Preview While Editing", self, checkable=True, checked=True)
+        self.draft_action.setToolTip(
+            "A heavy edit (a drag, a scrub) is drawn at half size, marked DRAFT, and in full when you pause"
+        )
+        self.draft_action.toggled.connect(self._set_draft_preview)
+        view_menu.addAction(self.draft_action)
         self.follow_action = QAction("&Follow Playhead", self, checkable=True, checked=True)
         self.follow_action.setToolTip(
             "The timeline scrolls to keep the playhead in view (also when you scrub or play)"
@@ -1030,6 +1036,7 @@ class MainWindow(QMainWindow):
             ("object_edit_handles", self.edit_handles_action, True),
             ("select_by_bounds", self.select_by_bounds_action, True),
             ("half_resolution", self.half_action, False),
+            ("draft_preview", self.draft_action, True),
             ("follow_playhead", self.follow_action, True),
             ("render_ahead", self.render_ahead_action, True),
             ("panel_layers", self.panel_toggles[self.layers_card], True),
@@ -2345,6 +2352,9 @@ class MainWindow(QMainWindow):
         self.timeline.follow_playhead = enabled
         if enabled and self.project is not None:
             self.timeline.set_playhead(self.t)  # back to where the video is
+
+    def _set_draft_preview(self, enabled: bool) -> None:
+        self.canvas.set_draft_enabled(enabled)
 
     def _set_half_resolution(self, enabled: bool) -> None:
         self.canvas.half_resolution = enabled

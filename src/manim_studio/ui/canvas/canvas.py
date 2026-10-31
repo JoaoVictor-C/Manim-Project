@@ -38,6 +38,11 @@ MOTION_COLOR = theme.qcolor(theme.THEME.motion_path)  # the motion path (ADR 002
 KEY_PX = 7.0  # a key's square on the motion path
 PASTEBOARD_DIM = theme.qcolor(theme.THEME.pasteboard_dim)  # over what lies outside the video frame
 FRAME_BORDER = theme.qcolor(theme.THEME.frame_border)
+DRAFT_ABOVE_MS = 60.0  # a render slower than this, again and again, is a heavy edit (ADR 0070)
+DRAFT_BURST_S = 0.3  # renders closer than this belong to one interaction
+DRAFT_SETTLE_MS = 350  # without a render for this long the interaction is over: full quality again
+DRAFT_SCALE = 0.5
+DRAFT_LABEL = "DRAFT"
 BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
@@ -110,6 +115,13 @@ class CanvasWidget(QWidget):
         self._camera_angles: Camera | None = None  # the project camera self._camera was built for
         self._image: QImage | None = None
         self.half_resolution = False
+        self.draft_enabled = True  # heavy edits are drawn small, then again in full (ADR 0070)
+        self.draft = False
+        self._last_render_at = 0.0
+        self._settle = QTimer(self)
+        self._settle.setSingleShot(True)
+        self._settle.setInterval(DRAFT_SETTLE_MS)
+        self._settle.timeout.connect(self._leave_draft)
         self.last_render_ms = 0.0
         self._t = 0.0  # the time last drawn (F frames the selection as it is then)
         self.selected_layer: str | None = None  # whose outline to draw
@@ -320,7 +332,36 @@ class CanvasWidget(QWidget):
         if not self.show_overlays:  # a plain view: nothing over the picture, nothing to grab
             self.outline, self.other_outlines, self.motion, self.param_handles = None, [], None, []
         self.last_render_ms = (time.perf_counter() - start) * 1000
+        self._note_render(self.last_render_ms)
         self.update()
+
+    def _note_render(self, ms: float) -> None:
+        """Draft preview (ADR 0070): slow renders in a burst - a drag, a scrub, a heavy scene playing - are
+        drawn at half size and marked, and the first quiet moment draws the frame in full again."""
+        now = time.monotonic()
+        burst = now - self._last_render_at < DRAFT_BURST_S
+        self._last_render_at = now
+        if not self.draft_enabled or self.half_resolution or self.from_cache:
+            return
+        if not self.draft and burst and ms > DRAFT_ABOVE_MS:
+            self.draft = True
+        if self.draft:
+            self._settle.start()
+
+    def _leave_draft(self) -> None:
+        if not self.draft:
+            return
+        self.draft = False
+        if self._evaluator is not None and self._canvas is not None:
+            self.render_at(self._t)
+        else:
+            self.update()
+
+    def set_draft_enabled(self, enabled: bool) -> None:
+        self.draft_enabled = enabled
+        if not enabled:
+            self._settle.stop()
+            self._leave_draft()
 
     def set_overlays(self, shown: bool) -> None:
         """Draw the selection outline, handles and motion path (the default), or only the picture."""
@@ -385,7 +426,7 @@ class CanvasWidget(QWidget):
     def preview_view(self) -> PreviewView:
         """How the frame is framed now (ADR 0028): the camera covers the whole widget."""
         geo = self.geometry_now()
-        scale = self.devicePixelRatioF() * (0.5 if self.half_resolution else 1.0)
+        scale = self.devicePixelRatioF() * (DRAFT_SCALE if self.half_resolution or self.draft else 1.0)
         return PreviewView(
             pixel_width=max(2, int(self.width() * scale)),
             pixel_height=max(2, int(self.height() * scale)),
@@ -573,6 +614,8 @@ class CanvasWidget(QWidget):
                 painter.drawText(pos + QPointF(14, -10), text)
             if self.camera_turned:
                 self._paint_turned_notice(painter)
+            if self.draft:
+                self._paint_draft(painter)
             if self.busy_text:
                 self._paint_busy(painter)
         if self.drop_point is not None:
@@ -614,6 +657,17 @@ class CanvasWidget(QWidget):
         painter.drawRoundedRect(box, 6, 6)
         painter.setPen(DROP_COLOR)
         painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
+
+    def _paint_draft(self, painter: QPainter) -> None:
+        """The frame is a draft, drawn small while the edit goes on (ADR 0070)."""
+        painter.save()
+        metrics = painter.fontMetrics()
+        top = 8 + (metrics.height() + 12 if self.camera_turned else 0)
+        box = QRectF(8, top, metrics.horizontalAdvance(DRAFT_LABEL) + 16, metrics.height() + 8)
+        painter.fillRect(box, BADGE)
+        painter.setPen(BADGE_TEXT)
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, DRAFT_LABEL)
         painter.restore()
 
     def _paint_turned_notice(self, painter: QPainter) -> None:
