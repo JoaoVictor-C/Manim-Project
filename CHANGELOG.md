@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Faster exports** ([ADR 0065](docs/adr/0065-parallel-export-and-gpu-encoding.md)). Frames are drawn by several
+  processes at once (automatic, from your cores and free memory; short or light exports stay in one), the video is
+  encoded by an NVIDIA card's NVENC when there is one and it pays (otherwise x264), and the code layers of a project
+  render side by side instead of one after another. The Deliver page has Encoder and Render processes controls
+  (`--encoder`, `--jobs` on `manim-studio render`), shows which code layer is rendering, and reports how the video was
+  made. The five-minute angular momentum example's frame stage went from 255 s to 128 s on the development machine.
 - **Stage tools and layer visibility.** Select, Hand, Text, Shape and Anchor tools sit in a vertical rail;
   click to place text or a circle, drag with Hand to pan, or drag the selected anchor. Each layer has a
   saved eye toggle that hides it (and, for groups, its descendants) in preview and renders.

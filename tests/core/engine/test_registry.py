@@ -118,6 +118,8 @@ def _other(param: Param, image) -> object:
         return min(value, param.maximum) if param.maximum is not None else value
     if param.kind == "int":
         return param.default + 1
+    if param.kind == "colour":
+        return "#ff0000" if str(param.default).lower() != "#ff0000" else "#00ff00"
     if param.kind == "choice":
         return next(c for c in param.choices if c != param.default)
     if param.kind == "point":
@@ -134,8 +136,16 @@ def _other(param: Param, image) -> object:
 def _signature(mob) -> np.ndarray:
     if hasattr(mob, "pixel_array"):
         return np.asarray(mob.pixel_array, dtype=float).ravel()[:400]
-    points = [sub.points for sub in mob.family_members_with_points()]
-    return np.concatenate([np.concatenate(points).ravel(), [mob.width, mob.height]])
+    members = mob.family_members_with_points()
+    points = [sub.points for sub in members]
+    # the stroke too: a grid's colour, opacity and width change how it is drawn, not where
+    looks = [
+        np.concatenate(
+            [np.ravel(getattr(sub, "stroke_rgbas", [])), np.ravel(getattr(sub, "stroke_width", 0))]
+        )
+        for sub in members
+    ]
+    return np.concatenate([np.concatenate(points).ravel(), [mob.width, mob.height], *looks])
 
 
 @pytest.mark.parametrize(("type_name", "param"), ALL_PARAMS)

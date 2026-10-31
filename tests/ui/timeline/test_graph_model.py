@@ -42,7 +42,15 @@ def posed() -> Project:
 
 
 def test_a_curve_per_value_and_a_locked_graph_offers_opacity_only() -> None:
-    assert [c.name for c in gm.curves_for(posed().layer("a"))] == ["x", "y", "scale", "rotation", "opacity"]
+    assert [c.name for c in gm.curves_for(posed().layer("a"))] == [
+        "x",
+        "y",
+        "scale",
+        "scale_x",
+        "scale_y",
+        "rotation",
+        "opacity",
+    ]
     graph = Project(
         layers=[
             Layer(id="axes", spec=Spec(type="Axes")),
@@ -54,6 +62,8 @@ def test_a_curve_per_value_and_a_locked_graph_offers_opacity_only() -> None:
         "curve_x",
         "curve_y",
         "curve_scale",
+        "curve_width",
+        "curve_height",
         "curve_rotation",
         "curve_opacity",
     }

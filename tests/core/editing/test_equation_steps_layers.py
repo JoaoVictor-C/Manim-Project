@@ -44,18 +44,13 @@ def test_one_mathtex_per_step_named_and_placed_with_morphs_back_to_back() -> Non
         ("Write", 0.5, 1.0, None),
         (REPLACING, 2.0, 1.0, two.id),
     ]
-    assert [(c.kind, c.start, c.duration, c.to_layer) for c in two.clips] == [
-        (REPLACING, 3.5, 1.0, three.id)
-    ]
+    assert [(c.kind, c.start, c.duration, c.to_layer) for c in two.clips] == [(REPLACING, 3.5, 1.0, three.id)]
     assert three.clips == []
     assert report.layer_ids == (one.id, two.id, three.id)
     assert report.transitions == (REPLACING, REPLACING) and report.end == 4.5
     assert report.summary() == "Added 3 steps, 2 Transform morphs"
     assert all(
-        clip.params == {"match": "smart"}
-        for root in (one, two)
-        for clip in root.clips
-        if clip.to_layer
+        clip.params == {"match": "smart"} for root in (one, two) for clip in root.clips if clip.to_layer
     )
     # Lifetimes come from the clips alone (ADR 0005): each step only in its own window.
     assert edit.project.lifetime(one.id) == (0.5, 3.0)

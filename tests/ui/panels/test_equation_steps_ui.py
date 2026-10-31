@@ -219,11 +219,7 @@ def test_the_steps_wait_for_the_worker_then_are_one_undo_step_and_selected(panel
     roots = panel.project.roots()
     assert [r.name for r in roots] == ["", "Step 1", "Step 2"]
     one, two = roots[1:]
-    assert (
-        one.clips[0].start == 0.5
-        and one.clips[1].to_layer == two.id
-        and one.clips[1].kind == REPLACING
-    )
+    assert one.clips[0].start == 0.5 and one.clips[1].to_layer == two.id and one.clips[1].kind == REPLACING
     assert [p.part.tex for p in panel.project.children(two.id)] == ["+ 1", "+ 1"]
     assert panel.selected_ids() == [two.id, one.id]  # both new objects (front first)
     stack = panel.document.undo_stack

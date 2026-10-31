@@ -970,3 +970,21 @@ system must back with RAM or the page file - and the **working set**, what is re
   too (`tests/test_editor_lifetime.py`).
 - **CPU while idle:** the welcome page 29.5% of a core before, 20.5% once it has settled, 0% after 90 s of rest;
   a project page 0.4-2%.
+
+### B75 - Parallel export and GPU encoding · 2026-10-31
+Core 5 210H (4P + 4E cores, 12 threads), RTX 4050 Laptop, PyAV 19 (NVENC listed, QSV and AMF do not open).
+
+- **Encoders on Cairo frames** (ms a frame; processor time in brackets): 1080p x264 crf 18 18.5 (37), NVENC from
+  RGBA 6.9 (6.5); 4K x264 74 (133), NVENC 24 (21). Same picture: crf 18 / cq 28 within 0.5 dB and 5 % in size on
+  `angular_momentum` and `showcase`. The first NVENC session of a process costs one to three seconds.
+- **Frames drawn by several processes** (`angular_momentum` real frames, code layers cached, 1,500 frames, no
+  encoder): 1 process 66 frames/s, 3 processes 107, 6 processes 86 (per-process cost 15, 24, 40 ms a frame). Light
+  scenes (euler, graphs) plateau at 2-4 processes. The farm's frames decode bit for bit equal to the serial export
+  (8 cold-cache rounds, 3 processes).
+- **Whole project, 1080p, `--trust-code`:** cold serial 448 s (about 230 s of it the seven code layers one after
+  another). With the layers cached, frame stage: `--jobs 1 --encoder cpu` 255 s; automatic (farm + NVENC) 128 s,
+  17.0 MB against 18.5 MB.
+- **Free win:** `render_hash` tokenized every code layer's source for every frame (3.6 ms of 8.4 ms in the profile);
+  it is memoized.
+- **Not measured yet:** the cold export with the code layers rendered side by side end to end (the baseline above is
+  the serial one).

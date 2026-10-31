@@ -142,10 +142,10 @@ def test_the_twirl_expands_a_row_into_one_sub_row_per_keyable_property(view, qt_
     height = view.scene().sceneRect().height()
     twirl(view, "b")
     assert view.expanded == {"b"}
-    assert view.sub_rows("b") == ("position", "scale", "rotation", "opacity")
+    assert view.sub_rows("b") == ("position", "scale", "scale_x", "scale_y", "rotation", "opacity")
     tops = [view.prop_row_top("b", p) for p in view.sub_rows("b")]
-    assert tops == [view.row_top("b") + ROW_HEIGHT + i * SUB_ROW_HEIGHT for i in range(4)]
-    grown = 4 * SUB_ROW_HEIGHT
+    assert tops == [view.row_top("b") + ROW_HEIGHT + i * SUB_ROW_HEIGHT for i in range(6)]
+    grown = 6 * SUB_ROW_HEIGHT
     assert view.clip_item("a", "c1").rect().y() == below + grown  # the rows under it move down
     assert view.scene().sceneRect().height() == height + grown
     assert view.header_width == WIDE_HEADER_WIDTH and view.header.width() == WIDE_HEADER_WIDTH

@@ -25,9 +25,7 @@ def test_folder_edits_keep_empty_folders_and_code_assignments_serializable() -> 
 
     restored = Project.model_validate_json(current.model_dump_json(by_alias=True))
     assert restored.code_folders == {"Scenes": ["code", "python"]}
-    assert edits.move_code_layer_to_folder(restored, "code").project.code_folders == {
-        "Scenes": ["python"]
-    }
+    assert edits.move_code_layer_to_folder(restored, "code").project.code_folders == {"Scenes": ["python"]}
 
     emptied = edits.delete_code_folder(restored, "Scenes").project
     assert emptied.code_folders == {}

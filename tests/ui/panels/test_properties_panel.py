@@ -504,7 +504,7 @@ def test_labels_sit_inside_number_fields_and_the_title_shows_the_kind(panel) -> 
 def test_the_transform_diamond_shows_and_sets_keyframes(panel) -> None:
     panel.show_layer("ball")  # its scale is keyed
     button, toggles = panel._section_keys
-    assert button.isChecked() and len(toggles) == 4
+    assert button.isChecked() and len(toggles) == 6
     menu = button.menu()
     menu.aboutToShow.emit()
     actions = {a.text(): a for a in menu.actions()}
