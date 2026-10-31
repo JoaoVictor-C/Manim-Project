@@ -62,7 +62,16 @@ def window(qt_app, tmp_path):
     win.load(path)
     win.show_page("animate")
     win.selection.select_layer("s")
-    qt_app.processEvents()
+    # the panels finish laying out over a few event-loop passes; the graph rescales with its width,
+    # so the tests start from a settled window (their pixel positions are measured once)
+    width, steady = -1, 0
+    for _ in range(30):
+        qt_app.processEvents()
+        now = win.pages.pages["animate"].graph.width()
+        steady = steady + 1 if now == width else 0
+        width = now
+        if steady >= 5:
+            break
     yield win
     win.close()
 
@@ -125,7 +134,15 @@ def test_animate_is_the_second_page_with_the_viewer_properties_graph_and_timelin
 
 def test_curves_of_the_selected_layer_and_a_locked_graph_offers_opacity_only(window, qt_app) -> None:
     g = graph(window)
-    assert [c.name for c in g.curves()] == ["x", "y", "scale", "rotation", "opacity"]
+    assert [c.name for c in g.curves()] == [
+        "x",
+        "y",
+        "scale",
+        "scale_x",
+        "scale_y",
+        "rotation",
+        "opacity",
+    ]
     assert {p.curve for p in g.points()} == {"x", "y", "rotation"}
     assert not hasattr(window.pages.pages["animate"], "checks")  # no five-checkbox legend (P7.3)
     window.selection.select_layer("g")

@@ -93,7 +93,7 @@ def test_the_buttons_exist_and_have_tips(window) -> None:
         code.new_button,
     ):
         assert button.isVisibleTo(code.widget) and button.toolTip()
-    assert set(code.new_actions) == {"layer", "object", "helper", "file"}
+    assert set(code.new_actions) == {"folder", "layer", "object", "helper", "file"}
     assert all(action.toolTip() for action in code.new_actions.values())
 
 
@@ -217,6 +217,7 @@ def test_the_new_menu_offers_each_kind_and_runs_it(window, monkeypatch) -> None:
     monkeypatch.setattr(code.helper_actions, "new_helper", lambda: calls.append("helper"))
     monkeypatch.setattr(code, "add_code_file", lambda: calls.append("file"))
     assert [a.text() for a in code.new_menu.actions() if a.text()] == [
+        "Folder...",
         "Code layer (a Manim scene)",
         "Python object",
         "Python object from a preset",

@@ -56,7 +56,14 @@ def test_key_move_ease_and_delete_one_property(window, qt_app) -> None:
 
     # 1. the twirl opens the square's property rows; nothing is edited
     twirl(timeline, "sq")
-    assert timeline.sub_rows("sq") == ("position", "scale", "rotation", "opacity")
+    assert timeline.sub_rows("sq") == (
+        "position",
+        "scale",
+        "scale_x",
+        "scale_y",
+        "rotation",
+        "opacity",
+    )
     assert stack.count() == 0
 
     # 2. the rotation row's diamond keys rotation at the playhead: at 0 s, then at 2 s
@@ -105,7 +112,15 @@ def test_key_move_ease_and_delete_one_property(window, qt_app) -> None:
     assert window.document.project.layer("sq").tracks["rotation"][0].ease != Easing(name="ease_out_back")
 
     # 6. choosing the rotation row shows only its curve
-    assert [c.name for c in graph.curves()] == ["x", "y", "scale", "rotation", "opacity"]
+    assert [c.name for c in graph.curves()] == [
+        "x",
+        "y",
+        "scale",
+        "scale_x",
+        "scale_y",
+        "rotation",
+        "opacity",
+    ]
     click_header(timeline, 60, sub_y(timeline, "sq", "rotation"))
     assert [c.name for c in graph.curves()] == ["rotation"]
 

@@ -167,8 +167,10 @@ def test_the_master_strip_and_the_chip_follow_the_playhead(make_window, qt_app) 
 
 class FakeExport(QObject):
     progress = Signal(int, int)
+    stage = Signal(str)
     finished = Signal(str, str)
     failed = Signal(str)
+    how = ""  # what encoded and how many processes drew (the real job's summary)
     instances: ClassVar[list] = []
 
     def __init__(self, project, output, cache_dir, *, trust_code=False, options=None, parent=None):

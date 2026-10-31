@@ -48,6 +48,13 @@ def graph(layer_id: str = "g", spec: Spec = SIN, **fields) -> Layer:
 
 def manim_axes() -> m.Axes:
     axes = m.Axes(x_range=[-5, 5, 1], y_range=[-3, 3, 1], x_length=10, y_length=6)
+    # the editor's Axes draw a grid behind them by default (a line at every whole number but 0)
+    grid = m.VGroup(
+        *(m.Line(axes.c2p(x, -3), axes.c2p(x, 3)) for x in range(-5, 6) if x),
+        *(m.Line(axes.c2p(-5, y), axes.c2p(5, y)) for y in range(-3, 4) if y),
+    )
+    grid.set_stroke(color="#64748B", width=1.0, opacity=0.35)
+    axes.add_to_back(grid)
     axes.move_to(m.ORIGIN)
     return axes
 
@@ -124,7 +131,14 @@ def test_a_graph_is_locked_to_its_axes_but_can_fade() -> None:
         graph(tracks={"rotation": [Keyframe(t=0, value=0.0)]})
     faded = graph(tracks={"opacity": [Keyframe(t=0, value=1.0), Keyframe(t=1, value=0.2)]})
     assert keyable_props(faded) == ("opacity",)
-    assert keyable_props(Layer(id="axes", spec=AXES)) == ("position", "scale", "rotation", "opacity")
+    assert keyable_props(Layer(id="axes", spec=AXES)) == (
+        "position",
+        "scale",
+        "scale_x",
+        "scale_y",
+        "rotation",
+        "opacity",
+    )
 
 
 def test_a_graph_may_morph_but_not_overlap_its_axes_clips() -> None:

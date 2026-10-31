@@ -98,7 +98,8 @@ class CanvasWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumSize(320, 180)
+        # 270 + the Stage's tool rail (44 px) and its gap (6) = the old 320 px stage minimum
+        self.setMinimumSize(270, 180)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAcceptDrops(True)  # code from the Code workspace, .py files (P12.7)
         self.drop_point: QPointF | None = None  # where dragged code would land, widget pixels

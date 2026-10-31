@@ -127,7 +127,7 @@ def test_a_sync_with_every_row_expanded_stays_constant_in_scans(qt_app, scans) -
         view.document.apply(edit, "Scene length")  # the timeline syncs on the new snapshot
         counts.append(total(calls))
     few, many = counts
-    assert len(big.layout().subs[0]) == 4
+    assert len(big.layout().subs[0]) == 6  # position, scale, width, height, rotation, opacity
     assert many == few and many <= 10, counts
     reset()
     big.show()

@@ -192,7 +192,7 @@ class MainWindow(QMainWindow):
             icons.icon("play")
         )  # (drawn by the button itself; kept as its accessible icon)
         self.play_button.clicked.connect(self.toggle_play)
-        self.time_label = ElidedLabel("0.00 s", minimum=110)  # shortened, not cut, in a narrow window
+        self.time_label = ElidedLabel("0.00 s", minimum=84)  # shortened, not cut, in a narrow window
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.time_label.setFont(theme.font("caption", kind="mono"))
         self.time_label.setProperty("role", "hint")
