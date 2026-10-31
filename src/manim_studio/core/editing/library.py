@@ -346,23 +346,27 @@ def _relative(prop: str, value: float | Vec2, first: float | Vec2) -> float | Ve
 # -- themes -------------------------------------------------------------------------------------------
 
 _TEXTS = TEXT_TYPES | NUMBER_TYPES | {"AxisLabels", "GraphLabel"}
-_LINES = {
-    "Graph",
-    "Line",
-    "DashedLine",
-    "Arrow",
-    "DoubleArrow",
-    "Vector",
-    "CurvedArrow",
-    "CurvedDoubleArrow",
-    "Arc",
-    "ArcBetweenPoints",
-    "CubicBezier",
-    "Polyline",
-    "Angle",
-    "RightAngle",
-    "BraceBetweenPoints",
-} | CONNECTOR_TYPES | TRACE_TYPES  # drawn in the accent colour
+_LINES = (
+    {
+        "Graph",
+        "Line",
+        "DashedLine",
+        "Arrow",
+        "DoubleArrow",
+        "Vector",
+        "CurvedArrow",
+        "CurvedDoubleArrow",
+        "Arc",
+        "ArcBetweenPoints",
+        "CubicBezier",
+        "Polyline",
+        "Angle",
+        "RightAngle",
+        "BraceBetweenPoints",
+    }
+    | CONNECTOR_TYPES
+    | TRACE_TYPES
+)  # drawn in the accent colour
 _MARKS = {"Point", "Area", "RiemannRectangles"}  # filled shapes on axes, in the accent
 _COORDINATES = {"Axes", "NumberLine", "NumberPlane", "ComplexPlane", "PolarPlane", "ThreeDAxes"}
 _SHAPES = {

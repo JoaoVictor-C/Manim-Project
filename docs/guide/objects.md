@@ -41,14 +41,18 @@ more points or custom construction logic. Regular polygons expose their side cou
 polygons expose their point count and density. Arcs use radians for their start and sweep angles.
 Drag a selected object's point handles to move editable vertices and control points directly.
 Python objects can opt in by declaring `HANDLES = {"Tip": ("x", "y")}` beside `PARAMS`; each
-entry names a visible handle and the two numeric parameter names used for its coordinates. Object
-plugins can mark a geometry point with `Param(..., point_handle=True)`.
+entry names a visible handle and the two numeric parameter names used for its coordinates. A
+2D `point` parameter can be exposed directly with `HANDLES = {"Center": "center"}`. Dragging
+either handle edits the declared values and observes their bounds. Object plugins can mark a
+geometry point with `Param(..., point_handle=True)`.
 
-The **Python objects** submenu adds ready-to-edit objects built with Manim code. **Matrix** has
-editable row/column counts and cell values; **Grid** has adjustable rows, columns and dimensions;
-**Labeled vector** has editable components and a symbol. **Orbital satellite** demonstrates named
-`HANDLES` for the planet centre, orbit extent and satellite position. The **Code** item remains
-available for a whole custom Manim scene.
+In the Layers panel, **Add object > Python objects** adds ready-to-edit objects built with Manim
+code. **Matrix** has editable row/column counts and cell values; **Grid** has adjustable rows,
+columns and dimensions; **Labeled vector** has editable components and a symbol. **Orbital
+satellite** demonstrates named handles, while **Rich controls demo** shows typed fields, units,
+bounds, choices, a point field and both point and paired-coordinate canvas handles. Select it,
+change its fields in Properties, and drag **Planet center** or **Satellite** on the canvas. The
+**Code** item remains available for a whole custom Manim scene.
 
 ### Text and equations
 
@@ -195,6 +199,23 @@ The rules:
   `(default, minimum, maximum)` (all ints make an integer field). `PARAMS` is read **without
   running the code**, so it must be written with plain values only - no expressions or names.
   A file with no `PARAMS` has no parameters.
+- To choose richer controls, use a literal descriptor with `type` and `default`. Supported types
+  are `float`, `int`, `bool`, `text`, `colour` (or `color`), `choice` and `point`. For example:
+
+  ```python
+  PARAMS = {
+      "radius": {"type": "float", "default": 2.0, "min": 0.2, "max": 5.0, "step": 0.1, "unit": "m"},
+      "style": {"type": "choice", "default": "solid", "choices": ("solid", "dashed")},
+      "center": {"type": "point", "default": (0.0, 0.0), "min": -5.0, "max": 5.0, "unit": "m"},
+  }
+  HANDLES = {"Center": "center"}
+  ```
+
+  `min` and `max` are inclusive bounds; for a point they apply to both coordinates. `step` sets
+  the field and Shift-drag increment. `unit` appears beside number and point controls, and `label`
+  changes the displayed name. A `choice` needs distinct text options and a default among them.
+  Descriptor values are also plain literals, so Properties can build the controls without running
+  the object code.
 - `build(p)` gets the defaults overridden by your values and must return a Manim **VMobject**
   (a shape, a text, a `VGroup`) - not an image. The result is centred; Style and Transform apply
   on top.

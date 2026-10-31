@@ -164,8 +164,7 @@ def move_code_layer_to_folder(project: Project, layer_id: str, folder: str = "")
     if folder and folder not in project.code_folders:
         raise EditError(f"no folder named {folder!r}")
     folders = {
-        name: [key for key in members if key != layer_id]
-        for name, members in project.code_folders.items()
+        name: [key for key in members if key != layer_id] for name, members in project.code_folders.items()
     }
     if folder:
         folders[folder].append(layer_id)
@@ -995,9 +994,9 @@ def set_params(project: Project, layer_id: str, params: dict[str, Any], shift: A
 
 
 def set_python_values(
-    project: Project, layer_id: str, values: dict[str, float], shift: Any = (0.0, 0.0)
+    project: Project, layer_id: str, values: dict[str, Any], shift: Any = (0.0, 0.0)
 ) -> Edit:
-    """Change numeric ``PARAMS`` values on a Python object, preserving its other values and position."""
+    """Change Python ``PARAMS`` values from Properties or canvas handles, preserving position."""
     layer = _layer(project, layer_id)
     if layer.spec is None or layer.spec.type != "Python":
         raise EditError(f"layer {layer_id!r} is not a Python object")
@@ -1663,11 +1662,7 @@ def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> E
 
 def _replace_layers(project: Project, layers: list[Layer]) -> Edit:
     # Unchanged layers are reused as-is; the project-level validator still runs.
-    code_layer_ids = {
-        layer.id
-        for layer in layers
-        if layer.spec is not None and layer.spec.type in RUNS_CODE
-    }
+    code_layer_ids = {layer.id for layer in layers if layer.spec is not None and layer.spec.type in RUNS_CODE}
     folders = {
         name: [layer_id for layer_id in layer_ids if layer_id in code_layer_ids]
         for name, layer_ids in project.code_folders.items()

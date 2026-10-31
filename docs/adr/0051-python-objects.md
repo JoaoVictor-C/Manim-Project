@@ -25,6 +25,10 @@ code lives in the project.
   `(default, minimum, maximum)`. A non-literal `PARAMS` is an error at its line. Values must
   be of the declared type, within the limits and name a declared parameter (file format
   check); code that cannot be read is accepted and shows its error. Code is at most 64 KB.
+- A parameter may instead use a literal descriptor with an explicit type and default. It can
+  set `min`, `max`, `step`, `unit`, `label`, and choices; types are float, int, bool, text,
+  colour, choice, and 2D point. `HANDLES` maps labels to point parameters or pairs of numeric
+  parameters; canvas dragging edits those values within their declared bounds.
 - **Trust is the code layers' trust** (ADR 0019): the same sha256 store, the same prompt when
   opening a file (it lists Python objects with code layers), code applied on the Code page or
   added from the starter is trusted, `--trust-code` trusts everything in that process, and an

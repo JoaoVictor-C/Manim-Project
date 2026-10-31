@@ -593,8 +593,12 @@ class MoveTool(QObject):
         shift_by = np.zeros(2)
         if handle.python_names is not None:
             values = dict(spec.params.get("values") or {})
-            for name, coordinate in zip(handle.python_names, value, strict=True):
-                values[name] = coordinate
+            updates = (
+                {handle.python_names[0]: value}
+                if len(handle.python_names) == 1
+                else dict(zip(handle.python_names, value, strict=True))
+            )
+            values.update(updates)
             moved = spec.model_copy(update={"params": {**spec.params, "values": values}})
         else:
             moved = spec.model_copy(update={"params": {**spec.params, handle.param: value}})
@@ -617,7 +621,7 @@ class MoveTool(QObject):
             edit = edits.set_python_values(
                 drag.base,
                 drag.layer_id,
-                dict(zip(handle.python_names, value, strict=True)),
+                updates,
                 tuple(shift_by),
             )
         else:
@@ -728,9 +732,7 @@ class MoveTool(QObject):
         ppu = self.canvas.px_per_unit()
         layer = self.project.layer(self.selection.layer_id)
         independent = self.canvas.show_edit_handles and not layer.is_group
-        return handle_at(
-            outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu, independent=independent
-        )
+        return handle_at(outline.box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu, independent=independent)
 
     # -- the motion path (ADR 0026) ------------------------------------------------
 

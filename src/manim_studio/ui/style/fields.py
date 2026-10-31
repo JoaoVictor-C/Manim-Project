@@ -355,10 +355,20 @@ class FloatField(Field):
 
 
 class IntField(Field):
-    def __init__(self, on_commit: Commit, minimum: int = 0, maximum: int = 1000) -> None:
+    def __init__(
+        self,
+        on_commit: Commit,
+        minimum: int = 0,
+        maximum: int = 1000,
+        suffix: str = "",
+        step: int = 1,
+    ) -> None:
         super().__init__(on_commit)
         box = ScrubSpinBox()
         box.setRange(minimum, maximum)
+        if suffix:
+            box.set_unit(suffix.strip())
+        box.setSingleStep(step)
         box.setKeyboardTracking(False)
         box.valueChanged.connect(self.commit)
         self.widget = box
@@ -538,9 +548,17 @@ class ChoiceField(Field):
 
 
 class PointField(Field):
-    """An (x, y) pair: two number fields labelled X and Y inside, side by side."""
+    """An (x, y) pair with optional shared limits and a unit."""
 
-    def __init__(self, on_commit: Commit, step: float = 0.1) -> None:
+    def __init__(
+        self,
+        on_commit: Commit,
+        step: float = 0.1,
+        minimum: float = -1000.0,
+        maximum: float = 1000.0,
+        suffix: str = "",
+        decimals: int = 3,
+    ) -> None:
         super().__init__(on_commit)
         widget = QWidget()
         layout = QHBoxLayout(widget)
@@ -548,11 +566,13 @@ class PointField(Field):
         layout.setSpacing(2 * theme.SPACE)
         self.x, self.y = ScrubDoubleSpinBox(), ScrubDoubleSpinBox()
         for box, label in ((self.x, "X"), (self.y, "Y")):
-            box.setRange(-1000, 1000)
-            box.setDecimals(3)
+            box.setRange(minimum, maximum)
+            box.setDecimals(decimals)
             box.setSingleStep(step)
             box.setKeyboardTracking(False)
             box.set_label(label)
+            if suffix:
+                box.set_unit(suffix.strip())
             box.valueChanged.connect(lambda _v: self.commit((self.x.value(), self.y.value())))
             layout.addWidget(box, 1)
         self.widget = widget
@@ -732,9 +752,9 @@ class SliderField(Field):
         super().__init__(on_commit)
         box = SliderBox(minimum, maximum)
         box.slider.valueChanged.connect(
-            lambda _v: None
-            if box.slider.isSliderDown() and not self._scrub_preview
-            else self.commit(box.value())
+            lambda _v: (
+                None if box.slider.isSliderDown() and not self._scrub_preview else self.commit(box.value())
+            )
         )
         box.slider.sliderReleased.connect(lambda: self.commit(box.value()))
         self.widget = box

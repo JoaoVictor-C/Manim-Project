@@ -1,8 +1,10 @@
 """The Parameters tab of the Code page (P13.4): define a Python object's parameters with a form.
 
 A table of what the editor's ``PARAMS`` declares - name, default, minimum, maximum - that can be edited
-in place (double-click a cell), with Add, Rename, Remove and Change for the rest. Every change goes
-through ``params_edit.edit_params`` on the **editor's text** (not the applied code): only the
+in place (double-click a cell), with Add, Rename, Remove and Change for the rest. Typed descriptors
+show their parsed type and metadata in the name tooltip; edit those declarations in the code editor.
+Every form change goes through ``params_edit.edit_params`` on the **editor's text** (not the applied
+code): only the
 ``PARAMS`` entry being changed is rewritten, the new text replaces the editor's as one step of the
 editor's own undo, and nothing is applied - Run is still the decision. Why a change cannot be made
 (``ParamsEditError.reason``) shows under the table.
@@ -36,6 +38,7 @@ from PySide6.QtWidgets import (
 
 from ...core.assist import diagnostics, params_edit
 from ...core.assist.params_edit import AddParam, ChangeParam, ParamsEditError, RemoveParam, RenameParam
+from ...core.code import python_object
 from . import code_chrome  # noqa: F401 - the stylesheet rules of the status line
 from .dialog_frame import DialogFrame
 
@@ -70,13 +73,41 @@ def rows_of(source: str) -> list[ParamRow]:
     layout = params_edit.read_layout(source)
     if layout is None:
         return []
+    try:
+        declared = {param.name: param for param in python_object.read_params(source)}
+    except python_object.CodeProblem:
+        declared = {}
     out = []
     for entry in layout.entries:
         try:
             value = ast.literal_eval(entry.value_text)
         except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
             value = None
-        if isinstance(value, tuple) and len(value) == 3 and all(_is_number(v) for v in value):
+        if isinstance(value, dict) and entry.key in declared:
+            param = declared[entry.key]
+            details = [f"Type: {param.kind}"]
+            if param.unit:
+                details.append(f"Unit: {param.unit}")
+            if param.label:
+                details.append(f"Label: {param.label}")
+            if param.step is not None:
+                details.append(f"Step: {param.step:g}")
+            if param.choices:
+                details.append("Choices: " + ", ".join(param.choices))
+            if entry.comment:
+                details.append(entry.comment)
+            out.append(
+                ParamRow(
+                    entry.key,
+                    param.default,
+                    param.minimum,
+                    param.maximum,
+                    " · ".join(details),
+                    False,
+                    show_value(param.default),
+                )
+            )
+        elif isinstance(value, tuple) and len(value) == 3 and all(_is_number(v) for v in value):
             out.append(
                 ParamRow(entry.key, value[0], value[1], value[2], entry.comment, True, entry.value_text)
             )
@@ -316,7 +347,7 @@ class ParamsDefinitionPanel(QWidget):
                     item = QTableWidgetItem(text)
                     if not row.plain and column != NAME:
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                        item.setToolTip("Not a plain value: edit it in the code")
+                        item.setToolTip("Structured parameter: edit its type and metadata in the code")
                     elif column == NAME and row.comment:
                         item.setToolTip(row.comment)
                     if (

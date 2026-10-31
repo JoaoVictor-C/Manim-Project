@@ -221,6 +221,32 @@ that is missing or unreadable is silent.
   when trusted on this computer; otherwise, or when the code fails, it is the dashed
   placeholder with the reason.
 
+  A parameter can instead use a descriptor to choose its editor and metadata:
+
+  ```python
+  PARAMS = {
+      "radius": {"type": "float", "default": 2.0, "min": 0.2, "max": 5.0, "step": 0.1, "unit": "m", "label": "Radius"},
+      "sides": {"type": "int", "default": 6, "min": 3, "max": 12},
+      "style": {"type": "choice", "default": "solid", "choices": ("solid", "dashed")},
+      "center": {"type": "point", "default": (0.0, 0.0), "min": -5.0, "max": 5.0, "unit": "m"},
+      "offset_x": {"type": "float", "default": 0.0, "unit": "m"},
+      "offset_y": {"type": "float", "default": 0.0, "unit": "m"},
+      "visible": {"type": "bool", "default": True},
+      "caption": {"type": "text", "default": "Orbit"},
+      "colour": {"type": "colour", "default": "#38bdf8"},
+  }
+  HANDLES = {"Center": "center", "Anchor": ("offset_x", "offset_y")}
+  ```
+
+  Descriptor types are `float`, `int`, `bool`, `text`, `colour` (also `color`), `choice` and
+  `point`. `min`/`max` are inclusive numeric bounds; for a point they apply to both coordinates.
+  `step` sets the numeric field's increment. `unit` is shown next to numeric and point fields,
+  and `label` replaces the parameter's display name. A `choice` needs a non-empty tuple or list
+  of distinct text values, including its default. All descriptor values are plain literals.
+  `HANDLES` is optional: each label may target one `point` parameter by name, or a pair of
+  `float`/`int` parameter names. Dragging a canvas handle updates the value and respects its
+  declared bounds. The older `PARAMS` values and paired `HANDLES` declarations remain supported.
+
   ```json
   { "type": "Python", "params": { "code": "PARAMS = {\"side\": (3.0, 0.5, 8.0)}\n\ndef build(p):\n    return Square(side_length=p[\"side\"])\n", "values": { "side": 2.0 } } }
   ```

@@ -1110,6 +1110,7 @@ def _construct(spec) -> str:
         length = float(spec.params.get("length", adapter._param_default("RightAngle", "length")))
         return f"RightAngle({first}, {second}, length={_num(length)})"
     if spec.type == "NumberLine":
+
         def number_line(name: str):
             return spec.params.get(name, adapter._param_default("NumberLine", name))
 
@@ -1119,6 +1120,7 @@ def _construct(spec) -> str:
             "include_numbers=False)"
         )
     if spec.type == "NumberPlane":
+
         def number_plane(name: str):
             return spec.params.get(name, adapter._param_default("NumberPlane", name))
 

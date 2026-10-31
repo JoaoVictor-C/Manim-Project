@@ -80,7 +80,7 @@ class ParamHandle:
     maximum: float | None = None
     other: tuple[float, float] | None = None  # a line end: the other end's value (Shift turns about it)
     point_control: bool = False  # a draggable geometry point, not a size or connector offset
-    python_names: tuple[str, str] | None = None  # Python object's x/y PARAMS names
+    python_names: tuple[str, ...] | None = None  # Python object's point param or x/y PARAMS names
     label: str | None = None
     display_offset: tuple[float, float] | None = None  # visual clearance from the transform side handles
     point_whole: tuple[bool, bool] | None = None  # Python point coordinates declared as integer params
@@ -89,6 +89,7 @@ class ParamHandle:
     range_end: int | None = None  # which end of an Axes range this handle edits
     minimum_span: float = 0.01
     reference: np.ndarray | None = None  # anchored value: its zero point in the object's frame
+    unit: str = ""
 
     @property
     def world(self) -> np.ndarray:
@@ -101,11 +102,10 @@ class ParamHandle:
 
     @property
     def title(self) -> str:
-        if self.label:
-            return self.label
-        return {"side_length": "side", "outer_radius": "radius", "font_size": "size"}.get(
+        title = self.label or {"side_length": "side", "outer_radius": "radius", "font_size": "size"}.get(
             self.param, self.param.replace("_offset", "").replace("_", " ")
         )
+        return f"{title} ({self.unit})" if self.unit else title
 
 
 def _param(type_name: str, name: str) -> adapter.Param:
@@ -190,7 +190,18 @@ def object_handles(
         code = str(spec.params.get("code", ""))
         values = python_object.call_values(code, dict(spec.params.get("values") or {}))
         for declared in python_object.read_handles(code):
-            start = (float(values[declared.x]), float(values[declared.y]))
+            if declared.point is not None:
+                start = tuple(float(coordinate) for coordinate in values[declared.point])
+                names = (declared.point,)
+                minimum = (declared.point_minimum, declared.point_minimum)
+                maximum = (declared.point_maximum, declared.point_maximum)
+                whole = (False, False)
+            else:
+                start = (float(values[declared.x]), float(values[declared.y]))
+                names = (declared.x, declared.y)
+                minimum = (declared.x_minimum, declared.y_minimum)
+                maximum = (declared.x_maximum, declared.y_maximum)
+                whole = (declared.x_kind == "int", declared.y_kind == "int")
             out.append(
                 ParamHandle(
                     declared.label,
@@ -200,13 +211,14 @@ def object_handles(
                     start,
                     "point",
                     np.zeros(2),
-                    step=POINT_STEP,
+                    step=declared.step,
                     point_control=True,
-                    python_names=(declared.x, declared.y),
+                    python_names=names,
                     label=declared.label,
-                    point_whole=(declared.x_kind == "int", declared.y_kind == "int"),
-                    point_minimum=(declared.x_minimum, declared.y_minimum),
-                    point_maximum=(declared.x_maximum, declared.y_maximum),
+                    point_whole=whole,
+                    point_minimum=minimum,
+                    point_maximum=maximum,
+                    unit=declared.unit,
                 )
             )
     else:

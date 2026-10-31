@@ -726,6 +726,7 @@ class Transition:
     gone: tuple[str, ...]  # runs of the first step that are not in the second
     skipped: tuple[tuple[str, str], ...] = ()  # new runs that cannot be parts, and why
 
+
 def pieces(tex: str, nodes: list[Node] | None = None) -> tuple[list[Piece], list[tuple[Node, int, int]]]:
     """``tex`` flattened in reading order, and each node with its range of pieces."""
     nodes = parse(tex) if nodes is None else nodes

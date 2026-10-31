@@ -734,10 +734,15 @@ class LayersPanel(QWidget):
             for library_section, types in adapter.LIBRARY:
                 if sections is not None and library_section not in sections:
                     continue
-                if label == "More" and library_section in built_in_sections and library_section not in {
-                    "Simulation",
-                    "Python",
-                }:
+                if (
+                    label == "More"
+                    and library_section in built_in_sections
+                    and library_section
+                    not in {
+                        "Simulation",
+                        "Python",
+                    }
+                ):
                     continue
                 visible_types = types
                 if text_kind == "plain" and library_section == "Text":
@@ -941,9 +946,7 @@ class LayersPanel(QWidget):
         if type_name in CODE_TYPES:
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene
         self._select_new = True
-        self._submit(
-            partial(add_placed, spec=spec, t=self.playhead(), position=position), f"Add {type_name}"
-        )
+        self._submit(partial(add_placed, spec=spec, t=self.playhead(), position=position), f"Add {type_name}")
 
     def add_python_object(self, code: str | None = None) -> None:
         """A Python object (ADR 0051), from a template (the right triangle by default): made on the

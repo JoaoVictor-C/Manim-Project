@@ -301,11 +301,7 @@ class CodeExplorer(QTreeWidget):
         """The text of each row of ``section`` as shown (marks included)."""
         for top in self._tops():
             if top.data(0, KEY_ROLE) == section:
-                return [
-                    item.text(0)
-                    for item in self._children(top)
-                    if item.data(0, KEY_ROLE) is not None
-                ]
+                return [item.text(0) for item in self._children(top) if item.data(0, KEY_ROLE) is not None]
         return []
 
     def _tops(self) -> list[QTreeWidgetItem]:
@@ -546,9 +542,7 @@ class CodeExplorer(QTreeWidget):
 
     def dragEnterEvent(self, event) -> None:
         payload = code_drag.decode(event.mimeData())
-        if (payload is not None and payload["from"] == "layer") or code_drag.python_files(
-            event.mimeData()
-        ):
+        if (payload is not None and payload["from"] == "layer") or code_drag.python_files(event.mimeData()):
             event.acceptProposedAction()
         else:
             event.ignore()

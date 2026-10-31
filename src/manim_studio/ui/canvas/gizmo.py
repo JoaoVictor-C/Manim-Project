@@ -104,9 +104,7 @@ def affine_box(points: np.ndarray, pivot, a, b, min_size: float = 0.0) -> Box:
     return Box(world, pivot, rotation)
 
 
-def handle_at(
-    box: Box, p, grab: float, knob_offset: float, independent: bool = True
-) -> Handle | None:
+def handle_at(box: Box, p, grab: float, knob_offset: float, independent: bool = True) -> Handle | None:
     """The knob, corner or (when enabled) side midpoint within ``grab`` of ``p``."""
     p = np.asarray(p, float)
     if np.linalg.norm(p - box.knob(knob_offset)) <= grab:

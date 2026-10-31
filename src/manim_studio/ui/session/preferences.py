@@ -18,11 +18,14 @@ import json
 import math
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QSettings, QStandardPaths
 
-from ..canvas.viewport import View
 from .editor_settings import EditorSettings, from_json, to_json
+
+if TYPE_CHECKING:  # the canvas is a layer above; a view is only built here, from what was saved
+    from ..canvas.viewport import View
 
 MAX_RECENT = 10
 FILE_NAME = "manim-studio.ini"
@@ -172,6 +175,8 @@ class Preferences:
 
     def canvas_view(self, path: str | Path) -> View | None:
         """The last canvas framing for a project file, if it was saved and is valid."""
+        from ..canvas.viewport import View
+
         raw = self._settings.value(f"canvas_views/{_canvas_view_key(path)}", "")
         try:
             data = json.loads(str(raw))

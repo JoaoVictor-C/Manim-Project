@@ -466,9 +466,7 @@ class CanvasWidget(QWidget):
         clear = CLEAR_OF_MIDDLE_PX / self.px_per_unit()
         middles = (np.asarray(self.outline.anchor), self.outline.box.centre)
         return [
-            h
-            for h in found
-            if h.point_control or min(np.linalg.norm(h.world - c) for c in middles) >= clear
+            h for h in found if h.point_control or min(np.linalg.norm(h.world - c) for c in middles) >= clear
         ]
 
     def rest_points(self, spec) -> np.ndarray:

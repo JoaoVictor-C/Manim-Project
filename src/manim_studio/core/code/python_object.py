@@ -8,12 +8,12 @@ The source defines, at top level::
     def build(p):
         return Polygon(...)  # a Manim VMobject
 
-``PARAMS`` maps each parameter to its default; the default's type is the parameter's type
-(a float, an int, True/False, text, or a colour when the text is ``#rgb``/``#rrggbb``). A
-number may be ``(default, minimum, maximum)``. ``PARAMS`` is read from the source **without
-running it** (``ast.literal_eval``), so Properties lists the parameters of code that has not
-run - code from an opened file runs only once the user trusts it (ADR 0019). ``build(p)`` gets
-the defaults overridden by the spec's ``values``.
+``PARAMS`` maps each parameter to a default, or to a literal descriptor such as
+``{"type": "float", "default": 2.0, "min": 0.1, "max": 8.0, "unit": "m"}``. Descriptors
+can also set labels, steps and choices. ``PARAMS`` is read from the source **without running
+it** (``ast.literal_eval``), so Properties lists the parameters of code that has not run -
+code from an opened file runs only once the user trusts it (ADR 0019). ``build(p)`` gets the
+defaults overridden by the spec's ``values``.
 
 This module reads ``PARAMS``, checks values against it, keeps the values that still fit when
 the code changes, decides whether code may run on this computer (the trust store of code
@@ -45,19 +45,20 @@ TIME_LIMIT = 30.0
 NOT_TRUSTED = "code not trusted yet"
 TIMED_OUT = "building took longer than"  # how a stopped build's message starts
 
-PyKind = Literal["float", "int", "bool", "text", "colour"]
+PyKind = Literal["float", "int", "bool", "text", "colour", "choice", "point"]
 
 STARTER = '''# A Python object: build(p) returns a Manim object that the editor moves, styles and
 # animates like any other. Apply (Ctrl+Enter) builds it; errors show at their line.
 #
-# PARAMS become fields in Properties. They are read without running the code, so use
-# plain values: numbers, text, True/False or a colour like "#ff0000". A number may be
-# (default, minimum, maximum). Manim is imported (from manim import *), with numpy as
-# np and math. build(p) must draw the same thing every time for the same p.
+# PARAMS become fields in Properties. Use plain defaults, numeric (default, min, max)
+# tuples, or descriptors with type, default, min, max, unit, label and step. Choices and
+# 2D points are supported too.
+# HANDLES maps canvas labels to a point parameter or a pair of numeric parameter names.
+# Manim is imported (from manim import *), with numpy as np and math.
 
 PARAMS = {
-    "angle": (30.0, 5.0, 85.0),  # the acute angle at the end of the base, in degrees
-    "side": (3.0, 0.5, 8.0),  # the length of the base
+    "angle": (30.0, 5.0, 85.0),  # in degrees
+    "side": (3.0, 0.5, 8.0),  # in scene units
 }
 
 
@@ -84,9 +85,33 @@ class PyParam:
     default: Any
     minimum: float | None = None
     maximum: float | None = None
+    label: str = ""
+    unit: str = ""
+    step: float | None = None
+    choices: tuple[str, ...] = ()
 
     def check(self, value: Any) -> str | None:
         """Why ``value`` cannot be this parameter's value, or None."""
+        if self.kind == "point":
+            if (
+                not isinstance(value, (tuple, list))
+                or len(value) != 2
+                or not all(_is_number(v) for v in value)
+            ):
+                return "a point with two finite numbers"
+            low = -math.inf if self.minimum is None else self.minimum
+            high = math.inf if self.maximum is None else self.maximum
+            if any(not low <= coordinate <= high for coordinate in value):
+                if self.minimum is not None and self.maximum is not None:
+                    return f"a point with coordinates from {self.minimum:g} to {self.maximum:g}"
+                if self.minimum is not None:
+                    return f"a point with coordinates at least {self.minimum:g}"
+                return f"a point with coordinates at most {self.maximum:g}"
+            return None
+        if self.kind == "choice":
+            if isinstance(value, str) and value in self.choices:
+                return None
+            return "one of " + ", ".join(self.choices)
         if self.kind == "bool":
             return None if isinstance(value, bool) else "True or False"
         if self.kind == "colour":
@@ -101,7 +126,11 @@ class PyParam:
         low = -math.inf if self.minimum is None else self.minimum
         high = math.inf if self.maximum is None else self.maximum
         if not low <= value <= high:
-            return f"a number from {self.minimum:g} to {self.maximum:g}"
+            if self.minimum is not None and self.maximum is not None:
+                return f"a number from {self.minimum:g} to {self.maximum:g}"
+            if self.minimum is not None:
+                return f"a number at least {self.minimum:g}"
+            return f"a number at most {self.maximum:g}"
         return None
 
 
@@ -235,6 +264,8 @@ def _targets(node: ast.Assign | ast.AnnAssign) -> list[ast.expr]:
 def _param(name: Any, default: Any) -> PyParam:
     if not isinstance(name, str) or not name.isidentifier():
         raise ValueError(f"PARAMS: {name!r} is not a valid parameter name (use letters, digits and _)")
+    if isinstance(default, dict):
+        return _descriptor(name, default)
     if isinstance(default, tuple):
         if len(default) != 3 or not all(_is_number(v) for v in default):
             raise ValueError(
@@ -260,6 +291,92 @@ def _param(name: Any, default: Any) -> PyParam:
     raise ValueError(
         f"PARAMS[{name!r}]: {type(default).__name__} is not a parameter type "
         "(use a number, text, True/False or a colour)"
+    )
+
+
+def _descriptor(name: str, descriptor: dict[Any, Any]) -> PyParam:
+    """Read a literal parameter descriptor; no user expression is evaluated."""
+    allowed = {"type", "default", "min", "max", "unit", "label", "step", "choices"}
+    unknown = set(descriptor) - allowed
+    if unknown:
+        keys = ", ".join(map(str, sorted(unknown, key=str)))
+        raise ValueError(f"PARAMS[{name!r}]: unknown descriptor keys: {keys}")
+    if "type" not in descriptor or "default" not in descriptor:
+        raise ValueError(f"PARAMS[{name!r}]: a descriptor needs 'type' and 'default'")
+    kind = descriptor["type"]
+    kind = "colour" if kind == "color" else kind
+    if kind not in ("float", "int", "bool", "text", "colour", "choice", "point"):
+        raise ValueError(f"PARAMS[{name!r}]: unsupported type {kind!r}")
+    value = descriptor["default"]
+    low, high = descriptor.get("min"), descriptor.get("max")
+    unit, label, step = descriptor.get("unit", ""), descriptor.get("label", ""), descriptor.get("step")
+    choices_value = descriptor.get("choices", ())
+    if kind != "choice" and "choices" in descriptor:
+        raise ValueError(f"PARAMS[{name!r}]: 'choices' only fits the choice type")
+    if not isinstance(unit, str) or not isinstance(label, str):
+        raise ValueError(f"PARAMS[{name!r}]: 'unit' and 'label' must be text")
+    if kind in ("float", "int", "point"):
+        for bound, key in ((low, "min"), (high, "max")):
+            if bound is not None and not _is_number(bound):
+                raise ValueError(f"PARAMS[{name!r}]: {key!r} must be a finite number")
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"PARAMS[{name!r}]: 'min' must not exceed 'max'")
+        if step is not None and (not _is_number(step) or step <= 0):
+            raise ValueError(f"PARAMS[{name!r}]: 'step' must be a positive finite number")
+        if kind == "int" and any(
+            bound is not None and not float(bound).is_integer() for bound in (low, high)
+        ):
+            raise ValueError(f"PARAMS[{name!r}]: integer limits must be whole numbers")
+        if kind == "int" and step is not None and not float(step).is_integer():
+            raise ValueError(f"PARAMS[{name!r}]: an integer 'step' must be a whole number")
+    elif low is not None or high is not None or step is not None:
+        raise ValueError(f"PARAMS[{name!r}]: limits and steps only fit numeric and point parameters")
+    if unit and kind not in ("float", "int", "point"):
+        raise ValueError(f"PARAMS[{name!r}]: 'unit' only fits numeric and point parameters")
+    if kind == "float":
+        if not _is_number(value):
+            raise ValueError(f"PARAMS[{name!r}]: a float default must be a finite number")
+        value = float(value)
+    elif kind == "int":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"PARAMS[{name!r}]: an int default must be a whole number")
+    elif kind == "bool":
+        if not isinstance(value, bool):
+            raise ValueError(f"PARAMS[{name!r}]: a bool default must be True or False")
+    elif kind == "text":
+        if not isinstance(value, str):
+            raise ValueError(f"PARAMS[{name!r}]: a text default must be text")
+    elif kind == "colour":
+        if not is_colour(value):
+            raise ValueError(f"PARAMS[{name!r}]: a colour default must look like '#ff0000'")
+    elif kind == "choice":
+        if (
+            not isinstance(choices_value, (tuple, list))
+            or not choices_value
+            or not all(isinstance(choice, str) for choice in choices_value)
+        ):
+            raise ValueError(f"PARAMS[{name!r}]: a choice needs a non-empty list of text 'choices'")
+        if len(set(choices_value)) != len(choices_value) or value not in choices_value:
+            raise ValueError(f"PARAMS[{name!r}]: the default must be one of its distinct choices")
+        choices_value = tuple(choices_value)
+    elif kind == "point":
+        if not isinstance(value, (tuple, list)) or len(value) != 2 or not all(_is_number(v) for v in value):
+            raise ValueError(f"PARAMS[{name!r}]: a point default must be a pair of finite numbers")
+        value = tuple(float(v) for v in value)
+    if kind in ("float", "int", "point"):
+        coordinates = value if kind == "point" else (value,)
+        if any((low is not None and v < low) or (high is not None and v > high) for v in coordinates):
+            raise ValueError(f"PARAMS[{name!r}]: the default must be within its 'min' and 'max'")
+    return PyParam(
+        name,
+        kind,
+        value,
+        low,
+        high,
+        label,
+        unit,
+        float(step) if step is not None else None,
+        tuple(choices_value),
     )
 
 
@@ -324,14 +441,20 @@ class PyHandle:
     x_maximum: float | None = None
     y_minimum: float | None = None
     y_maximum: float | None = None
+    point: str | None = None
+    point_minimum: float | None = None
+    point_maximum: float | None = None
+    unit: str = ""
+    step: float = 0.25
 
 
 @lru_cache(maxsize=256)
 def read_handles(code: str) -> tuple[PyHandle, ...]:
-    """Read optional ``HANDLES = {label: (x_param, y_param)}`` without running user code.
+    """Read ``HANDLES = {label: (x_param, y_param)}`` or ``{label: point_param}`` safely.
 
-    Only coordinates backed by numeric ``PARAMS`` are accepted. Invalid or incomplete declarations
-    simply provide no handles, so editing a half-written object never executes or breaks its code.
+    Pair coordinates must be backed by numeric ``PARAMS``; a string target must be a point parameter.
+    Invalid or incomplete declarations simply provide no handles, so editing a half-written object
+    never executes or breaks its code.
     """
     try:
         tree = ast.parse(code, FILENAME)
@@ -352,20 +475,52 @@ def read_handles(code: str) -> tuple[PyHandle, ...]:
         return ()
     if not isinstance(declared, dict):
         return ()
+    by_name = {param.name: param for param in params}
     numeric = {param.name: param for param in params if param.kind in ("float", "int")}
     out = []
-    for label, pair in declared.items():
+    for label, target in declared.items():
+        if not isinstance(label, str) or not label.strip():
+            return ()
+        if isinstance(target, str):
+            point = by_name.get(target)
+            if point is None or point.kind != "point":
+                return ()
+            out.append(
+                PyHandle(
+                    label,
+                    target,
+                    target,
+                    "float",
+                    "float",
+                    point=target,
+                    point_minimum=point.minimum,
+                    point_maximum=point.maximum,
+                    unit=point.unit,
+                    step=point.step or 0.25,
+                )
+            )
+            continue
         if (
-            not isinstance(label, str)
-            or not label.strip()
-            or not isinstance(pair, (tuple, list))
-            or len(pair) != 2
-            or not all(isinstance(name, str) and name in numeric for name in pair)
+            not isinstance(target, (tuple, list))
+            or len(target) != 2
+            or not all(isinstance(name, str) and name in numeric for name in target)
         ):
             return ()
-        x, y = numeric[pair[0]], numeric[pair[1]]
+        x, y = numeric[target[0]], numeric[target[1]]
         out.append(
-            PyHandle(label, x.name, y.name, x.kind, y.kind, x.minimum, x.maximum, y.minimum, y.maximum)
+            PyHandle(
+                label,
+                x.name,
+                y.name,
+                x.kind,
+                y.kind,
+                x.minimum,
+                x.maximum,
+                y.minimum,
+                y.maximum,
+                unit=x.unit if x.unit == y.unit else "",
+                step=x.step if x.step is not None and x.step == y.step else 0.25,
+            )
         )
     return tuple(out)
 

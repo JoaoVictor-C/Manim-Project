@@ -56,16 +56,29 @@ _BS = chr(92)
 PALETTE = {
     "Basic": (
         *((str(number), str(number)) for number in range(10)),
-        ("+", "+"), ("−", "-"), ("×", _BS + "times "), ("÷", _BS + "div "), ("=", "="),
-        ("≠", _BS + "neq "), ("<", "<"), (">", ">"), ("≤", _BS + "leq "), ("≥", _BS + "geq "),
+        ("+", "+"),
+        ("−", "-"),
+        ("×", _BS + "times "),
+        ("÷", _BS + "div "),
+        ("=", "="),
+        ("≠", _BS + "neq "),
+        ("<", "<"),
+        (">", ">"),
+        ("≤", _BS + "leq "),
+        ("≥", _BS + "geq "),
         ("( )", _BS + "left(" + _BS + "right)", len(_BS + "left(")),
-        ("π", _BS + "pi "), ("∞", _BS + "infty "), ("±", _BS + "pm "),
-        ("·", _BS + "cdot "), (",", ","), (".", "."),
+        ("π", _BS + "pi "),
+        ("∞", _BS + "infty "),
+        ("±", _BS + "pm "),
+        ("·", _BS + "cdot "),
+        (",", ","),
+        (".", "."),
     ),
     "Letters": tuple((letter, letter) for letter in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"),
     "Structure": (
         ("a⁄b", _BS + "frac{}{}", len(_BS + "frac{")),
-        ("xⁿ", "^{}", 2), ("xₙ", "_{}", 2),
+        ("xⁿ", "^{}", 2),
+        ("xₙ", "_{}", 2),
         ("√", _BS + "sqrt{}", len(_BS + "sqrt{")),
         ("ⁿ√", _BS + "sqrt[]{}", len(_BS + "sqrt[")),
         ("( )", _BS + "left(" + _BS + "right)", len(_BS + "left(")),
@@ -73,13 +86,27 @@ PALETTE = {
         ("| |", _BS + "left|" + _BS + "right|", len(_BS + "left|")),
         ("{ }", _BS + "left" + _BS + "{" + _BS + "right" + _BS + "}", len(_BS + "left" + _BS + "{")),
         ("x̅", _BS + "overline{}", len(_BS + "overline{")),
-        ("→", _BS + "rightarrow "), ("↔", _BS + "leftrightarrow "), ("…", _BS + "ldots "),
+        ("→", _BS + "rightarrow "),
+        ("↔", _BS + "leftrightarrow "),
+        ("…", _BS + "ldots "),
     ),
     "Functions": (
-        *((name, _BS + name + _BS + "left(" + _BS + "right)", len(_BS + name + _BS + "left("))
-          for name in (
-              "sin", "cos", "tan", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "ln", "log"
-          )),
+        *(
+            (name, _BS + name + _BS + "left(" + _BS + "right)", len(_BS + name + _BS + "left("))
+            for name in (
+                "sin",
+                "cos",
+                "tan",
+                "arcsin",
+                "arccos",
+                "arctan",
+                "sinh",
+                "cosh",
+                "tanh",
+                "ln",
+                "log",
+            )
+        ),
         ("logₐ", _BS + "log_{}{}", len(_BS + "log_{")),
         (
             "log₁₀",
@@ -91,7 +118,8 @@ PALETTE = {
             _BS + "log_{2}" + _BS + "left(" + _BS + "right)",
             len(_BS + "log_{2}" + _BS + "left("),
         ),
-        ("exp", "e^{}", 3), ("lim", _BS + "lim_{x" + _BS + "to} ", len(_BS + "lim_{x" + _BS + "to")),
+        ("exp", "e^{}", 3),
+        ("lim", _BS + "lim_{x" + _BS + "to} ", len(_BS + "lim_{x" + _BS + "to")),
         ("Σ", _BS + "sum_{}^{}", len(_BS + "sum_{")),
         ("∫", _BS + "int_{}^{}", len(_BS + "int_{")),
         ("d/dx", _BS + "frac{d}{dx}", len(_BS + "frac{d}{d")),
@@ -101,9 +129,18 @@ PALETTE = {
     "Greek": tuple(
         (symbol, _BS + name + " ")
         for symbol, name in (
-            ("α", "alpha"), ("β", "beta"), ("γ", "gamma"), ("δ", "delta"),
-            ("ε", "epsilon"), ("θ", "theta"), ("λ", "lambda"), ("μ", "mu"),
-            ("ρ", "rho"), ("σ", "sigma"), ("φ", "phi"), ("ω", "omega"),
+            ("α", "alpha"),
+            ("β", "beta"),
+            ("γ", "gamma"),
+            ("δ", "delta"),
+            ("ε", "epsilon"),
+            ("θ", "theta"),
+            ("λ", "lambda"),
+            ("μ", "mu"),
+            ("ρ", "rho"),
+            ("σ", "sigma"),
+            ("φ", "phi"),
+            ("ω", "omega"),
         )
     ),
 }
@@ -116,7 +153,7 @@ class _EquationPreview(QWidget):
         super().__init__(parent)
         self.setMinimumHeight(120)
         self.paths: list[QPainterPath] = []
-        self.colour = "#ffffff"
+        self.colour = equation_steps.BASE_COLOUR
         self.message = "Type LaTeX or use the symbol keyboard to preview an equation."
 
     def show_message(self, text: str) -> None:
@@ -274,8 +311,7 @@ class EquationStepsDialog(QDialog):
         for function in FUNCTIONS.values():
             self.operation.addItem(function.label, function.name)
         self.operation.setToolTip(
-            "Apply an algebra operation or function to both sides of the last line "
-            "(or the selected step)"
+            "Apply an algebra operation or function to both sides of the last line (or the selected step)"
         )
         self.term = QLineEdit()
         self.term.setToolTip("The term the operation uses: what to add, the factor, or symbol = value")
@@ -728,9 +764,7 @@ class EquationStepsDialog(QDialog):
     def _step_line_indices(lines: list[str]) -> list[int]:
         """Map visible steps to their lines while leaving source comments in place."""
         return [
-            index
-            for index, line in enumerate(lines)
-            if line.strip() and not line.strip().startswith("%")
+            index for index, line in enumerate(lines) if line.strip() and not line.strip().startswith("%")
         ]
 
     @staticmethod
@@ -767,9 +801,7 @@ class EquationStepsDialog(QDialog):
         can_edit_sequence = index is not None and not self._equation_dirty
         self.move_step_up.setEnabled(can_edit_sequence and index > 0)
         self.move_step_down.setEnabled(can_edit_sequence and index + 1 < len(self.steps))
-        self.duplicate_step.setEnabled(
-            can_edit_sequence and len(self.steps) < equation_steps.MAX_STEPS
-        )
+        self.duplicate_step.setEnabled(can_edit_sequence and len(self.steps) < equation_steps.MAX_STEPS)
         self.delete_step.setEnabled(can_edit_sequence)
 
     def move_selected_step(self, delta: int) -> bool:
@@ -941,9 +973,7 @@ class EquationStepsDialog(QDialog):
         if name == "ln":
             self.operation_hint.setText("Natural logarithms require positive inputs.")
         elif name in ("log", "log10", "log2"):
-            self.operation_hint.setText(
-                "Logs need positive inputs and a positive base other than 1."
-            )
+            self.operation_hint.setText("Logs need positive inputs and a positive base other than 1.")
         elif name in ("sin", "cos", "tan"):
             self.operation_hint.setText(
                 "These functions are periodic, so applying one can introduce extra solutions."
@@ -970,9 +1000,7 @@ class EquationStepsDialog(QDialog):
                 self._say(f"Cannot derive from this line: {error}", error=True)
                 return False
             committed = (
-                self.update_composed_line()
-                if self._editing_step is not None
-                else self.add_composed_line()
+                self.update_composed_line() if self._editing_step is not None else self.add_composed_line()
             )
             if not committed:
                 self._say("Finish the edited equation before deriving from it.", error=True)
@@ -1080,9 +1108,7 @@ class EquationStepsDialog(QDialog):
     def _summarise(self, waiting: int) -> None:
         n = len(self.steps)
         if n == 0:
-            self._say(
-                "Type an equation with LaTeX or the symbol palette, then add it as a step."
-            )
+            self._say("Type an equation with LaTeX or the symbol palette, then add it as a step.")
             self._set_ok(False)
             return
         if self.problems:

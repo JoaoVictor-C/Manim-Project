@@ -231,6 +231,133 @@ def build(p):
     )
 """
 
+RICH_CONTROLS = r"""# Try the different Python object controls in Properties and on the canvas.
+# Drag Planet center (a point parameter) and Satellite (a pair of numeric parameters).
+# Adjust the typed fields to see their units, bounds, choices and defaults in action.
+
+PARAMS = {
+    "center": {
+        "type": "point",
+        "default": (0.0, 0.0),
+        "min": -3.5,
+        "max": 3.5,
+        "step": 0.25,
+        "unit": "u",
+        "label": "Planet center",
+    },
+    "satellite_x": {
+        "type": "float",
+        "default": 2.8,
+        "min": -6.0,
+        "max": 6.0,
+        "step": 0.25,
+        "unit": "u",
+    },
+    "satellite_y": {
+        "type": "float",
+        "default": 0.0,
+        "min": -6.0,
+        "max": 6.0,
+        "step": 0.25,
+        "unit": "u",
+    },
+    "orbit_radius": {
+        "type": "float",
+        "default": 2.8,
+        "min": 0.8,
+        "max": 4.5,
+        "step": 0.1,
+        "unit": "u",
+        "label": "Orbit radius",
+    },
+    "tilt": {
+        "type": "float",
+        "default": 18.0,
+        "min": -70.0,
+        "max": 70.0,
+        "step": 1.0,
+        "unit": "°",
+        "label": "Orbit tilt",
+    },
+    "planet_radius": {
+        "type": "float",
+        "default": 0.62,
+        "min": 0.25,
+        "max": 1.2,
+        "step": 0.05,
+        "unit": "u",
+    },
+    "moon_count": {
+        "type": "int",
+        "default": 4,
+        "min": 1,
+        "max": 8,
+        "step": 1,
+        "label": "Orbit markers",
+    },
+    "orbit_style": {
+        "type": "choice",
+        "default": "Dashed",
+        "choices": ("Dashed", "Solid"),
+    },
+    "show_orbit": {"type": "bool", "default": True, "label": "Show orbit"},
+    "caption": {"type": "text", "default": "KEPLER-01", "label": "Planet label"},
+    "accent": {"type": "colour", "default": "#38bdf8", "label": "Accent colour"},
+}
+
+HANDLES = {
+    "Planet center": "center",
+    "Satellite": ("satellite_x", "satellite_y"),
+}
+
+
+def build(p):
+    center = np.array([p["center"][0], p["center"][1], 0.0])
+    satellite = np.array([p["satellite_x"], p["satellite_y"], 0.0])
+    radius = float(p["orbit_radius"])
+    planet_radius = float(p["planet_radius"])
+    tilt = math.radians(float(p["tilt"]))
+    cosine, sine = math.cos(tilt), math.sin(tilt)
+
+    orbit = Ellipse(width=2 * radius, height=1.1 * radius)
+    orbit.rotate(tilt).move_to(center)
+    orbit.set_stroke(color=p["accent"], width=2, opacity=0.75)
+    if p["orbit_style"] == "Dashed":
+        orbit = DashedVMobject(orbit, num_dashes=56)
+        orbit.set_stroke(color=p["accent"], width=2, opacity=0.8)
+
+    marker_group = VGroup()
+    for index in range(int(p["moon_count"])):
+        angle = 2 * PI * index / int(p["moon_count"])
+        x = radius * math.cos(angle)
+        y = 0.55 * radius * math.sin(angle)
+        offset = np.array([x * cosine - y * sine, x * sine + y * cosine, 0.0])
+        marker = Dot(center + offset, radius=0.055, color=p["accent"])
+        marker_group.add(marker)
+
+    halo = Circle(radius=planet_radius * 1.28, stroke_width=1.5, color=p["accent"])
+    halo.set_fill(color=p["accent"], opacity=0.08).move_to(center)
+    planet = Circle(radius=planet_radius, stroke_width=2, color="#bae6fd")
+    planet.set_fill(color="#0f3b63", opacity=1).move_to(center)
+    core = Circle(radius=planet_radius * 0.23, stroke_width=0, color=p["accent"])
+    core.set_fill(color=p["accent"], opacity=0.9).move_to(center + LEFT * planet_radius * 0.2)
+
+    link = DashedLine(center, satellite, dash_length=0.08)
+    link.set_stroke(color="#94a3b8", width=1.3, opacity=0.65)
+    satellite_ring = Circle(radius=0.2, stroke_width=1.5, color=p["accent"])
+    satellite_ring.set_fill(color="#082f49", opacity=1).move_to(satellite)
+    satellite_core = Dot(satellite, radius=0.055, color="#f8fafc")
+
+    parts = [halo, planet, core, link, satellite_ring, satellite_core]
+    if p["show_orbit"]:
+        parts.extend((orbit, marker_group))
+    if p["caption"]:
+        label = Text(p["caption"], font_size=18, color="#e2e8f0")
+        label.next_to(center, DOWN, buff=planet_radius + 0.15)
+        parts.append(label)
+    return VGroup(*parts)
+"""
+
 TEMPLATES: dict[str, str] = {
     "Right triangle": python_object.STARTER,
     "Matrix": MATRIX,
@@ -243,4 +370,5 @@ LAYER_TEMPLATES: dict[str, str] = {
     "Grid": GRID,
     "Labeled vector": LABELED_VECTOR,
     "Orbital satellite": ORBITAL_SATELLITE,
+    "Rich controls demo": RICH_CONTROLS,
 }

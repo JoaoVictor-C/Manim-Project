@@ -975,9 +975,7 @@ class PropertiesPanel(QWidget):
                     continue
                 if inner:
                     field.set_label(inner[0])
-                description = (
-                    (inner[0] if inner else label) or path.rsplit(".", 1)[-1].replace("_", " ")
-                )
+                description = (inner[0] if inner else label) or path.rsplit(".", 1)[-1].replace("_", " ")
                 self._wire_field_preview(field, description)
                 main.append(field)
             inside = bool(label) and len(main) == 1 and len(cells[0]) == 2 and main[0].set_label(label)
@@ -1634,14 +1632,38 @@ def _clip_param_field(param: ClipParam, commit: Callable[[Any], None]) -> Field:
 
 def _param_field(param: Param, commit: Callable[[Any], None]) -> Field:
     if param.kind == "float":
-        decimals = 0 if param.step >= 1 else 2 if param.step >= 0.05 else 3
-        return FloatField(commit, param.minimum or 0.0, param.maximum or 1e4, param.step, decimals)
+        if param.precision is not None:
+            decimals = param.precision
+        elif param.step >= 1:
+            decimals = 0
+        elif param.step >= 0.05:
+            decimals = 2
+        else:
+            decimals = 3
+        minimum = 0.0 if param.minimum is None else param.minimum
+        maximum = 1e4 if param.maximum is None else param.maximum
+        return FloatField(commit, minimum, maximum, param.step, decimals, suffix=param.unit)
     if param.kind == "int":
-        return IntField(commit, int(param.minimum or 0), int(param.maximum or 1000))
+        minimum = 0 if param.minimum is None else int(param.minimum)
+        maximum = 1000 if param.maximum is None else int(param.maximum)
+        return IntField(
+            commit,
+            minimum,
+            maximum,
+            suffix=param.unit,
+            step=max(1, int(param.step)) if param.step else 1,
+        )
     if param.kind == "choice":
         return ChoiceField(commit, [(c.capitalize(), c) for c in param.choices])
     if param.kind == "point":
-        return PointField(commit)
+        return PointField(
+            commit,
+            param.step,
+            -1000.0 if param.minimum is None else param.minimum,
+            1000.0 if param.maximum is None else param.maximum,
+            param.unit,
+            param.precision if param.precision is not None else 3,
+        )
     if param.kind == "bool":  # a Python object's True/False (ADR 0051)
         return BoolField(commit)
     if param.kind == "colour":

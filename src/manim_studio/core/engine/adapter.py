@@ -299,6 +299,8 @@ class Param:
     multiline: bool = False  # long text (LaTeX) gets a text box
     file_filter: str = ""  # path params: the file dialog's filter (blank = images)
     point_handle: bool = False  # this point-valued parameter is a draggable geometry point
+    unit: str = ""  # shown beside numeric values when it adds useful context
+    precision: int | None = None  # decimal places needed to show a Python object's declared step
 
     @property
     def title(self) -> str:
@@ -931,11 +933,64 @@ def python_params(spec: Spec) -> tuple[Param, ...]:
             low = p.minimum if p.minimum is not None else -1e6
             high = p.maximum if p.maximum is not None else 1e6
             span = high - low if p.minimum is not None and p.maximum is not None else 10.0
-            step = 1.0 if p.kind == "int" else 10 ** math.floor(math.log10(span / 100)) if span > 0 else 0.1
-            out.append(Param(p.name, p.kind, p.default, minimum=low, maximum=high, step=max(step, 0.001)))
+            if p.step is not None:
+                step = p.step
+            else:
+                step = (
+                    1.0 if p.kind == "int" else 10 ** math.floor(math.log10(span / 100)) if span > 0 else 0.1
+                )
+                step = max(step, 0.001)
+            out.append(
+                Param(
+                    p.name,
+                    p.kind,
+                    p.default,
+                    label=p.label,
+                    minimum=low,
+                    maximum=high,
+                    step=step,
+                    choices=p.choices,
+                    unit=p.unit,
+                    precision=(
+                        _python_precision(p.default, step)
+                        if p.kind == "float" and p.step is not None
+                        else None
+                    ),
+                )
+            )
+        elif p.kind == "point":
+            low = p.minimum if p.minimum is not None else -1e6
+            high = p.maximum if p.maximum is not None else 1e6
+            out.append(
+                Param(
+                    p.name,
+                    "point",
+                    p.default,
+                    label=p.label,
+                    minimum=low,
+                    maximum=high,
+                    step=p.step or 0.1,
+                    unit=p.unit,
+                    precision=_python_precision(p.default, p.step) if p.step is not None else None,
+                )
+            )
+        elif p.kind == "choice":
+            out.append(Param(p.name, "choice", p.default, label=p.label, choices=p.choices))
         else:
-            out.append(Param(p.name, p.kind, p.default))
+            out.append(Param(p.name, p.kind, p.default, label=p.label))
     return tuple(out)
+
+
+def _python_precision(default: Any, step: float | None) -> int:
+    """Enough spinner decimals to retain a descriptor's default and increment, capped at 8."""
+    values = (default, step) if isinstance(default, (int, float)) else (*default, step)
+    places = []
+    for value in values:
+        if value is None or isinstance(value, bool):
+            continue
+        shown = f"{float(value):.8f}".rstrip("0").rstrip(".")
+        places.append(len(shown.partition(".")[2]))
+    return min(8, max(places, default=0))
 
 
 def python_problem(spec: Spec, signature: str | None = None) -> CodeProblem | None:
