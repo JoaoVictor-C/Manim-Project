@@ -40,6 +40,7 @@ times are seconds.
 | `tracks` | `{property: Keyframe[]}` | `position`, `scale`, `scale_x`, `scale_y`, `rotation`, `opacity` |
 | `clips` | Clip[] | must not overlap in time (validated) |
 | `style` | `{"fill": c, ...}` | part layers only, optional (left out when empty): the colours of the part's glyphs, the keys of a Spec's `style` (ADR 0049) |
+| `pin` | `{"target": id, "anchor": side, ...}` | Text, MathTex and Tex objects only, optional (left out when not pinned): the label sits by the `anchor` side (`top`, `bottom`, `left`, `right`, `centre`) of the target's drawing at every frame, its position being the offset; `follow_rotation` / `follow_scale` (left out when false) turn and scale it with the target (ADR 0075) |
 
 **Lifetime inference:** visible from the start of the first clip if it is an
 introducer (Create, Write, FadeIn, …), else from 0 — or from the end of the

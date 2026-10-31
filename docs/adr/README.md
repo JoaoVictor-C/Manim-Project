@@ -103,3 +103,4 @@ need one.
 | [0072](0072-camera-layer.md) | Camera layer: the view pans, zooms and rolls by one layer's keys | Accepted |
 | [0073](0073-visual-beat-sheet.md) | Visual beat sheet: the video beat by beat between the markers, with pictures and a Markdown copy | Accepted |
 | [0074](0074-layout-guides.md) | Layout guides: lines on the canvas that moves snap to, never drawn in the video | Accepted |
+| [0075](0075-pinned-labels.md) | Pinned labels: a label follows an object through every move, at a fixed offset | Accepted |

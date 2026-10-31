@@ -281,6 +281,7 @@ class MainWindow(QMainWindow):
         self.properties.edit_code = self.edit_code
         self.properties.freeze = self.freeze_layer
         self.layers.freeze = self.freeze_layer
+        self.layers.unpin_position = self._unpin_position  # Unpin leaves the label where it is (ADR 0075)
         self.properties.code_ends = lambda: self.evaluator.code_ends() if self.evaluator is not None else []
         self.code.statusChanged.connect(self.properties.refresh_code_status)
         self.code.rendered.connect(self._on_code_rendered)
@@ -1358,6 +1359,12 @@ class MainWindow(QMainWindow):
         (group_id,) = {x.id for x in edit.project.layers} - {x.id for x in self.project.layers}
         self.document.apply(edit, "Group")
         self.selection.select_layer(group_id)
+
+    def _unpin_position(self, layer_id: str) -> tuple[float, float] | None:
+        """Where an unpinned label stays: where it is drawn at the playhead (ADR 0075)."""
+        if self.evaluator is None or layer_id not in {x.id for x in self.project.layers}:
+            return None
+        return self.evaluator.unpinned_position(self.project.layer(layer_id), self.t)
 
     def freeze_layer(self, layer_id: str | None = None) -> bool:
         """Edit > Freeze to Shape (ADR 0052): the object (default: the selected one) becomes plain

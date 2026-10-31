@@ -9,6 +9,7 @@ adding a MathTex or a part never freezes the UI and each action is one undo step
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 
 from pydantic import ValidationError
@@ -27,6 +28,8 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QKeySequence, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -66,6 +69,7 @@ from ...core.model.schema import (
     GLYPH_COLOURS,
     MEDIA_TYPES,
     PART_PARENT_TYPES,
+    PIN_ANCHORS,
     RASTER_TYPES,
     TEXT_TYPES,
     TRACE_TYPES,
@@ -369,6 +373,79 @@ class PartDialog(QDialog):
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(ok)
 
 
+@dataclass(frozen=True)
+class PinRequest:
+    """What Pin to... asks for (ADR 0075)."""
+
+    target: str
+    anchor: str = "top"
+    follow_rotation: bool = False
+    follow_scale: bool = False
+
+
+_ANCHOR_LABELS = {"top": "Above", "bottom": "Below", "left": "Left of", "right": "Right of", "centre": "On"}
+
+
+class PinDialog(QDialog):
+    """Pin a label to another layer (ADR 0075): which layer, on which side, and whether it turns and grows
+    with it."""
+
+    def __init__(self, project: Project, label_id: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        label = project.layer(label_id)
+        self.setWindowTitle("Pin label")
+        self.target = QComboBox()
+        for target in project.pin_targets(label_id):
+            self.target.addItem(target.label, target.id)
+        self.anchor = QComboBox()
+        for anchor in PIN_ANCHORS:
+            self.anchor.addItem(_ANCHOR_LABELS[anchor], anchor)
+        self.follow_rotation = QCheckBox("Turn with it")
+        self.follow_scale = QCheckBox("Grow and shrink with it")
+        if label.pin is not None:  # Pin to... on a pinned label edits its pin
+            self.target.setCurrentIndex(max(0, self.target.findData(label.pin.target)))
+            self.anchor.setCurrentIndex(self.anchor.findData(label.pin.anchor))
+            self.follow_rotation.setChecked(label.pin.follow_rotation)
+            self.follow_scale.setChecked(label.pin.follow_scale)
+        hint = QLabel(
+            "The label follows the object through every move, upright and its own size unless you choose "
+            "otherwise. Moving the label on the canvas changes how far it sits from its place."
+            if self.target.count()
+            else "There is nothing this label can be pinned to."
+        )
+        hint.setWordWrap(True)
+        hint.setProperty("role", "muted")
+        form = QFormLayout()
+        form.addRow(f"Pin {label.label!r} to:", self.target)
+        form.addRow("Where:", self.anchor)
+        form.addRow("", self.follow_rotation)
+        form.addRow("", self.follow_scale)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setProperty("role", "primary")
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(self.target.count() > 0)
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setProperty("role", "ghost")
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(3 * theme.SPACE)
+        layout.addLayout(form)
+        layout.addWidget(hint)
+        layout.addWidget(self.buttons)
+
+    def request(self) -> PinRequest | None:
+        if self.target.count() == 0:
+            return None
+        return PinRequest(
+            self.target.currentData(),
+            self.anchor.currentData(),
+            self.follow_rotation.isChecked(),
+            self.follow_scale.isChecked(),
+        )
+
+
 def _text_of(project: Project, layer_id: str) -> str:
     """The TeX a part key is matched in: the object's text, or a part's span of it."""
     layer = project.layer(layer_id)
@@ -494,6 +571,10 @@ class LayersPanel(QWidget):
         self.ask_glyph_colours: Callable[[str, list | None], list | None] = lambda layer_id, current: (
             ask_glyph_colours(self, self.project, layer_id)
         )
+        # Pin to... (ADR 0075): the label's id -> what to pin it to, or None; and where Unpin leaves it (the
+        # window asks its evaluator; None keeps the offset as the position).
+        self.ask_pin: Callable[[str], PinRequest | None] = self._ask_pin_dialog
+        self.unpin_position: Callable[[str], tuple[float, float] | None] = lambda layer_id: None
         self._known_ids: set[str] = set()
         self.playhead: Callable[[], float] = lambda: 0.0  # set by the window: where new objects are placed
         self._select_new = False
@@ -1086,6 +1167,33 @@ class LayersPanel(QWidget):
         )
         return True
 
+    def pin_label(self, layer_id: str) -> bool:
+        """Pin to... (ADR 0075): ask for the target, then ``edits.pin_label`` is one undo step."""
+        if layer_id not in {x.id for x in self.project.layers}:
+            return False
+        request = self.ask_pin(layer_id)
+        if request is None:
+            return False
+        op = partial(
+            edits.pin_label,
+            label_id=layer_id,
+            target_id=request.target,
+            anchor=request.anchor,
+            follow_rotation=request.follow_rotation,
+            follow_scale=request.follow_scale,
+        )
+        self._submit(op, "Pin label")
+        return True
+
+    def unpin_label(self, layer_id: str) -> None:
+        """Unpin (ADR 0075): the label stays where it is drawn at the playhead."""
+        position = self.unpin_position(layer_id)
+        self._submit(partial(edits.unpin_label, label_id=layer_id, position=position), "Unpin label")
+
+    def _ask_pin_dialog(self, layer_id: str) -> PinRequest | None:
+        dialog = PinDialog(self.project, layer_id, self)
+        return dialog.request() if dialog.exec() == QDialog.DialogCode.Accepted else None
+
     def _axes_of(self, layer: Layer | None) -> Layer | None:
         """The axes a selection belongs to (the axes themselves, or one of their objects)."""
         if layer is None:
@@ -1208,6 +1316,12 @@ class LayersPanel(QWidget):
         if layer is not None and layer.spec is not None and layer.spec.type in TEXT_TYPES:  # ADR 0055
             characters = menu.addAction("Colour Characters...", lambda: self.colour_characters(layer_id))
             characters.setToolTip("Colour its letters or symbols one by one, or as a gradient or a rainbow")
+            if not layer.is_child:  # ADR 0075
+                pin = menu.addAction("Pin to...", lambda: self.pin_label(layer_id))
+                pin.setToolTip("Make it follow another object through every move, at a fixed offset")
+                if layer.pin is not None:
+                    unpin = menu.addAction("Unpin", lambda: self.unpin_label(layer_id))
+                    unpin.setToolTip("Stop following; it stays where it is now")
             menu.addSeparator()
         if (
             layer is not None

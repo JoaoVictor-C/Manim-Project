@@ -66,7 +66,8 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     Anything but the layers (the canvas) changes every frame. Otherwise the
     changed layers - added, removed, edited, or moved in the stacking order - and
     what depends on them (morph partners, their whole object, layers moving along
-    them, traces of them) can change their frames only while they are alive, before or after.
+    them, traces of them, labels pinned to them) can change their frames only while they are alive, before
+    or after.
     """
     closure = changed_layers(old, new)
     if closure is None:
@@ -147,6 +148,8 @@ def _closure(project: Project, changed: set[str]) -> set[str]:
                     grown.add(layer.id)
         grown |= project.traces_of(grown)  # a trace draws where a changed layer was (ADR 0033)
         grown |= project.connectors_of(grown)  # a connector ends at a changed layer (ADR 0036)
+        holders = {by_id[i].parent_id for i in grown if i in by_id and by_id[i].parent_id is not None}
+        grown |= project.pinned_to(grown | holders)  # a label sits by a changed layer or group (ADR 0075)
         for layer_id in list(grown & ids):  # an object is evaluated whole (parts, child objects)
             grown |= whole_object(layer_id)
         grown &= ids

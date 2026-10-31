@@ -16,6 +16,7 @@ reference          inside the copy              outside and missing (or taken)
 ``parent_id``      remapped                     the paste is refused
 morph ``to_layer`` remapped                     the clip is left out
 motion ``path``    remapped                     the clip is left out
+``pin`` target     remapped                     the label is unpinned (ADR 0075)
 graph / trace /    remapped                     the layer is not pasted
 connector targets
 =================  ===========================  ===================================
@@ -278,6 +279,15 @@ def paste_layers(project: Project, payload: LayersPayload, above: str | None = N
                 clip["params"]["path"] = path
             clips.append(clip)
         data["clips"] = clips
+        if layer.pin is not None:  # onto the copied target, the same one, or unpinned (ADR 0075)
+            target = resolve(layer.pin.target)
+            if target is None:
+                notes.append(
+                    f"{_label(layer)} was unpinned: the layer it was pinned to is not in this project"
+                )
+                data["pin"] = None
+            else:
+                data["pin"]["target"] = target
         if layer.parent_id not in copied and layer.name:
             data["name"] = _free_name(layer.name, names)
             names.add(data["name"])
@@ -448,6 +458,8 @@ def _references(layer: Layer) -> list[str]:
     """Every layer id ``layer`` refers to."""
     refs = [layer.parent_id] if layer.parent_id else []
     refs += _drawn_from(layer)
+    if layer.pin is not None:  # ADR 0075
+        refs.append(layer.pin.target)
     for clip in layer.clips:
         refs += [ref for ref in (clip.to_layer, clip.params.get("path")) if ref]
     return refs

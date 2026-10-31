@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Pinned labels** ([ADR 0075](docs/adr/0075-pinned-labels.md)). Right-click a Text, MathTex or Tex in Layers >
+  Pin to... and pick an object and a side: the label follows it through every move, upright and its own size (or
+  turning and growing with it, if you choose), in the canvas and the export. Moving the label changes its offset;
+  Unpin leaves it where it is.
 - **Layout guides** ([ADR 0074](docs/adr/0074-layout-guides.md)). View > Layout Guides... adds vertical and
   horizontal guides at a typed position, or a set for margins, thirds or the centre; View > Layout Guides shows them
   on the canvas, and moved objects snap to them (hold Alt: off). They are saved with the project and never drawn

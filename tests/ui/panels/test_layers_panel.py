@@ -260,6 +260,7 @@ def test_the_context_menu_offers_parts_on_equations(eq_panel) -> None:
         "Split into terms",
         "Colour part...",
         "Colour Characters...",
+        "Pin to...",
         "Freeze to Shape",
         "Delete",
     ]

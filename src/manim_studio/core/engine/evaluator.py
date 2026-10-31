@@ -67,11 +67,13 @@ from ..model.schema import (
     CODE_TYPES,
     CONNECTOR_TYPES,
     MEDIA_TYPES,
+    PIN_GAP,
     PYTHON_TYPES,
     TRACE_TYPES,
     Clip,
     Keyframe,
     Layer,
+    Pin,
     Project,
     Spec,
     Transform2D,
@@ -147,6 +149,7 @@ class Evaluator:
         self._traces: dict[str, _Trace] = {}  # traced paths (ADR 0033)
         self._connectors: dict[str, tuple[object, m.Mobject]] = {}  # the last drawing of each (ADR 0036)
         self._sim_errors: dict[str, str] = {}  # simulations that failed while stepping
+        self._label_boxes: dict[str, tuple[int, np.ndarray, np.ndarray]] = {}  # pinned labels' rest boxes
         # Builds that raised, by what was built: no LaTeX on this computer, a broken file... The
         # object is a placeholder and says why; nothing else stops (a raise here broke the editor).
         self._build_failed: dict[str, str] = {}
@@ -702,6 +705,8 @@ class Evaluator:
                         todo.extend(i for i in (clip.to_layer, clip.params.get("path")) if isinstance(i, str))
                     if x.id in self._morph_into:
                         todo.append(self._morph_into[x.id][0].id)
+                    if x.pin is not None:  # a pinned label follows its target (ADR 0075)
+                        todo.append(x.pin.target)
             self._signatures[layer_id] = "|".join(
                 self._layers[i].model_dump_json() + f"@{self._media_signature(self._layers[i])}"
                 for i in sorted(seen)
@@ -827,11 +832,117 @@ class Evaluator:
             paths = self._path_sigs(layer, sum(1 for c in layer.clips if c.end <= t))  # ADR 0025
             group = self._layers[layer.parent_id] if self._grouped(layer) else None  # ADR 0050
             carried = self.transform_at(group, t) if group is not None else None
-            return self.transform_at(layer, t), carried, paths
+            return self.transform_at(layer, t), carried, paths, self._pin_key(layer, t)
         tree = self._tree(layer)
         finished = tuple((lay.id, c.id) for lay, c in self._tree_clips(layer, tree) if c.end <= t)
         members = tuple((member, self.transform_at(self._layers[member], t)) for member in tree.members)
-        return finished, members, self._tree_paths(layer, finished)
+        return finished, members, self._tree_paths(layer, finished), self._pin_key(layer, t)
+
+    def _pin_key(self, layer: Layer, t: float) -> tuple[float, ...] | None:
+        """Where a pinned label's pin puts it at ``t`` (ADR 0075), as a cache key; None when not pinned."""
+        if layer.pin is None:
+            return None
+        frame_a, frame_b = self._pin_frame(layer, t)
+        return (*frame_a.ravel().tolist(), *frame_b.tolist())
+
+    # -- pinned labels (ADR 0075) ------------------------------------------------
+
+    def _pin_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """``(a, b)`` of a pinned label at ``t``: its world (scene units, before the camera) is
+        ``a @ (own(p) + position) + b``, ``own`` its rotation and scale about its anchor. ``a`` is the
+        target's rotation and scale where the pin follows them, else the identity; ``b`` puts the label's
+        rest box ``PIN_GAP`` outside the anchor side of the target's drawn box."""
+        pin = layer.pin
+        frame_a, point = self._pin_point(pin, t)
+        own = self.transform_at(layer, t)
+        a_own, b_own = _affine(own.model_copy(update={"position": (0.0, 0.0)}))
+        low, high = self._label_box(layer)
+        corners = np.array([[low[0], low[1]], [high[0], low[1]], [high[0], high[1]], [low[0], high[1]]])
+        placed = corners @ a_own.T + b_own
+        lo, hi = placed.min(axis=0), placed.max(axis=0)
+        middle = (lo + hi) / 2
+        push = {
+            "top": (-middle[0], PIN_GAP - lo[1]),
+            "bottom": (-middle[0], -PIN_GAP - hi[1]),
+            "left": (-PIN_GAP - hi[0], -middle[1]),
+            "right": (PIN_GAP - lo[0], -middle[1]),
+            "centre": (-middle[0], -middle[1]),
+        }[pin.anchor]
+        return frame_a, frame_a @ np.array(push, dtype=float) + point
+
+    def _pin_point(self, pin: Pin, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """The pin's frame at ``t``: the target's rotation and scale as far as the pin follows them, and
+        the point on the anchor side of the target's drawn box (in that rotation: a turned target's own
+        top). A target drawing nothing at ``t`` is a point at its origin."""
+        target = self._layers[pin.target]
+        if target.is_part:
+            tree = self._tree(self._ltree.root_of(target.id))
+            a_target, b_target, _opacity = self._member_affine(tree, target, t)
+        else:
+            a_target, b_target = self._world_affine(target, t)
+        angle = math.atan2(a_target[1, 0], a_target[0, 0]) if pin.follow_rotation else 0.0
+        scale = math.sqrt(abs(float(np.linalg.det(a_target)))) if pin.follow_scale else 1.0
+        c, s = math.cos(angle), math.sin(angle)
+        turn = np.array([[c, -s], [s, c]])
+        points = self._drawn_points(target, t)
+        if points is None:
+            points = np.asarray(b_target, dtype=float)[None, :]
+        local = points @ turn  # each point turned back by the target's rotation
+        lo, hi = local.min(axis=0), local.max(axis=0)
+        middle = (lo + hi) / 2
+        point = {
+            "top": (middle[0], hi[1]),
+            "bottom": (middle[0], lo[1]),
+            "left": (lo[0], middle[1]),
+            "right": (hi[0], middle[1]),
+            "centre": (middle[0], middle[1]),
+        }[pin.anchor]
+        return turn * scale, turn @ np.array(point, dtype=float)
+
+    def _drawn_points(self, target: Layer, t: float) -> np.ndarray | None:
+        """The points ``target`` is drawn with at ``t`` in scene units (the camera taken back out), or
+        None when it draws nothing. A group's are its objects'."""
+        root = self._ltree.root_of(target.id)
+        drawn = [mob for owner, mob in self._object_at(root, t) if target.id in (root.id, owner)]
+        points = [sub.points[:, :2] for mob in drawn for sub in mob.family_members_with_points()]
+        if not points:
+            return None
+        every = np.vstack(points)
+        camera = self.camera_affine(t)
+        if camera is not None:  # drawn through the camera (ADR 0072): back to the scene
+            every = (every - camera[1]) @ np.linalg.pinv(camera[0]).T
+        return every
+
+    def _label_box(self, layer: Layer) -> tuple[np.ndarray, np.ndarray]:
+        """The box of a pinned label's rest drawing in its own units (its clips do not move the pin)."""
+        base = self._base_mobject(layer)
+        kept = self._label_boxes.get(layer.id)
+        if kept is None or kept[0] != id(base):
+            family = base.family_members_with_points()
+            if family:
+                every = np.vstack([sub.points[:, :2] for sub in family])
+                kept = (id(base), every.min(axis=0), every.max(axis=0))
+            else:
+                kept = (id(base), np.zeros(2), np.zeros(2))
+            self._label_boxes[layer.id] = kept
+        return kept[1], kept[2]
+
+    def _pinned_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
+        """``p -> a p + b`` from a pinned label's local units to the scene at ``t`` (ADR 0075)."""
+        a_own, b_own = _affine(self.transform_at(layer, t))  # its position (the offset) is in b_own
+        frame_a, frame_b = self._pin_frame(layer, t)
+        return frame_a @ a_own, frame_a @ b_own + frame_b
+
+    def unpinned_position(self, layer: Layer, t: float) -> tuple[float, float]:
+        """The position that draws the pinned label ``layer`` where it is at ``t`` without its pin (Unpin
+        keeps it in place; a rotation or scale it followed is not kept)."""
+        tr = self.transform_at(layer, t)
+        if layer.pin is None:
+            return tuple(tr.position)
+        _a, b_own = _affine(tr)
+        frame_a, frame_b = self._pin_frame(layer, t)
+        x, y = frame_a @ b_own + frame_b - b_own + np.array(tr.position, dtype=float)
+        return round(float(x), 4), round(float(y), 4)
 
     # -- paths (ADR 0025) ------------------------------------------------------
 
@@ -863,6 +974,8 @@ class Evaluator:
 
     def _world_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
         """``p -> a p + b`` from a root's or child object's local units to world at ``t``."""
+        if layer.pin is not None:  # a label where its pin puts it (ADR 0075)
+            return self._pinned_affine(layer, t)
         a, b = _affine(self.transform_at(layer, t))
         if layer.is_child and not layer.is_part:  # a child object, or an object in a group (ADR 0050)
             pa, pb = _affine(self.transform_at(self._layers[layer.parent_id], t))
@@ -1176,7 +1289,10 @@ class Evaluator:
         a, b, opacity = np.eye(2), np.zeros(2), 1.0
         for node in reversed(chain):  # root first
             tr = self.transform_at(node, t)
-            a_node, b_node = _affine(tr, tree.centres.get(node.id))
+            if node.pin is not None:  # a pinned label with parts (ADR 0075)
+                a_node, b_node = self._pinned_affine(node, t)
+            else:
+                a_node, b_node = _affine(tr, tree.centres.get(node.id))
             a, b = a @ a_node, a @ b_node + b
             opacity *= tr.opacity
         return a, b, opacity
@@ -1189,6 +1305,9 @@ class Evaluator:
     def position_frame(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
         """``(a, b)`` with ``world pivot = a @ position + b`` at ``t`` (the motion path, ADR 0026)."""
         anchor = np.array(self.transform_at(layer, t).anchor, dtype=float)
+        if layer.pin is not None:  # the position is the offset from the pin (ADR 0075)
+            frame_a, frame_b = self._pin_frame(layer, t)
+            return frame_a, frame_a @ anchor + frame_b
         if layer.parent_id is None:
             return np.eye(2), anchor
         parent = self._layers[layer.parent_id]
@@ -1210,6 +1329,11 @@ class Evaluator:
         """
         tr = self.transform_at(layer, t)
         anchor = np.array(tr.anchor, dtype=float)
+        if layer.pin is not None:  # a move changes the offset from the pin (ADR 0075)
+            frame_a, frame_b = self._pin_frame(layer, t)
+            pivot = frame_a @ (anchor + np.array(tr.position, dtype=float)) + frame_b
+            turned = math.degrees(math.atan2(frame_a[1, 0], frame_a[0, 0]))
+            return pivot, tr.rotation + turned, np.linalg.pinv(frame_a)
         if layer.parent_id is None:
             return anchor + np.array(tr.position, dtype=float), tr.rotation, np.eye(2)
         if not layer.is_part:  # a child object: its parent's frame carries it (ADR 0024)
@@ -1231,6 +1355,9 @@ class Evaluator:
     def _to_world(self, local: m.Mobject, layer: Layer, t: float) -> m.Mobject:
         """Apply the keyframed layer transform (and a child object's parent's) without touching ``local``."""
         tr = self.transform_at(layer, t)
+        if layer.pin is not None:  # where its pin puts it (ADR 0075)
+            a, b = self._through_camera(*self._pinned_affine(layer, t), t)
+            return self._project_local(local, layer.id, a, b, tr.opacity)
         if not layer.is_child:
             if tr == _IDENTITY and self.camera_affine(t) is None:
                 return local

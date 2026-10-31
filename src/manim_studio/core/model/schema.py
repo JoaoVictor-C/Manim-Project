@@ -391,6 +391,32 @@ def _t2c_problem(t2c: Any) -> str | None:
     return None
 
 
+PinAnchor = Literal["top", "bottom", "left", "right", "centre"]
+PIN_ANCHORS: tuple[PinAnchor, ...] = ("top", "bottom", "left", "right", "centre")
+PIN_GAP = 0.25  # scene units between a pinned label and the side of its target it sits by (ADR 0075)
+
+
+class Pin(BaseModel):
+    """A label pinned to another layer (ADR 0075): it sits by the ``anchor`` side of the target's drawn
+    box at every frame, ``PIN_GAP`` away, moved by the label's own position (its offset). It keeps its own
+    upright orientation and size unless it follows the target's rotation or scale."""
+
+    target: str = Field(min_length=1)
+    anchor: PinAnchor = "top"
+    follow_rotation: bool = False
+    follow_scale: bool = False
+
+    model_config = {"extra": "forbid"}
+
+    @model_serializer(mode="wrap")
+    def _omit_defaults(self, handler):
+        data = handler(self)
+        for name in ("follow_rotation", "follow_scale"):
+            if not getattr(self, name):
+                data.pop(name, None)
+        return data
+
+
 class Layer(BaseModel):
     id: str
     name: str = ""
@@ -404,6 +430,8 @@ class Layer(BaseModel):
     # Parts only (ADR 0049): the colours of the part's glyphs, the keys Spec.style uses.
     style: dict[str, Any] = Field(default_factory=dict)
     visible: bool = True  # editor visibility toggle; false layers remain in the timeline and project
+    # A label pinned to another layer (ADR 0075): its position is then the offset from where the pin puts it.
+    pin: Pin | None = None
 
     @model_serializer(mode="wrap")
     def _omit_empty_style(self, handler):
@@ -412,6 +440,8 @@ class Layer(BaseModel):
             data.pop("visible", None)  # existing project files save as before
         if not self.style:
             data.pop("style", None)  # files without coloured parts save as before
+        if self.pin is None:
+            data.pop("pin", None)  # files without pinned labels save as before (ADR 0075)
         return data
 
     @property
@@ -485,6 +515,13 @@ class Layer(BaseModel):
             or "scale_y" in self.tracks
         ):
             raise ValueError(f"layer {self.id!r}: a camera can only zoom uniformly")
+        if self.pin is not None:
+            if self.spec is None or self.spec.type not in TEXT_TYPES:
+                raise ValueError(f"layer {self.id!r}: only a Text, MathTex or Tex label can be pinned")
+            if self.parent_id is not None:
+                raise ValueError(
+                    f"layer {self.id!r}: a pinned label is a whole object, not in a group or on axes"
+                )
         if self.style and not self.is_part:
             raise ValueError(f"layer {self.id!r}: only part layers have a style (an object has spec.style)")
         if self.style and (problem := _style_problem(self.style)):
@@ -823,6 +860,7 @@ class Project(BaseModel):
         self._graph_refs()
         self._trace_refs()
         self._connector_refs()
+        self._pin_refs()
         targeted: dict[str, str] = {}
         by_id = {layer.id: layer for layer in self.layers}  # once: a lookup per morph clip stays linear (B53)
         for layer in self.layers:
@@ -958,6 +996,50 @@ class Project(BaseModel):
                     raise ValueError(f"layer {layer.id!r}: the connected layer {end!r} {what}")
             if ends[0] == ends[1]:
                 raise ValueError(f"layer {layer.id!r}: a connector joins two different layers")
+
+    def _pin_refs(self) -> None:
+        """ADR 0075: a label is pinned to a layer it may follow, and pins do not go round in a circle."""
+        by_id = {layer.id: layer for layer in self.layers}
+        for layer in self.layers:
+            if layer.pin is None:
+                continue
+            if layer.parent_id is not None:  # also when a copy skipped the layer's own check
+                raise ValueError(
+                    f"layer {layer.id!r}: a pinned label is a whole object, not in a group or on axes"
+                )
+            target = by_id.get(layer.pin.target)
+            if target is None:
+                raise ValueError(
+                    f"layer {layer.id!r}: the layer it is pinned to ({layer.pin.target!r}) is missing"
+                )
+            if problem := pin_problem(by_id, layer, target):
+                raise ValueError(f"layer {layer.id!r}: {problem}")
+            seen, node = {layer.id}, target
+            while node.pin is not None:
+                if node.id in seen:
+                    raise ValueError(f"layer {layer.id!r}: its pins go round in a circle")
+                seen.add(node.id)
+                node = by_id[node.pin.target]
+
+    def pin_targets(self, label_id: str) -> list[Layer]:
+        """The layers the label ``label_id`` may be pinned to (ADR 0075), in project order."""
+        by_id = {layer.id: layer for layer in self.layers}
+        label = by_id[label_id]
+        out = []
+        for target in self.layers:
+            if pin_problem(by_id, label, target) is not None:
+                continue
+            node, seen = target, {label_id}
+            while node.pin is not None and node.id not in seen:  # pinning must not close a circle
+                seen.add(node.id)
+                node = by_id[node.pin.target]
+            if node.id not in seen:
+                out.append(target)
+        return out
+
+    def pinned_to(self, layer_ids: set[str]) -> set[str]:
+        """Labels pinned to any of ``layer_ids`` (ADR 0075)."""
+        return {x.id for x in self.layers if x.pin is not None and x.pin.target in layer_ids}
 
     def connectors_of(self, layer_ids: set[str]) -> set[str]:
         """Connectors joining any of ``layer_ids`` (ADR 0036)."""
@@ -1130,6 +1212,19 @@ def _traceable(own_id: str, other: Layer | None) -> bool:
         and other.id != own_id
         and not (other.spec is not None and other.spec.type in TRACE_TYPES | CODE_TYPES | CONNECTOR_TYPES)
     )
+
+
+def pin_problem(by_id: dict[str, Layer], label: Layer, target: Layer) -> str | None:
+    """Why ``label`` cannot be pinned to ``target`` (ADR 0075), or None. Its own pin chain is not checked."""
+    if target.id == label.id:
+        return "a label cannot be pinned to itself"
+    if label.is_camera or target.is_camera:
+        return "the camera cannot be pinned or be pinned to"
+    if not _traceable(label.id, target):
+        return f"a label cannot be pinned to {target.spec.type if target.spec else target.id}"
+    if _within(by_id, target, label.id):
+        return "a label cannot be pinned to one of its own parts"
+    return None
 
 
 def _check_group_member(layer: Layer, has_children: bool) -> None:

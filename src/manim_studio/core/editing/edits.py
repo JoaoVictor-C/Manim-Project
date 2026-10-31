@@ -50,6 +50,7 @@ from ..model.schema import (
     Layer,
     Marker,
     PartKey,
+    Pin,
     Project,
     Spec,
     SubtitleStyle,
@@ -59,6 +60,7 @@ from ..model.schema import (
     infer_lifetime,
     is_colour,
     new_clip_params,
+    pin_problem,
 )
 from . import equation_steps
 
@@ -315,7 +317,7 @@ def remove_layers(project: Project, layer_ids) -> Edit:
             ]
             layer = Layer.model_validate(data)
         layers.append(layer)
-    return _replace_layers(project, layers)
+    return _replace_layers(project, _unpinned(layers, gone))  # a label outlives its target (ADR 0075)
 
 
 def move_layer(project: Project, layer_id: str, index: int) -> Edit:
@@ -354,6 +356,8 @@ def group_layers(project: Project, layer_ids: Iterable[str], name: str = "") -> 
             raise EditError(
                 f"{layer.label!r} has parts or objects on axes: it cannot be in a group (not yet)"
             )
+        if layer.pin is not None:  # ADR 0075: its pin places it, not a group
+            raise EditError(f"{layer.label!r} is pinned to {layer.pin.target!r}: unpin it to group it")
     chosen = set(picked)
     group = Layer(id=new_layer_id(project, GROUP_TYPE), name=name, spec=Spec(type=GROUP_TYPE))
     members = [x.model_copy(update={"parent_id": group.id}) for x in project.layers if x.id in chosen]
@@ -396,7 +400,7 @@ def ungroup(project: Project, group_id: str) -> Edit:
             layers += freed
         elif layer.parent_id != group_id:
             layers.append(layer)
-    return _validated(project, layers, "Ungroup")
+    return _validated(project, _unpinned(layers, {group_id}), "Ungroup")  # labels on it stay (ADR 0075)
 
 
 def _carried(layer: Layer, outer: Transform2D) -> Layer:
@@ -447,6 +451,64 @@ def _carried(layer: Layer, outer: Transform2D) -> Layer:
             for key in track
         ]
     return layer.model_copy(update={"base": base, "tracks": tracks})
+
+
+# -- pinned labels (ADR 0075) -------------------------------------------------------------
+
+
+def pin_label(
+    project: Project,
+    label_id: str,
+    target_id: str,
+    anchor: str = "top",
+    offset: Any = None,
+    *,
+    follow_rotation: bool = False,
+    follow_scale: bool = False,
+) -> Edit:
+    """Pin the Text, MathTex or Tex ``label_id`` to ``target_id``: at every frame it sits ``PIN_GAP`` outside
+    the ``anchor`` side ("top", "bottom", "left", "right" or "centre") of the target's drawn box, moved by
+    ``offset`` (its position from then on). It keeps its own rotation and size unless it follows the
+    target's. A label pinned before keeps its offset (and its position keys) unless one is given; a label
+    pinned now loses its position keys, which placed it in the scene and not by its target."""
+    label = _layer(project, label_id)
+    _layer(project, target_id)
+    if label.spec is None or label.spec.type not in TEXT_TYPES or label.is_child:
+        raise EditError(f"{label.label!r} is not a Text, MathTex or Tex object: only a label can be pinned")
+    by_id = {x.id: x for x in project.layers}
+    if target_id not in {x.id for x in project.pin_targets(label_id)}:
+        target = by_id[target_id]
+        problem = pin_problem(by_id, label, target) or "its pins would go round in a circle"
+        raise EditError(f"cannot pin {label.label!r} to {target.label!r}: {problem}")
+    pin = Pin(target=target_id, anchor=anchor, follow_rotation=follow_rotation, follow_scale=follow_scale)
+    fields: dict[str, Any] = {"pin": pin}
+    if offset is not None or label.pin is None:
+        x, y = (0.0, 0.0) if offset is None else (float(offset[0]), float(offset[1]))
+        fields["base"] = label.base.model_copy(update={"position": (x, y)})
+        fields["tracks"] = {name: keys for name, keys in label.tracks.items() if name != "position"}
+    return _replace_layer(project, label_id, fields)
+
+
+def unpin_label(project: Project, label_id: str, position: Any = None) -> Edit:
+    """Unpin ``label_id``. With ``position`` (``Evaluator.unpinned_position`` at the playhead) it stays where
+    it is drawn there and loses its position keys (they were offsets from the pin); without, its position
+    (the offset) becomes a place in the scene."""
+    label = _layer(project, label_id)
+    if label.pin is None:
+        raise EditError(f"{label.label!r} is not pinned")
+    fields: dict[str, Any] = {"pin": None}
+    if position is not None:
+        fields["base"] = label.base.model_copy(update={"position": (float(position[0]), float(position[1]))})
+        fields["tracks"] = {name: keys for name, keys in label.tracks.items() if name != "position"}
+    return _replace_layer(project, label_id, fields)
+
+
+def _unpinned(layers: list[Layer], gone: set[str]) -> list[Layer]:
+    """``layers`` with the pins to ``gone`` layers taken off (their labels stay, at their offsets)."""
+    return [
+        x.model_copy(update={"pin": None}) if x.pin is not None and x.pin.target in gone else x
+        for x in layers
+    ]
 
 
 def _validated(project: Project, layers: list[Layer], verb: str) -> Edit:
@@ -1729,8 +1791,8 @@ def _layer_kind(a: Layer, b: Layer, regrouped: bool = False) -> EditKind | None:
         if changed - _TIMING_FIELDS:
             return "clip"
         timing = True
-    if a.base != b.base or a.tracks != b.tracks or a.parent_id != b.parent_id:
-        return "transform"  # another group carries it: drawn elsewhere, built the same (ADR 0050)
+    if a.base != b.base or a.tracks != b.tracks or a.parent_id != b.parent_id or a.pin != b.pin:
+        return "transform"  # another group carries it, or a pin (ADR 0050, 0075): built the same
     return "timing" if timing or a.lifetime != b.lifetime or a.name != b.name else None
 
 

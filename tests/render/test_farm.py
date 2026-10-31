@@ -9,7 +9,8 @@ import numpy as np
 import pytest
 
 from manim_studio import cli, lifeline
-from manim_studio.core.model.schema import Canvas, Clip, Layer, Project, Spec
+from manim_studio.core.editing import edits
+from manim_studio.core.model.schema import Canvas, Clip, Keyframe, Layer, Project, Spec
 from manim_studio.render import cairo_export, encoders, farm
 from manim_studio.render.cairo_export import export_video, rendered_frames
 from manim_studio.render.options import RenderOptions
@@ -118,6 +119,21 @@ def test_frames_from_render_processes_are_the_serial_frames_bit_for_bit(pools) -
 def test_a_range_that_does_not_start_at_zero(pools) -> None:
     project = make_project()
     assert same(draw(project, 7, 33, workers=3), draw(project, 7, 33))
+
+
+@pytest.mark.slow
+def test_a_label_pinned_to_a_moving_object_is_drawn_alike_by_the_processes(pools) -> None:
+    """ADR 0075: the pin is evaluated per frame, so any process draws it where the serial export does."""
+    project = make_project()
+    moving = project.layers[0].model_copy(
+        update={
+            "tracks": {"position": [Keyframe(t=0.0, value=(-2.0, 0.0)), Keyframe(t=4.0, value=(2.0, 1.0))]}
+        }
+    )
+    project = edits.pin_label(
+        project.model_copy(update={"layers": [moving, project.layers[1]]}), "t", "a"
+    ).project
+    assert same(draw(project, workers=2), draw(project))
 
 
 @pytest.mark.slow
