@@ -42,7 +42,7 @@ from ..core.code.trust import TrustStore
 from ..core.code.trust import label as trust_label
 from ..core.editing import edits, library, shift_timing
 from ..core.editing.edits import Edit, EditKind
-from ..core.engine import adapter
+from ..core.engine import adapter, extract_code
 from ..core.engine.evaluator import Evaluator
 from ..core.engine.frame_cache import frame_index, frame_time
 from ..core.engine.python_export import PythonExport, class_name, to_python
@@ -281,6 +281,7 @@ class MainWindow(QMainWindow):
         self.properties.edit_code = self.edit_code
         self.properties.freeze = self.freeze_layer
         self.layers.freeze = self.freeze_layer
+        self.layers.extract_code = self.extract_selection_as_code  # ADR 0076
         self.layers.unpin_position = self._unpin_position  # Unpin leaves the label where it is (ADR 0075)
         self.properties.code_ends = lambda: self.evaluator.code_ends() if self.evaluator is not None else []
         self.code.statusChanged.connect(self.properties.refresh_code_status)
@@ -459,6 +460,12 @@ class MainWindow(QMainWindow):
         )
         self.freeze_action.triggered.connect(lambda: self.freeze_layer())
         edit_menu.addAction(self.freeze_action)
+        self.extract_code_action = QAction("E&xtract Selection as Code", self)  # ADR 0076
+        self.extract_code_action.setToolTip(
+            "Replace the selected objects with one code layer that draws the same, to go on by hand in code"
+        )
+        self.extract_code_action.triggered.connect(lambda: self.extract_selection_as_code())
+        edit_menu.addAction(self.extract_code_action)
         self.characters_action = QAction("Colour C&haracters...", self)  # ADR 0055
         self.characters_action.setToolTip(
             "Colour the letters or symbols of the selected Text, MathTex or Tex one by one"
@@ -1394,6 +1401,32 @@ class MainWindow(QMainWindow):
         self.document.apply(edit, "Freeze to shape")
         self.statusBar().showMessage(
             f"{layer.label} is a shape now: plain vector data (undo turns it back)", 8000
+        )
+        return True
+
+    def extract_selection_as_code(self, layer_ids: list[str] | None = None) -> bool:
+        """Edit > Extract Selection as Code (ADR 0076): the selected objects become one code layer drawing
+        the same, one undo step; it is selected and shown on the Code page. Says why when it cannot."""
+        if not self._has_project:
+            return False
+        chosen = [i for i in (layer_ids if layer_ids is not None else self.selection.layer_ids) if i]
+        if not chosen:
+            self.statusBar().showMessage("Extract as Code: select the objects to turn into code", 6000)
+            return False
+        try:
+            result = extract_code.extract_as_code(self.project, chosen)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Extract as Code: {exc}", 20000)
+            return False
+        # The editor wrote this code from the user's own layers, so it may run as they did - unless it
+        # embeds a Python object or helper that is not trusted yet: then it is asked about as usual.
+        if all(self.trust.is_trusted(code) for code in result.embedded):
+            self.trust.trust([result.code])
+        self.document.apply(result.edit, "Extract as code")
+        self.edit_code(result.layer_id)
+        self.statusBar().showMessage(
+            f"{len(chosen)} layer(s) are one code layer now: edit its scene here (undo brings them back)",
+            8000,
         )
         return True
 

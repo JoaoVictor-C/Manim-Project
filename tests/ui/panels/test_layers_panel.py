@@ -262,11 +262,13 @@ def test_the_context_menu_offers_parts_on_equations(eq_panel) -> None:
         "Colour Characters...",
         "Pin to...",
         "Freeze to Shape",
+        "Extract as Code",
         "Delete",
     ]
     eq_panel.select("sq")
     assert [a.text() for a in eq_panel.context_menu("sq").actions() if a.text()] == [
         "Freeze to Shape",
+        "Extract as Code",
         "Delete",
     ]
 

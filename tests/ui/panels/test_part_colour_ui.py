@@ -143,6 +143,7 @@ def test_layers_offer_colour_part_on_equations_and_parts(layers) -> None:
         "Colour Characters...",
         "Pin to...",
         "Freeze to Shape",
+        "Extract as Code",
         "Delete",
     ]
     layers.ask_part = lambda parent_id: ("c^2", 0)
@@ -161,4 +162,4 @@ def test_layers_offer_colour_part_on_equations_and_parts(layers) -> None:
     assert seen == [RED] and layers.project.layer(made.id).style == {"fill": GREEN}
     layers.select("t")
     texts = [a.text() for a in layers.context_menu("t").actions() if a.text()]
-    assert texts == ["Colour Characters...", "Pin to...", "Freeze to Shape", "Delete"]
+    assert texts == ["Colour Characters...", "Pin to...", "Freeze to Shape", "Extract as Code", "Delete"]

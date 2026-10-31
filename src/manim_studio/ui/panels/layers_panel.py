@@ -567,6 +567,7 @@ class LayersPanel(QWidget):
         self.ask_steps: Callable[[float], StepsRequest | None] = self._ask_steps_dialog  # P11
         self.trust_code: Callable[[str], None] = lambda code: None  # set by the window (ADR 0019)
         self.freeze: Callable[[str], None] = lambda layer_id: None  # set by the window (ADR 0052)
+        self.extract_code: Callable[[list[str]], object] = lambda layer_ids: None  # by the window (ADR 0076)
         # Colour characters (ADR 0055): (layer id, current colours) -> the new list, or None.
         self.ask_glyph_colours: Callable[[str, list | None], list | None] = lambda layer_id, current: (
             ask_glyph_colours(self, self.project, layer_id)
@@ -1330,6 +1331,12 @@ class LayersPanel(QWidget):
         ):
             freeze = menu.addAction("Freeze to Shape", lambda: self.freeze(layer_id))  # ADR 0052
             freeze.setToolTip("Plain vector data as drawn now: no code, no LaTeX (undo turns it back)")
+            menu.addSeparator()
+        if layer is not None and not layer.is_child:  # a part is drawn with its object
+            chosen = self.selected_ids()
+            picked = chosen if layer_id in chosen else [layer_id]
+            extract = menu.addAction("Extract as Code", lambda: self.extract_code(picked))  # ADR 0076
+            extract.setToolTip("Replace the selected objects with one code layer that draws the same")
             menu.addSeparator()
         menu.addAction("Delete", self.delete_selected)
         return menu

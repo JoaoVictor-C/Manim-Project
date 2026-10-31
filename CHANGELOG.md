@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Extract selection as code** ([ADR 0076](docs/adr/0076-extract-selection-as-code.md)). Edit > Extract Selection as
+  Code (or right-click in Layers) replaces the selected objects with one code layer that draws the same frames, in
+  their place and time, and opens it on the Code page to go on by hand. Undo brings the layers back; what plain
+  Manim code cannot reproduce exactly (a camera, a pinned label...) is refused with the reason.
 - **Pinned labels** ([ADR 0075](docs/adr/0075-pinned-labels.md)). Right-click a Text, MathTex or Tex in Layers >
   Pin to... and pick an object and a side: the label follows it through every move, upright and its own size (or
   turning and growing with it, if you choose), in the canvas and the export. Moving the label changes its offset;
