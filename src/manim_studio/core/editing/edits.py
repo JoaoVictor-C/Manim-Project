@@ -1517,6 +1517,12 @@ def _replace_markers(project: Project, markers: list[Marker]) -> Edit:
 # -- classification -------------------------------------------------------------
 
 
+def restore_project(project: Project, restored: Project) -> Edit:
+    """Put ``restored`` (a snapshot, ADR 0068) in place of ``project`` as one edit: the layers that differ
+    lose their caches, and undo brings the project back."""
+    return Edit(restored, *classify(project, restored))
+
+
 def classify(old: Project, new: Project) -> tuple[EditKind, frozenset[str]]:
     """The most severe edit kind between two snapshots, and the layers it touches.
 

@@ -59,6 +59,7 @@ from .canvas.canvas_tools import MoveTool
 from .canvas.viewport import ZOOM_STEP
 from .deliver.export_dialog import ExportDialog
 from .exchange.code_importer import CodeImporter
+from .exchange.snapshots_dialog import SnapshotsDialog
 from .pages import PageHost, Shared
 from .pages.animate import AnimatePage
 from .pages.audio import AudioPage
@@ -376,6 +377,13 @@ class MainWindow(QMainWindow):
                 "Render the whole video with Manim to an MP4 file",
             ),
             ("Export &Python...", QKeySequence(), self.export_python, "Write the scene as a Manim script"),
+            (
+                "Snapshots...",
+                QKeySequence("Ctrl+Alt+S"),
+                self.show_snapshots,
+                "Keep named milestones of the project (rough cut, final narration), compare them with the "
+                "project now and restore one",
+            ),
             (
                 "Import &Manim Scene...",
                 QKeySequence(),
@@ -2041,6 +2049,21 @@ class MainWindow(QMainWindow):
         return export
 
     # -- export (S4, ADR 0017) -------------------------------------------------------
+
+    def show_snapshots(self) -> None:
+        """File > Snapshots...: named milestones kept beside the project file (ADR 0068)."""
+        if self.project is None:
+            self.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        if self.path is None:
+            self.statusBar().showMessage("Save the project first: snapshots are kept beside its file.", 6000)
+            return
+        dialog = SnapshotsDialog(self.path, lambda: self.document.project, self.restore_snapshot, self)
+        dialog.exec()
+
+    def restore_snapshot(self, restored: Project, text: str) -> None:
+        """One undo step that replaces the project with a snapshot's."""
+        self.document.apply(edits.restore_project(self.document.project, restored), text)
 
     def show_export_dialog(self) -> None:
         if self.project is None:

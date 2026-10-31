@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Named project snapshots** ([ADR 0068](docs/adr/0068-named-project-snapshots.md)). File > Snapshots... (Ctrl+Alt+S)
+  keeps milestones such as "rough cut" or "final narration" beside the project, shows what differs between one and
+  the project now, and restores it as a single undo step.
 - **Code errors say when they happened** ([ADR 0067](docs/adr/0067-code-errors-know-their-time.md)). A failing code
   layer reports how far its scene got ("Error - line 12 after 4.3 s ..."), the Code page offers **Show frame at 4.3 s**
   to put the playhead there, and an export's warning includes the time.
