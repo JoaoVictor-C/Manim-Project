@@ -3,7 +3,7 @@
 A snapshot is a copy of the whole project kept beside its file, apart from undo: undo ends with the session, a
 snapshot stays until the user deletes it. For ``scene.json`` they live in ``scene.snapshots/``, two files
 each, written to a temporary name and moved into place (the project first, the sidecar last, as recovery
-copies are, [0038](../../../docs/adr/0038-crash-recovery.md)):
+copies are, [0038](../../../docs/adr/0038-clipboard-and-recovery.md)):
 
 * ``<id>.json`` - the project, a normal project file;
 * ``<id>.meta.json`` - ``{"name": ..., "saved_at": ..., "layers": n, "duration": s}``.

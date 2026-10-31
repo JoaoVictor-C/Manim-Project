@@ -6,7 +6,7 @@
 
 ## Context
 
-Undo is a stack that ends with the session, and recovery copies ([0038](0038-crash-recovery.md)) exist to be offered
+Undo is a stack that ends with the session, and recovery copies ([0038](0038-clipboard-and-recovery.md)) exist to be offered
 once after a crash and then pruned. Neither lets someone keep "the rough cut" while they work towards "the final
 narration", look at what separates the two, or go back to the first without losing the second.
 
