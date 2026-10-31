@@ -636,6 +636,14 @@ class CodePage(Page):
         error_row.setSpacing(8)
         error_row.addWidget(self.error_type_chip, 0, Qt.AlignmentFlag.AlignTop)
         error_row.addWidget(self.error_label, 1)
+        self.failure_button = QToolButton()  # the scene's own frame where the error happened (ADR 0067)
+        self.failure_button.setObjectName("codeFailure")
+        self.failure_button.setToolTip(
+            "Move the playhead to where this layer's scene stopped, and show the stage"
+        )
+        self.failure_button.clicked.connect(self.show_failure)
+        self.failure_button.hide()
+        error_row.addWidget(self.failure_button, 0, Qt.AlignmentFlag.AlignTop)
         self.hint_title = QLabel("")
         self.hint_title.setObjectName("codeHintTitle")
         self.hint_title.setWordWrap(True)
@@ -2013,6 +2021,20 @@ class CodePage(Page):
             self._failed = (self.layer_id, self.editor.text(), message)
             self._refresh_output()
 
+    def show_failure(self) -> None:
+        """Put the playhead where the layer's scene was when its code failed, on the stage (ADR 0067): the
+        frames drawn before the error are what to look at; the error stopped the scene after them."""
+        status = self.status(self.layer_id)
+        window = self.window
+        if status is None or status.seconds is None or self.layer_id is None or window.evaluator is None:
+            return
+        try:
+            layer = window.project.layer(self.layer_id)
+        except KeyError:  # a helper: it has no place on the timeline
+            return
+        window.seek(window.evaluator.lifetime(layer)[0] + status.seconds)
+        window.show_page("animate")
+
     def go_to_error(self) -> None:
         """Move the cursor to the line the render error points at; an error raised in a helper opens
         that helper first (ADR 0058)."""
@@ -2303,6 +2325,7 @@ class CodePage(Page):
         line = None
         self.error_label.hide()
         self.error_type_chip.hide()
+        self.failure_button.hide()
         self.hint_label.hide()
         self.fix_button.hide()
         self.trace_label.hide()
@@ -2333,6 +2356,9 @@ class CodePage(Page):
             self.error_label.show()
             self.error_type_chip.setText(status.error_type)
             self.error_type_chip.setVisible(bool(status.error_type))
+            if status.seconds is not None and not status.where.startswith("helper:"):
+                self.failure_button.setText(f"Show frame at {status.seconds:.1f} s")
+                self.failure_button.show()
             self._show_hint(status.error_type, status.error, status.traceback)
             if dirty:
                 text += " (from the last run)"

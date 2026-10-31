@@ -460,6 +460,12 @@ def _render_code_layers(project, trust_code: bool, mode: str, jobs: int | None =
         if error is None:
             continue
         where = f" (line {error.line})" if error.line else ""
+        if error.frame:
+            where = (
+                where[:-1] + f", after {error.frame / canvas.fps:.1f} s)"
+                if where
+                else f" (after {error.frame / canvas.fps:.1f} s)"
+            )
         if error.where != "code":
             at = f", line {error.helper_line}" if error.helper_line else ""
             where = f" (in helper {error.where.removeprefix('helper:')}{at})"

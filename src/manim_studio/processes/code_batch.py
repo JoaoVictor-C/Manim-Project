@@ -126,5 +126,6 @@ def _talk(process: subprocess.Popen, job: Job) -> CodeError | None:
                 str(message.get("where") or "code"),
                 str(message.get("traceback") or ""),
                 message.get("helper_line"),
+                message.get("frame"),
             )
     return CodeError(STOPPED)

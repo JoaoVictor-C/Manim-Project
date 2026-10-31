@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Code errors say when they happened** ([ADR 0067](docs/adr/0067-code-errors-know-their-time.md)). A failing code
+  layer reports how far its scene got ("Error - line 12 after 4.3 s ..."), the Code page offers **Show frame at 4.3 s**
+  to put the playhead there, and an export's warning includes the time.
 - **Export health report** ([ADR 0066](docs/adr/0066-export-health-report.md)). Before exporting, the Deliver page
   lists what will be slow or will not work (code layers to render at that size, untrusted code drawn as
   placeholders, very large frames, little disk space, the graphics card's 4096 px H.264 limit);

@@ -159,3 +159,27 @@ def test_export_renders_code_layers_only_when_trusted(tmp_path, capsys) -> None:
     )
     assert "warning" not in capsys.readouterr().err
     assert len([d for d in (cache / "code").iterdir() if not d.name.startswith(".")]) == 1
+
+
+LATE_ERROR = (
+    "class A(Scene):\n    def construct(self):\n"
+    "        self.add(Square())\n        self.wait(1)\n        1 / 0\n"
+)
+
+
+def test_an_error_says_how_many_frames_the_scene_had_drawn(tmp_path) -> None:
+    """ADR 0067: the frames before the error are the scene as far as it got."""
+    with pytest.raises(CodeError) as caught:
+        render_code(job(LATE_ERROR), CodeCache(tmp_path))
+    assert caught.value.frame == 10 and caught.value.message()["frame"] == 10  # 1 s at 10 fps
+    early = "class A(Scene):\n    def construct(self):\n        1 / 0\n"
+    with pytest.raises(CodeError) as at_once:
+        render_code(job(early), CodeCache(tmp_path))
+    assert at_once.value.frame == 0
+
+
+def test_a_runner_process_reports_the_frame_of_an_error(tmp_path) -> None:
+    from manim_studio.processes import code_batch
+
+    failures = code_batch.render_all([("a", job(LATE_ERROR))], tmp_path, 1)
+    assert failures["a"].frame == 10

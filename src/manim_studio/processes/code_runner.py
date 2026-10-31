@@ -91,6 +91,7 @@ class CodeError(Exception):
         where: str = "code",
         traceback: str = "",
         helper_line: int | None = None,
+        frame: int | None = None,
     ) -> None:
         super().__init__(message)
         self.line = line
@@ -98,6 +99,7 @@ class CodeError(Exception):
         self.where = where
         self.traceback = traceback
         self.helper_line = helper_line
+        self.frame = frame  # frames the scene had drawn when it failed (ADR 0067); None: before the first
 
     def message(self) -> dict:
         """The protocol's error message; ``helper_line`` only for an error in a helper."""
@@ -110,6 +112,8 @@ class CodeError(Exception):
         }
         if self.where != "code":
             out["helper_line"] = self.helper_line
+        if self.frame is not None:
+            out["frame"] = self.frame
         return out
 
 
@@ -174,12 +178,15 @@ def _render(job: Job, cache, progress: Callable[[int], None] | None) -> int:
             starts = statement_starts(job.code, scene_class.__name__)
             with ProbeRecorder(scene, starts, lambda: writer.frame_count, writer.probes):
                 scene.render()
-    except CodeError:
+    except CodeError as error:
         writer.abort()
+        error.frame = CapturingRenderer.frames if error.frame is None else error.frame
         raise
     except Exception as error:
         writer.abort()
-        raise _failure(error, job.code, job.helpers) from error
+        failure = _failure(error, job.code, job.helpers)
+        failure.frame = CapturingRenderer.frames
+        raise failure from error
     writer.finish()
     return CapturingRenderer.frames
 

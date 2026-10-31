@@ -730,3 +730,17 @@ def test_project_folders_move_code_and_survive_undo_and_json_round_trip(window, 
     assert window.project.layer("orbit").spec.params["code"] == ORBIT
     window.document.undo_stack.undo()
     assert window.project.code_folders == {"Animations": ["orbit"]}
+
+
+def test_an_error_with_a_time_offers_the_frame_where_the_scene_stopped(window) -> None:
+    """ADR 0067: the playhead goes to the layer's start plus how far the scene got, on the stage."""
+    code = page(window)
+    code.open_item("orbit")
+    set_status(window, "orbit", CodeStatus("error", error="NameError: x", line=3, seconds=1.5))
+    assert code.failure_button.isVisibleTo(code.widget) and "1.5 s" in code.failure_button.text()
+    assert "after 1.5 s" in CodeStatus("error", error="NameError: x", line=3, seconds=1.5).text
+    start = window.evaluator.lifetime(window.project.layer("orbit"))[0]
+    code.failure_button.click()
+    assert window.t == pytest.approx(min(start + 1.5, window.project.canvas.duration))
+    set_status(window, "orbit", CodeStatus("error", error="NameError: x", line=3))
+    assert not code.failure_button.isVisibleTo(code.widget)  # no time known: nothing to show

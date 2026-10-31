@@ -61,6 +61,7 @@ class CodeStatus:
     where: str = "code"  # "code", or "helper:<name>" when the error came from a helper (ADR 0058)
     traceback: str = ""  # the user's own frames, at most 4 KB
     helper_line: int | None = None
+    seconds: float | None = None  # how far into the layer's scene it failed (ADR 0067); None: unknown
 
     @property
     def text(self) -> str:
@@ -80,7 +81,8 @@ class CodeStatus:
         if self.where.startswith("helper:"):
             at = f", line {self.helper_line}" if self.helper_line else ""
             where = f"helper {self.where.removeprefix('helper:')}{at}: "
-        return f"Error - {where}{self.error}"
+        when = f"after {self.seconds:.1f} s " if self.seconds else ""
+        return f"Error - {where}{when}{self.error}"
 
 
 def _release(process: QProcess) -> None:
@@ -378,6 +380,7 @@ class CodeRenderService(QObject):
                 where=str(message.get("where") or "code"),
                 traceback=str(message.get("traceback") or ""),
                 helper_line=message.get("helper_line"),
+                seconds=message["frame"] / spare.job.fps if message.get("frame") else None,
             )
             self._errors[spare.job.key] = status
             self._set(spare.layer_id, status)
