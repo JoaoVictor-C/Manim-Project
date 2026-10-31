@@ -88,6 +88,7 @@ from .shell import shortcuts_help
 from .shell.autosave import Autosave
 from .shell.beat_sheet_dialog import BeatSheetDialog
 from .shell.clipboard_actions import ClipboardActions
+from .shell.guides_dialog import GuidesDialog
 from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
 from .shell.plugins_dialog import PluginsDialog, startup_message
@@ -687,6 +688,16 @@ class MainWindow(QMainWindow):
         )
         self.snap_action.toggled.connect(lambda on: setattr(self.move_tool, "snapping", on))
         view_menu.addAction(self.snap_action)
+        self.layout_guides_action = QAction("&Layout Guides", self, checkable=True)  # ADR 0074
+        self.layout_guides_action.setToolTip(
+            "Show the project's layout guides on the canvas; moved objects snap to them (hold Alt: off)"
+        )
+        self.layout_guides_action.toggled.connect(self._set_layout_guides)
+        view_menu.addAction(self.layout_guides_action)
+        self.edit_guides_action = QAction("Layout &Guides...", self)
+        self.edit_guides_action.setToolTip("Add, move and delete layout guides: margins, thirds, centre")
+        self.edit_guides_action.triggered.connect(self.show_guides)
+        view_menu.addAction(self.edit_guides_action)
         self.arrange_menu = self.menuBar().addMenu("A&rrange")  # align and distribute (ADR 0043)
         self.arrange_menu.setToolTipsVisible(True)
         for text, how, key in (
@@ -1044,6 +1055,7 @@ class MainWindow(QMainWindow):
         """The view toggles that are remembered: name in the file, action, default."""
         return (
             ("snap", self.snap_action, True),
+            ("layout_guides", self.layout_guides_action, False),
             ("stage_view_locked", self.stage_view_lock_action, False),
             ("object_edit_handles", self.edit_handles_action, True),
             ("select_by_bounds", self.select_by_bounds_action, True),
@@ -2377,6 +2389,16 @@ class MainWindow(QMainWindow):
         self.timeline.follow_playhead = enabled
         if enabled and self.project is not None:
             self.timeline.set_playhead(self.t)  # back to where the video is
+
+    def _set_layout_guides(self, shown: bool) -> None:
+        self.canvas.set_layout_guides(shown)
+
+    def show_guides(self) -> None:
+        """View > Layout Guides...: edit the guides (ADR 0074); they are shown while it is open."""
+        if not self._has_project:
+            return
+        self.layout_guides_action.setChecked(True)
+        GuidesDialog(lambda: self.document.project, self.document.apply, self).exec()
 
     def _set_draft_preview(self, enabled: bool) -> None:
         self.canvas.set_draft_enabled(enabled)

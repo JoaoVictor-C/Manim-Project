@@ -43,13 +43,21 @@ def _lines(low, high) -> tuple[np.ndarray, np.ndarray]:
     return np.array([low[0], middle[0], high[0]]), np.array([low[1], middle[1], high[1]])
 
 
-def targets(boxes, frame=None) -> Targets:
-    """What the moving box can snap to: every box's edges and centres, and the frame's."""
+def targets(boxes, frame=None, lines=()) -> Targets:
+    """What the moving box can snap to: every box's edges and centres, the frame's, and the
+    layout guides (ADR 0074) in ``lines``: ``(axis, position)`` pairs, "x" a vertical line at
+    x = position and "y" a horizontal one, drawn across the frame (or a unit when there is none)."""
     xs, ys = [], []
     for low, high in [*boxes, *([frame] if frame is not None else [])]:
         bx, by = _lines(low, high)
         xs += [Target(float(v), (float(low[1]), float(high[1]))) for v in bx]
         ys += [Target(float(v), (float(low[0]), float(high[0]))) for v in by]
+    low, high = frame if frame is not None else ((-0.5, -0.5), (0.5, 0.5))
+    for axis, position in lines:
+        if axis == "x":
+            xs.append(Target(float(position), (float(low[1]), float(high[1]))))
+        else:
+            ys.append(Target(float(position), (float(low[0]), float(high[0]))))
     return Targets(tuple(xs), tuple(ys))
 
 

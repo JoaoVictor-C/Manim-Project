@@ -20,9 +20,18 @@ from ..sound import subtitles
 
 Span = tuple[float, float]  # [start, end) in seconds
 # Parts of a project whose changes are not "every frame": layers, sounds (ADR 0034), subtitles (ADR 0035),
-# markers (ADR 0037: no frame at all). Helpers (ADR 0058) change the frames of the code layers and
-# Python objects only, which ``changed_layers`` adds.
-_NOT_CANVAS = {"layers", "audio", "subtitles", "subtitle_style", "markers", "morph_matching", "helpers"}
+# markers (ADR 0037) and layout guides (ADR 0074): no frame at all. Helpers (ADR 0058) change the frames of
+# the code layers and Python objects only, which ``changed_layers`` adds.
+_NOT_CANVAS = {
+    "layers",
+    "audio",
+    "subtitles",
+    "subtitle_style",
+    "markers",
+    "guides",
+    "morph_matching",
+    "helpers",
+}
 # The scene's length draws nothing: a frame is the same in a longer scene (P7.1).
 _NOT_DRAWN = {"canvas": {"duration", "grow_with_content"}}
 # Bytes of compressed frames kept ahead of the playhead (B41: 2200-4800 frames, one to three minutes of a

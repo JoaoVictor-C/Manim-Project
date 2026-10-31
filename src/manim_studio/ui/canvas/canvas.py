@@ -47,6 +47,7 @@ BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
 DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
+LAYOUT_GUIDE_ALPHA = 170  # layout guides (ADR 0074): the accent, a little see-through
 DOT_GAP = 18  # the dotted pasteboard (Lumen, ADR 0063)
 SHADOW_PX = 22  # how far the frame's shadow reaches
 
@@ -135,6 +136,7 @@ class CanvasWidget(QWidget):
         self.show_overlays = True  # outlines, handles and motion paths; off on the Code page (P12)
         self.show_edit_handles = True  # point and independent-width handles; corners stay available
         self.select_by_bounds = True  # let object bounds count as canvas hits (View toggle)
+        self.show_layout_guides = False  # View > Layout Guides: drawn, and moves snap to them (ADR 0074)
         self.presenting = False  # full screen: what lies outside the frame is black, no border (P12)
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
         self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
@@ -603,6 +605,8 @@ class CanvasWidget(QWidget):
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             painter.drawImage(QRectF(self.rect()), self._image)
             self._paint_pasteboard(painter)
+            if self.show_layout_guides and self.show_overlays:
+                self._paint_layout_guides(painter)
             if self.motion is not None:
                 self._paint_motion(painter)
             if self.outline is not None:
@@ -717,6 +721,39 @@ class CanvasWidget(QWidget):
         painter.setPen(pen)
         painter.setBrush(fill)
         painter.drawRect(QRectF(start, end).normalized())
+        painter.restore()
+
+    def layout_guides(self) -> list[tuple[str, float]]:
+        """The project's layout guides as ``(axis, position)`` (ADR 0074), shown or not."""
+        if self._evaluator is None:
+            return []
+        return [(g.axis, g.position) for g in self._evaluator.project.guides]
+
+    def set_layout_guides(self, shown: bool) -> None:
+        """View > Layout Guides: draw them over the frame, and let moves snap to them."""
+        if shown != self.show_layout_guides:
+            self.show_layout_guides = shown
+            self.update()
+
+    def _paint_layout_guides(self, painter: QPainter) -> None:
+        """The layout guides as thin lines across the video frame (ADR 0074); never in the video."""
+        guides = self.layout_guides()
+        if not guides or self._canvas is None:
+            return
+        to_px = self.units_transform()
+        half_w, half_h = self._canvas.frame_width / 2, self._canvas.frame_height / 2
+        colour = QColor(DROP_COLOR)
+        colour.setAlpha(LAYOUT_GUIDE_ALPHA)
+        pen = QPen(colour, 1)
+        pen.setCosmetic(True)
+        painter.save()
+        painter.setPen(pen)
+        for axis, position in guides:
+            if axis == "x":
+                start, end = QPointF(position, -half_h), QPointF(position, half_h)
+            else:
+                start, end = QPointF(-half_w, position), QPointF(half_w, position)
+            painter.drawLine(to_px.map(start), to_px.map(end))
         painter.restore()
 
     def _paint_guides(self, painter: QPainter) -> None:

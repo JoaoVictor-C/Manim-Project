@@ -666,6 +666,28 @@ class Marker(BaseModel):
     colour: str = "#f59e0b"
 
 
+class Guide(BaseModel):
+    """A layout guide (ADR 0074): a line across the frame that moved objects snap to. It draws nothing.
+
+    ``axis`` "x" is a vertical line at x = ``position``, "y" a horizontal one at y = ``position``,
+    in scene units (the frame's centre is 0).
+    """
+
+    id: str
+    axis: Literal["x", "y"]
+    position: float
+    name: str = ""
+
+    model_config = {"extra": "forbid"}
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_name(self, handler):
+        data = handler(self)
+        if not self.name:
+            data.pop("name", None)
+        return data
+
+
 class SubtitleStyle(BaseModel):
     """How every subtitle looks (ADR 0035)."""
 
@@ -737,6 +759,7 @@ class Project(BaseModel):
     subtitles: list[Cue] = Field(default_factory=list)  # one lane, in time order (ADR 0035)
     subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
     markers: list[Marker] = Field(default_factory=list)  # in time order, one per frame (ADR 0037)
+    guides: list[Guide] = Field(default_factory=list)  # layout guides on the canvas, never drawn (ADR 0074)
     camera: Camera = Field(default_factory=Camera)  # the default is the flat 2D view (ADR 0048)
     # How new morph clips match their pieces (ADR 0056): chosen when the project is created. It
     # changes no existing clip. Smart is the default and is not written to the file.
@@ -767,6 +790,8 @@ class Project(BaseModel):
             data.pop("subtitle_style", None)
         if not self.markers:
             data.pop("markers", None)
+        if not self.guides:
+            data.pop("guides", None)  # files without guides save as before (ADR 0074)
         if self.camera.is_default:
             data.pop("camera", None)  # files without a camera save as before (ADR 0048)
         return data
@@ -777,6 +802,7 @@ class Project(BaseModel):
             raise ValueError(f"unsupported schema_version {self.schema_version} (expected {SCHEMA_VERSION})")
         ids = [layer.id for layer in self.layers] + [clip.id for clip in self.audio]
         ids += [cue.id for cue in self.subtitles] + [marker.id for marker in self.markers]
+        ids += [guide.id for guide in self.guides]
         duplicates = {i for i, count in Counter(ids).items() if count > 1}  # linear (B53)
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")

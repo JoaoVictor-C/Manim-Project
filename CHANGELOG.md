@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Layout guides** ([ADR 0074](docs/adr/0074-layout-guides.md)). View > Layout Guides... adds vertical and
+  horizontal guides at a typed position, or a set for margins, thirds or the centre; View > Layout Guides shows them
+  on the canvas, and moved objects snap to them (hold Alt: off). They are saved with the project and never drawn
+  in the video.
 - **Beat sheet** ([ADR 0073](docs/adr/0073-visual-beat-sheet.md)). Edit > Beat Sheet... (Ctrl+Alt+B) lists the video
   beat by beat between your markers, each with a picture, what appears, what is said and which sound plays;
   double-click goes there, and it can be copied as Markdown.

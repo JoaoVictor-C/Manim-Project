@@ -71,3 +71,11 @@ def test_guides_span_the_snapped_box() -> None:
     assert result.offset == pytest.approx((0.05, -0.03))
     vertical = next(g for g in result.guides if g[0][0] == g[1][0])
     assert np.ravel(vertical) == pytest.approx((2.0, -1.0, 2.0, 2.97))
+
+
+def test_layout_guides_are_targets_across_the_frame() -> None:
+    found = sg.targets([], FRAME, [("x", 1.5), ("y", -2.0)])
+    assert sg.Target(1.5, (-4.0, 4.0)) in found.xs
+    assert sg.Target(-2.0, (-7.0, 7.0)) in found.ys
+    result = sg.snap((0.45, 0.5), (1.45, 1.5), found, radius=0.1)  # the right edge, 0.05 short
+    assert result.offset == pytest.approx((0.05, 0.0))

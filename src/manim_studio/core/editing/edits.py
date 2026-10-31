@@ -44,6 +44,7 @@ from ..model.schema import (
     Clip,
     Cue,
     Easing,
+    Guide,
     Helper,
     Keyframe,
     Layer,
@@ -1213,6 +1214,7 @@ def new_layer_id(project: Project, type_name: str) -> str:
     """``<type>-<n>`` with the smallest free ``n`` (e.g. ``mathtex-1``)."""
     taken = {layer.id for layer in project.layers} | {clip.id for clip in project.audio}
     taken |= {cue.id for cue in project.subtitles} | {marker.id for marker in project.markers}
+    taken |= {guide.id for guide in project.guides}
     return _free_id(type_name, taken)
 
 
@@ -1279,6 +1281,7 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "subtitles": project.subtitles,
         "subtitle_style": project.subtitle_style,
         "markers": project.markers,
+        "guides": project.guides,
         "camera": project.camera,
         "morph_matching": project.morph_matching,
         "helpers": project.helpers,
@@ -1520,6 +1523,113 @@ def _marker(project: Project, marker_id: str) -> Marker:
 
 def _replace_markers(project: Project, markers: list[Marker]) -> Edit:
     return Edit(_rebuilt(project, markers=markers), "timing", frozenset())
+
+
+# -- layout guides (ADR 0074) ---------------------------------------------------------------
+# Lines on the canvas that moved objects snap to. Like markers they change no frame.
+
+_SAME_PLACE = 1e-6  # scene units: a guide this close to another on the same axis is the same guide
+
+
+def add_guide(project: Project, axis: str, position: float, name: str = "") -> Edit:
+    """A vertical (``axis`` "x") or horizontal ("y") guide at ``position`` scene units."""
+    return _add_guides(project, [(axis, position, name)])
+
+
+def move_guide(project: Project, guide_id: str, position: float, name: str | None = None) -> Edit:
+    """Put a guide at ``position`` (and rename it when ``name`` is given)."""
+    guide = _guide(project, guide_id)
+    if (other := guide_at(project, guide.axis, position)) is not None and other.id != guide_id:
+        raise EditError(f"guide {other.id!r} is already at {position:g}")
+    fields: dict[str, Any] = {"position": float(position)}
+    if name is not None:
+        fields["name"] = name
+    guides = [g.model_copy(update=fields) if g.id == guide_id else g for g in project.guides]
+    return _replace_guides(project, guides)
+
+
+def remove_guide(project: Project, guide_id: str) -> Edit:
+    _guide(project, guide_id)
+    return _replace_guides(project, [g for g in project.guides if g.id != guide_id])
+
+
+def guides_from_margins(project: Project, margin: float) -> Edit:
+    """Four guides ``margin`` scene units inside the frame's edges, and the two through its centre
+    (those already there are kept, not doubled)."""
+    half_w, half_h = project.canvas.frame_width / 2, project.canvas.frame_height / 2
+    if not 0 < margin < min(half_w, half_h):
+        raise EditError(f"a margin must be more than 0 and less than {min(half_w, half_h):g}")
+    return _add_guides(
+        project,
+        [
+            ("x", -half_w + margin, "left margin"),
+            ("x", half_w - margin, "right margin"),
+            ("y", half_h - margin, "top margin"),
+            ("y", -half_h + margin, "bottom margin"),
+            *_CENTRE,
+        ],
+    )
+
+
+def guides_for_thirds(project: Project) -> Edit:
+    """The rule of thirds: two vertical and two horizontal guides dividing the frame in three."""
+    third_w, third_h = project.canvas.frame_width / 6, project.canvas.frame_height / 6
+    return _add_guides(
+        project,
+        [
+            ("x", -third_w, "left third"),
+            ("x", third_w, "right third"),
+            ("y", third_h, "top third"),
+            ("y", -third_h, "bottom third"),
+        ],
+    )
+
+
+def guides_for_centre(project: Project) -> Edit:
+    """A vertical and a horizontal guide through the frame's centre."""
+    return _add_guides(project, list(_CENTRE))
+
+
+_CENTRE = (("x", 0.0, "centre"), ("y", 0.0, "middle"))
+
+
+def guide_at(project: Project, axis: str, position: float) -> Guide | None:
+    """The guide on ``axis`` at ``position``, if any."""
+    return next(
+        (g for g in project.guides if g.axis == axis and abs(g.position - position) < _SAME_PLACE), None
+    )
+
+
+def _add_guides(project: Project, wanted: list[tuple[str, float, str]]) -> Edit:
+    if any(axis not in ("x", "y") for axis, _, _ in wanted):
+        raise EditError("a guide's axis is x (vertical) or y (horizontal)")
+    taken = {g.id for g in project.guides} | {layer.id for layer in project.layers}
+    taken |= (
+        {c.id for c in project.audio} | {c.id for c in project.subtitles} | {m.id for m in project.markers}
+    )
+    guides = list(project.guides)
+    for axis, position, name in wanted:
+        if not math.isfinite(position):
+            raise EditError("a guide's position must be a number")
+        if any(g.axis == axis and abs(g.position - position) < _SAME_PLACE for g in guides):
+            continue
+        new_id = _free_id("guide", taken)
+        taken.add(new_id)
+        guides.append(Guide(id=new_id, axis=axis, position=float(position), name=name))
+    if len(guides) == len(project.guides):
+        raise EditError("those guides are already there")
+    return _replace_guides(project, guides)
+
+
+def _guide(project: Project, guide_id: str) -> Guide:
+    for guide in project.guides:
+        if guide.id == guide_id:
+            return guide
+    raise EditError(f"no guide {guide_id!r}")
+
+
+def _replace_guides(project: Project, guides: list[Guide]) -> Edit:
+    return Edit(_rebuilt(project, guides=guides), "timing", frozenset())
 
 
 # -- classification -------------------------------------------------------------

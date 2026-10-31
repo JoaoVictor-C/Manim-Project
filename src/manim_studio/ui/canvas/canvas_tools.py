@@ -653,7 +653,8 @@ class MoveTool(QObject):
             others[group] = (np.minimum(low, box[0]), np.maximum(high, box[1]))
         canvas = project.canvas
         half = np.array([canvas.frame_width / 2, canvas.frame_height / 2])
-        targets = snap_guides.targets(list(others.values()), (-half, half))
+        lines = [(g.axis, g.position) for g in project.guides] if self.canvas.show_layout_guides else []
+        targets = snap_guides.targets(list(others.values()), (-half, half), lines)  # guides: ADR 0074
         if not mine:
             return None, targets
         low = np.min([b[0] for b in mine], axis=0)
