@@ -77,6 +77,9 @@ PARAM_HANDLE_PX = 9.0  # parameter handles: round, drawn size (ADR 0043)
 CLEAR_OF_MIDDLE_PX = 14.0  # parameter handles nearer an object's middle or pivot than this are hidden
 WHEEL_PAN_PX = 48.0  # one wheel notch
 TURNED_NOTICE = "Camera turned: no handles or clicking objects here. Reset it in Properties > Camera."
+MOVED_NOTICE = (
+    "Camera moved here: no handles or clicking objects. Edit where the camera rests, or in Properties."
+)
 
 
 @dataclass
@@ -391,7 +394,9 @@ class CanvasWidget(QWidget):
     def camera_turned(self) -> bool:
         """The project's camera is not the flat 2D view (ADR 0048): the picture is seen from an angle,
         so outlines, handles and clicking objects (all in flat scene units) are off until it is reset."""
-        return self._evaluator is not None and not self._evaluator.project.camera.is_default
+        return self._evaluator is not None and (
+            not self._evaluator.project.camera.is_default or self._evaluator.camera_moved(self._t)
+        )
 
     def _render_turned(self, t: float, view: PreviewView) -> None:
         """The frame seen by a turned camera, with no outline, handle or motion path over it."""
@@ -671,13 +676,15 @@ class CanvasWidget(QWidget):
         painter.restore()
 
     def _paint_turned_notice(self, painter: QPainter) -> None:
-        """Why there are no handles: the camera is turned (ADR 0048)."""
+        """Why there are no handles: the camera is turned (ADR 0048) or moved (ADR 0072)."""
+        turned = self._evaluator is not None and not self._evaluator.project.camera.is_default
+        notice = TURNED_NOTICE if turned else MOVED_NOTICE
         painter.save()
         metrics = painter.fontMetrics()
-        box = QRectF(8, 8, metrics.horizontalAdvance(TURNED_NOTICE) + 16, metrics.height() + 8)
+        box = QRectF(8, 8, metrics.horizontalAdvance(notice) + 16, metrics.height() + 8)
         painter.fillRect(box, BADGE)
         painter.setPen(BADGE_TEXT)
-        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, TURNED_NOTICE)
+        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, notice)
         painter.restore()
 
     def _paint_others(self, painter: QPainter) -> None:

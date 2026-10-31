@@ -58,8 +58,12 @@ NOT_PATHS = frozenset({"AxisLabels", "GraphLabel"})  # text glyphs make no usefu
 # A group (ADR 0050): a root that draws nothing; its transform carries its children (parent_id = it).
 GROUP_TYPE = "Group"
 GROUP_TYPES = frozenset({GROUP_TYPE})
+# The camera (ADR 0072): a layer that draws nothing; where it keys its position, scale and rotation the view
+# looks at, zooms to and rolls by. At most one per project.
+CAMERA_TYPE = "Camera"
+CAMERA_TYPES = frozenset({CAMERA_TYPE})
 _NOT_A_PATH = (
-    CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES | CONNECTOR_TYPES | GROUP_TYPES
+    CODE_TYPES | RASTER_TYPES | NOT_PATHS | TRACE_TYPES | CONNECTOR_TYPES | GROUP_TYPES | CAMERA_TYPES
 )  # motion paths (ADR 0025)
 _WORLD_DRAWN = TRACE_TYPES | CONNECTOR_TYPES  # drawn in world units: not inside a group (ADR 0050)
 GROUPS_ONE_OBJECT = "groups are evaluated as one object"  # why the readable export falls back
@@ -426,6 +430,11 @@ class Layer(BaseModel):
         return self.spec is not None and self.spec.type in GROUP_TYPES
 
     @property
+    def is_camera(self) -> bool:
+        """The camera (ADR 0072): draws nothing; its keys move the view."""
+        return self.spec is not None and self.spec.type in CAMERA_TYPES
+
+    @property
     def locked(self) -> bool:
         """Follows its parent exactly (a graph on its axes): only opacity is its own."""
         return self.spec is not None and self.spec.type in LOCKED_TYPES
@@ -465,6 +474,17 @@ class Layer(BaseModel):
             or "scale_y" in self.tracks
         ):
             raise ValueError(f"layer {self.id!r}: a group can only use uniform scale")
+        if self.is_camera and self.clips:
+            raise ValueError(
+                f"layer {self.id!r}: a camera has no clips: key its position, scale and rotation"
+            )
+        if self.is_camera and (
+            self.base.scale_x != 1.0
+            or self.base.scale_y != 1.0
+            or "scale_x" in self.tracks
+            or "scale_y" in self.tracks
+        ):
+            raise ValueError(f"layer {self.id!r}: a camera can only zoom uniformly")
         if self.style and not self.is_part:
             raise ValueError(f"layer {self.id!r}: only part layers have a style (an object has spec.style)")
         if self.style and (problem := _style_problem(self.style)):
@@ -760,6 +780,8 @@ class Project(BaseModel):
         duplicates = {i for i, count in Counter(ids).items() if count > 1}  # linear (B53)
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
+        if sum(1 for layer in self.layers if layer.is_camera) > 1:
+            raise ValueError("a project has at most one camera")
         self._code_folder_rules()
         self.subtitles = sorted(self.subtitles, key=lambda cue: cue.start)
         for a, b in itertools.pairwise(self.subtitles):

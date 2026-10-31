@@ -126,6 +126,9 @@ def readable_problems(project: Project) -> list[str]:
 
     groups = {layer.id for layer in project.layers if layer.is_group}
     for layer in project.layers:
+        if layer.is_camera:  # ADR 0072: the view moves, which plain self.play code does not say
+            out.append(f"{name(layer)}: the camera moves the whole view; only the exact form reproduces it")
+            continue
         if layer.is_group or layer.parent_id in groups:  # ADR 0050
             out.append(f"{name(layer)}: {GROUPS_ONE_OBJECT}")
             continue

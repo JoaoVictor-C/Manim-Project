@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Camera layer** ([ADR 0072](docs/adr/0072-camera-layer.md)). Add > Scene > Camera adds one layer whose position,
+  zoom and roll keys move the whole view; it draws nothing, a project has one, and a camera at rest changes nothing.
 - **Ripple editing** ([ADR 0071](docs/adr/0071-linked-ripple-editing.md)). Edit > Ripple Edit... (Ctrl+Alt+R) opens or
   closes time at the playhead, or gives a beat between two markers a new length, and moves the clips, keys, sounds,
   subtitles and markers that follow together (each kind can be left out). It says what would move before it does,

@@ -192,6 +192,14 @@ def add_layer(
     return _replace_layers(project, layers)
 
 
+def add_camera(project: Project) -> Edit:
+    """Add the project's camera (ADR 0072): a layer whose keyed position is where the view looks, scale how
+    far it is zoomed in, and rotation how it is rolled. A project has one."""
+    if any(layer.is_camera for layer in project.layers):
+        raise EditError("the project has a camera already")
+    return add_layer(project, Spec(type="Camera"), name="Camera", layer_id=new_layer_id(project, "camera"))
+
+
 def split_code_layer(project: Project, layer_id: str, chapters: list[tuple[str, int, float, str]]) -> Edit:
     """Replace a code layer by one layer per chapter (ADR 0061), in one undo step.
 

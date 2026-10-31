@@ -691,6 +691,11 @@ class LayersPanel(QWidget):
                         "morphing into the next"
                     )
         self._add_python_objects_menu(menu)
+        menu.addSection("Scene")
+        self.add_camera_action = menu.addAction("Camera", self.add_camera)
+        self.add_camera_action.setToolTip(
+            "Add the camera: key its position, scale (zoom) and rotation on the timeline to pan and zoom"
+        )
         self.library_menu = menu
         return menu
 
@@ -947,6 +952,11 @@ class LayersPanel(QWidget):
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead(), position=position), f"Add {type_name}")
+
+    def add_camera(self) -> None:
+        """Add the project's camera (ADR 0072); its keys are edited like any layer's."""
+        self._select_new = True
+        self._submit(edits.add_camera, "Add camera")
 
     def add_python_object(self, code: str | None = None) -> None:
         """A Python object (ADR 0051), from a template (the right triangle by default): made on the

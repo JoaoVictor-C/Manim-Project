@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QWidget
 from ... import plugins
 from ...core.model.schema import (
     AXES_OBJECTS,
+    CAMERA_TYPES,
     CHILD_TYPES,
     CODE_TYPES,
     CONNECTOR_TYPES,
@@ -51,6 +52,7 @@ KINDS: dict[str, Kind] = {
     "code": Kind("code", "code", "emphasis", "sound", "code"),
     "python": Kind("python", "object", "key", "emphasis", "object"),
     "group": Kind("group", "group", "motion", "content", "group"),
+    "camera": Kind("camera", "film", "accent", "accent_2", "camera"),
     "trace": Kind("trace", "trace", "emphasis", "key"),
     "simulation": Kind("simulation", "simulation", "morph", "sound"),
     "part": Kind("part", "part", "content", ""),
@@ -77,6 +79,8 @@ def kind_of(layer: Layer | None) -> Kind:
     kind_type = spec.type if spec is not None else ""
     if kind_type in GROUP_TYPES:
         return KINDS["group"]
+    if kind_type in CAMERA_TYPES:
+        return KINDS["camera"]
     if kind_type == "Text":
         return KINDS["text"]
     if kind_type in ("MathTex", "Tex"):

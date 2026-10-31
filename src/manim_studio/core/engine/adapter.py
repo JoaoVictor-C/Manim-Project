@@ -38,6 +38,7 @@ from ..code.python_object import CodeProblem
 from ..model import parts, shape
 from ..model.schema import (
     AXES_OBJECTS,
+    CAMERA_TYPES,
     CLIP_KIND_INFO,
     CODE_TYPES,
     CONNECTOR_TYPES,
@@ -754,8 +755,8 @@ def build_mobject(spec: Spec, signature: str | None = None) -> m.Mobject:
     """
     if spec.type in CODE_TYPES:
         raise ValueError("code layers are rendered by the code runner, not built (ADR 0019)")
-    if spec.type in GROUP_TYPES:
-        return m.VGroup()  # draws nothing: its children are drawn through it (ADR 0050)
+    if spec.type in GROUP_TYPES | CAMERA_TYPES:
+        return m.VGroup()  # draws nothing: a group's children are drawn through it, a camera moves the view
     if spec.type in PYTHON_TYPES:  # the user's own code, once trusted (ADR 0051)
         built = _python_built(spec, signature)
         return (built if isinstance(built, m.Mobject) else _placeholder(2.0)).copy()
@@ -835,7 +836,7 @@ def media_signature(
 
 def build_problem(spec: Spec, signature: str | None = None) -> str | None:
     """Why an object is drawn as a placeholder (a media file, a plugin, a missing plugin), or None."""
-    if spec.type in CODE_TYPES | GROUP_TYPES | SHAPE_TYPES:
+    if spec.type in CODE_TYPES | GROUP_TYPES | CAMERA_TYPES | SHAPE_TYPES:
         return None
     if spec.type in PYTHON_TYPES:
         problem = python_problem(spec, signature)
@@ -2346,8 +2347,8 @@ SMART_CLASSES.update(
 
 def allowed_clip_kinds(mobject_type: str) -> list[str]:
     """The allow-list (ADR 0007): clip kinds verified for this mobject type."""
-    if mobject_type in CODE_TYPES | GROUP_TYPES:
-        return []  # code layers animate inside their code (ADR 0019); groups have no clips (ADR 0050)
+    if mobject_type in CODE_TYPES | GROUP_TYPES | CAMERA_TYPES:
+        return []  # code layers animate inside their code (ADR 0019); groups and the camera have no clips
     if mobject_type in TRACE_TYPES | CONNECTOR_TYPES or mobject_type in plugins.SIMULATIONS:
         return []  # simulated layers and connectors are drawn frame by frame (ADR 0033, 0036)
     kinds = [

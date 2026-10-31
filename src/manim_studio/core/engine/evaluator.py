@@ -160,6 +160,9 @@ class Evaluator:
         # Roots evaluated as trees: with parts (ADR 0012) or child objects (ADR 0029). A group is
         # not one (ADR 0050): each of its children is evaluated as a root, carried by the group.
         self._groups = {layer.id for layer in self.project.layers if layer.is_group}
+        camera = next((x for x in self.project.layers if x.is_camera and x.visible), None)
+        self._camera_id = camera.id if camera is not None else None  # the view moves by it (ADR 0072)
+        self._camera_seen: tuple[float, tuple[np.ndarray, np.ndarray] | None] | None = None
         self._visible: dict[str, bool] = {}
 
         def is_visible(layer_id: str) -> bool:
@@ -389,7 +392,7 @@ class Evaluator:
         return self._object_at(self._ltree.root_of(layer_id), t)
 
     def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
-        if not self._visible[root.id]:
+        if not self._visible[root.id] or root.id == self._camera_id:
             return []
         if root.id in self._groups:  # its children, in stacking order, carried by it (ADR 0050)
             if not self._alive(root, t):
@@ -832,6 +835,32 @@ class Evaluator:
 
     # -- paths (ADR 0025) ------------------------------------------------------
 
+    def camera_affine(self, t: float) -> tuple[np.ndarray, np.ndarray] | None:
+        """``p -> a p + b`` from the scene to the view at ``t`` (ADR 0072): None while the camera rests - no
+        camera, or at its start position, zoom 1 and no roll - so a project without one is drawn as ever."""
+        if self._camera_id is None:
+            return None
+        if self._camera_seen is not None and self._camera_seen[0] == t:
+            return self._camera_seen[1]
+        tr = layer_transform(self._layers[self._camera_id], t)
+        if tr.position == (0.0, 0.0) and tr.scale == 1.0 and tr.rotation == 0.0:
+            result = None
+        else:
+            angle = math.radians(-tr.rotation)
+            c, s = math.cos(angle), math.sin(angle)
+            a = tr.scale * np.array([[c, -s], [s, c]])
+            result = (a, -(a @ np.array(tr.position, dtype=float)))
+        self._camera_seen = (t, result)
+        return result
+
+    def camera_moved(self, t: float) -> bool:
+        """Is the view not at rest at ``t``? Handles and clicks are in scene units, so they are off then."""
+        return self.camera_affine(t) is not None
+
+    def _through_camera(self, a: np.ndarray, b: np.ndarray, t: float) -> tuple[np.ndarray, np.ndarray]:
+        camera = self.camera_affine(t)
+        return (a, b) if camera is None else (camera[0] @ a, camera[0] @ b + camera[1])
+
     def _world_affine(self, layer: Layer, t: float) -> tuple[np.ndarray, np.ndarray]:
         """``p -> a p + b`` from a root's or child object's local units to world at ``t``."""
         a, b = _affine(self.transform_at(layer, t))
@@ -918,7 +947,7 @@ class Evaluator:
         crop = clip.crop(math.floor((t - start) * clip.fps + 1e-6))
         if crop is None:
             return None  # an empty frame: nothing drawn
-        a, b = self._world_affine(layer, t)  # a group carries it too (ADR 0050)
+        a, b = self._through_camera(*self._world_affine(layer, t), t)  # a group carries it too (ADR 0050)
         return CodeFrame(crop, self.project.canvas, a, b, self._world_opacity(layer, t))
 
     # -- objects with parts (ADR 0012) -----------------------------------------
@@ -1128,7 +1157,9 @@ class Evaluator:
             local = m.VGroup(*(source[i] for i in tree.draws(member)))
             if member in overlays:
                 local = m.Group(local, overlays[member])
-            out.append((member, self._project_local(local, member, *self._member_affine(tree, layer, t))))
+            a, b, opacity = self._member_affine(tree, layer, t)
+            a, b = self._through_camera(a, b, t)
+            out.append((member, self._project_local(local, member, a, b, opacity)))
         return out
 
     def _member_morph(self, layer: Layer, t: float) -> m.Mobject | None:
@@ -1201,14 +1232,15 @@ class Evaluator:
         """Apply the keyframed layer transform (and a child object's parent's) without touching ``local``."""
         tr = self.transform_at(layer, t)
         if not layer.is_child:
-            if tr == _IDENTITY:
+            if tr == _IDENTITY and self.camera_affine(t) is None:
                 return local
-            a, b = _affine(tr)
+            a, b = self._through_camera(*_affine(tr), t)
             return self._project_local(local, layer.id, a, b, tr.opacity)
         ptr = self.transform_at(self._layers[layer.parent_id], t)  # ADR 0024: carried by its parent
         a, b = _affine(tr)
         pa, pb = _affine(ptr)
-        return self._project_local(local, layer.id, pa @ a, pa @ b + pb, tr.opacity * ptr.opacity)
+        a, b = self._through_camera(pa @ a, pa @ b + pb, t)
+        return self._project_local(local, layer.id, a, b, tr.opacity * ptr.opacity)
 
     def _project_local(self, local: m.Mobject, key: str, a: np.ndarray, b: np.ndarray, opacity: float):
         """``local`` mapped by ``p -> a p + b`` with ``opacity`` applied, on a scratch proxy.

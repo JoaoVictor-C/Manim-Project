@@ -287,6 +287,7 @@ def test_a_code_layer_error_in_a_helper_says_where(tmp_path) -> None:
         "type": "ZeroDivisionError",
         "where": "helper:sides",
         "helper_line": 3,
+        "frame": 0,  # it failed before the scene drew anything (ADR 0067)
     }
     with pytest.raises(CodeError, match="helper 'sides' is not trusted yet") as untrusted:
         render_code(job(SCENE, SIDES, trusted=()), CodeCache(tmp_path))
