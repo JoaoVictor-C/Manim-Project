@@ -99,3 +99,4 @@ need one.
 | [0068](0068-named-project-snapshots.md) | Named project snapshots: milestones kept beside the file, apart from undo | Accepted |
 | [0069](0069-script-to-timeline.md) | Script to timeline: a written script becomes timed subtitle cues, with optional placeholders | Accepted |
 | [0070](0070-draft-preview-while-editing.md) | Draft preview while editing: heavy edits are drawn small and marked, and in full when the user pauses | Accepted |
+| [0071](0071-linked-ripple-editing.md) | Linked ripple editing: open or close time at a point and let what follows move with it | Accepted |

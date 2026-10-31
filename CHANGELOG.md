@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Ripple editing** ([ADR 0071](docs/adr/0071-linked-ripple-editing.md)). Edit > Ripple Edit... (Ctrl+Alt+R) opens or
+  closes time at the playhead, or gives a beat between two markers a new length, and moves the clips, keys, sounds,
+  subtitles and markers that follow together (each kind can be left out). It says what would move before it does,
+  and it is one undo step.
 - **Draft preview while editing** ([ADR 0070](docs/adr/0070-draft-preview-while-editing.md)). When a drag, a scrub or
   playback of a heavy scene makes the canvas slow, its frames are drawn at half size and marked DRAFT, and drawn in full
   as soon as you pause. View > Draft Preview While Editing turns it off.

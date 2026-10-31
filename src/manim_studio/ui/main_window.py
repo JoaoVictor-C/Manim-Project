@@ -90,6 +90,7 @@ from .shell.clipboard_actions import ClipboardActions
 from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
 from .shell.plugins_dialog import PluginsDialog, startup_message
+from .shell.ripple_dialog import RippleDialog
 from .shell.shortcuts_help import ShortcutsDialog
 from .shell.topbar import TopBar
 from .shell.welcome import EXAMPLE, WelcomePanel
@@ -505,7 +506,13 @@ class MainWindow(QMainWindow):
         shift_action.setShortcut(QKeySequence("Ctrl+Shift+T"))
         shift_action.triggered.connect(self.shift_selection)
         self.ask_shift = self._ask_shift_dialog  # tests and other front-ends answer here
-        edit_menu.addActions([scene_settings, fit_length, shift_action])
+        ripple_action = QAction("&Ripple Edit...", self)
+        ripple_action.setToolTip(
+            "Open or close time at a point and move what follows with it, or change the length of a beat"
+        )
+        ripple_action.setShortcut(QKeySequence("Ctrl+Alt+R"))
+        ripple_action.triggered.connect(self.show_ripple)
+        edit_menu.addActions([scene_settings, fit_length, shift_action, ripple_action])
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
@@ -1413,6 +1420,12 @@ class MainWindow(QMainWindow):
         new = [w for w in shift_timing.timing_warnings(edit.project) if w not in old]
         if new:
             self.statusBar().showMessage(f"Shift timing: {new[0]}", 15000)
+
+    def show_ripple(self) -> None:
+        """Edit > Ripple Edit...: time opened or closed at a point, or a beat given a length (ADR 0071)."""
+        if not self._has_project:
+            return
+        RippleDialog(lambda: self.document.project, self.t, self.document.apply, self).exec()
 
     def show_scene_settings(self) -> None:
         """Nothing selected, so Properties shows the scene; its length is ready to type."""
