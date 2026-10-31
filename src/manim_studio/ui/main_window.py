@@ -86,6 +86,7 @@ from .session.preferences import Preferences
 from .session.selection import Selection
 from .shell import shortcuts_help
 from .shell.autosave import Autosave
+from .shell.beat_sheet_dialog import BeatSheetDialog
 from .shell.clipboard_actions import ClipboardActions
 from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
@@ -512,7 +513,11 @@ class MainWindow(QMainWindow):
         )
         ripple_action.setShortcut(QKeySequence("Ctrl+Alt+R"))
         ripple_action.triggered.connect(self.show_ripple)
-        edit_menu.addActions([scene_settings, fit_length, shift_action, ripple_action])
+        beats_action = QAction("&Beat Sheet...", self)
+        beats_action.setToolTip("The video beat by beat between your markers: picture, appears, said")
+        beats_action.setShortcut(QKeySequence("Ctrl+Alt+B"))
+        beats_action.triggered.connect(self.show_beat_sheet)
+        edit_menu.addActions([scene_settings, fit_length, shift_action, ripple_action, beats_action])
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
@@ -1426,6 +1431,13 @@ class MainWindow(QMainWindow):
         if not self._has_project:
             return
         RippleDialog(lambda: self.document.project, self.t, self.document.apply, self).exec()
+
+    def show_beat_sheet(self) -> None:
+        """Edit > Beat Sheet...: the video as beats between markers (ADR 0073)."""
+        if not self._has_project:
+            return
+        title = self.path.stem if self.path is not None else "Beat sheet"
+        BeatSheetDialog(lambda: self.document.project, self.seek, title, self).exec()
 
     def show_scene_settings(self) -> None:
         """Nothing selected, so Properties shows the scene; its length is ready to type."""

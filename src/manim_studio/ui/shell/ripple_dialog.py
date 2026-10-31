@@ -39,7 +39,7 @@ class RippleDialog(QDialog):
         self.current, self._apply = current, apply
         self.frame = DialogFrame(
             self,
-            "timeline",
+            "chapters",
             "Ripple edit",
             "Open or close time and let what follows move with it, or change the length of a beat.",
         )

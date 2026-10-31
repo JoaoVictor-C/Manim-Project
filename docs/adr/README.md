@@ -101,3 +101,4 @@ need one.
 | [0070](0070-draft-preview-while-editing.md) | Draft preview while editing: heavy edits are drawn small and marked, and in full when the user pauses | Accepted |
 | [0071](0071-linked-ripple-editing.md) | Linked ripple editing: open or close time at a point and let what follows move with it | Accepted |
 | [0072](0072-camera-layer.md) | Camera layer: the view pans, zooms and rolls by one layer's keys | Accepted |
+| [0073](0073-visual-beat-sheet.md) | Visual beat sheet: the video beat by beat between the markers, with pictures and a Markdown copy | Accepted |

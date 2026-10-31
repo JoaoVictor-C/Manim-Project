@@ -102,3 +102,11 @@ def test_the_modes_show_their_own_fields(window) -> None:
 def test_the_menu_entry_exists(window) -> None:
     edit_menu = next(a.menu() for a in window.menuBar().actions() if a.text() == "&Edit")
     assert "&Ripple Edit..." in [a.text() for a in edit_menu.actions()]
+
+
+def test_the_dialog_can_be_shown_and_painted(window, qt_app) -> None:
+    dialog = RippleDialog(lambda: window.document.project, 0.0, window.document.apply)
+    dialog.show()
+    qt_app.processEvents()
+    assert not dialog.grab().isNull()  # its header icon must exist
+    dialog.close()
