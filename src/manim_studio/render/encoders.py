@@ -26,6 +26,7 @@ GPU_MIN_PIXELS = 1920 * 1080 * 400  # pixels in the whole video (400 frames of F
 # NVENC's constant-quality scale runs about ten steps above x264's CRF for the same picture and size: on
 # Cairo frames, crf 18 and cq 28 are within 0.5 dB and 5 % of each other (ADR 0065).
 CQ_OFFSET = 10
+NVENC_MAX_SIDE = 4096  # H.264 on the card does not go beyond this on either side (8K opens and fails)
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ def candidates(
     if encoder not in ENCODERS:
         raise ValueError(f"encoder must be one of {', '.join(ENCODERS)}, not {encoder!r}")
     cpu = x264(crf)
-    if encoder == "cpu" or not gpu_listed():
+    if encoder == "cpu" or not gpu_listed() or max(width, height) > NVENC_MAX_SIDE:
         return [cpu]
     if encoder == "auto" and not farming and frames * width * height < GPU_MIN_PIXELS:
         return [cpu]

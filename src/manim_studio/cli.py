@@ -67,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
         "when it has one and the video is big enough to pay (default: auto; ADR 0065)",
     )
     render.add_argument(
+        "--check",
+        action="store_true",
+        help="do not render: say what would be slow or would not work, and about how long (ADR 0066)",
+    )
+    render.add_argument(
         "--jobs",
         type=int,
         help="processes that draw frames side by side (default: as many as pay, by cores and free memory; "
@@ -148,7 +153,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except OptionsError as exc:
         return _fail(str(exc))
-    return _render(args.project, args.output, args.cache_dir, args.progress, args.trust_code, options)
+    return _render(
+        args.project, args.output, args.cache_dir, args.progress, args.trust_code, options, args.check
+    )
 
 
 def _render(
@@ -158,6 +165,7 @@ def _render(
     mode: str = "text",
     trust_code: bool = False,
     options=None,
+    check: bool = False,
 ) -> int:
     from .core.engine import adapter
     from .core.model.schema import Project
@@ -173,6 +181,8 @@ def _render(
     except ValidationError as exc:
         return _fail(f"{project_path} is not a valid project:\n{exc}")
     adapter.configure(cache_dir or project_path.resolve().parent / ".cache" / "manim")
+    if check:
+        return _check(project, output, options, trust_code)
 
     def progress(done: int, total: int) -> None:
         if mode == "json":
@@ -210,6 +220,21 @@ def _render(
             print(f"warning: {warning}", file=sys.stderr)
     log.info("rendered %s -> %s in %.1fs", project_path, result.path, time.perf_counter() - start)
     return 0
+
+
+def _check(project, output: Path, options, trust_code: bool) -> int:
+    """The export health report (ADR 0066), with the cost of a frame measured here; exit 1 on a problem."""
+    from .core.engine import adapter
+    from .processes import export_health
+
+    seconds = export_health.measure(project, options)
+    report = export_health.check(project, options, adapter.cache_dir(), output, trust_code, seconds)
+    print(
+        f"{report.frames} frames; about {export_health.clock(report.seconds)} before the frames are encoded"
+    )
+    for line in report.lines():
+        print(line)
+    return 1 if report.worst == export_health.PROBLEM else 0
 
 
 def _python(project_path: Path, output: Path, scene: str | None, cache_dir: Path | None) -> int:

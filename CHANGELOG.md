@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Export health report** ([ADR 0066](docs/adr/0066-export-health-report.md)). Before exporting, the Deliver page
+  lists what will be slow or will not work (code layers to render at that size, untrusted code drawn as
+  placeholders, very large frames, little disk space, the graphics card's 4096 px H.264 limit);
+  `manim-studio render PROJECT OUT --check` prints the full report with a measured frame cost.
 - **Faster exports** ([ADR 0065](docs/adr/0065-parallel-export-and-gpu-encoding.md)). Frames are drawn by several
   processes at once (automatic, from your cores and free memory; short or light exports stay in one), the video is
   encoded by an NVIDIA card's NVENC when there is one and it pays (otherwise x264), and the code layers of a project

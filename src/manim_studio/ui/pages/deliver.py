@@ -43,6 +43,7 @@ from ...core.engine import adapter
 from ...core.engine.python_export import PythonExport, class_name, to_python
 from ...core.model.schema import Project
 from ...logging_config import get_logger
+from ...processes import export_health
 from ...render.options import (
     DEFAULT_CRF,
     HEIGHT_PRESETS,
@@ -433,6 +434,9 @@ class DeliverPage(Page):
         self.summary = QLabel()
         self.summary.setProperty("role", "readout")
         self.summary.setWordWrap(True)
+        self.health = QLabel()  # what will be slow or will not work (ADR 0066)
+        self.health.setProperty("role", "hint")
+        self.health.setWordWrap(True)
         self.error = QLabel()
         self.error.setWordWrap(True)
         self.error.setProperty("role", "error")
@@ -458,6 +462,7 @@ class DeliverPage(Page):
         column.addLayout(tiles)
         column.addLayout(form)
         column.addWidget(self.summary)
+        column.addWidget(self.health)
         column.addWidget(self.error)
         column.addLayout(actions)
         column.addWidget(note)
@@ -801,10 +806,35 @@ class DeliverPage(Page):
         seconds = (last - first) / canvas.fps
         size = f"{canvas.width_px}x{canvas.height_px} at {canvas.fps} fps"
         self.summary.setText(f"{last - first} frames, {seconds:.2f} s - {size}")
+        self._show_health(project, options)
         self._show_estimates(project, options, canvas, last - first)
         edited = not self._matches_destination()
         self.preset_chip.setText("Edited" if edited else "Preset")
         self.preset_chip.set_tone("accent" if edited else "neutral")
+
+    def _show_health(self, project: Project, options: RenderOptions) -> None:
+        """The export health report (ADR 0066) under the summary: what is worth a warning, in a few lines."""
+        text = self.path.text().strip()
+        try:
+            report = export_health.check(
+                project,
+                options,
+                adapter.cache_dir(),
+                Path(text) if text else None,
+                trust_code=not self.window.trust.untrusted(project),
+            )
+        except (OSError, ValueError) as error:  # the report is advice: it never stops the page
+            log.warning("deliver: no health report: %s", error)
+            self.health.clear()
+            return
+        notable = [f for f in report.findings if f.severity != export_health.INFO]
+        lines = [f"{f.title}. {f.detail}".strip() for f in notable[:4]]
+        if len(notable) > 4:
+            lines.append(f"... and {len(notable) - 4} more (manim-studio render --check lists them all)")
+        self.health.setText(" ".join(lines) if len(lines) < 2 else "- " + "\n- ".join(lines))
+        self.health.setProperty("role", "error" if report.worst == export_health.PROBLEM else "hint")
+        self.health.style().unpolish(self.health)
+        self.health.style().polish(self.health)
 
     def _show_estimates(self, project: Project, options: RenderOptions, canvas, frames: int) -> None:
         """The tiles over the form: how long the video is, a guess at the render time (from the last export of

@@ -622,3 +622,17 @@ def test_save_as_writes_the_scene_through_the_window(window, tmp_path) -> None:
     target.unlink()
     p.python_save.click()  # cancelled: nothing written
     assert not target.exists()
+
+
+def test_the_page_warns_about_what_an_export_cannot_do(window, qt_app) -> None:
+    """ADR 0066: an untrusted code layer is drawn as a placeholder, and the page says so under the summary."""
+    from manim_studio.core.model.schema import Layer, Spec
+
+    code = Layer(
+        id="scene", spec=Spec(type="Code", params={"code": "class A(Scene):\n    def construct(self): ..."})
+    )
+    win = window(make_project().model_copy(update={"layers": [code]}))
+    health = page(win).health
+    assert "placeholder" in health.text()
+    clean = window(make_project(), name="clean")
+    assert page(clean).health.text() == ""
