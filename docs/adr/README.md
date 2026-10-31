@@ -97,3 +97,4 @@ need one.
 | [0066](0066-export-health-report.md) | Export health report: what will be slow or will not work, found before the export starts | Accepted |
 | [0067](0067-code-errors-know-their-time.md) | Code errors know their time: an error says how far the scene got, and the page can show that frame | Accepted |
 | [0068](0068-named-project-snapshots.md) | Named project snapshots: milestones kept beside the file, apart from undo | Accepted |
+| [0069](0069-script-to-timeline.md) | Script to timeline: a written script becomes timed subtitle cues, with optional placeholders | Accepted |

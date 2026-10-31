@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Import a script** ([ADR 0069](docs/adr/0069-script-to-timeline.md)). File > Import Script... turns pasted or loaded
+  text (plain or Markdown) into subtitles, a sentence or a paragraph each, timed by reading speed after the existing
+  ones, with an optional placeholder Text layer per paragraph. One undo step; the Audio page narrates the cues.
 - **Named project snapshots** ([ADR 0068](docs/adr/0068-named-project-snapshots.md)). File > Snapshots... (Ctrl+Alt+S)
   keeps milestones such as "rough cut" or "final narration" beside the project, shows what differs between one and
   the project now, and restores it as a single undo step.

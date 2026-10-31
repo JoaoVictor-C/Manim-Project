@@ -23,7 +23,7 @@ def project_with(*layers: Layer) -> Project:
 
 def code_layer(name: str, code: str = CODE, seconds: float = 20.0) -> Layer:
     return Layer(
-        id=name, spec=Spec(type="Code", params={"code": code}), lifetime=Lifetime(start=0.0, end=seconds)
+        id=name, spec=Spec(type="Code", params={"code": code}), lifetime=Lifetime(in_=0.0, out=seconds)
     )
 
 

@@ -59,6 +59,7 @@ from .canvas.canvas_tools import MoveTool
 from .canvas.viewport import ZOOM_STEP
 from .deliver.export_dialog import ExportDialog
 from .exchange.code_importer import CodeImporter
+from .exchange.script_dialog import ScriptDialog
 from .exchange.snapshots_dialog import SnapshotsDialog
 from .pages import PageHost, Shared
 from .pages.animate import AnimatePage
@@ -377,6 +378,12 @@ class MainWindow(QMainWindow):
                 "Render the whole video with Manim to an MP4 file",
             ),
             ("Export &Python...", QKeySequence(), self.export_python, "Write the scene as a Manim script"),
+            (
+                "Import &Script...",
+                QKeySequence(),
+                self.import_script,
+                "Turn a written script into subtitles on the timeline, timed by reading speed",
+            ),
             (
                 "Snapshots...",
                 QKeySequence("Ctrl+Alt+S"),
@@ -2049,6 +2056,13 @@ class MainWindow(QMainWindow):
         return export
 
     # -- export (S4, ADR 0017) -------------------------------------------------------
+
+    def import_script(self) -> None:
+        """File > Import Script...: a written script becomes subtitles (ADR 0069), one undo step."""
+        if self.project is None:
+            self.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        ScriptDialog(lambda: self.document.project, self.document.apply, self).exec()
 
     def show_snapshots(self) -> None:
         """File > Snapshots...: named milestones kept beside the project file (ADR 0068)."""
