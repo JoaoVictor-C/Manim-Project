@@ -8,15 +8,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import numpy as np
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QListWidget, QListWidgetItem, QPushButton, QWidget
 
 from ...core.editing import beat_sheet
 from ...core.engine.evaluator import Evaluator
 from ...core.model.schema import Project
 from ...render.cairo_export import make_camera, render_frame
-from ..panels.presets_browser import to_pixmap
 from ..style.dialog_chrome import DialogFrame
 
 PICTURE_WIDTH = 192
@@ -29,7 +29,11 @@ def picture(project: Project, t: float) -> QPixmap:
     small = project.model_copy(
         update={"canvas": canvas.model_copy(update={"width_px": PICTURE_WIDTH, "height_px": height})}
     )
-    return to_pixmap(render_frame(make_camera(small.canvas), Evaluator(small).frame(t)))
+    frame = np.ascontiguousarray(render_frame(make_camera(small.canvas), Evaluator(small).frame(t)))
+    rows, columns, _ = frame.shape
+    return QPixmap.fromImage(
+        QImage(frame.data, columns, rows, columns * 4, QImage.Format.Format_RGBA8888).copy()
+    )
 
 
 def describe(row: beat_sheet.Row) -> str:
