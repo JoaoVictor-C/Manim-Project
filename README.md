@@ -9,8 +9,8 @@ It is for teachers, students and creators who want Manim's look (LaTeX equations
 smooth transforms) without writing a scene by hand, and for Manim users who want to lay out and
 time a scene visually, then keep going in code.
 
-**Status:** 0.3.0, proposed and not yet released - the first version with the editor. See the
-[release notes](docs/releases/0.3.0.md) and the [changelog](CHANGELOG.md).
+**Status:** 1.0.0, the first release with the editor. See the
+[release notes](docs/releases/1.0.0.md) and the [changelog](CHANGELOG.md).
 
 ## What you can do
 
@@ -44,7 +44,7 @@ everything works except equations, which show as a dashed placeholder. FFmpeg is
 From a release wheel:
 
 ```bash
-uv tool install manim_studio-0.3.0-py3-none-any.whl
+uv tool install manim_studio-1.0.0-py3-none-any.whl
 ```
 
 From source (development; on Windows, read [docs/dev/setup.md](docs/dev/setup.md) first - a

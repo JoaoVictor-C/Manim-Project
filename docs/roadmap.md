@@ -76,7 +76,7 @@ Plan for Phases 5 and 6: [plans/phases-5-6.md](plans/phases-5-6.md) (decision se
 - ✅ **P6b** — [plan](plans/p6b-pages.md): workspace pages like DaVinci Resolve's: Compose, Animate, Code, Audio, Deliver
 - ✅ **P6c** — [plan](plans/p6c-canvas.md): canvas interaction: more on-canvas handles, snapping guides, multi-select with align/distribute
 - ✅ **P6d** — [plan](plans/p6d-polish.md): presets browser, preferences, recent files, shortcuts help, onboarding, visual-bug sweep
-- **P6e** — [plan](plans/p6e-release.md): release preparation (0.3.0 prepared and proposed; the release itself waits for the maintainer, ADR 0045)
+- **P6e** — [plan](plans/p6e-release.md): release preparation (1.0.0 tagged by the maintainer, ADR 0045)
 - **GP** — [plan](plans/golden-path.md): the golden path - create, save, reopen and export a typical animation, excellently; readable Python export; 10+ minute scenes
 - **P7** — [plan](plans/p7-studio-workflow.md): studio workflow - scene length, row selection, code layer management, Animate like After Effects and Unity, scaling for long scenes, 3D preparation (P7.1 and P7.3-P7.5 done; P7.2 mostly done)
 - ✅ **P9** — [plan](plans/p9-pythagoras-feedback.md): what the Pythagoras project asked for - auto-key and right triangles, timeline follow lock, multi-select and shift timing, part colour, groups (U1-U6 done)

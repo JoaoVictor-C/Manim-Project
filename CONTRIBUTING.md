@@ -119,7 +119,7 @@ These are **append-only history** - add to them, never rewrite them:
   structured reasoning behind larger choices, numbered.
 - **Plans** ([docs/plans/](docs/plans/)): one per slice; mark items done as they land.
 - **Changelog** ([CHANGELOG.md](CHANGELOG.md)): a bullet under **[Unreleased]** for every
-  user-visible change. Release notes per version go in [docs/releases/](docs/releases/0.3.0.md).
+  user-visible change. Release notes per version go in [docs/releases/](docs/releases/1.0.0.md).
 
 ## 9. How to add...
 

@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [1.0.0] - unreleased
+## [1.0.0] - 2026-11-01
 
 First release of the editor. Everything under this heading and under 0.3.0 below ships in 1.0.0; there was
 no published 0.3.0. Release notes: [docs/releases/1.0.0.md](docs/releases/1.0.0.md). The Lumen interface for the

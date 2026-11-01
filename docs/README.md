@@ -42,6 +42,6 @@ These are **append-only**: new entries are added, old ones are not rewritten.
 | [logs/decision-sessions.md](logs/decision-sessions.md) | structured reasoning sessions behind the larger choices |
 | [logs/benchmarks.md](logs/benchmarks.md) | performance measurements B1, B2, ... (scripts in [benchmarks/](../benchmarks/README.md)) |
 | [../CHANGELOG.md](../CHANGELOG.md) | every user-visible change, by version |
-| [releases/](releases/0.3.0.md) | release notes per version (0.3.0, proposed) |
+| [releases/](releases/1.0.0.md) | release notes per version (1.0.0) |
 
 Third-party licenses: [../THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).

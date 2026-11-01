@@ -14,7 +14,7 @@
 From a release wheel:
 
 ```bash
-uv tool install manim_studio-0.3.0-py3-none-any.whl
+uv tool install manim_studio-1.0.0-py3-none-any.whl
 ```
 
 This puts a `manim-studio` command on your PATH. Check it:
@@ -24,7 +24,7 @@ manim-studio --version
 ```
 
 It prints the versions of Manim Studio, Manim and Python, for example
-`manim-studio 0.3.0 (Manim 0.22.0, Python 3.13.16)`.
+`manim-studio 1.0.0 (Manim 0.22.0, Python 3.13.16)`.
 
 To run from a clone of the repository instead (for development), follow
 [docs/dev/setup.md](../dev/setup.md); in short, `uv sync` and then `uv run manim-studio edit`.

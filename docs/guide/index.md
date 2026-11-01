@@ -3,7 +3,7 @@
 Manim Studio is a visual editor for [Manim](https://www.manim.community/) animations: you
 build a scene from objects on a canvas, animate them with clips and keyframes on a timeline,
 and Manim renders every frame - the preview is the video you export. These pages describe
-version 0.3.0 (proposed, not yet released).
+version 1.0.0.
 
 | page | read it to |
 |---|---|
