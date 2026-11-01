@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - unreleased
+
+First release of the editor. Everything under this heading and under 0.3.0 below ships in 1.0.0; there was
+no published 0.3.0. Release notes: [docs/releases/1.0.0.md](docs/releases/1.0.0.md). The Lumen interface for the
+stage, timeline, dialogs, Audio, Deliver and Code pages ([ADR 0084](docs/adr/0084-lumen-covers-the-new-tools.md)),
+the Figma-style tool rail and Add object popover, and the camera that is always the first layer
+([ADR 0086](docs/adr/0086-camera-always-first.md)) are new in this release.
+
 ### Added
 - **Camera tour example** and Esc to deselect. New Project > Camera tour is a wide scene seen through the camera
   layer (pan, zoom in on a dot, roll); `examples/build_camera.py` writes it. Esc now deselects everything on the canvas.
