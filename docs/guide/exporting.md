@@ -32,6 +32,14 @@ you keep editing - each uses the project as it was when it was added. **Start qu
 **Cancel**, **Remove**, **Clear finished** and **Open folder** (or double-click a row) manage it.
 A queue is not saved: queued renders are lost when the editor quits.
 
+**Long exports resume.** A video of 20 seconds or more is rendered in 10-second segments kept in a
+folder beside it (`clip.export/` for `clip.mp4`) and joined when the last one is done. If the
+export is cancelled, crashes or the computer turns off, adding the same export again (same project,
+same settings, same file) asks **Resume export (N of M segments done)** or **Start over**; resuming
+renders only the segments that are missing or damaged. The folder is removed when the video is
+complete; one left untouched for a week is removed by the next long export to the same folder. It
+holds about as much as the finished video.
+
 The page also shows the **Python scene** the project would export, says whether it is readable
 or exact (and why), and saves it with **Save as...**.
 
@@ -84,6 +92,8 @@ manim-studio render project.json out.mp4
 | `--trust-code` | run the project's Python code: code layers not rendered yet and Python objects not in your trusted store |
 | `--cache-dir DIR` | Manim's cache (default: `.cache/manim` next to the project file) |
 | `--progress {text,json}` | `json`: one JSON object per line, for scripts |
+| `--fresh` | start again from the first frame instead of resuming the segments an interrupted export left (by default it resumes) |
+| `--segment-seconds S` | render a video of two segments or more in segments this long, so an interrupted export can resume (default: 10) |
 
 Without `--trust-code`, code layers not rendered yet and untrusted Python objects are drawn as
 placeholders and a warning says which. A bad project or option prints one `error:` line and

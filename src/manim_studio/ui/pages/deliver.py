@@ -7,7 +7,8 @@ In the middle, the shared viewer beside (in a narrow window, over) the chosen de
 for the Python destination, the readable/exact scene with *Save as...*. At the right, the **queue** of
 exports, run one after another through ``ExportJob`` (each from the project as it was when it was added): the
 running job has a progress ring and the time left, the finished ones a check. The settings are the page's own
-state, not the project's; they start from the project's canvas.
+state, not the project's; they start from the project's canvas. Adding an export for which an interrupted one
+of the same project and settings left segments asks whether to resume it or start again (ADR 0081).
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -44,6 +46,7 @@ from ...core.engine.python_export import PythonExport, class_name, to_python
 from ...core.model.schema import Project
 from ...logging_config import get_logger
 from ...processes import export_health
+from ...render import resume
 from ...render.options import (
     DEFAULT_CRF,
     HEIGHT_PRESETS,
@@ -882,11 +885,39 @@ class DeliverPage(Page):
             return None
         self.error.clear()
         trust = not self.window.trust.untrusted(project)  # fixed now, like the snapshot (ADR 0019)
+        fresh = False
+        pending = resume.pending(project, options, self.queue.output_for(Path(text)), trust)
+        if pending is not None:  # an interrupted export of this project and settings (ADR 0081)
+            choice = self.ask_resume(pending)
+            if choice is None:
+                return None
+            fresh = choice == "fresh"
         job = self.queue.add(project, options, Path(text), trust)
+        job.fresh = fresh
         self._add_row(job)
         self.queue_status.setText(f"Added {job.output.name}.")
         self._update_buttons()  # a running queue picks it up when the others are done
         return job
+
+    def ask_resume(self, pending: resume.Pending) -> str | None:
+        """An interrupted export of this video left segments: "resume" from them, start "fresh", or None."""
+        box = QMessageBox(self.widget)
+        box.setWindowTitle("Resume export")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(
+            f"An earlier export of this video stopped with {pending.done} of {pending.total} segments done."
+        )
+        box.setInformativeText(f"They are kept in {pending.work.name} beside the video.")
+        resume_button = box.addButton(
+            f"Resume export ({pending.done} of {pending.total} segments done)",
+            QMessageBox.ButtonRole.AcceptRole,
+        )
+        fresh_button = box.addButton("Start over", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(resume_button)
+        box.exec()
+        clicked = box.clickedButton()
+        return "resume" if clicked is resume_button else "fresh" if clicked is fresh_button else None
 
     def render_now(self) -> None:
         """Render video: queue this export and start the queue."""
@@ -914,6 +945,7 @@ class DeliverPage(Page):
             options=job.options,
             parent=self.widget,
         )
+        export.fresh = job.fresh
         export.progress.connect(lambda frame, total: self._on_progress(job, frame, total))
         export.stage.connect(lambda text: self._on_stage(job, text))
         export.finished.connect(lambda path, warning: self._on_finished(job, path, warning))
@@ -1003,7 +1035,11 @@ class DeliverPage(Page):
             self._export = None
             self.bar.setRange(0, 1)
             self.bar.setValue(0)
-            self.queue_status.setText("Cancelled. A video already at that path was left as it was.")
+            text = "Cancelled. A video already at that path was left as it was."
+            work = resume.work_dir(job.output)
+            if work.is_dir():  # a long export keeps its finished segments (ADR 0081)
+                text += f" The finished segments are kept in {work.name}: render it again to resume."
+            self.queue_status.setText(text)
         self._last = job
         self._update_row(job)
         self._launch_next()

@@ -8,6 +8,7 @@ exercised by the acceptance test (test_acceptance_p6b5.py).
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import ClassVar
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -636,3 +637,105 @@ def test_the_page_warns_about_what_an_export_cannot_do(window, qt_app) -> None:
     assert "placeholder" in health.text()
     clean = window(make_project(), name="clean")
     assert page(clean).health.text() == ""
+
+
+# -- resuming an interrupted export (ADR 0081) --------------------------------------------------------
+
+
+def interrupted(win: MainWindow, name: str, done: int = 1) -> Path:
+    """The video path whose work folder an interrupted export of the window's project with the page's
+    settings left, ``done`` segments in."""
+    from manim_studio.render import resume
+    from manim_studio.render.options import apply_options, frame_window
+
+    p = page(win)
+    out = win.path.parent / "out" / f"{name}.mp4"
+    p.path.setText(str(out))
+    options = p.options()
+    sized = apply_options(win.project, options)
+    first, last = frame_window(sized.canvas, options)
+    frames = resume.segment_frames(options.segment_seconds, sized.canvas.fps)
+    state = resume.State(
+        resume.project_key(sized),
+        resume.options_key(options, trust=True),
+        first,
+        last,
+        frames,
+        sized.canvas.fps,
+        False,
+        "libx264",
+        "CPU (x264)",
+    )
+    work = resume.work_dir(out)
+    for index, a, b in resume.spans(first, last, frames)[:done]:
+        name = f"segment_{index:04d}.mp4"
+        work.mkdir(parents=True, exist_ok=True)
+        (work / name).write_bytes(b"video")
+        state.segments[index] = resume.Segment(index, a, b, name, "-", 5)
+    resume.save(work, state)
+    return out
+
+
+LONG = CANVAS.model_copy(update={"duration": 30.0})  # three segments of 10 s
+
+
+def test_adding_an_interrupted_export_offers_to_resume_it(window) -> None:
+    win = window(make_project(canvas=LONG))
+    p = page(win)
+    out = interrupted(win, "long")
+    asked = []
+    p.ask_resume = lambda pending: asked.append((pending.done, pending.total)) or "resume"
+    job = p.add_to_queue()
+    assert asked == [(1, 3)] and job.output == out and not job.fresh
+    again = p.add_to_queue()  # a pending job writes there already: "long (2).mp4" has nothing to resume
+    assert again.output.name == "long (2).mp4" and not again.fresh and len(asked) == 1
+    p.queue.remove(again)
+    p.queue.remove(job)
+    p.ask_resume = lambda pending: None  # Cancel: nothing is added
+    assert p.add_to_queue() is None and p.queue.jobs == []
+    p.ask_resume = lambda pending: "fresh"
+    fresh = p.add_to_queue()
+    assert fresh.fresh
+    p.start_queue()
+    assert FakeExport.instances[0].fresh is True
+
+
+def test_an_export_of_other_settings_or_a_changed_project_is_not_offered(window) -> None:
+    win = window(make_project(canvas=LONG))
+    p = page(win)
+    interrupted(win, "long")
+    p.ask_resume = lambda pending: pytest.fail("not the same export")
+    pick(p.quality, 28)
+    assert p.add_to_queue() is not None
+    p.queue.remove(p.queue.jobs[0])
+    pick(p.quality, 18)
+    win.document.apply(edits.update_layer(win.project, "sq", name="renamed"), "Rename")
+    assert p.add_to_queue() is not None
+
+
+def test_the_resume_question_names_the_segments_done(window, monkeypatch) -> None:
+    win = window(make_project(canvas=LONG))
+    p = page(win)
+    interrupted(win, "long", done=2)
+    shown = []
+
+    def choose(box):
+        shown.append([b.text() for b in box.buttons()])
+        next(b for b in box.buttons() if b.text().startswith("Resume export")).click()
+
+    monkeypatch.setattr(deliver.QMessageBox, "exec", choose)
+    job = p.add_to_queue()
+    assert "Resume export (2 of 3 segments done)" in shown[0] and "Start over" in shown[0]
+    assert job is not None and not job.fresh
+
+
+def test_cancelling_a_long_export_says_its_segments_are_kept(window) -> None:
+    win = window(make_project(canvas=LONG))
+    p = page(win)
+    p.ask_resume = lambda pending: "resume"
+    out = interrupted(win, "long")
+    add(win, "long")
+    p.start_queue()
+    p.cancel_button.click()
+    assert "kept in long.export" in p.queue_status.text()
+    assert out.with_name("long.export").is_dir()

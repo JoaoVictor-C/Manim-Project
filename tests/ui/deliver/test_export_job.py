@@ -137,3 +137,28 @@ def test_code_layers_are_announced_before_the_first_frame(qt_app, tmp_path) -> N
     assert {t.split(" (")[0] for t in stages} == {"Rendering code layer one", "Rendering code layer two"}
     assert {t.rsplit("(", 1)[1] for t in stages} == {"1 of 2)", "2 of 2)"}  # counted as each one starts
     assert events["progress"][0][1], "the stages come before the frames"
+
+
+def test_a_cancelled_long_export_resumes_and_fresh_starts_again(qt_app, tmp_path) -> None:
+    """ADR 0081: the segments a cancel keeps are where the next export of it starts, unless it is fresh."""
+    from manim_studio.render import resume
+
+    out = tmp_path / "video.mp4"
+    options = RenderOptions(jobs=1, encoder="cpu", segment_seconds=1)  # segments of 10 frames
+    job = ExportJob(project(duration=60.0), out, CACHE, options=options)
+    run(qt_app, job, lambda e, j: any(args[0] >= 25 for args, _ in e["progress"]))
+    job.cancel()
+    work = resume.work_dir(out)
+    assert work.is_dir() and len(resume.load(work).segments) >= 2
+    done = len(resume.load(work).segments)
+
+    again = ExportJob(project(duration=60.0), out, CACHE, options=options)
+    events = run(qt_app, again, lambda e, j: e["progress"] or e["failed"])
+    assert events["stage"] and events["stage"][0].startswith(f"Resuming: {done} of 60 segments")
+    assert events["progress"][0][0][0] == done * 10 + 1
+    again.cancel()
+
+    fresh = ExportJob(project(duration=60.0), out, CACHE, options=options, fresh=True)
+    events = run(qt_app, fresh, lambda e, j: e["progress"] or e["failed"])
+    assert events["progress"][0][0] == (1, 600) and not events["stage"]
+    fresh.cancel()

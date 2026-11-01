@@ -20,6 +20,7 @@ from ..core.sound import audio
 SUBTITLE_MODES = ("burn", "srt", "none")
 ENCODERS = ("auto", "gpu", "cpu")  # what turns the frames into H.264 (ADR 0065)
 MAX_JOBS = 32  # render processes an export may be told to use
+SEGMENT_SECONDS = 10.0  # a long export is rendered in segments this long, so it can resume (ADR 0081)
 DEFAULT_CRF = 18  # what exports used before options existed
 QUALITIES: dict[str, int] = {"Draft": 28, "Standard": 23, "High": 18, "Archive": 12}
 HEIGHT_PRESETS: dict[str, int] = {"480p": 480, "720p": 720, "1080p": 1080, "1440p": 1440, "2160p": 2160}
@@ -43,6 +44,7 @@ class RenderOptions:
     subtitles: str | None = None  # None: as the project (burn-in per its style, .srt always)
     encoder: str = "auto"  # "auto": the graphics card's encoder when there is one and the video is big enough
     jobs: int | None = None  # render processes; None: as many as pay; 1: this process alone (ADR 0065)
+    segment_seconds: float = SEGMENT_SECONDS  # an export of two segments or more can resume (ADR 0081)
 
     def __post_init__(self) -> None:
         if (self.width is None) != (self.height is None):
@@ -59,6 +61,8 @@ class RenderOptions:
             raise OptionsError(f"encoder must be one of {', '.join(ENCODERS)}")
         if self.jobs is not None and not 1 <= self.jobs <= MAX_JOBS:
             raise OptionsError(f"jobs must be between 1 and {MAX_JOBS}, not {self.jobs}")
+        if not self.segment_seconds > 0:
+            raise OptionsError("segments must be longer than 0 s")
 
     def to_args(self) -> list[str]:
         """The ``manim-studio render`` flags that rebuild these options (defaults left out)."""
@@ -79,6 +83,8 @@ class RenderOptions:
             args += ["--encoder", self.encoder]
         if self.jobs is not None:
             args += ["--jobs", str(self.jobs)]
+        if self.segment_seconds != SEGMENT_SECONDS:
+            args += ["--segment-seconds", repr(self.segment_seconds)]
         return args
 
 

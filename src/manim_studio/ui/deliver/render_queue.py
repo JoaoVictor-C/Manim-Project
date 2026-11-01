@@ -39,6 +39,7 @@ class QueueJob:
     options: RenderOptions
     output: Path
     trust: bool = False  # may code layers run? Fixed when the job is added, like the project
+    fresh: bool = False  # start again rather than resume an interrupted export of it (ADR 0081)
     status: Status = Status.QUEUED
     frame: int = 0
     total: int = 0
@@ -82,14 +83,17 @@ class RenderQueue:
 
     def add(self, project: Project, options: RenderOptions, output: Path, trust: bool = False) -> QueueJob:
         """Queue an export. A pending job with the same output path makes this one ``name (2).mp4``."""
-        output = Path(output)
-        if output.suffix.lower() != ".mp4":
-            output = output.with_suffix(".mp4")
-        pending = {job.output for job in self.jobs if not job.finished}
-        job = QueueJob(self._next_id, project, options, unique_output(output, pending), trust)
+        job = QueueJob(self._next_id, project, options, self.output_for(output), trust)
         self._next_id += 1
         self.jobs.append(job)
         return job
+
+    def output_for(self, output: Path) -> Path:
+        """Where an export to ``output`` added now would be written (an .mp4, not a pending job's path)."""
+        output = Path(output)
+        if output.suffix.lower() != ".mp4":
+            output = output.with_suffix(".mp4")
+        return unique_output(output, {job.output for job in self.jobs if not job.finished})
 
     def get(self, job_id: int) -> QueueJob | None:
         return next((job for job in self.jobs if job.id == job_id), None)

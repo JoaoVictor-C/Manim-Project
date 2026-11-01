@@ -8,7 +8,8 @@ with ``--cache-dir`` and ``--progress json`` in a ``QProcess``. It reports
 it renders first, ADR 0065), and ``how`` names what drew and encoded the video once it is done.
 ``options`` (size, fps, range, quality, subtitles, encoder, render processes) become flags of that
 command (ADR 0042, 0065). ``cancel()`` kills the process and removes the partial video; the
-snapshot file is always removed when the job ends.
+snapshot file is always removed when the job ends. A long export resumes from the segments an interrupted one
+left in its work folder, which a cancel keeps; ``fresh`` starts it again from the first frame (ADR 0081).
 """
 
 from __future__ import annotations
@@ -48,12 +49,14 @@ class ExportJob(QObject):
         program: str = sys.executable,
         trust_code: bool = False,
         options: RenderOptions | None = None,
+        fresh: bool = False,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self.trust_code = trust_code  # run code layers missing from the cache (ADR 0019)
         self.project, self.output, self.cache_dir = project, Path(output), Path(cache_dir)
         self.options = options or RenderOptions()  # size, fps, range, quality, subtitles (ADR 0042)
+        self.fresh = fresh  # discard the segments of an interrupted export instead of resuming (ADR 0081)
         self._program = program
         self._snapshot: Path | None = None
         self._process: QProcess | None = None
@@ -87,6 +90,7 @@ class ExportJob(QObject):
                 "--progress",
                 "json",
                 *(["--trust-code"] if self.trust_code else []),
+                *(["--fresh"] if self.fresh else []),
                 *self.options.to_args(),
             ]
         )

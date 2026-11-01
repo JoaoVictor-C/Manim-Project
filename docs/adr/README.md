@@ -109,3 +109,4 @@ need one.
 | [0078](0078-plugin-manifest-and-permissions.md) | Plugin manifests: declared metadata, app compatibility and approved permissions | Accepted |
 | [0079](0079-compound-sequences.md) | Compound sequences: named clips and keys that move, retime and copy together | Accepted |
 | [0080](0080-editable-animation-recipes.md) | Editable animation recipes: a sequence's animation reused on other layers, its parameters kept | Accepted |
+| [0081](0081-resumable-exports.md) | Resumable exports: long videos rendered in segments that an interrupted export resumes from | Accepted |

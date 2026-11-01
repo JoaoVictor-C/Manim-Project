@@ -110,7 +110,7 @@ flowchart TD
 | **preview process** `python -m manim_studio.processes.preview` | `ui/services/preview_client.py` | holds its own copy of the project and renders frames ahead of the playhead with the canvas's camera; the editor keeps them compressed and drops only the frames an edit changes | [0028](adr/0028-render-ahead-cache.md) |
 | **code runner** `manim_studio.processes.code_runner` | `ui/services/code_render.py` | plays a code layer's `Scene` once in a single-use process into the code layer frame cache (warm spares are kept ready) | [0019](adr/0019-code-layers.md) |
 | **voice helper** `python -m manim_studio.processes.voice` | `ui/services/voice_client.py` (and `manim-studio narrate`) | lists a voice provider's voices and speaks texts to files; a provider is a plugin and never runs in the editor. Killed on cancel or when it goes quiet for 3 minutes; retries what a provider calls retryable. | [0060](adr/0060-voice-providers-and-narration.md) |
-| **export** `manim-studio render --progress json` | `ui/deliver/export_job.py` | renders a video while the editor keeps working; an existing file is replaced only when complete | [0017](adr/0017-export-process-and-safe-output.md) |
+| **export** `manim-studio render --progress json` | `ui/deliver/export_job.py` | renders a video while the editor keeps working; an existing file is replaced only when complete; a long one in segments it resumes from | [0017](adr/0017-export-process-and-safe-output.md), [0081](adr/0081-resumable-exports.md) |
 
 Each helper can be turned off for tests and debugging: `MANIM_STUDIO_WORKER=0` (build
 synchronously), `MANIM_STUDIO_PREVIEW=0`, `MANIM_STUDIO_CODE=0`, `MANIM_STUDIO_AUDIO=0`.

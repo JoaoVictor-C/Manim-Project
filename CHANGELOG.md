@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Resumable exports** ([ADR 0081](docs/adr/0081-resumable-exports.md)). A video of 20 seconds or more is
+  rendered in 10-second segments kept in `<name>.export/` beside it and joined at the end, so an export that is
+  cancelled, crashes or loses power no longer starts again from frame 0: the Deliver page offers **Resume export
+  (N of M segments done)** or **Start over**, and `manim-studio render` resumes by itself (`--fresh` starts
+  again, `--segment-seconds` sets the length). A changed project or other settings start a new folder, a
+  damaged segment is rendered again, and the folder is removed once the video is complete. Shorter videos
+  render in one pass as before.
 - **Editable animation recipes** ([ADR 0080](docs/adr/0080-editable-animation-recipes.md)). Animate > Make Recipe
   from Sequence... saves the selected sequence's animation, one role per layer, with your presets. Animate >
   Apply Recipe plays it on the selected layers (in the order you picked them) at the playhead, as a new

@@ -77,6 +77,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="processes that draw frames side by side (default: as many as pay, by cores and free memory; "
         "1: this process alone; ADR 0065)",
     )
+    render.add_argument(
+        "--fresh",
+        action="store_true",
+        help="start again from the first frame: discard the segments an interrupted export of this project "
+        "to this file left in OUTPUT_STEM.export (by default the export resumes from them; ADR 0081)",
+    )
+    render.add_argument(
+        "--segment-seconds",
+        type=float,
+        default=10.0,
+        help="a video of two segments or more is rendered in segments this long, so an interrupted export "
+        "resumes (default: 10; ADR 0081)",
+    )
 
     python = sub.add_parser("python", help="write a project.json as a Manim scene file (ADR 0031)")
     python.add_argument("project", type=Path)
@@ -150,11 +163,19 @@ def main(argv: list[str] | None = None) -> int:
             subtitles=args.subtitles,
             encoder=args.encoder,
             jobs=args.jobs,
+            segment_seconds=args.segment_seconds,
         )
     except OptionsError as exc:
         return _fail(str(exc))
     return _render(
-        args.project, args.output, args.cache_dir, args.progress, args.trust_code, options, args.check
+        args.project,
+        args.output,
+        args.cache_dir,
+        args.progress,
+        args.trust_code,
+        options,
+        args.check,
+        args.fresh,
     )
 
 
@@ -166,9 +187,11 @@ def _render(
     trust_code: bool = False,
     options=None,
     check: bool = False,
+    fresh: bool = False,
 ) -> int:
     from .core.engine import adapter
     from .core.model.schema import Project
+    from .render import resume
     from .render.cairo_export import export_video
     from .render.options import OptionsError, RenderOptions, apply_options, frame_window
 
@@ -196,18 +219,30 @@ def _render(
         frame_window(sized.canvas, options)  # a bad range is refused before any code runs
     except OptionsError as exc:
         return _fail(str(exc))
-    if trust_code:  # Python objects run in this process (ADR 0051)
-        from .core.code import python_object
+    from .core.code import python_object
 
+    if trust_code:  # Python objects run in this process (ADR 0051)
         python_object.trust_everything()
     warnings = _render_code_layers(
         sized, trust_code, mode, options.jobs
     )  # at the size being exported (ADR 0042)
     warnings += _untrusted_objects(sized)
+    pending = None if fresh else resume.pending(project, options, output, python_object.trusts_everything())
+    if pending is not None:  # an interrupted export of the same project and options (ADR 0081)
+        text = f"Resuming: {pending.done} of {pending.total} segments already rendered"
+        if mode == "json":
+            _emit({"stage": text, "resumed": pending.done, "segments": pending.total})
+        else:
+            print(f"{text} (in {pending.work.name}; --fresh starts again)", flush=True)
     try:
-        result = export_video(project, output, progress, options=options)
+        result = export_video(project, output, progress, options=options, fresh=fresh)
     except OSError as exc:
         return _fail(f"cannot write {output}: {exc.strerror or exc}")
+    except KeyboardInterrupt:
+        work = resume.work_dir(output)
+        if work.is_dir():
+            print(f"\nstopped; the finished segments are in {work}: run again to resume", file=sys.stderr)
+        return 130
     warnings += [result.warning] if result.warning else []
     if mode == "json":
         for warning in warnings:

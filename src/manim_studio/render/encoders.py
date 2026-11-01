@@ -56,6 +56,13 @@ def nvenc(crf: int) -> Encoder:
     return Encoder("h264_nvenc", options, "rgba", "GPU (NVENC)", hardware=True)
 
 
+def by_codec(codec: str, crf: int) -> Encoder | None:
+    """The encoder that ``codec`` names, as an export with quality ``crf`` makes it (None: not one of ours).
+    A resumed export (ADR 0081) encodes its remaining segments as the first ones were."""
+    makers = {"libx264": x264, "h264_nvenc": nvenc}
+    return makers[codec](crf) if codec in makers else None
+
+
 def gpu_listed() -> bool:
     """Whether this PyAV can name an NVENC encoder (not whether the card has one: opening it tells)."""
     return "h264_nvenc" in av.codecs_available
