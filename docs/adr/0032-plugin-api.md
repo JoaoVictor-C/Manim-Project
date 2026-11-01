@@ -22,7 +22,8 @@ whole scenes but are not objects clips can act on.
   files of the folders in `MANIM_STUDIO_PLUGINS` (default
   `~/.manim-studio/plugins`), in sorted order. A failing plugin is skipped and
   listed (Help → Plugins…).
-- **Trust:** plugins are code the user installed; they run without a prompt.
+- **Trust:** plugins are code the user installed; they run without a prompt (a plugin with a manifest is
+  allowed once first: [0078](0078-plugin-manifest-and-permissions.md)).
   Project files never carry plugin code.
 - **Determinism is checked:** the first build of a plugin type in a process is
   done twice and compared. A plugin that differs, raises or does not return a

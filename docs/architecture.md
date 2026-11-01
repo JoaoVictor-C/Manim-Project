@@ -140,6 +140,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `processes/voice.py` | the voice helper: lists voices, speaks texts (also `run_job` for the command line) | `processes/test_voice_process.py` |
 | `manim_scene.py` | `StudioScene`: exported exact scenes play the project through the evaluator | `core/engine/test_python_export.py` |
 | `plugins.py` | public plugin API: `ObjectType`, `Simulation`, `VoiceProvider`, `Param`, `register`, plugin folders and entry points | `test_plugins.py` |
+| `plugin_manifest.py` | plugin manifests, app version ranges, permission approvals (ADR 0078); pure | `test_plugin_manifest.py` |
 | `logging_config.py` | console and rotating file logging | `test_logging.py` |
 | `lifeline.py` | helpers end with the editor (job object, watcher, `kill_tree`) and numpy's thread pools stay small | `test_lifeline.py`, `test_editor_lifetime.py` |
 

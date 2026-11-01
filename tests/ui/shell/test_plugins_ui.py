@@ -104,3 +104,64 @@ def test_a_project_using_a_missing_plugin_opens_and_says_so(qt_app, tmp_path) ->
         assert adapter.allowed_clip_kinds("Teapot")  # its clips stay editable until the plugin is back
     finally:
         win.close()
+
+
+@pytest.fixture
+def manifested(monkeypatch, tmp_path):
+    """A plugin waiting for approval (asking for more than approved before), a loaded one with a manifest and
+    a legacy one without, for one test (ADR 0078)."""
+    from manim_studio import plugin_manifest
+    from manim_studio.plugin_manifest import Manifest
+
+    monkeypatch.setenv("MANIM_STUDIO_PLUGIN_APPROVALS", str(tmp_path / "approvals.json"))
+    waiting = Manifest("Weather", "2.0", "Ada", "Live weather maps.", permissions=("network", "ui"))
+    before = plugin_manifest.approval_record(Manifest("Weather", "1.0", permissions=("ui",)))
+    monkeypatch.setitem(plugins.pending, "C:/plugins/weather.py", waiting)
+    monkeypatch.setitem(plugins.approvals, "C:/plugins/weather.py", before)
+    monkeypatch.setitem(plugins.loaded, "C:/plugins/grid.py", [])
+    monkeypatch.setitem(plugins.manifests, "C:/plugins/grid.py", Manifest("Grid", "1.0", permissions=("ui",)))
+    monkeypatch.setitem(plugins.loaded, "C:/plugins/old.py", [])
+    yield tmp_path / "approvals.json"
+    plugins.approved.pop("C:/plugins/weather.py", None)
+
+
+def test_the_dialog_shows_permissions_and_says_it_is_not_a_sandbox(qt_app, manifested) -> None:
+    dialog = plugins_dialog.PluginsDialog()
+    dialog.show()
+    try:
+        assert not dialog.grab().isNull()  # every icon it paints exists
+        assert (
+            "not enforced" in dialog.warning.text()
+            and "all of your user account's rights" in dialog.warning.text()
+        )
+        row = dialog.rows["C:/plugins/weather.py"]
+        assert [chip.text() for chip in row.chips] == ["network (new)", "ui"]
+        assert row.chips[0].property("tone") == "warn"
+        text = dialog.text.toPlainText()
+        waits = "C:/plugins/weather.py\n    WAITS FOR APPROVAL: Weather 2.0 by Ada\n"
+        assert waits + "    permissions: network, ui (new: network)" in text
+        assert "C:/plugins/grid.py\n    adds: no object types\n    Grid 1.0\n    permissions: ui" in text
+        assert "C:/plugins/old.py\n    adds: no object types\n    no manifest: unknown permissions" in text
+        assert "1 waits for approval" in dialog.frame.description_label.text()
+    finally:
+        dialog.close()
+
+
+def test_allowing_a_plugin_stores_the_approval_for_the_next_start(qt_app, manifested) -> None:
+    import json
+
+    dialog = plugins_dialog.PluginsDialog()
+    dialog.show()
+    try:
+        dialog.rows["C:/plugins/weather.py"].allow.click()
+        assert "C:/plugins/weather.py" not in dialog.rows and "C:/plugins/weather.py" not in plugins.pending
+        stored = json.loads(manifested.read_text(encoding="utf-8"))["approved"]["C:/plugins/weather.py"]
+        assert stored["version"] == "2.0" and stored["permissions"] == ["network", "ui"]
+        assert "APPROVED: Weather 2.0 by Ada loads at the next start" in dialog.text.toPlainText()
+        assert not dialog.grab().isNull()
+    finally:
+        dialog.close()
+
+
+def test_the_editor_says_at_startup_when_a_plugin_waits(qt_app, manifested) -> None:
+    assert plugins_dialog.startup_message() == "1 plugin waits for your approval: see Help > Plugins"

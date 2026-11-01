@@ -8,6 +8,7 @@ impure or missing plugin - draws the placeholder and says why.
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from pathlib import Path
@@ -42,15 +43,23 @@ PENDULUM = ObjectType(
 @pytest.fixture(autouse=True)
 def _restore_plugins():
     """Each test starts and ends with the plugins it found (none, in tests: conftest)."""
-    types, loaded, problems = set(plugins.TYPES), dict(plugins.loaded), dict(plugins.problems)
+    types = set(plugins.TYPES)
+    kept = [
+        plugins.loaded,
+        plugins.problems,
+        plugins.manifests,
+        plugins.pending,
+        plugins.approved,
+        plugins.approvals,
+    ]
+    before = [dict(d) for d in kept]
     library = list(adapter.LIBRARY)
     yield
     for name in set(plugins.TYPES) - types:
         plugins.unregister(name)
-    plugins.loaded.clear()
-    plugins.loaded.update(loaded)
-    plugins.problems.clear()
-    plugins.problems.update(problems)
+    for d, old in zip(kept, before, strict=True):
+        d.clear()
+        d.update(old)
     assert library == adapter.LIBRARY
 
 
@@ -328,3 +337,118 @@ def test_the_public_api_reexports_the_editors_param() -> None:
     assert plugins.Param is adapter.Param
     with pytest.raises(AttributeError):
         _ = plugins.Nope
+
+
+# -- manifests, compatibility and permissions (ADR 0078) ------------------------------------------------
+
+
+def _manifest(folder: Path, stem: str, **fields) -> Path:
+    path = folder / f"{stem}.plugin.json"
+    path.write_text(json.dumps({"name": stem, "version": "1.0", **fields}), encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def approvals_file(monkeypatch, tmp_path) -> Path:
+    path = tmp_path / "approvals" / "plugin-approvals.json"
+    monkeypatch.setenv("MANIM_STUDIO_PLUGIN_APPROVALS", str(path))
+    return path
+
+
+def test_a_plugin_without_a_manifest_still_loads_marked_unknown(
+    monkeypatch, tmp_path, approvals_file
+) -> None:
+    path = _write(tmp_path, "legacy.py", GOOD.format(n=31))
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    assert plugins.loaded[str(path)] == ["Ring31"]
+    assert plugins.manifests[str(path)] is None and str(path) not in plugins.pending
+    assert not approvals_file.exists()  # nothing to approve, nothing written
+
+
+def test_a_plugin_with_a_manifest_waits_for_approval_then_loads(
+    monkeypatch, tmp_path, approvals_file
+) -> None:
+    path = _write(tmp_path, "ring.py", GOOD.format(n=32))
+    _manifest(tmp_path, "ring", author="Ada", permissions=["reads_project"])
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    assert str(path) not in plugins.loaded and "Ring32" not in plugins.TYPES  # its code never ran
+    assert plugins.pending[str(path)].permissions == ("reads_project",)
+    plugins.approve(str(path))
+    assert str(path) not in plugins.pending and plugins.approved[str(path)].author == "Ada"
+    stored = json.loads(approvals_file.read_text(encoding="utf-8"))["approved"][str(path)]
+    assert stored["version"] == "1.0" and stored["permissions"] == ["reads_project"]
+    plugins.load_plugins()  # the next start
+    assert plugins.loaded[str(path)] == ["Ring32"] and plugins.manifests[str(path)].name == "ring"
+
+
+def test_a_plugin_asking_for_more_is_asked_about_again(monkeypatch, tmp_path, approvals_file) -> None:
+    path = _write(tmp_path, "grow.py", GOOD.format(n=33))
+    _manifest(tmp_path, "grow", permissions=["ui"])
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    plugins.approve(str(path))
+    _manifest(tmp_path, "grow", version="1.1", permissions=["ui"])  # an update asking nothing more
+    plugins.load_plugins()
+    assert plugins.loaded[str(path)] == ["Ring33"]
+    plugins.unregister("Ring33")
+    _manifest(tmp_path, "grow", version="2.0", permissions=["network", "ui"])
+    plugins.load_plugins()
+    assert plugins.pending[str(path)].version == "2.0"
+    from manim_studio import plugin_manifest
+
+    assert plugin_manifest.new_permissions(plugins.approvals[str(path)], plugins.pending[str(path)]) == (
+        "network",
+    )
+
+
+def test_an_incompatible_plugin_is_not_loaded_and_says_what_it_needs(
+    monkeypatch, tmp_path, approvals_file
+) -> None:
+    path = _write(tmp_path, "future.py", "raise SystemExit('must never run')\n")
+    _manifest(tmp_path, "future", requires=">=99.0")
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    monkeypatch.setattr("manim_studio.__version__", "0.3.0")
+    plugins.load_plugins()
+    assert plugins.problems[str(path)] == "incompatible: needs >=99.0 (this is Manim Studio 0.3.0)"
+    assert str(path) not in plugins.pending and str(path) not in plugins.loaded
+
+
+def test_a_broken_manifest_marks_the_plugin_broken_without_stopping_the_others(
+    monkeypatch, tmp_path, approvals_file
+) -> None:
+    bad = _write(tmp_path, "a_bad.py", "raise SystemExit('must never run')\n")
+    _manifest(tmp_path, "a_bad", permissions=["telepathy"])
+    worse = _write(tmp_path, "b_worse.py", "raise SystemExit('must never run')\n")
+    (tmp_path / "b_worse.plugin.json").write_text("{oops", encoding="utf-8")
+    fine = _write(tmp_path, "c_fine.py", GOOD.format(n=34))
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path))
+    plugins.load_plugins()
+    assert plugins.problems[str(bad)].startswith("broken manifest: unknown permission telepathy")
+    assert plugins.problems[str(worse)].startswith("broken manifest: b_worse.plugin.json is not valid JSON")
+    assert plugins.loaded[str(fine)] == ["Ring34"]
+
+
+def test_an_entry_point_manifest_is_found_beside_its_module_without_importing_it(
+    monkeypatch, tmp_path, approvals_file
+) -> None:
+    (tmp_path / "ms_probe_pkg").mkdir()
+    (tmp_path / "ms_probe_pkg" / "__init__.py").write_text(
+        "raise SystemExit('never imported')\n", encoding="utf-8"
+    )
+    (tmp_path / "ms_probe_pkg" / "plugin.json").write_text(
+        '{"name": "Probe", "version": "2"}', encoding="utf-8"
+    )
+    (tmp_path / "ms_probe_single.py").write_text("", encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    entry = _Entry("probe", lambda: None)
+    entry.module = "ms_probe_pkg.setup"
+    assert plugins._entry_point_manifest(entry) == tmp_path / "ms_probe_pkg" / "plugin.json"
+    entry.module = "ms_probe_single"
+    assert plugins._entry_point_manifest(entry) == tmp_path / "ms_probe_single.plugin.json"
+    monkeypatch.setattr(plugins.importlib.metadata, "entry_points", lambda group: [entry])
+    entry.module = "ms_probe_pkg"
+    monkeypatch.setenv("MANIM_STUDIO_PLUGINS", str(tmp_path / "none"))
+    plugins.load_plugins()
+    assert plugins.pending["entry point probe"].name == "Probe"

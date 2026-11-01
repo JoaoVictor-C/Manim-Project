@@ -106,3 +106,4 @@ need one.
 | [0075](0075-pinned-labels.md) | Pinned labels: a label follows an object through every move, at a fixed offset | Accepted |
 | [0076](0076-extract-selection-as-code.md) | Extract selection as code: selected layers become one code layer that draws the same | Accepted |
 | [0077](0077-portable-project-bundles.md) | Portable project bundles: one file with the project and every file it uses | Accepted |
+| [0078](0078-plugin-manifest-and-permissions.md) | Plugin manifests: declared metadata, app compatibility and approved permissions | Accepted |

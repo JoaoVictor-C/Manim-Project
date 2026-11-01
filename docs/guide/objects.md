@@ -302,8 +302,31 @@ Plugins add object types written in Python: put a `.py` file that registers a ty
 It appears in the Add menu with its own fields in Properties. Plugins can also add
 **simulations** - objects stepped frame by frame - that traced paths can follow. See
 `examples/plugins/pendulum.py` and `examples/plugins/swinging_pendulum.py`, and
-**Help > Plugins...** for what loaded and what failed. Plugins are code you install yourself,
-so they run without asking. Their objects export in the exact Python form.
+**Help > Plugins...** for what loaded and what failed. Their objects export in the exact Python form.
+
+A plugin can describe itself in a manifest beside it, `pendulum.plugin.json` next to `pendulum.py`:
+
+```json
+{
+  "name": "Pendulum",
+  "version": "1.0.0",
+  "author": "Ada",
+  "description": "A swinging pendulum.",
+  "requires": ">=0.3, <0.5",
+  "permissions": ["reads_project"]
+}
+```
+
+`name` and `version` are required. `requires` lists the Manim Studio versions it works with (`>=`, `<=`,
+`>`, `<`, `==`, `!=`, `~=`, comma-separated; `==0.3.*` for a series): on another version it is not loaded
+and Help > Plugins says what it needs. `permissions` come from `reads_project`, `edits_project`, `files`,
+`network`, `runs_code` and `ui`. A plugin with a manifest waits until you press **Allow** in Help >
+Plugins, which shows its permissions, and loads at the next start; if an update asks for more permissions
+it waits again. A broken manifest is listed with the reason and the plugin is skipped. A plugin without a
+manifest loads as before, marked "no manifest: unknown permissions".
+
+Permissions are what the plugin says it does, not a sandbox: every plugin is Python that runs inside Manim
+Studio with all your rights, so install only plugins you trust.
 
 ## The scene and the camera
 

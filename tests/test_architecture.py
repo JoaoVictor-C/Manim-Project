@@ -60,7 +60,12 @@ SIBLINGS = {
     ("ui.shell", "ui.timeline"),
     ("ui.code", "ui.services"),
 }
-BASE = {f"{PKG}.logging_config", f"{PKG}.plugins", f"{PKG}.lifeline"}  # under everything: no other module
+BASE = {  # under everything: no other module
+    f"{PKG}.logging_config",
+    f"{PKG}.plugins",
+    f"{PKG}.plugin_manifest",
+    f"{PKG}.lifeline",
+}
 # names that other things were written against: exported scenes, plugins, the command line, subprocesses
 STABLE = [
     f"{PKG}",

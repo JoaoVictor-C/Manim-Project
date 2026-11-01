@@ -34,8 +34,8 @@ program you start.
 
 Trust is remembered per exact code (a hash) in a store file (see
 [below](#where-files-live)); changed code asks again. From the command line, `--trust-code`
-runs everything in that one render. Plugins are code you installed yourself and run without
-asking.
+runs everything in that one render. Plugins are code you installed yourself; one with a manifest
+is allowed once in Help > Plugins before it loads, and none of them is sandboxed.
 
 ## Playback is slow or stutters
 
@@ -97,6 +97,7 @@ Paths on Windows; each can be moved with the environment variable in the last co
 | Trusted code store | `%LOCALAPPDATA%\ManimStudio\trusted-code.json` | `MANIM_STUDIO_TRUST_FILE` |
 | Your presets, themes and templates | `~\.manim-studio\library\` | `MANIM_STUDIO_LIBRARY` |
 | Plugins | `~\.manim-studio\plugins\` | `MANIM_STUDIO_PLUGINS` (several folders, `;`-separated) |
+| Plugin approvals | `%LOCALAPPDATA%\ManimStudio\plugin-approvals.json` | `MANIM_STUDIO_PLUGIN_APPROVALS` |
 | New projects and exports, by default | next to your last project, else `Documents\Manim Studio` if it exists, else Documents | - |
 
 On Linux the log is in `~/.local/state/manim-studio/logs/` and the trusted code store in

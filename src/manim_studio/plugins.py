@@ -58,8 +58,17 @@ A plugin can also add a *voice provider* for the Narration section of the Audio 
 
 Plugins are loaded once per process when ``manim_studio.core.engine.adapter`` is
 imported, so the editor, its helper processes, the export and exported scenes
-all know the same types. They are code you installed: they run without a
-prompt. Installing or changing a plugin needs a restart.
+all know the same types. Installing or changing a plugin needs a restart.
+
+A plugin may ship a manifest beside it (ADR 0078, ``manim_studio.plugin_manifest``):
+``pendulum.plugin.json`` next to ``pendulum.py`` with its name, version, author,
+description, the app versions it ``requires`` and the ``permissions`` it declares. It is
+read before the plugin's code runs: a plugin whose range excludes this app is not loaded
+("incompatible: needs ..."), an unusable manifest marks it broken, and a plugin with a
+manifest loads only once the user approved its permissions in Help > Plugins (asked
+again when it asks for more). A plugin without a manifest loads as before, marked "no
+manifest: unknown permissions". Permissions are disclosed, not enforced: a plugin runs
+in-process with the user's full rights.
 """
 
 from __future__ import annotations
@@ -75,7 +84,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from . import plugin_manifest
 from .logging_config import get_logger
+from .plugin_manifest import Manifest
 
 log = get_logger(__name__)
 
@@ -149,6 +160,10 @@ SIMULATIONS: dict[str, Simulation] = {}  # registered simulations by name
 VOICES: dict[str, VoiceProvider] = {}  # registered voice providers by name (ADR 0060)
 loaded: dict[str, list[str]] = {}  # plugin -> the types it registered
 problems: dict[str, str] = {}  # plugin -> why it was skipped
+manifests: dict[str, Manifest | None] = {}  # plugin -> its manifest (None: none, unknown permissions)
+pending: dict[str, Manifest] = {}  # plugin -> its manifest, not loaded until the user approves it
+approved: dict[str, Manifest] = {}  # plugin -> approved in this session: loads after a restart
+approvals: dict[str, dict] = {}  # plugin -> the approval stored for it (ADR 0078), read at load time
 _current: list[str] = []  # the plugin being loaded (to attribute its types)
 _loaded_once = False
 
@@ -271,13 +286,83 @@ def load_plugins() -> None:
     except Exception:  # a broken environment must not stop the editor
         log.exception("cannot list plugin entry points")
         entry_points = []
+    approvals.clear()
+    approvals.update(plugin_manifest.load_approvals())
     for entry in entry_points:
-        _load(f"entry point {entry.name}", lambda entry=entry: _run_entry_point(entry))
+        plugin = f"entry point {entry.name}"
+        if _admit(plugin, lambda entry=entry: _entry_point_manifest(entry)):
+            _load(plugin, lambda entry=entry: _run_entry_point(entry))
     for folder in folders():
         if not folder.is_dir():
             continue
         for path in sorted(folder.glob("*.py")):
-            _load(str(path), lambda path=path: load_file(path))
+            if _admit(str(path), lambda path=path: plugin_manifest.manifest_path_for_file(path)):
+                _load(str(path), lambda path=path: load_file(path))
+
+
+def app_version() -> str:
+    from . import __version__  # the package is imported by then; read late so tests can change it
+
+    return __version__
+
+
+def _admit(plugin: str, where: Callable[[], Path | None]) -> bool:
+    """Read ``plugin``'s manifest (before any of its code runs) and say whether it may load: it has no
+    manifest (marked), or its manifest is valid, fits this app version and its permissions were approved."""
+    manifests.pop(plugin, None)
+    pending.pop(plugin, None)
+    try:
+        path = where()
+        manifest = plugin_manifest.read_manifest(path) if path is not None else None
+    except plugin_manifest.ManifestError as exc:
+        problems[plugin] = f"broken manifest: {exc}"
+        log.warning("plugin %s skipped: broken manifest: %s", plugin, exc)
+        return False
+    manifests[plugin] = manifest
+    if manifest is None:
+        return True
+    reason = plugin_manifest.incompatibility(manifest, app_version())
+    if reason:
+        problems[plugin] = reason
+        log.warning("plugin %s skipped: %s", plugin, reason)
+        return False
+    if not plugin_manifest.is_approved(approvals.get(plugin), manifest):
+        pending[plugin] = manifest
+        log.info(
+            "plugin %s waits for approval of %s", plugin, ", ".join(manifest.permissions) or "no permissions"
+        )
+        return False
+    return True
+
+
+def approve(plugin: str) -> Manifest:
+    """The user approved a pending plugin's permissions: store it (it loads at the next start)."""
+    manifest = pending.pop(plugin)
+    approvals.clear()
+    approvals.update(plugin_manifest.load_approvals())  # another window may have approved one meanwhile
+    approvals[plugin] = plugin_manifest.approval_record(manifest)
+    plugin_manifest.save_approvals(approvals)
+    approved[plugin] = manifest
+    return manifest
+
+
+def _entry_point_manifest(entry) -> Path | None:
+    """``plugin.json`` in an entry point's top-level package, or ``<module>.plugin.json`` beside a single
+    module, found without importing it."""
+    module = getattr(entry, "module", None)
+    if not module:
+        return None
+    try:
+        spec = importlib.util.find_spec(module.split(".")[0])
+    except (ImportError, ValueError):
+        return None
+    if spec is None:
+        return None
+    if spec.submodule_search_locations:
+        return Path(next(iter(spec.submodule_search_locations))) / plugin_manifest.PACKAGE_MANIFEST
+    if spec.origin and spec.origin.endswith(".py"):
+        return plugin_manifest.manifest_path_for_file(Path(spec.origin))
+    return None
 
 
 def load_file(path: Path) -> None:

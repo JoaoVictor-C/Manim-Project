@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Plugin manifests and permissions** ([ADR 0078](docs/adr/0078-plugin-manifest-and-permissions.md)). A plugin can
+  ship `<name>.plugin.json` beside it with its name, version, author, description, the app versions it supports
+  and the permissions it declares. A plugin for another app version is not loaded and says what it needs, a
+  broken manifest is listed without stopping the others, and Help > Plugins shows each plugin's permissions and
+  asks you to allow them before it first loads (again if it asks for more). Plugins without a manifest load as
+  before, marked "unknown permissions". Permissions are disclosed, not enforced: plugins run with your rights.
 - **Portable project bundles** ([ADR 0077](docs/adr/0077-portable-project-bundles.md)). File > Export Bundle... writes
   one `.msbundle` file with the project and every sound, image and SVG it uses (and its snapshots, if you tick
   the box), and lists any missing file first. File > Open Bundle... unpacks it into a new folder beside it, never

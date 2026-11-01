@@ -11,6 +11,10 @@ import pytest
 
 # Tests never load the developer's own plugins (ADR 0032); set before the adapter loads them.
 os.environ["MANIM_STUDIO_PLUGINS"] = str(Path(tempfile.mkdtemp(prefix="manim-studio-test-plugins-")))
+# ... nor read or write the user's plugin approvals (ADR 0078).
+os.environ["MANIM_STUDIO_PLUGIN_APPROVALS"] = str(
+    Path(tempfile.mkdtemp(prefix="manim-studio-test-approvals-")) / "plugin-approvals.json"
+)
 
 from manim_studio.core.code import python_object
 from manim_studio.core.engine import adapter
