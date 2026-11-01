@@ -110,3 +110,4 @@ need one.
 | [0079](0079-compound-sequences.md) | Compound sequences: named clips and keys that move, retime and copy together | Accepted |
 | [0080](0080-editable-animation-recipes.md) | Editable animation recipes: a sequence's animation reused on other layers, its parameters kept | Accepted |
 | [0081](0081-resumable-exports.md) | Resumable exports: long videos rendered in segments that an interrupted export resumes from | Accepted |
+| [0082](0082-explain-a-moment.md) | Explain a moment: which layers, clips and keys make the frame, stepped through | Accepted |

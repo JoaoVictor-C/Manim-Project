@@ -90,6 +90,7 @@ from .shell import shortcuts_help
 from .shell.autosave import Autosave
 from .shell.beat_sheet_dialog import BeatSheetDialog
 from .shell.clipboard_actions import ClipboardActions
+from .shell.explain_dialog import ExplainDialog
 from .shell.guides_dialog import GuidesDialog
 from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
@@ -544,7 +545,16 @@ class MainWindow(QMainWindow):
         beats_action.setToolTip("The video beat by beat between your markers: picture, appears, said")
         beats_action.setShortcut(QKeySequence("Ctrl+Alt+B"))
         beats_action.triggered.connect(self.show_beat_sheet)
-        edit_menu.addActions([scene_settings, fit_length, shift_action, ripple_action, beats_action])
+        self.explain_action = QAction("E&xplain This Moment...", self)
+        self.explain_action.setToolTip(
+            "Which layers, clips, keys, subtitles and sounds make the frame at the playhead; step through"
+        )
+        self.explain_action.setShortcut(QKeySequence("Ctrl+Alt+E"))
+        self.explain_action.triggered.connect(self.show_explain)
+        self.explain_dialog: ExplainDialog | None = None
+        edit_menu.addActions(
+            [scene_settings, fit_length, shift_action, ripple_action, beats_action, self.explain_action]
+        )
         edit_menu.addSeparator()  # sequences (ADR 0079)
         self.make_sequence_action = QAction("Make Se&quence from Selection...", self)
         self.make_sequence_action.setToolTip(
@@ -1596,6 +1606,28 @@ class MainWindow(QMainWindow):
             return
         title = self.path.stem if self.path is not None else "Beat sheet"
         BeatSheetDialog(lambda: self.document.project, self.seek, title, self).exec()
+
+    def show_explain(self) -> ExplainDialog | None:
+        """Edit > Explain This Moment...: what makes the frame at the playhead, in a window (ADR 0082)."""
+        if not self._has_project:
+            return None
+        if self.explain_dialog is None:
+            self.explain_dialog = ExplainDialog(
+                lambda: self.document.project, lambda: self.t, self.seek, self._select_explained, self
+            )
+            self.playheadMoved.connect(self.explain_dialog.follow)
+            self.document.changed.connect(lambda *_: self.explain_dialog.follow(self.t))
+        self.explain_dialog.refresh(self.t)
+        self.explain_dialog.show()
+        self.explain_dialog.raise_()
+        return self.explain_dialog
+
+    def _select_explained(self, layer_id: str, clip_id: str | None = None) -> None:
+        """An item of the explanation was clicked: its layer (and clip) is selected to inspect or change."""
+        if clip_id:
+            self.selection.set(layer_id, clip_id)
+        else:
+            self.selection.select_layer(layer_id)
 
     def show_scene_settings(self) -> None:
         """Nothing selected, so Properties shows the scene; its length is ready to type."""

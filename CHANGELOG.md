@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Explain this moment** ([ADR 0082](docs/adr/0082-explain-a-moment.md)). Edit > Explain This Moment...
+  (Ctrl+Alt+E) opens a window beside the editor that says, in plain sentences, what makes the frame at the
+  playhead: the layers on screen and why, the clips running and how far through, the keyed properties moving
+  and their value, the subtitles, the sounds and the beat. Previous and Next step through the moments where
+  something changes, clicking an item selects that layer or clip to inspect and remix it, and Copy as text
+  copies the explanation. Works on any project, including the examples.
 - **Resumable exports** ([ADR 0081](docs/adr/0081-resumable-exports.md)). A video of 20 seconds or more is
   rendered in 10-second segments kept in `<name>.export/` beside it and joined at the end, so an export that is
   cancelled, crashes or loses power no longer starts again from frame 0: the Deliver page offers **Resume export
