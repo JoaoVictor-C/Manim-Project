@@ -485,6 +485,10 @@ QFrame#codeHintCard {{
     background: {theme.css(c.accent_soft)}; border: 1px solid {theme.css(c.accent_line)}; border-radius: 12px;
 }}
 QFrame#codeHintCard QLabel {{ background: transparent; border: 0; }}
+QFrame#codeErrorCard {{
+    background: {c.raised}; border: 1px solid {theme.css(c.line_strong)}; border-radius: 12px;
+}}
+QFrame#codeErrorCard QLabel {{ background: transparent; border: 0; }}
 QLabel#codeHintTitle {{ font-weight: 650; }}
 QLabel#codeHint {{ color: {c.muted}; }}
 QToolButton#codeFix {{

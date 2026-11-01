@@ -18,7 +18,7 @@ from acceptance.test_acceptance_v1 import menu_action
 from manim_studio.core.exchange import bundle
 from manim_studio.core.model import snapshots
 from manim_studio.core.model.schema import AudioClip, Canvas, Layer, Project, Spec
-from manim_studio.ui.exchange.bundle_dialog import ExportBundleDialog
+from manim_studio.ui.exchange.bundle_dialog import BundleProblemDialog, ExportBundleDialog
 from manim_studio.ui.main_window import MainWindow
 
 pytestmark = pytest.mark.ui
@@ -104,12 +104,16 @@ def test_open_bundle_unpacks_beside_it_and_asks_about_its_code(window, tmp_path)
 def test_a_bad_bundle_is_reported_and_the_project_stays(window, tmp_path, monkeypatch) -> None:
     bad = tmp_path / "bad.msbundle"
     bad.write_bytes(b"not a zip")
-    errors = []
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(lambda *a, **k: errors.append(a[1])))
+    shown = []
+    # the failure is a dialog of the shared shape with a bad chip, no longer a message box (ADR 0084)
+    monkeypatch.setattr(
+        BundleProblemDialog, "exec", lambda self: shown.append((self.windowTitle(), self.message))
+    )
     before = window.path
     window.ask_bundle_open_path = lambda start: str(bad)
     window.open_bundle_dialog()
-    assert errors == ["Could not open the bundle"] and window.path == before
+    assert [title for title, _ in shown] == ["Could not open the bundle"] and shown[0][1]
+    assert window.path == before
 
 
 def test_the_dialog_lists_the_files_and_offers_snapshots(qt_app, tmp_path) -> None:
@@ -123,3 +127,25 @@ def test_the_dialog_lists_the_files_and_offers_snapshots(qt_app, tmp_path) -> No
     with_snaps = ExportBundleDialog(refs, set(), 2)
     assert with_snaps.include_snapshots.isEnabled() and "2 snapshots" in with_snaps.include_snapshots.text()
     with_snaps.close()
+
+
+@pytest.mark.parametrize("name", ["ink", "paper"])
+def test_the_dialogs_paint_with_chips_in_both_themes(qt_app, tmp_path, name) -> None:
+    from manim_studio.ui.style import theme
+
+    theme.set_theme(qt_app, name)
+    project = scene(tmp_path)
+    refs = bundle.external_references(project)
+    dialog = ExportBundleDialog(refs, bundle.missing_paths(refs), 1)
+    dialog.show()
+    qt_app.processEvents()
+    chips = [[c.text() for c in dialog.list.itemWidget(dialog.list.item(k)).chips] for k in range(2)]
+    assert chips[1][-1] == "missing" and chips[0][-1] == "carried"
+    assert dialog.width() <= 560 and not dialog.grab().isNull()
+    dialog.close()
+    problem = BundleProblemDialog("Could not open the bundle", "b.msbundle was changed: its sha256 is wrong")
+    problem.show()
+    qt_app.processEvents()
+    assert problem.chip.property("tone") == "bad" and not problem.grab().isNull()
+    problem.close()
+    theme.set_theme(qt_app, "ink")

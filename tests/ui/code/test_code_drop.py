@@ -175,7 +175,7 @@ def test_the_timeline_line_goes_when_the_drag_leaves(window) -> None:
 
 
 def centre(canvas) -> QPointF:
-    return QPointF(canvas.width() / 2, canvas.height() / 2)
+    return QPointF(canvas.width() // 2, canvas.height() // 2)  # whole pixels: an event carries no half pixel
 
 
 def test_a_preset_dropped_on_the_canvas_centre_is_placed_at_the_origin(window, qt_app) -> None:
@@ -186,7 +186,9 @@ def test_a_preset_dropped_on_the_canvas_centre_is_placed_at_the_origin(window, q
     assert canvas.drop_point is None
     [(hook, code, kw)] = window.calls
     assert hook == "place" and code["name"] == "Orbit" and kw["t"] is None
-    assert kw["position"] == pytest.approx((0.0, 0.0), abs=1e-6)
+    assert kw["position"] == pytest.approx(
+        (0.0, 0.0), abs=0.02
+    )  # within a pixel: the canvas may be an odd width
 
 
 def test_a_drop_on_the_canvas_converts_to_scene_units(window, qt_app) -> None:
@@ -202,7 +204,9 @@ def test_py_files_dropped_on_the_canvas_are_imported_at_that_point(window, qt_ap
     assert drop(canvas, centre(canvas), files(tmp_path), qt_app)
     [(hook, paths, kw)] = window.calls
     assert hook == "import" and [p.name for p in paths] == ["orbit.py"]
-    assert kw["t"] is None and kw["position"] == pytest.approx((0.0, 0.0), abs=1e-6)
+    assert kw["t"] is None and kw["position"] == pytest.approx(
+        (0.0, 0.0), abs=0.02
+    )  # within a pixel: the canvas may be an odd width
 
 
 def test_the_canvas_refuses_text_and_its_cross_goes_on_leave(window, qt_app) -> None:

@@ -7,7 +7,7 @@ and the jobs; these only show them. Everything is painted from the theme's token
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, QSize, Qt
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QProgressBar,
+    QPushButton,
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
@@ -49,6 +50,10 @@ QLabel[role="rowName"] {{ color: {c.text}; font-weight: 600; background: transpa
 QLabel[role="rowDetail"] {{ color: {c.faint}; font-size: 11px; background: transparent; }}
 QLabel[role="destTitle"] {{ color: {c.text}; font-size: 13px; font-weight: 650; background: transparent; }}
 QLabel[role="destSummary"] {{ color: {c.muted}; font-size: 11px; background: transparent; }}
+QFrame#resumeCard {{
+    background: {c.raised}; border: 1px solid {theme.css(c.accent_line)}; border-radius: 14px;
+}}
+QFrame#resumeCard QLabel {{ background: transparent; }}
 """
 
 
@@ -83,19 +88,22 @@ class ProgressRing(QWidget):
     def __init__(self, size: int = 44, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.state, self.fraction = "idle", 0.0
+        self.label = ""  # text in the ring instead of the percent ("6 of 9")
         self.setFixedSize(size, size)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
     def sizeHint(self) -> QSize:
         return self.size()
 
-    def set_state(self, state: str, fraction: float = 0.0) -> None:
+    def set_state(self, state: str, fraction: float = 0.0, label: str = "") -> None:
         if state not in STATES:
             raise ValueError(state)
-        self.state, self.fraction = state, max(0.0, min(1.0, fraction))
+        self.state, self.fraction, self.label = state, max(0.0, min(1.0, fraction)), label
         self.update()
 
     def percent_text(self) -> str:
+        if self.label and self.state in ("running", "queued", "idle"):
+            return self.label
         return f"{round(100 * self.fraction)}%" if self.state == "running" else ""
 
     def paintEvent(self, _event: QPaintEvent) -> None:
@@ -133,12 +141,12 @@ class ProgressRing(QWidget):
             painter.drawArc(rect, 90 * 16, -round(share * 360 * 16))
         text = self.percent_text()
         if text and self.width() >= 36:
-            font = theme.mono_font(8)
+            font = theme.mono_font(7 if self.label else 8)
             font.setBold(True)
             painter.setFont(font)
             painter.setPen(theme.qcolor(c.text))
             painter.drawText(QRectF(self.rect()), Qt.AlignmentFlag.AlignCenter, text)
-        elif self.state in ("idle", "queued"):
+        elif self.state in ("idle", "queued") and not text:
             side = round(self.width() * 0.42)
             target = QRectF(0, 0, side, side)
             target.moveCenter(rect.center())
@@ -300,3 +308,112 @@ class EstimateTile(QFrame):
     def set_value(self, text: str, tip: str = "") -> None:
         self.value.setText(text)
         self.setToolTip(tip)
+
+
+class SegmentStrip(QWidget):
+    """A row of cells, one for each segment of an export: the finished ones filled with the accent gradient
+    (one gradient across the whole strip), the next one to render outlined in the accent, the rest empty."""
+
+    GAP = 3
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.done: tuple[bool, ...] = ()
+        self.setFixedHeight(10)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    def set_segments(self, done: tuple[bool, ...]) -> None:
+        self.done = tuple(done)
+        self.update()
+
+    def next_index(self) -> int | None:
+        return next((i for i, finished in enumerate(self.done) if not finished), None)
+
+    def sizeHint(self) -> QSize:
+        return QSize(160, 10)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(40, 10)
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        count = len(self.done)
+        if not count:
+            return
+        c = theme.THEME
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        width = (self.width() - self.GAP * (count - 1)) / count
+        gradient = QLinearGradient(0, 0, self.width(), 0)
+        gradient.setColorAt(0.0, theme.qcolor(c.accent))
+        gradient.setColorAt(1.0, theme.qcolor(c.accent_2))
+        next_one = self.next_index()
+        for index, finished in enumerate(self.done):
+            cell = QRectF(index * (width + self.GAP), 1, width, self.height() - 2)
+            radius = cell.height() / 2
+            if finished:
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(gradient)
+            elif index == next_one:
+                painter.setPen(QPen(theme.qcolor(c.accent), 1.5))
+                painter.setBrush(theme.qcolor(c.accent_soft))
+            else:
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(theme.qcolor(c.surface_3))
+            painter.drawRoundedRect(cell, radius, radius)
+        painter.end()
+
+
+class ResumeCard(QFrame):
+    """An export that stopped part way (ADR 0081): its name, a ring saying "6 of 9", a strip of the segments
+    and the two ways on: *Resume* (primary) or *Start over* (ghost). The page fills it in and listens."""
+
+    resumeRequested = Signal()
+    startOverRequested = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("resumeCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.ring = ProgressRing(52)
+        self.title = QLabel("Interrupted export")
+        self.title.setProperty("role", "rowName")
+        self.detail = QLabel("")
+        self.detail.setProperty("role", "rowDetail")
+        self.detail.setWordWrap(True)
+        self.strip = SegmentStrip()
+        self.resume_button = QPushButton("Resume")
+        self.resume_button.setProperty("role", "primary")
+        self.resume_button.clicked.connect(self.resumeRequested)
+        self.start_over_button = QPushButton("Start over")
+        self.start_over_button.setProperty("role", "ghost")
+        self.start_over_button.clicked.connect(self.startOverRequested)
+        words = QVBoxLayout()
+        words.setSpacing(2)
+        words.addWidget(self.title)
+        words.addWidget(self.detail)
+        head = QHBoxLayout()
+        head.setSpacing(12)
+        head.addWidget(self.ring)
+        head.addLayout(words, 1)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addWidget(self.resume_button)
+        buttons.addWidget(self.start_over_button)
+        buttons.addStretch(1)
+        column = QVBoxLayout(self)
+        column.setContentsMargins(14, 14, 14, 14)
+        column.setSpacing(12)
+        column.addLayout(head)
+        column.addWidget(self.strip)
+        column.addLayout(buttons)
+
+    def show_pending(self, name: str, done: tuple[bool, ...], where: str = "") -> None:
+        """``done[i]``: segment ``i`` is finished. The ring reads "6 of 9"."""
+        finished = sum(done)
+        self.title.setText(name)
+        self.detail.setText(
+            f"Stopped with {finished} of {len(done)} segments done" + (f" - {where}" if where else "")
+        )
+        self.ring.set_state("running", finished / len(done) if done else 0.0, f"{finished} of {len(done)}")
+        self.strip.set_segments(done)
+        self.setToolTip(f"The finished segments are kept{' in ' + where if where else ''}.")

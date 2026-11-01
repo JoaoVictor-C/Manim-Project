@@ -101,6 +101,8 @@ from ..session import code_drag
 from ..session.document import Document
 from . import curve_editor, graph_model
 from .model import (
+    MAX_PX_PER_SECOND,
+    MIN_PX_PER_SECOND,
     Edge,
     TimeScale,
     depth,
@@ -797,6 +799,7 @@ class TimelineView(QGraphicsView):
         str, bool
     )  # a row's name or empty space was clicked: layer id, add to selection (P7.1)
     propsSelected = Signal()  # the properties chosen for the graph changed (P7.3)
+    scaleChanged = Signal()  # the zoom changed (wheel, Fit Timeline, the header's slider)
     message = Signal(str)  # refused edits, for the status bar
     codeDropped = Signal(dict, float)  # a Code workspace drag (code_drag payload), its time (P12.7)
     filesDropped = Signal(list, float)  # .py files dropped from the desktop, their time (P12.7)
@@ -843,6 +846,7 @@ class TimelineView(QGraphicsView):
         self._group_drag: _GroupDrag | None = None
         self._sequence_drag: _SequenceDrag | None = None
         self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
+        self.snap_enabled = True  # the header's Snap chip; Alt still turns snapping off for one drag
         self.drop_at: float | None = None  # where code dragged over the rows would land (P12.7)
         # Fills an "Apply preset" menu for a row and a time (ADR 0039); set by the window.
         self.preset_menu = None
@@ -911,6 +915,7 @@ class TimelineView(QGraphicsView):
         self.scale = fit_scale(project.canvas.duration, width)
         self.horizontalScrollBar().setValue(0)
         self.sync()
+        self.scaleChanged.emit()
 
     def set_selected(self, layer_id: str | None, clip_id: str | None, key_time: float | None = None) -> None:
         """Highlight a clip or a key time chosen elsewhere (the shared selection), or none. One of
@@ -1919,6 +1924,19 @@ class TimelineView(QGraphicsView):
         self.sync()
         self.horizontalScrollBar().setValue(round(self.scale.x(t) - viewport_x))
         self.viewport().update()
+        self.scaleChanged.emit()
+
+    def zoom_fraction(self) -> float:
+        """The zoom as 0 (the widest view) to 1 (the closest), on a log scale: the header's slider."""
+        low, high = MIN_PX_PER_SECOND, MAX_PX_PER_SECOND
+        return math.log(min(max(self.scale.px_per_second, low), high) / low) / math.log(high / low)
+
+    def set_zoom_fraction(self, fraction: float) -> None:
+        """Zoom to ``fraction`` (see ``zoom_fraction``) about the middle of the view."""
+        low, high = MIN_PX_PER_SECOND, MAX_PX_PER_SECOND
+        target = low * (high / low) ** min(max(fraction, 0.0), 1.0)
+        if abs(math.log(target / self.scale.px_per_second)) > 1e-3:
+            self.zoom(target / self.scale.px_per_second, self.viewport().width() / 2)
 
     def wheelEvent(self, event) -> None:
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -1938,7 +1956,7 @@ class TimelineView(QGraphicsView):
         return max(t, 0.0)
 
     def _show_drop(self, event) -> None:
-        snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        snapping = self.snap_enabled and not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
         t = self.drop_time(event.position().x(), snapping)
         if t != self.drop_at:
             self.drop_at = t
@@ -1973,7 +1991,7 @@ class TimelineView(QGraphicsView):
             self._hide_drop()
             super().dropEvent(event)
             return
-        snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        snapping = self.snap_enabled and not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
         t = self.drop_time(event.position().x(), snapping)
         self._hide_drop()
         event.acceptProposedAction()
@@ -2143,7 +2161,7 @@ class TimelineView(QGraphicsView):
         ):
             self._update_cursor(pos)
             return
-        snapping = not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        snapping = self.snap_enabled and not (event.modifiers() & Qt.KeyboardModifier.AltModifier)
         self._pending = (self.mapToScene(pos.toPoint()).x(), snapping)
         if not self._apply_scheduled:
             self._apply_scheduled = True
@@ -2342,6 +2360,11 @@ class TimelineView(QGraphicsView):
                 menu.setToolTipsVisible(True)
                 browse = menu.addAction("Browse presets...", lambda: self.browse_presets(layer.id, at))
                 browse.setToolTip("Pick a preset by its moving preview and apply it to this row here")
+        return self.add_clip_menu(menu, layer, t)
+
+    def add_clip_menu(self, menu: QMenu, layer: Layer, t: float) -> QMenu:
+        """ "Add clip" on ``menu`` for ``layer`` at ``t``: the kinds it takes, placed where there is room (the
+        context menu's entry, and the header's + Clip button)."""
         add = menu.addMenu("Add clip")
         placement = place_new_clip(
             layer,

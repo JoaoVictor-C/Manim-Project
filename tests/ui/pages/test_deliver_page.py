@@ -739,3 +739,117 @@ def test_cancelling_a_long_export_says_its_segments_are_kept(window) -> None:
     p.cancel_button.click()
     assert "kept in long.export" in p.queue_status.text()
     assert out.with_name("long.export").is_dir()
+
+
+# -- the health card, the resume card and the encoder (ADR 0066, 0081, 0084) ---------------------------
+
+
+def code_project(**fields) -> Project:
+    code = Layer(
+        id="scene", spec=Spec(type="Code", params={"code": "class A(Scene):\n    def construct(self): ..."})
+    )
+    return make_project(**fields).model_copy(update={"layers": [code]})
+
+
+def test_the_health_card_has_a_chip_for_each_thing_and_says_ok_when_it_is(window) -> None:
+    p = page(window())
+    assert list(p.health_card.chips) == ["fonts", "media", "python", "sound"]
+    assert [chip.text() for chip in p.health_card.chips.values()] == [
+        "Fonts ok",
+        "Media ok",
+        "Python layers ok",
+        "Sound ok",
+    ]
+    assert all(chip.tone() == "ok" for chip in p.health_card.chips.values())
+    assert p.settings_card.isAncestorOf(p.health_card)
+
+
+def test_an_untrusted_code_layer_makes_a_warn_chip_that_opens_the_layer(window, qt_app) -> None:
+    win = window(code_project())
+    p = page(win)
+    chip = p.health_card.chips["python"]
+    assert chip.tone() == "warn" and chip.text() == "Python layers: 1 not run"
+    chip.click()
+    qt_app.processEvents()
+    assert win.page == "code" and win.selection.layer_id == "scene"
+    p.health_card.chips["fonts"].click()  # an ok chip opens nothing
+    assert win.page == "code"
+
+
+def test_a_missing_picture_is_a_bad_chip_that_opens_its_layer(window, qt_app) -> None:
+    picture = Layer(id="pic", spec=Spec(type="ImageMobject", params={"path": "nowhere/missing.png"}))
+    win = window(make_project().model_copy(update={"layers": [picture]}))
+    chip = page(win).health_card.chips["media"]
+    assert chip.tone() == "bad" and chip.text() == "Media: 1 missing" and "missing.png" in chip.toolTip()
+    chip.click()
+    qt_app.processEvents()
+    assert win.page == "compose" and win.selection.layer_id == "pic"
+
+
+def test_stale_narration_is_a_sound_chip_that_opens_the_audio_page(window, qt_app, monkeypatch) -> None:
+    from manim_studio.core.voice import narration
+
+    win = window(make_project(subtitles=[Cue(id="cue", start=0.0, end=1.0, text="Hello")]))
+    monkeypatch.setattr(narration, "state", lambda project, cue: narration.STALE)
+    p = page(win)
+    p._refresh_summary()
+    chip = p.health_card.chips["sound"]
+    assert chip.tone() == "warn" and chip.text() == "Sound stale"
+    chip.click()
+    qt_app.processEvents()
+    assert win.page == "audio"
+
+
+def test_an_interrupted_export_is_a_card_in_the_queue_with_a_segment_strip(window) -> None:
+    win = window(make_project(canvas=LONG))
+    p = page(win)
+    assert not p.resume_card.isVisibleTo(p.widget)
+    interrupted(win, "long", done=2)
+    p._refresh_summary()
+    card = p.resume_card
+    assert card.isVisibleTo(p.widget) and p.queue_card.isAncestorOf(card)
+    assert card.ring.percent_text() == "2 of 3" and card.title.text() == "long.mp4"
+    assert card.strip.done == (True, True, False) and card.strip.next_index() == 2
+    assert card.resume_button.property("role") == "primary"
+    assert card.start_over_button.property("role") == "ghost"
+    assert "2 of 3 segments" in card.detail.text()
+    pick(p.quality, 28)  # other settings: nothing of that export fits them
+    assert not card.isVisibleTo(p.widget)
+
+
+def test_resume_renders_from_the_kept_segments_and_start_over_from_the_first_frame(window) -> None:
+    win = window(make_project(canvas=LONG))
+    p = page(win)
+    p.ask_resume = lambda pending: pytest.fail("the card already asked")
+    interrupted(win, "long")
+    p._refresh_summary()
+    p.resume_card.resume_button.click()
+    job = p.queue.jobs[0]
+    assert job.status is Status.RENDERING and not job.fresh and FakeExport.instances[0].fresh is False
+    assert not p.resume_card.isVisibleTo(p.widget)  # it is rendering now
+    p.cancel_button.click()
+    assert p.resume_card.isVisibleTo(p.widget)  # the cancelled export kept its segments: back on the card
+    p.resume_card.start_over_button.click()
+    assert p.queue.jobs[-1].fresh and FakeExport.instances[1].fresh is True
+
+
+def test_the_encoder_is_a_segmented_control_and_the_page_says_what_was_used(window) -> None:
+    win = window()
+    p = page(win)
+    assert [p.encoder.itemText(i) for i in range(p.encoder.count())] == ["Auto", "GPU", "CPU"]
+    assert [p.encoder.findData(k) for k in ("auto", "gpu", "cpu")] == [0, 1, 2]
+    assert p.encoder.current() == "auto" and p.options().encoder == "auto"
+    p.encoder.set_current("gpu")
+    assert p.options().encoder == "gpu"
+    assert not p.encoder_used.isVisibleTo(p.widget)
+    job = add(win, "enc")
+    p.start_queue()
+    run = FakeExport.instances[0]
+    run.how = "CPU (x264), 2 render processes"
+    run.finished.emit(str(job.output), "")
+    assert p.encoder_used.isVisibleTo(p.widget) and p.encoder_used.text() == "Used CPU (x264)"
+    assert p.encoder_used.property("tone") == "warn"  # the card was asked for and could not be used
+    p.encoder.set_current("cpu")
+    add(win, "enc2")
+    p.start_queue()
+    assert not p.encoder_used.isVisibleTo(p.widget)  # until the next one is done

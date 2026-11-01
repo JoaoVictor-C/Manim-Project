@@ -14,8 +14,10 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QObject, QPointF, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, Qt, Signal
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
 
 from manim_studio.core.model.schema import AudioClip, Canvas, Cue, Layer, Project, Spec, VoiceChoice
 from manim_studio.core.sound import audio
@@ -91,13 +93,14 @@ def test_the_audio_page_is_made_of_cards(make_window, qt_app) -> None:
     win.show_page("audio")
     qt_app.processEvents()
     page = win.pages.pages["audio"]
-    cards = {card.title() for card in page.widget.findChildren(Card)}
-    assert {"Mix", "Sounds", "Subtitles", "Narration"} <= cards
+    cards = [card.title() for card in page.widget.findChildren(Card)]
+    assert sorted(cards) == ["Mix", "Narration"]  # no Stage, Properties, Sounds or Subtitles card
     assert page.mix_card.isAncestorOf(page.lanes) and page.mix_card.isAncestorOf(page.meter)
-    assert page.narration_card.isAncestorOf(page.narration)
-    assert page.sounds_card.isAncestorOf(page.sounds) and page.cues_card.isAncestorOf(page.cues)
+    assert page.narration_card.isAncestorOf(page.narration) and page.top.widget(1) is page.narration_card
+    assert page.mix_card.isAncestorOf(page.sounds) and page.mix_card.isAncestorOf(page.cues)  # the Table view
+    assert abs(page.narration_card.width() - 400) < 40  # the 400 px card of the design
     for shared in (win.viewer, win.timeline, win.properties):
-        assert page.widget.isAncestorOf(shared) and shared.isVisible()
+        assert not page.widget.isAncestorOf(shared) and not shared.isVisible()
 
 
 def test_the_lanes_group_what_the_document_holds(make_window, qt_app) -> None:
@@ -107,7 +110,8 @@ def test_the_lanes_group_what_the_document_holds(make_window, qt_app) -> None:
     lanes = win.pages.pages["audio"].lanes
     groups = lanes.groups(win.project)
     assert [(clip.id, cue.id) for clip, cue in groups["narration"]] == [("audio-2", "cue-1")]
-    assert [clip.id for clip in groups["sounds"]] == ["audio-1"]
+    assert [clip.id for clip in groups["music"]] == ["audio-1"]  # 3 s of a 6 s scene: half of it
+    assert groups["effects"] == []
     assert [cue.id for cue in groups["subtitles"]] == ["cue-1", "cue-2"]
     assert narration.state(win.project, win.project.subtitles[0]) == narration.STALE
     page = win.pages.pages["audio"]
@@ -160,6 +164,121 @@ def test_the_master_strip_and_the_chip_follow_the_playhead(make_window, qt_app) 
     page = win.pages.pages["audio"]
     win.seek(2.0)
     assert page.time_chip.text() == "0:02.00" and page.meter.objectName() == "masterStrip"
+
+
+def test_short_sounds_are_effects_and_long_ones_music() -> None:
+    short = AudioClip(id="a", path="x.wav", duration=0.5)
+    long_ = AudioClip(id="b", path="x.wav", duration=9.0)
+    half = AudioClip(id="c", path="x.wav", duration=3.0)
+    assert not mix_lanes.is_music(short, 6.0) and mix_lanes.is_music(long_, 60.0)
+    assert mix_lanes.is_music(half, 6.0) and not mix_lanes.is_music(half, 60.0)
+
+
+def test_the_lanes_zoom_and_scroll_and_a_header_is_not_the_ruler(make_window, qt_app) -> None:
+    win = make_window()
+    win.show_page("audio")
+    qt_app.processEvents()
+    page = win.pages.pages["audio"]
+    lanes = page.lanes
+    assert lanes.zoom == 1.0 and page.scroll_bar.isHidden()
+    page.zoom_slider.setValue(50)  # 16 ** 0.5 = 4 times
+    assert lanes.zoom == pytest.approx(4.0) and not page.scroll_bar.isHidden()
+    assert lanes.span() == pytest.approx(lanes.duration() / 4)
+    page.scroll_bar.setValue(page.scroll_bar.maximum())
+    assert lanes.scroll == pytest.approx(lanes.duration() - lanes.span())
+    lanes.repaint()
+    width = lanes.width()
+    QTest.mouseClick(lanes, Qt.MouseButton.LeftButton, pos=QPointF(width - 8, 8).toPoint())
+    assert win.t > lanes.duration() - lanes.span()  # a click on the ruler seeks in the zoomed view
+    seen = win.t
+    QTest.mouseClick(lanes, Qt.MouseButton.LeftButton, pos=QPointF(40, 40).toPoint())  # a lane header
+    assert win.t == seen
+    page.zoom_slider.setValue(0)
+    assert lanes.zoom == 1.0 and lanes.scroll == 0.0 and page.scroll_bar.isHidden()
+
+
+def test_a_zoomed_mix_follows_the_playhead(make_window, qt_app) -> None:
+    win = make_window()
+    win.show_page("audio")
+    page = win.pages.pages["audio"]
+    page.zoom_slider.setValue(50)
+    win.seek(5.5)
+    assert page.lanes.scroll <= 5.5 <= page.lanes.scroll + page.lanes.span()
+    assert page.scroll_bar.value() == round(page.lanes.scroll * 1000)
+
+
+def test_the_wheel_zooms_with_control_and_pans_when_zoomed(make_window, qt_app) -> None:
+    win = make_window()
+    win.show_page("audio")
+    qt_app.processEvents()
+    lanes = win.pages.pages["audio"].lanes
+    lanes.set_zoom(4.0)
+    before = lanes.scroll
+    event = QWheelEvent(
+        QPointF(300, 50), QPointF(300, 50), QPoint(0, 0), QPoint(0, -120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False,
+    )  # fmt: skip
+    QApplication.sendEvent(lanes, event)
+    assert lanes.scroll > before  # the wheel moved the view along
+    zoom = lanes.zoom
+    event = QWheelEvent(
+        QPointF(300, 50), QPointF(300, 50), QPoint(0, 0), QPoint(0, 120),
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.ControlModifier, Qt.ScrollPhase.NoScrollPhase, False,
+    )  # fmt: skip
+    QApplication.sendEvent(lanes, event)
+    assert lanes.zoom > zoom
+
+
+def test_the_transport_play_button_plays_and_pauses_and_shows_which(make_window, qt_app) -> None:
+    win = make_window()
+    win.show_page("audio")
+    page = win.pages.pages["audio"]
+    assert not page.play_button.playing and page.meter.isAncestorOf(page.play_button)
+    page.play_button.click()
+    assert win.play_timer.isActive() and page.play_button.playing
+    page.play_button.click()
+    assert not win.play_timer.isActive() and not page.play_button.playing
+    assert not page.play_button.grab().isNull()
+
+
+def test_the_markers_menu_and_the_more_menu_reach_the_old_functions(make_window, qt_app) -> None:
+    win = make_window()
+    win.show_page("audio")
+    qt_app.processEvents()
+    page = win.pages.pages["audio"]
+    assert not win.project.markers and not page.next_marker_action.isEnabled()
+    win.seek(2.0)
+    page.add_marker_action.trigger()
+    assert [m.t for m in win.project.markers] == [pytest.approx(2.0)]
+    win.seek(0.0)
+    assert page.next_marker_action.isEnabled()
+    page.next_marker_action.trigger()
+    assert win.t == pytest.approx(2.0)
+    page.lanes.repaint()  # a marker is drawn on the ruler
+    assert not page.lanes.grab().isNull()
+    win.selection.set_audio("audio-1")
+    page.more_actions["delete"].trigger()
+    assert [c.id for c in win.project.audio] == ["audio-2"]
+    win.selection.set_subtitle("cue-2")
+    page.delete_selected()
+    assert [c.id for c in win.project.subtitles] == ["cue-1"]
+    assert not page.more_actions["delete"].isEnabled()
+
+
+def test_a_cue_row_of_the_narration_card_selects_the_subtitle_and_moves_the_playhead(
+    make_window, qt_app
+) -> None:
+    win = make_window()
+    win.show_page("audio")
+    qt_app.processEvents()
+    page = win.pages.pages["audio"]
+    win.seek(0.0)
+    page.narration.cue_list.rows["cue-2"].pressed.emit()
+    assert win.selection.subtitle_id == "cue-2" and win.t == pytest.approx(3.5)
+    assert page.lanes.subtitle_id == "cue-2" and page.cues.currentIndex().row() == 1
+    win.seek(0.0)
+    page.narration.cue_list.rows["cue-2"].pressed.emit()  # pressing it again brings the playhead back
+    assert win.t == pytest.approx(3.5)
 
 
 # -- Deliver ----------------------------------------------------------------------------------------

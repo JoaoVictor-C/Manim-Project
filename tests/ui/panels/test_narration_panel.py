@@ -20,6 +20,7 @@ from manim_studio.core.model.schema import Canvas, Cue, Layer, Project, Spec, Vo
 from manim_studio.core.voice import narration
 from manim_studio.ui.main_window import MainWindow
 from manim_studio.ui.panels.narration_panel import PronunciationDialog
+from manim_studio.ui.style.card import Chip
 from voice_support import SECONDS_PER_CHAR
 
 pytestmark = [pytest.mark.ui, pytest.mark.usefixtures("fake_voice")]
@@ -348,3 +349,83 @@ def test_the_pronunciation_dialog_edits_pairs(qt_app) -> None:
     dialog.table.setCurrentCell(0, 0)
     dialog._remove()
     assert dialog.entries() == {"dp/dt": "d p by d t", "": "ignored"}
+
+
+# -- the Lumen layout (P17.6): engine cards, speed slider, cue rows, pronunciation chips --------------------
+
+
+def test_engines_are_cards_and_pressing_one_chooses_it(make, qt_app) -> None:
+    win, panel = make("hello", voice=None)
+    assert set(panel.engines.cards) == {
+        panel.provider_combo.itemData(i) for i in range(panel.provider_combo.count())
+    }
+    chosen = panel.provider_combo.currentData()
+    assert [n for n, card in panel.engines.cards.items() if card.property("selected")] == [chosen]
+    other = next(n for n in panel.engines.cards if n != chosen)
+    panel.engines.cards[other].pressed.emit()  # a card was pressed
+    settle(panel, qt_app)
+    assert panel.provider_combo.currentData() == other
+    assert [n for n, card in panel.engines.cards.items() if card.property("selected")] == [other]
+    assert win.project.voice is None or win.project.voice.provider == other
+    assert "Offline" in panel.engines.describe(plugins.voice_providers()["fake"])
+    assert "sends the text" in panel.engines.describe(plugins.voice_providers()["edge"])
+
+
+def test_the_speed_slider_and_the_box_show_one_value(make, qt_app) -> None:
+    win, panel = make("hello")
+    assert panel.rate_slider.value() == 100
+    panel.rate_spin.setValue(1.25)
+    assert panel.rate_slider.value() == 125
+    count = win.document.undo_stack.count()
+    panel.rate_slider.setValue(150)  # a key or a click on the groove: chosen at once
+    assert panel.rate_spin.value() == 1.5 and win.project.voice.rate == 1.5
+    assert win.document.undo_stack.count() == count + 1
+    panel.rate_slider.setSliderDown(True)  # a drag: nothing is chosen until it ends
+    panel.rate_slider.setValue(80)
+    assert panel.rate_spin.value() == 0.8 and win.project.voice.rate == 1.5
+    panel.rate_slider.setSliderDown(False)
+    panel.rate_slider.sliderReleased.emit()
+    assert win.project.voice.rate == 0.8
+
+
+def test_cues_are_rows_with_their_state_and_a_press_selects_the_cue(make, qt_app) -> None:
+    win, panel = make("first", "second", "third")
+    cue_list = panel.cue_list
+    assert list(cue_list.rows) == ["cue-0", "cue-1", "cue-2"] and cue_list.empty.isHidden()
+    words = lambda: [row.findChild(Chip).text() for row in cue_list.rows.values()]  # noqa: E731
+    assert words() == ["no sound"] * 3
+    generate(panel, qt_app)
+    assert words() == ["ready"] * 3
+    win.document.apply(edits.update_cue(win.project, "cue-1", text="second, changed"), "Edit subtitle")
+    panel.refresh()
+    assert words() == ["ready", "stale", "ready"]  # stale says so in words, not only in its outline
+    assert (
+        cue_list.rows["cue-1"].property("stale") is True and cue_list.rows["cue-0"].property("stale") is False
+    )
+    got = []
+    panel.cueChosen.connect(got.append)
+    cue_list.rows["cue-2"].pressed.emit()
+    assert win.selection.subtitle_id == "cue-2" and got == ["cue-2"]
+    panel.refresh()
+    assert (
+        cue_list.rows["cue-2"].property("current") is True
+        and cue_list.rows["cue-0"].property("current") is False
+    )
+
+
+def test_the_cue_list_says_when_there_are_no_subtitles(make, qt_app) -> None:
+    _, panel = make()
+    assert panel.cue_list.rows == {} and not panel.cue_list.empty.isHidden()
+
+
+def test_pronunciations_are_chips_and_plus_word_opens_the_editor(make, qt_app, monkeypatch) -> None:
+    win, panel = make("hello")
+    assert panel._words_host.isHidden() and not panel._words_empty.isHidden()
+    win.document.apply(edits.set_pronunciations(win.project, {"π": "pie", "θ": "theta"}), "Pronunciation")
+    panel.refresh()
+    assert [c.text() for c in panel._words_host.findChildren(Chip)] == ["π → pie", "θ → theta"]
+    assert panel._words_empty.isHidden() and panel.pronunciation_button.text() == "+ Word"
+    opened = []
+    monkeypatch.setattr(PronunciationDialog, "exec", lambda self: opened.append(self.entries()) or 0)
+    panel.pronunciation_button.click()
+    assert opened == [{"π": "pie", "θ": "theta"}]

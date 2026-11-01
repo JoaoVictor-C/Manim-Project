@@ -137,6 +137,9 @@ NAMES: dict[str, str] = {
     "chapters": "film-strip",
     "import": "arrow-square-out",
     "collapse": "caret-down",
+    # the stage and timeline headers (P17.6)
+    "zoom-out": "magnifying-glass-minus",
+    "camera": "video-camera",
 }
 
 # icons drawn in another theme colour than the text: Record's red dot, the Python logos, the helpers

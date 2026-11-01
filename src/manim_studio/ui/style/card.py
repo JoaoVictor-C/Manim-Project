@@ -91,6 +91,16 @@ class Card(QFrame):
         row.insertWidget(row.indexOf(self.title_label) + 1, widget)
         return widget
 
+    def add_header_content(self, widget: QWidget) -> QWidget:
+        """Give the header's free width to ``widget`` (a strip of chips and controls) instead of a gap: it
+        sits after the title and the actions stay at the right."""
+        row = self.header.layout()
+        for i in range(row.count()):
+            if row.itemAt(i).spacerItem() is not None:
+                row.setStretch(i, 0)
+        row.insertWidget(row.indexOf(self.title_label) + 1, widget, 1)
+        return widget
+
     def set_body(self, widget: QWidget | None) -> None:
         """The card's content (replaces the previous one, which is not deleted)."""
         if self._body is not None:

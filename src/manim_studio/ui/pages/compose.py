@@ -13,10 +13,11 @@ REAL_WIDTH = 600  # a splitter narrower than this has not been laid out in its w
 
 
 def side_widths(total: int) -> tuple[int, int]:
-    """Layers and Properties widths for a page ``total`` pixels wide (P6d.4): about a fifth
-    and a quarter of it, within limits, so the canvas keeps the rest on a small screen."""
-    layers = min(max(round(total * 0.2), 240), 280)  # 240: the Layers buttons as icons (P6d.4)
-    properties = min(max(round(total * 0.25), 316), 340)  # 316: the Properties card's own minimum
+    """Layers and Properties widths for a page ``total`` pixels wide (P6d.4): about a fifth and a
+    quarter of it, within limits, so the canvas keeps the rest on a small screen. At the mock-up's
+    1440 px they are its 288 and 316 (ADR 0084)."""
+    layers = min(max(round(total * 0.205), 240), 288)  # 240: the Layers buttons as icons (P6d.4)
+    properties = min(max(round(total * 0.22), 316), 328)  # 316: the Properties card's own minimum
     return layers, properties
 
 

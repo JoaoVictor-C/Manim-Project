@@ -58,6 +58,7 @@ from ...render.options import (
     size_for_height,
 )
 from ..deliver.export_job import ExportJob
+from ..deliver.health_card import HealthCard, health_items
 from ..deliver.queue_view import (
     ROW_HEIGHT,
     BlankTextDelegate,
@@ -65,11 +66,13 @@ from ..deliver.queue_view import (
     EstimateTile,
     JobRow,
     ProgressRing,
+    ResumeCard,
     SlimBar,
 )
 from ..deliver.render_queue import QueueJob, RenderQueue, Status
 from ..style import icons, theme
 from ..style.card import Card, Chip, gutter_splitter, page_margins
+from ..style.segmented import SegmentedControl
 from . import Page, Shared
 
 log = get_logger(__name__)
@@ -80,10 +83,14 @@ SUBTITLE_LABELS = (
     ("srt", "An .srt beside the video only"),
     ("none", "None"),
 )
-ENCODER_LABELS = (
-    ("auto", "Automatic"),
-    ("gpu", "Graphics card (NVENC)"),
-    ("cpu", "Processor (x264)"),
+ENCODER_LABELS = (  # key, the segment's text, what it means
+    (
+        "auto",
+        "Auto",
+        "Automatic: the graphics card's encoder for longer exports when there is one, else x264",
+    ),
+    ("gpu", "GPU", "Graphics card (NVENC)"),
+    ("cpu", "CPU", "Processor (x264)"),
 )
 PROCESS_LABELS = (
     (None, "Automatic"),
@@ -394,9 +401,13 @@ class DeliverPage(Page):
         for key, label in SUBTITLE_LABELS:
             self.subtitles.addItem(label, key)
 
-        self.encoder = QComboBox()
-        for key, label in ENCODER_LABELS:
-            self.encoder.addItem(label, key)
+        self.encoder = SegmentedControl()  # Auto / GPU / CPU (ADR 0065, 0084)
+        for key, label, tip in ENCODER_LABELS:
+            self.encoder.add(key, label, tip)
+        self.encoder_used = Chip("", "ok")  # what encoded the last export of this session
+        self.encoder_used.setObjectName("encoderUsed")
+        self.encoder_used.setFixedHeight(20)
+        self.encoder_used.hide()
         self.encoder.setToolTip(
             "What turns the pictures into H.264. Automatic uses the graphics card's encoder (NVIDIA NVENC) "
             "for longer exports when there is one, else the processor (x264). The pictures are drawn on the "
@@ -427,8 +438,16 @@ class DeliverPage(Page):
         form.addLayout(markers_row, 7, 0, 1, 2)
         form.addWidget(self._label("Subtitles"), 8, 0, 1, 2)
         form.addWidget(self.subtitles, 9, 0, 1, 2)
-        form.addWidget(self._label("Encoder"), 10, 0)
-        form.addWidget(self.encoder, 11, 0)
+        encoder_head = QHBoxLayout()
+        encoder_head.setSpacing(theme.GUTTER)
+        encoder_head.addWidget(self._label("Encoder"))
+        encoder_head.addWidget(self.encoder_used)
+        encoder_head.addStretch(1)
+        encoder_row = QHBoxLayout()
+        encoder_row.addWidget(self.encoder)
+        encoder_row.addStretch(1)
+        form.addLayout(encoder_head, 10, 0)
+        form.addLayout(encoder_row, 11, 0)
         form.addWidget(self._label("Render processes"), 10, 1)
         form.addWidget(self.processes, 11, 1)
         form.addWidget(self._label("Save to"), 12, 0, 1, 2)
@@ -449,7 +468,7 @@ class DeliverPage(Page):
         self.render_button.setProperty("role", "primary")
         self.render_button.setDefault(True)
         self.render_button.setToolTip("Add this export to the queue and start the queue")
-        self.render_button.clicked.connect(self.render_now)
+        self.render_button.clicked.connect(lambda _checked=False: self.render_now())
         actions = QHBoxLayout()
         actions.setSpacing(10)
         actions.addWidget(self.render_button, 1)
@@ -458,10 +477,14 @@ class DeliverPage(Page):
         note.setProperty("role", "hint")
         note.setWordWrap(True)
 
+        self.health_card = HealthCard()  # fonts, media, Python layers, sound (ADR 0066, 0084)
+        self.health_card.openRequested.connect(self._open_health_target)
+
         content = QWidget()
         column = QVBoxLayout(content)
         column.setContentsMargins(20, 16, 20, 16)
         column.setSpacing(14)
+        column.addWidget(self.health_card)
         column.addLayout(tiles)
         column.addLayout(form)
         column.addWidget(self.summary)
@@ -543,11 +566,17 @@ class DeliverPage(Page):
         buttons.addStretch(1)
         buttons.addWidget(self.start_button)
 
+        self.resume_card = ResumeCard()  # an interrupted export of what the form says (ADR 0081)
+        self.resume_card.hide()
+        self.resume_card.resumeRequested.connect(lambda: self.render_now("resume"))
+        self.resume_card.startOverRequested.connect(lambda: self.render_now("fresh"))
+
         body = QWidget()
         column = QVBoxLayout(body)
         column.setContentsMargins(12, 12, 12, 12)
         column.setSpacing(10)
         column.addWidget(self.now)
+        column.addWidget(self.resume_card)
         column.addWidget(self.tree, 1)
         column.addLayout(buttons)
         card.set_body(body)
@@ -624,6 +653,7 @@ class DeliverPage(Page):
             self.outer.setSizes([280, total - 280 - 360, 360])
             self._centre_watch.reflow(force=True)
         self._follow_default_output()
+        self._refresh_resume()
         if self._python_stale:
             self.refresh_python()
 
@@ -788,7 +818,7 @@ class DeliverPage(Page):
             end=end,
             crf=self.quality.currentData(),
             subtitles=self.subtitles.currentData() if self.subtitles.isEnabled() else None,
-            encoder=self.encoder.currentData(),
+            encoder=self.encoder.current() or "auto",
             jobs=self.processes.currentData(),
         )
 
@@ -814,6 +844,43 @@ class DeliverPage(Page):
         edited = not self._matches_destination()
         self.preset_chip.setText("Edited" if edited else "Preset")
         self.preset_chip.set_tone("accent" if edited else "neutral")
+        self._refresh_resume()
+
+    def _open_health_target(self, page: str, layer_id: str) -> None:
+        """A warn or bad health chip was pressed: show the page that has what it names, on that layer."""
+        window = self.window
+        if layer_id:
+            if page == "audio":
+                window.selection.set_audio(layer_id)
+            else:
+                window.selection.select_layer(layer_id)
+        window.show_page(page)
+
+    def _refresh_resume(self) -> None:
+        """The queue's card for an interrupted export of what the form says (None pending: no card)."""
+        if not hasattr(self, "resume_card"):
+            return
+        project, text = self.window.project, self.path.text().strip()
+        found = None
+        if project is not None and text and self.queue.current is None:
+            try:
+                options = self.options()
+                trust = not self.window.trust.untrusted(project)
+                output = self.queue.output_for(Path(text))
+                found = resume.pending(project, options, output, trust)
+            except (OptionsError, OSError, ValueError):
+                found = None
+        if found is None:
+            self.resume_card.hide()
+            return
+        state = resume.load(found.work)
+        indices = sorted(state.segments) if state is not None else []
+        finished = {i for i in indices if resume.intact(found.work, state.segments[i], check_hash=False)}
+        done = tuple(i in finished for i in range(found.total))
+        if sum(done) != found.done:  # the strip must agree with the count the question uses
+            done = tuple(i < found.done for i in range(found.total))
+        self.resume_card.show_pending(output.name, done, found.work.name)
+        self.resume_card.show()
 
     def _show_health(self, project: Project, options: RenderOptions) -> None:
         """The export health report (ADR 0066) under the summary: what is worth a warning, in a few lines."""
@@ -829,7 +896,9 @@ class DeliverPage(Page):
         except (OSError, ValueError) as error:  # the report is advice: it never stops the page
             log.warning("deliver: no health report: %s", error)
             self.health.clear()
+            self.health_card.show_items(health_items(project, None))
             return
+        self.health_card.show_items(health_items(project, report))
         notable = [f for f in report.findings if f.severity != export_health.INFO]
         lines = [f"{f.title}. {f.detail}".strip() for f in notable[:4]]
         if len(notable) > 4:
@@ -867,8 +936,9 @@ class DeliverPage(Page):
 
     # -- the queue ----------------------------------------------------------------------------
 
-    def add_to_queue(self) -> QueueJob | None:
-        """Queue an export of the project as it is now with the settings shown."""
+    def add_to_queue(self, resume_choice: str | None = None) -> QueueJob | None:
+        """Queue an export of the project as it is now with the settings shown. ``resume_choice``
+        ("resume" or "fresh") answers the question about an interrupted export before it is asked."""
         project = self.window.project
         if project is None:
             self.error.setText("Create or open a project first.")
@@ -888,7 +958,7 @@ class DeliverPage(Page):
         fresh = False
         pending = resume.pending(project, options, self.queue.output_for(Path(text)), trust)
         if pending is not None:  # an interrupted export of this project and settings (ADR 0081)
-            choice = self.ask_resume(pending)
+            choice = resume_choice or self.ask_resume(pending)
             if choice is None:
                 return None
             fresh = choice == "fresh"
@@ -919,9 +989,9 @@ class DeliverPage(Page):
         clicked = box.clickedButton()
         return "resume" if clicked is resume_button else "fresh" if clicked is fresh_button else None
 
-    def render_now(self) -> None:
+    def render_now(self, resume_choice: str | None = None) -> None:
         """Render video: queue this export and start the queue."""
-        if self.add_to_queue() is not None:
+        if self.add_to_queue(resume_choice) is not None:
             self.start_queue()
 
     def start_queue(self) -> None:
@@ -937,6 +1007,8 @@ class DeliverPage(Page):
 
     def _launch(self, job: QueueJob) -> None:
         self._first_progress = None
+        self.encoder_used.hide()
+        self.resume_card.hide()
         export = ExportJob(
             job.project,
             job.output,
@@ -989,8 +1061,24 @@ class DeliverPage(Page):
             return
         self._measure(job)
         how = f" - {self._export.how}" if self._export is not None and self._export.how else ""
+        self._show_encoder_used(self._export.how if self._export is not None else "")
         self.queue.finish(job, Path(path), warning)
         self._after_job(job, f"Exported to {path}{how}" + (f"\n{warning}" if warning else ""))
+
+    def _show_encoder_used(self, how: str) -> None:
+        """A chip beside the Encoder control saying what encoded the export that just finished (known when
+        it is done, ADR 0065): the part of ``how`` before the first comma, "GPU (NVENC)" or "CPU (x264)"."""
+        used = how.split(",")[0].strip()
+        self.encoder_used.setVisible(bool(used))
+        if not used:
+            return
+        self.encoder_used.setText(f"Used {used}")
+        wanted = self.encoder.current()
+        fell_back = wanted == "gpu" and used.upper().startswith("CPU")
+        self.encoder_used.set_tone("warn" if fell_back else "ok")
+        self.encoder_used.setToolTip(
+            "The graphics card could not be used, so x264 on the processor encoded it." if fell_back else how
+        )
 
     def _measure(self, job: QueueJob) -> None:
         """Remember how fast this export went (pixels x frames per second) for the render-time estimate."""
@@ -1020,6 +1108,7 @@ class DeliverPage(Page):
         self._update_row(job)
         self._launch_next()
         self._update_buttons()
+        self._refresh_resume()
 
     def _queue_idle(self) -> None:
         self._status_message("")
@@ -1044,6 +1133,7 @@ class DeliverPage(Page):
         self._update_row(job)
         self._launch_next()
         self._update_buttons()
+        self._refresh_resume()  # a cancelled long export kept its segments
 
     def remove_selected(self) -> None:
         job = self.selected()

@@ -7,8 +7,9 @@ step. "Keep the delays as they are" leaves each layer's start where it is (the d
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QDialog, QDoubleSpinBox, QFormLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout, QWidget
 
+from ..style.card import Chip
 from ..style.dialog_chrome import DialogFrame
 
 
@@ -25,6 +26,13 @@ class RecipeParametersDialog(QDialog):
             "The whole length stretches every layer's part by one factor; the delay is between the "
             f"starts of consecutive layers ({layers} here).",
         )
+        facts = QHBoxLayout()  # what the recipe is made of, as chips
+        self.layers_chip = Chip(f"{layers} layers", "accent")
+        self.delay_chip = Chip("delays kept" if stagger is None else f"{stagger:g} s apart")
+        facts.addWidget(self.layers_chip)
+        facts.addWidget(self.delay_chip)
+        facts.addStretch(1)
+        self.frame.body.addLayout(facts)
         form = QFormLayout()
         self.length = QDoubleSpinBox()
         self.length.setRange(0.1, 3600.0)
@@ -41,14 +49,18 @@ class RecipeParametersDialog(QDialog):
         self.keep = QCheckBox("Keep the delays as they are")
         self.keep.toggled.connect(lambda on: self.stagger.setEnabled(not on))
         self.keep.setChecked(stagger is None)
+        for spin in (self.length, self.stagger):
+            spin.setMaximumWidth(160)
         form.addRow("Length:", self.length)
         form.addRow("Delay between layers:", self.stagger)
         form.addRow("", self.keep)
         self.frame.body.addLayout(form)
+        self.frame.body.addStretch(1)
         cancel = self.frame.add_button("Cancel")
         cancel.clicked.connect(self.reject)
         ok = self.frame.add_button("Apply", "primary")
         ok.clicked.connect(self.accept)
+        self.resize(560, 340)
 
     def answer(self) -> tuple[float, float | None]:
         """The length, and the delay (None: keep the delays)."""

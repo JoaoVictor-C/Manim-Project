@@ -1,29 +1,33 @@
 """Edit > Ripple Edit...: open or close time at a point, or give a beat another length (ADR 0071).
 
 Everything that starts at or after the point moves together; the check boxes choose which kinds go along, and
-the line under them says exactly what would move (or why the edit cannot be made) before anything changes.
-One undo step.
+the chip under them says exactly what would move (or why the edit cannot be made) before anything changes.
+The mode is a segmented control: *Close the gap* and *Open space* take away or add the typed time at a point,
+*Linked* gives the beat a new length and what follows moves with its end. One undo step.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFormLayout,
-    QLabel,
+    QHBoxLayout,
     QWidget,
 )
 
 from ...core.editing import edits, ripple
 from ...core.model.schema import Project
+from ..style.card import Chip
 from ..style.dialog_chrome import DialogFrame
+from ..style.segmented import Segmented
 
-INSERT, BEAT = "insert", "beat"
+INSERT, CLOSE, BEAT = "insert", "close", "beat"  # open space, close the gap, linked (a beat's length)
 
 
 class RippleDialog(QDialog):
@@ -43,9 +47,13 @@ class RippleDialog(QDialog):
             "Ripple edit",
             "Open or close time and let what follows move with it, or change the length of a beat.",
         )
-        self.mode = QComboBox()
-        self.mode.addItem("Insert or remove time at a point", INSERT)
-        self.mode.addItem("Change the length of a beat", BEAT)
+        self.mode = Segmented()
+        self.mode.addItem(
+            "Close the gap", CLOSE, "Take the typed time out at a point; what follows moves back"
+        )
+        self.mode.addItem("Open space", INSERT, "Add the typed time at a point; what follows moves later")
+        self.mode.addItem("Linked", BEAT, "Give a beat another length; what follows moves with its end")
+        self.mode.setCurrentIndex(self.mode.findData(INSERT))
         self.mode.currentIndexChanged.connect(self._mode_changed)
 
         self.at = QDoubleSpinBox()
@@ -54,7 +62,7 @@ class RippleDialog(QDialog):
         self.at.setSuffix(" s")
         self.at.setValue(playhead)
         self.amount = QDoubleSpinBox()
-        self.amount.setRange(-3600.0, 3600.0)
+        self.amount.setRange(0.0, 3600.0)
         self.amount.setDecimals(3)
         self.amount.setSuffix(" s")
         self.amount.setValue(1.0)
@@ -80,27 +88,35 @@ class RippleDialog(QDialog):
         for box in self.scope_boxes.values():
             box.setChecked(True)
             box.toggled.connect(self._preview)
-        self.summary = QLabel("")
-        self.summary.setWordWrap(True)
-        self.summary.setProperty("role", "muted")
+        self.summary = Chip("")  # the live count of what would move, or why nothing can
+        self.summary.setMinimumHeight(22)
 
         self.form = QFormLayout()
-        self.form.addRow("Mode", self.mode)
         self.form.addRow("At", self.at)
-        self.form.addRow("Amount (negative closes)", self.amount)
+        self.form.addRow("Amount", self.amount)
         self.form.addRow("Beat", self.beat)
         self.form.addRow("New length", self.length)
-        for name, box in self.scope_boxes.items():
-            self.form.addRow("Moves along" if name == "clips" else "", box)
+        along = QHBoxLayout()
+        along.setSpacing(14)
+        for box in self.scope_boxes.values():
+            along.addWidget(box)
+        along.addStretch(1)
+        self.form.addRow("Moves along", along)
+        for spin in (self.at, self.amount, self.length):
+            spin.setMaximumWidth(160)
+        self.frame.body.addWidget(self.mode, 0, Qt.AlignmentFlag.AlignLeft)
         self.frame.body.addLayout(self.form)
-        self.frame.body.addWidget(self.summary)
+        line = QHBoxLayout()
+        line.addWidget(self.summary)
+        line.addStretch(1)
+        self.frame.body.addLayout(line)
         for spin in (self.at, self.amount, self.length):
             spin.valueChanged.connect(self._preview)
         cancel = self.frame.add_button("Cancel")
         cancel.clicked.connect(self.reject)
         self.apply_button = self.frame.add_button("Apply", "primary")
         self.apply_button.clicked.connect(self.run)
-        self.resize(520, 460)
+        self.resize(560, 460)
         self._beat_changed()
         self._mode_changed()
 
@@ -117,7 +133,8 @@ class RippleDialog(QDialog):
             if found is None:
                 raise edits.EditError("the project has no beats: add markers on the timeline")
             return ripple.retime_beat(project, found, self.length.value(), self.scope())
-        return ripple.ripple(project, self.at.value(), self.amount.value(), self.scope())
+        sign = -1.0 if self.mode.currentData() == CLOSE else 1.0
+        return ripple.ripple(project, self.at.value(), sign * self.amount.value(), self.scope())
 
     def _point(self) -> float:
         found = self.beat.currentData()
@@ -130,6 +147,9 @@ class RippleDialog(QDialog):
         for widget in (self.at, self.amount):
             self.form.labelForField(widget).setVisible(not beat)
             widget.setVisible(not beat)
+        self.form.labelForField(self.amount).setText(
+            "Close by" if self.mode.currentData() == CLOSE else "Open by"
+        )
         for widget in (self.beat, self.length):
             self.form.labelForField(widget).setVisible(beat)
             widget.setVisible(beat)
@@ -150,11 +170,13 @@ class RippleDialog(QDialog):
             self.edit()
         except edits.EditError as error:
             self.summary.setText(str(error))
+            self.summary.set_tone("bad")
             self.apply_button.setEnabled(False)
             return
         self.apply_button.setEnabled(True)
         found = ripple.affected(self.current(), self._point(), self.scope())
         self.summary.setText(found.summary())
+        self.summary.set_tone("neutral")
 
     def run(self) -> None:
         try:

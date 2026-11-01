@@ -135,8 +135,12 @@ def test_the_dialog_shows_permissions_and_says_it_is_not_a_sandbox(qt_app, manif
             and "all of your user account's rights" in dialog.warning.text()
         )
         row = dialog.rows["C:/plugins/weather.py"]
-        assert [chip.text() for chip in row.chips] == ["network (new)", "ui"]
-        assert row.chips[0].property("tone") == "warn"
+        assert [chip.text() for chip in row.permission_chips] == ["network (new)", "ui"]
+        assert row.permission_chips[0].property("tone") == "warn" and row.state == "waiting"
+        assert row.compat.text() == "compatible" and row.compat.property("tone") == "ok"
+        assert row.allow is not None and row.allow.property("role") == "primary"
+        assert any("Waiting for approval" in line.text() for line in row.lines)
+        assert dialog.rows["C:/plugins/old.py"].compat.text() == "no manifest"
         text = dialog.text.toPlainText()
         waits = "C:/plugins/weather.py\n    WAITS FOR APPROVAL: Weather 2.0 by Ada\n"
         assert waits + "    permissions: network, ui (new: network)" in text
@@ -154,7 +158,12 @@ def test_allowing_a_plugin_stores_the_approval_for_the_next_start(qt_app, manife
     dialog.show()
     try:
         dialog.rows["C:/plugins/weather.py"].allow.click()
-        assert "C:/plugins/weather.py" not in dialog.rows and "C:/plugins/weather.py" not in plugins.pending
+        row = dialog.rows[
+            "C:/plugins/weather.py"
+        ]  # it stays listed, now as approved (and without the button)
+        assert (
+            row.state == "approved" and row.allow is None and "C:/plugins/weather.py" not in plugins.pending
+        )
         stored = json.loads(manifested.read_text(encoding="utf-8"))["approved"]["C:/plugins/weather.py"]
         assert stored["version"] == "2.0" and stored["permissions"] == ["network", "ui"]
         assert "APPROVED: Weather 2.0 by Ada loads at the next start" in dialog.text.toPlainText()
@@ -165,3 +174,31 @@ def test_allowing_a_plugin_stores_the_approval_for_the_next_start(qt_app, manife
 
 def test_the_editor_says_at_startup_when_a_plugin_waits(qt_app, manifested) -> None:
     assert plugins_dialog.startup_message() == "1 plugin waits for your approval: see Help > Plugins"
+
+
+@pytest.mark.parametrize("name", ["ink", "paper"])
+def test_the_rows_paint_in_both_themes_and_name_a_plugin_that_needs_a_newer_app(
+    qt_app, manifested, monkeypatch, name
+) -> None:
+    from manim_studio.plugin_manifest import Manifest
+    from manim_studio.ui.style import theme
+
+    theme.set_theme(qt_app, name)
+    future = Manifest("Future", "1.0", requires=">=9.0", permissions=("files",))
+    monkeypatch.setitem(plugins.manifests, "C:/plugins/future.py", future)
+    monkeypatch.setitem(plugins.problems, "C:/plugins/future.py", "incompatible: needs >=9.0 (this is 0.1)")
+    dialog = plugins_dialog.PluginsDialog()
+    dialog.resize(560, 520)
+    dialog.show()
+    qt_app.processEvents()
+    try:
+        row = dialog.rows["C:/plugins/future.py"]
+        assert row.compat.text() == "needs newer app" and row.compat.property("tone") == "bad"
+        assert [chip.text() for chip in row.permission_chips] == ["files"]
+        assert dialog.rows["C:/plugins/grid.py"].allow is None and not dialog.text.isVisible()
+        dialog.details_button.setChecked(True)
+        assert dialog.text.isVisible()
+        assert dialog.width() <= 560 and not dialog.grab().isNull()
+    finally:
+        dialog.close()
+        theme.set_theme(qt_app, "ink")

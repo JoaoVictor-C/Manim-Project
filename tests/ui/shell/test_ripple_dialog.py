@@ -110,3 +110,50 @@ def test_the_dialog_can_be_shown_and_painted(window, qt_app) -> None:
     qt_app.processEvents()
     assert not dialog.grab().isNull()  # its header icon must exist
     dialog.close()
+
+
+def test_the_mode_is_a_segmented_control_of_three(window) -> None:
+    from manim_studio.ui.shell.ripple_dialog import CLOSE
+    from manim_studio.ui.style.segmented import Segmented
+
+    shown = dialog(window)
+    assert isinstance(shown.mode, Segmented)
+    assert [shown.mode.itemText(i) for i in range(shown.mode.count())] == [
+        "Close the gap",
+        "Open space",
+        "Linked",
+    ]
+    assert shown.mode.currentData() == INSERT  # opens by default, as it always did
+    shown.mode.setCurrentIndex(shown.mode.findData(CLOSE))
+    shown.amount.setValue(1.0)
+    shown.run()
+    project = window.document.project
+    assert project.layer("a").clips[1].start == 2.0 and project.audio[0].start == 2.5  # one second earlier
+
+
+def test_the_chip_counts_what_moves_and_turns_bad_when_nothing_can(window) -> None:
+    shown = dialog(window)
+    assert shown.summary.property("chip") is True and shown.summary.property("tone") == "neutral"
+    assert shown.summary.text().startswith("Moves 1 clips")
+    shown.at.setValue(5.9)
+    assert shown.summary.property("tone") == "bad" and "nothing starts" in shown.summary.text()
+    shown.at.setValue(2.0)
+    assert shown.summary.property("tone") == "neutral"
+
+
+@pytest.mark.parametrize("name", ["ink", "paper"])
+def test_it_fits_a_small_window_in_both_themes(window, qt_app, name) -> None:
+    from manim_studio.ui.style import theme
+
+    theme.set_theme(qt_app, name)
+    shown = dialog(window)
+    shown.resize(560, 460)
+    shown.show()
+    qt_app.processEvents()
+    assert shown.width() <= 560 and shown.height() <= 640 and not shown.grab().isNull()
+    for mode in (BEAT, INSERT):
+        shown.mode.setCurrentIndex(shown.mode.findData(mode))
+        qt_app.processEvents()
+        assert not shown.grab().isNull()
+    shown.close()
+    theme.set_theme(qt_app, "ink")

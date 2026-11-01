@@ -127,9 +127,10 @@ def test_hidden_panels_stay_hidden_on_every_page(window, qt_app) -> None:
 def test_side_widths_scale_with_the_window_within_limits() -> None:
     from manim_studio.ui.pages.compose import side_widths
 
-    assert side_widths(1300) == (260, 325)  # a fifth and a quarter
+    assert side_widths(1300) == (266, 316)  # a fifth and a bit more than a fifth
     assert side_widths(600) == (240, 316)  # never narrower (the Properties card needs 316)
-    assert side_widths(2560) == (280, 340)  # never wider
+    assert side_widths(2560) == (288, 328)  # never wider
+    assert side_widths(1408) == (288, 316)  # the mock-up's Layers and Properties at 1440 px (ADR 0084)
 
 
 @pytest.mark.parametrize("width", [1024, 1920])

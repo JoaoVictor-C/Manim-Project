@@ -3,6 +3,11 @@
 A guide is a vertical or horizontal line at a position in scene units (the frame's centre is 0). Margins,
 Thirds and Centre add a ready-made set; guides already there are kept, not doubled. Each change is one
 undo step. The guides draw nothing in the video; View > Layout Guides shows them on the canvas.
+
+The design (lumen.md, Stage, guides and labels) wants this as a popover on the stage header's ruler
+button rather than a window. That needs the stage header (owned by the canvas package, which this package may
+not import), so the dialog keeps its place here, in the dialog shape of ADR 0084: rows with chips, a
+segmented axis, one task; moving it into a popover is a change of container, not of content.
 """
 
 from __future__ import annotations
@@ -11,15 +16,12 @@ from collections.abc import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QWidget,
 )
@@ -27,6 +29,8 @@ from PySide6.QtWidgets import (
 from ...core.editing import edits
 from ...core.model.schema import Guide, Project
 from ..style.dialog_chrome import DialogFrame
+from ..style.list_row import ListRow, RowList
+from ..style.segmented import Segmented
 
 DEFAULT_MARGIN = 0.5  # scene units
 
@@ -53,18 +57,25 @@ class GuidesDialog(QDialog):
             "Layout guides",
             "Lines on the canvas that moved objects snap to. They are never drawn in the video.",
         )
-        self.list = QListWidget()
+        self.list = RowList()
         self.list.currentRowChanged.connect(self._picked)
-        self.frame.body.addWidget(self.list)
+        self.frame.body.addWidget(self.list, 1)
+        self.empty_note = QLabel("No guides yet. Add one below, or pull one from a ruler on the canvas.")
+        self.empty_note.setProperty("role", "muted")
+        self.empty_note.setWordWrap(True)
+        self.frame.body.addWidget(self.empty_note)
 
         row = QHBoxLayout()
-        self.axis = QComboBox()
-        self.axis.addItem("Vertical (x)", "x")
-        self.axis.addItem("Horizontal (y)", "y")
+        row.setSpacing(8)
+        self.axis = Segmented()
+        self.axis.addItem("Vertical", "x", "A line at x = position")
+        self.axis.addItem("Horizontal", "y", "A line at y = position")
         self.position = QDoubleSpinBox()
         self.position.setRange(-1000.0, 1000.0)
         self.position.setDecimals(3)
         self.position.setSingleStep(0.25)
+        self.position.setSuffix(" u")
+        self.position.setToolTip("Scene units from the frame's centre")
         self.name = QLineEdit()
         self.name.setPlaceholderText("Name (optional)")
         self.add_button = QPushButton("Add")
@@ -72,17 +83,19 @@ class GuidesDialog(QDialog):
         self.move_button = QPushButton("Move Selected")
         self.move_button.clicked.connect(self.move_selected)
         self.delete_button = QPushButton("Delete")
+        self.delete_button.setProperty("role", "danger")
         self.delete_button.clicked.connect(self.delete_selected)
-        for widget in (
-            self.axis,
-            self.position,
-            self.name,
-            self.add_button,
-            self.move_button,
-            self.delete_button,
-        ):
-            row.addWidget(widget)
+        row.addWidget(self.axis)
+        row.addWidget(self.position, 1)
+        row.addWidget(self.name, 2)
         self.frame.body.addLayout(row)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addWidget(self.delete_button)
+        buttons.addStretch(1)
+        buttons.addWidget(self.move_button)
+        buttons.addWidget(self.add_button)
+        self.frame.body.addLayout(buttons)
 
         presets = QHBoxLayout()
         for text, slot in (
@@ -91,6 +104,7 @@ class GuidesDialog(QDialog):
             ("Centre", self.add_centre),
         ):
             button = QPushButton(text)
+            button.setProperty("role", "ghost")
             button.clicked.connect(slot)
             presets.addWidget(button)
         presets.addStretch(1)
@@ -102,7 +116,7 @@ class GuidesDialog(QDialog):
 
         close = self.frame.add_button("Close", "primary")
         close.clicked.connect(self.close)
-        self.resize(620, 440)
+        self.resize(560, 520)
         self.reload()
 
     # -- the list ------------------------------------------------------------------------------
@@ -111,11 +125,17 @@ class GuidesDialog(QDialog):
         selected = self.selected_id()
         self.list.clear()
         for guide in self.current().guides:
-            item = QListWidgetItem(describe(guide))
-            item.setData(Qt.ItemDataRole.UserRole, guide.id)
-            self.list.addItem(item)
+            vertical = guide.axis == "x"
+            widget = ListRow(guide.name or ("Vertical guide" if vertical else "Horizontal guide"))
+            widget.mono_label.setText(f"{guide.axis} = {guide.position:g}")
+            widget.mono_label.show()
+            widget.add_head_chip(
+                "Vertical" if vertical else "Horizontal", "accent" if vertical else "neutral"
+            )
+            item = self.list.add_row(widget, describe(guide), guide.id)
             if guide.id == selected:
                 self.list.setCurrentItem(item)
+        self.empty_note.setVisible(not self.current().guides)
         has = self.list.currentItem() is not None
         self.move_button.setEnabled(has)
         self.delete_button.setEnabled(has)

@@ -48,6 +48,7 @@ def window(qt_app, tmp_path):
     path.write_text(Project(canvas=CANVAS, layers=layers()).model_dump_json(by_alias=True), encoding="utf-8")
     win = MainWindow()
     win.ask_trust = lambda names: "skip"
+    win.ask_extract = lambda code, layers: True  # the preview dialog is tested in tests/ui/shell (ADR 0084)
     win.resize(1500, 850)
     win.show()
     win.load(path)

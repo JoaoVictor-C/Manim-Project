@@ -89,6 +89,7 @@ from ..style.fields import (
 )
 from ..timeline.curve_editor import ease_label, edit_curve
 from .glyph_colours_dialog import ask_glyph_colours
+from .inspector_tabs import CLIP, PROPERTIES, SCENE, InspectorTabs
 from .kinds import KINDS, Kind, KindChip, kind_of
 
 CUSTOM_CURVE = "custom-curve"  # the "Custom curve..." entry of an easing list
@@ -422,6 +423,9 @@ class PropertiesPanel(QWidget):
         self._section_keys: tuple[QToolButton, list[KeyToggle]] | None = None  # Transform's diamond
         self._collapsed: set[str] = set()  # titles of the sections the user closed (kept across selections)
         self.title = TitleBlock()
+        self.tabs = InspectorTabs()  # Properties | Clip | Scene, in the card's header (ADR 0084)
+        self.tabs.tabChosen.connect(self._on_tab)
+        self._return_to: str | None = None  # the object the Scene tab was opened from
         self.body = QWidget()
         self.body.setObjectName("propertiesBody")
         self.body_layout = QVBoxLayout(self.body)
@@ -954,8 +958,45 @@ class PropertiesPanel(QWidget):
 
     # -- sections ---------------------------------------------------------------------
 
+    def _tab_layer(self) -> Layer | None:
+        """The object the Properties and Clip tabs would show: the one shown, or the Scene tab's origin."""
+        layer_id = self.layer_id or self._return_to
+        return self.project.layer(layer_id) if layer_id and _has(self.project, layer_id) else None
+
+    def _sync_tabs(self) -> None:
+        layer = self._tab_layer()
+        if self.clip_id is not None:
+            current = CLIP
+        elif self.layer_id is not None:
+            current = PROPERTIES
+        elif self.audio_id is None and self.subtitle_id is None and self.marker_id is None:
+            current = SCENE
+        else:
+            current = None
+        self.tabs.show_state(
+            current, properties=layer is not None, clip=layer is not None and bool(layer.clips)
+        )
+
+    def _on_tab(self, key: str) -> None:
+        """A click on a tab of the header: show the object, one of its clips, or the scene's settings."""
+        layer = self._tab_layer()
+        if key == SCENE:
+            came_from = self.layer_id or self._return_to
+            self.show_nothing()
+            self._return_to = came_from if came_from and _has(self.project, came_from) else None
+            self._sync_tabs()
+        elif layer is None:
+            self._sync_tabs()
+        elif key == PROPERTIES:
+            self.show_layer(layer.id)
+        elif layer.clips:
+            t = self.playhead()
+            clip = next((c for c in layer.clips if c.start <= t <= c.end), layer.clips[0])
+            self.show_clip(layer.id, clip.id)
+
     def _rebuild(self) -> None:
         self._generation += 1
+        self._return_to = None
         self.code_label = self.retry_button = self.fit_button = None
         self.part_tex = self.part_occurrence = self.part_colour_button = None
         self._shown_pieces = None
@@ -971,6 +1012,7 @@ class PropertiesPanel(QWidget):
         self._tips.clear()
         self._getters.clear()
         self._keys.clear()
+        self._sync_tabs()
         while self.body_layout.count():
             widget = self.body_layout.takeAt(0).widget()
             if widget is not None:

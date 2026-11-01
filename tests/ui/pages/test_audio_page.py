@@ -103,15 +103,24 @@ def test_the_audio_page_is_registered_with_its_icon_and_shortcut_hint(window) ->
     assert "Ctrl+4" in window.pages.pages["audio"].tooltip
 
 
-def test_the_page_shows_the_viewer_timeline_and_properties_and_parks_the_layers(window, page) -> None:
-    for view in (window.viewer, window.timeline, window.properties):
-        assert page.widget.isAncestorOf(view) and view.isVisible()
-    assert window.layers_card.parentWidget() is window.pages.parking and not window.layers.isVisible()
-    assert page.widget.isAncestorOf(page.sounds) and page.sounds.isVisible() and page.cues.isVisible()
+def test_the_page_has_no_stage_properties_or_timeline_and_the_tables_are_a_view_of_the_mix(
+    window, page, qt_app
+) -> None:
+    """Lumen: the Audio page is the Mix card and the Narration card; the shared views wait parked, and the
+    two tables are what the Mix card shows instead of the lanes."""
+    for view in (window.viewer, window.timeline, window.properties, window.layers):
+        assert not page.widget.isAncestorOf(view) and not view.isVisible()
+    assert page.lanes.isVisible() and not page.sounds.isVisible() and not page.cues.isVisible()
+    page.table_button.click()
+    assert page.sounds.isVisible() and page.cues.isVisible() and not page.lanes.isVisible()
+    assert page.table_button.text() == "Lanes" and page.mix_card.isAncestorOf(page.sounds)
+    assert page.meter.isVisible()  # the transport strip stays under either view
+    page.table_button.click()
+    assert page.lanes.isVisible() and not page.sounds.isVisible()
     window.show_page("compose")
-    assert not page.widget.isAncestorOf(window.viewer) and window.layers.isVisible()
+    assert window.viewer.isVisible() and window.layers.isVisible()
     window.show_page("audio")
-    assert page.widget.isAncestorOf(window.viewer)
+    assert not page.widget.isAncestorOf(window.viewer)
 
 
 def test_the_page_opens_without_a_project(qt_app) -> None:
@@ -333,6 +342,7 @@ def test_a_sound_row_selects_the_sound_and_the_selection_selects_the_row(window,
 
 
 def test_a_subtitle_row_selects_it_and_moves_the_playhead_to_it(window, page) -> None:
+    page.table_button.click()  # the tables are shown (a click needs them on screen)
     window.seek(5.0)
     index = page.cues_model.index(1, 0)
     page.cues.setCurrentIndex(index)
@@ -447,9 +457,10 @@ def test_the_meter_reads_the_mix_at_the_playhead(window, page) -> None:
     assert level.peak == pytest.approx((0.5, 0.5), abs=2e-3)
     assert level.rms_db == pytest.approx((-9.03, -9.03), abs=0.1)
     assert "-6.0" in page.meter.readout() and "-9.0" in page.meter.readout()
-    assert page.meter.label.text() == page.meter.readout()
+    assert page.meter.chip.text() == "Master -6.0 dB" and page.meter.chip.toolTip() == page.meter.readout()
     window.seek(0.2)
     assert page.meter.level == levels.SILENCE and "-inf" in page.meter.readout()
+    assert page.meter.chip.text() == "Master silent"
     window.seek(4.5)
     assert page.meter.level == levels.SILENCE
 

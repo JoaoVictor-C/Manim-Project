@@ -57,9 +57,10 @@ from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
 from .canvas import arrange, snap_guides
 from .canvas.canvas import CanvasWidget
 from .canvas.canvas_tools import MoveTool
+from .canvas.stage_header import GAME_HINT, SCENE_HINT, StageHeader
 from .canvas.viewport import ZOOM_STEP
 from .deliver.export_dialog import ExportDialog
-from .exchange.bundle_dialog import ExportBundleDialog
+from .exchange.bundle_dialog import BundleProblemDialog, ExportBundleDialog
 from .exchange.code_importer import CodeImporter
 from .exchange.script_dialog import ScriptDialog
 from .exchange.snapshots_dialog import SnapshotsDialog
@@ -91,6 +92,7 @@ from .shell.autosave import Autosave
 from .shell.beat_sheet_dialog import BeatSheetDialog
 from .shell.clipboard_actions import ClipboardActions
 from .shell.explain_dialog import ExplainDialog
+from .shell.extract_dialog import ExtractCodeDialog
 from .shell.guides_dialog import GuidesDialog
 from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
@@ -106,6 +108,7 @@ from .style.elided_label import ElidedLabel
 from .style.render_activity import RenderActivity
 from .style.saved_indicator import SavedIndicator
 from .style.toast import LumenStatusBar, ToastHost
+from .timeline.header import TimelineHeader
 from .timeline.view import TimelineView
 
 log = get_logger(__name__)
@@ -296,14 +299,24 @@ class MainWindow(QMainWindow):
         self.viewer_card = Card("Stage", clip=True)
         self.viewer_card.set_body(self.viewer)
         self.scene_chip = Chip("")  # the scene's size and frame rate
-        self.viewer_card.add_title_widget(self.scene_chip)
-        self.viewer_card.add_action(self.time_label)
+        # the header strip: size, Scene | Game, readout, Follow playhead, Fit / 75 % / 100 %, full screen
+        self.stage_header = StageHeader(self.canvas, self.scene_chip, self.time_label)
+        self.viewer_card.add_header_content(self.stage_header)
         self.timeline_card = Card("Timeline")
         self.timeline_card.set_body(self.timeline)
+        self.timeline_header = TimelineHeader(self.timeline)  # Snap, Auto-key, + Clip, zoom (ADR 0084)
+        self.timeline_header.selected_layer = lambda: self.selection.layer_id
+        self.timeline_card.add_header_content(self.timeline_header)
         self.layers_card = Card("Layers")
         self.layers_card.set_body(self.layers)
+        self.layers_count = Chip("0")  # how many objects, after the title (ADR 0084)
+        self.layers_count.setToolTip("Objects in the scene")
+        self.layers.countChanged.connect(lambda n: self.layers_count.setText(str(n)))
+        self.layers_card.add_title_widget(self.layers_count)
         self.properties_card = Card("Properties")
         self.properties_card.set_body(self.properties)
+        self.properties_card.title_label.hide()  # the tabs say it: Properties | Clip | Scene
+        self.properties_card.add_header_content(self.properties.tabs)
         self.pages = PageHost(
             Shared(self.viewer_card, self.timeline_card, self.layers_card, self.properties_card), self
         )
@@ -518,6 +531,7 @@ class MainWindow(QMainWindow):
         edit_menu.addSeparator()
         self.auto_key_action = QAction("&Auto-key", self, checkable=True)
         self.auto_key_action.setToolTip("Changing an object's transform sets keyframes at the playhead")
+        self.timeline_header.autokey_chip.bind(self.auto_key_action)
         edit_menu.addAction(self.auto_key_action)
         self.move_tool.auto_key = self.auto_key_action.isChecked
         self.properties.auto_key = self.auto_key_action.isChecked
@@ -655,12 +669,11 @@ class MainWindow(QMainWindow):
         )
         self.fullscreen_action.triggered.connect(self.present)
         view_menu.addAction(self.fullscreen_action)
-        self.fullscreen_button = QToolButton()
+        self.fullscreen_button = self.stage_header.fullscreen_button  # in the Stage header (ADR 0084)
         self.fullscreen_button.setIcon(icons.icon("fullscreen"))
-        self.fullscreen_button.setAutoRaise(True)
         self.fullscreen_button.setToolTip("Full screen: the animation alone (F11)")
+        self.fullscreen_button.setAccessibleName("Full screen")
         self.fullscreen_button.clicked.connect(self.present)
-        self.pages.add_window_button(self.fullscreen_button)
         view_menu.addSeparator()
         self.half_action = QAction("Half-resolution playback", self, checkable=True)
         self.half_action.setToolTip("Draw the canvas at half resolution: smoother playback of heavy scenes")
@@ -677,6 +690,7 @@ class MainWindow(QMainWindow):
             "The timeline scrolls to keep the playhead in view (also when you scrub or play)"
         )
         self.follow_action.toggled.connect(self._set_follow_playhead)
+        self.stage_header.follow_chip.bind(self.follow_action)
         view_menu.addAction(self.follow_action)
         self.render_ahead_action = QAction("Render Ahead", self, checkable=True, checked=True)
         self.render_ahead_action.setToolTip("Render frames ahead of the playhead in another process")
@@ -748,6 +762,13 @@ class MainWindow(QMainWindow):
         fit_timeline.setToolTip("Zoom the timeline so the whole scene fits its width")
         fit_timeline.triggered.connect(self.timeline.fit_to_width)
         view_menu.addAction(fit_timeline)
+        self.timeline_snap_action = QAction("Snap &Clips and Keys", self, checkable=True, checked=True)
+        self.timeline_snap_action.setToolTip(
+            "Snap clip edges, keys and markers to each other and to the playhead (hold Alt: off for one drag)"
+        )
+        self.timeline_snap_action.toggled.connect(lambda on: setattr(self.timeline, "snap_enabled", on))
+        view_menu.addAction(self.timeline_snap_action)
+        self.timeline_header.snap_chip.bind(self.timeline_snap_action)
         self.snap_action = QAction("&Snap to Objects", self, checkable=True, checked=True)
         self.snap_action.setShortcut(QKeySequence("Ctrl+;"))
         self.snap_action.setToolTip(
@@ -759,6 +780,7 @@ class MainWindow(QMainWindow):
         self.layout_guides_action.setToolTip(
             "Show the project's layout guides on the canvas; moved objects snap to them (hold Alt: off)"
         )
+        self.layout_guides_action.setShortcut(QKeySequence("Ctrl+'"))
         self.layout_guides_action.toggled.connect(self._set_layout_guides)
         view_menu.addAction(self.layout_guides_action)
         self.game_view_action = QAction("&Game View (through the camera)", self, checkable=True, checked=True)
@@ -766,7 +788,9 @@ class MainWindow(QMainWindow):
             "On: the canvas shows the picture through the camera layer, as the video does. "
             "Off (Scene view): the scene unmoved, objects editable, the camera drawn as the rectangle it sees"
         )
-        self.game_view_action.toggled.connect(lambda on: self.canvas.set_scene_view(not on))
+        self.game_view_action.setShortcut(QKeySequence("G"))
+        self.game_view_action.toggled.connect(self._set_game_view)
+        self.stage_header.on_view_chosen = lambda scene: self.game_view_action.setChecked(not scene)
         view_menu.addAction(self.game_view_action)
         self.edit_guides_action = QAction("Layout &Guides...", self)
         self.edit_guides_action.setToolTip("Add, move and delete layout guides: margins, thirds, centre")
@@ -1100,6 +1124,15 @@ class MainWindow(QMainWindow):
             action.setEnabled(not on)
         self.prefs.set_toggle("stage_view_locked", on)
 
+    def _set_game_view(self, game: bool) -> None:
+        """Game or Scene view (ADR 0083): the canvas, the Stage header's segmented control (which explains
+        itself in its tooltip) and a one-line hint in the status bar - never prose over the picture."""
+        self.canvas.set_scene_view(not game)
+        self.stage_header.set_scene_view(not game)
+        self.stage_header.sync_notice()
+        if self._has_project:
+            self.statusBar().showMessage(GAME_HINT if game else SCENE_HINT, 8000)
+
     def _set_stage_tool(self, mode: str) -> None:
         self.canvas.set_interaction_mode(mode)
         button = self.stage_tool_buttons.get(mode)
@@ -1129,6 +1162,7 @@ class MainWindow(QMainWindow):
         """The view toggles that are remembered: name in the file, action, default."""
         return (
             ("snap", self.snap_action, True),
+            ("timeline_snap", self.timeline_snap_action, True),
             ("layout_guides", self.layout_guides_action, False),
             ("game_view", self.game_view_action, True),
             ("stage_view_locked", self.stage_view_lock_action, False),
@@ -1485,6 +1519,8 @@ class MainWindow(QMainWindow):
         except edits.EditError as exc:
             self.statusBar().showMessage(f"Extract as Code: {exc}", 20000)
             return False
+        if not self.ask_extract(result.code, len(chosen)):  # the code is shown first (ADR 0084)
+            return False
         # The editor wrote this code from the user's own layers, so it may run as they did - unless it
         # embeds a Python object or helper that is not trusted yet: then it is asked about as usual.
         if all(self.trust.is_trusted(code) for code in result.embedded):
@@ -1496,6 +1532,10 @@ class MainWindow(QMainWindow):
             8000,
         )
         return True
+
+    def ask_extract(self, code: str, layers: int) -> bool:
+        """Show the code the layers would become; True when the user chose Extract."""
+        return ExtractCodeDialog(code, layers, parent=self).exec() == QDialog.DialogCode.Accepted
 
     def ungroup_selection(self) -> None:
         """Edit > Ungroup: the selected group's objects (or the group of a selected object) out of it."""
@@ -2446,6 +2486,10 @@ class MainWindow(QMainWindow):
         )
         return name
 
+    def show_bundle_problem(self, title: str, message: str) -> None:
+        """A bundle that failed its check: the failure as a bad chip, in the dialog shape (ADR 0084)."""
+        BundleProblemDialog(title, message, self).exec()
+
     def open_bundle_dialog(self) -> None:
         """File > Open Bundle...: unpack into a new folder beside the bundle and open it (ADR 0077). Its code
         is not trusted by being in a bundle: ``_on_reset`` asks about it as for any file."""
@@ -2458,7 +2502,7 @@ class MainWindow(QMainWindow):
             opened = bundle.open_bundle(Path(name))
         except (bundle.BundleError, OSError) as error:
             log.exception("could not open the bundle %s", name)
-            QMessageBox.critical(self, "Could not open the bundle", str(error))
+            self.show_bundle_problem("Could not open the bundle", str(error))
             return
         log.info("unpacked %s into %s", name, opened.folder)
         self.load(opened.project_path)
@@ -2610,6 +2654,7 @@ class MainWindow(QMainWindow):
         )
         self.transport.set_time(self.t, self.project.canvas.duration)
         self.transport.set_loop(self.loop_playback)
+        self.stage_header.sync_notice()
 
     def step(self, frames: int) -> None:
         if self.project is not None:

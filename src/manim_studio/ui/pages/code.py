@@ -88,17 +88,18 @@ from ..code.code_explorer import CodeExplorer, Row, Section
 from ..code.code_helpers import EMPTY as NO_HELPERS
 from ..code.code_helpers import HelperActions, key_of, name_of
 from ..code.code_history_dialog import HistoryKeeper, HistoryPanel
+from ..code.farm_chip import FarmChip, FarmEntry
 from ..code.find_bar import FindBar
 from ..code.params_definition import ParamsDefinitionPanel
 from ..code.snippet_dialog import SnippetDialog
 from ..panels.properties_panel import _first_error, set_param, set_python_code
-from ..panels.values_panel import ValuesPanel
 from ..services.code_render import CodeStatus
 from ..session import code_drag
 from ..style import icons, theme
 from ..style.card import Card, Chip, gutter_splitter, page_margins
 from ..style.render_activity import spinner
 from . import Page, Shared
+from .code_controls import ControlsPanel
 
 LIVE_PAUSE_MS = 800  # the pause in typing after which Live applies
 SYNTAX_PAUSE_MS = 800  # the pause in typing after which a syntax error is marked
@@ -120,6 +121,13 @@ PRESET_ORIGINS = (
     ("user", "Presets — mine"),
     ("online", "Presets — downloaded"),
 )
+
+
+def clock_text(seconds: float) -> str:
+    """0:04.20 - minutes, seconds and hundredths, as the timeline's clock reads."""
+    centis = round(max(seconds, 0.0) * 100)
+    minutes, rest = divmod(centis, 6000)
+    return f"{minutes}:{rest // 100:02d}.{rest % 100:02d}"
 
 
 def _preset_tip(preset) -> str:
@@ -519,13 +527,29 @@ class CodePage(Page):
         self.live_chip.toggled.connect(self.live_action.setChecked)
         self.live_action.toggled.connect(self.live_chip.setChecked)
 
+        self.preview_chip = Chip("", "neutral")  # the layer's state (it was the preview card's title chip)
+        self.preview_chip.setObjectName("codePreviewState")
+        self.preview_chip.setToolTip("The state of this layer's preview")
+        self.preview_chip.hide()
+        self.farm_chip = FarmChip()  # Farm n / m: the code layers rendering over all of them (ADR 0084)
+        self.farm_chip.runRequested.connect(lambda layer_id: self.window.code.retry(layer_id))
+        self.farm_chip.stopRequested.connect(lambda layer_id: self.window.code.cancel(layer_id))
+        self.farm_chip.openRequested.connect(self.open_item)
+        self.farm_chip.hide()
+
         bar = QFrame()
         bar.setObjectName("codeBar")
         row = QHBoxLayout(bar)
         row.setContentsMargins(12, 4, 8, 4)
         row.setSpacing(6)
         # The state chips, then the quieter tools; Revert and Run sit at the right of the tabs (below).
-        for widget in (self.dirty_label, self.live_chip, self.limit_button):
+        for widget in (
+            self.preview_chip,
+            self.dirty_label,
+            self.live_chip,
+            self.limit_button,
+            self.farm_chip,
+        ):
             row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addStretch(1)
         for widget in (self.convert_button, self.save_code_button, self.outline_button):
@@ -636,14 +660,15 @@ class CodePage(Page):
         error_row.setSpacing(8)
         error_row.addWidget(self.error_type_chip, 0, Qt.AlignmentFlag.AlignTop)
         error_row.addWidget(self.error_label, 1)
-        self.failure_button = QToolButton()  # the scene's own frame where the error happened (ADR 0067)
-        self.failure_button.setObjectName("codeFailure")
-        self.failure_button.setToolTip(
-            "Move the playhead to where this layer's scene stopped, and show the stage"
+        # The scene's own moment where the error happened (ADR 0067): a ghost button of the error card.
+        self.failure_button = self._button(
+            "Go to layer",
+            "Move the playhead to where this layer's scene stopped, and show the stage",
+            self.show_failure,
+            role="ghost",
         )
-        self.failure_button.clicked.connect(self.show_failure)
+        self.failure_button.setObjectName("codeFailure")
         self.failure_button.hide()
-        error_row.addWidget(self.failure_button, 0, Qt.AlignmentFlag.AlignTop)
         self.hint_title = QLabel("")
         self.hint_title.setObjectName("codeHintTitle")
         self.hint_title.setWordWrap(True)
@@ -661,6 +686,20 @@ class CodePage(Page):
         )
         self.goto_error_button.setObjectName("codeGoToError")
         self.goto_error_button.hide()
+        # The error card (Lumen, ADR 0084): the exception as a bad chip, one sentence, then where to look.
+        self.error_card = QFrame()
+        self.error_card.setObjectName("codeErrorCard")
+        error_actions = QHBoxLayout()
+        error_actions.setSpacing(6)
+        error_actions.addWidget(self.goto_error_button)
+        error_actions.addWidget(self.failure_button)
+        error_actions.addStretch(1)
+        error_column = QVBoxLayout(self.error_card)
+        error_column.setContentsMargins(14, 12, 14, 10)
+        error_column.setSpacing(8)
+        error_column.addLayout(error_row)
+        error_column.addLayout(error_actions)
+        self.error_card.hide()
         self.hint_card = QFrame()
         self.hint_card.setObjectName("codeHintCard")
         self.hint_card.setMinimumWidth(200)
@@ -674,7 +713,6 @@ class CodePage(Page):
         actions.setContentsMargins(0, 6, 0, 0)
         actions.setSpacing(6)
         actions.addWidget(self.fix_button)
-        actions.addWidget(self.goto_error_button)
         actions.addStretch(1)
         card_column.addLayout(actions)
         self.hint_card.hide()
@@ -698,7 +736,7 @@ class CodePage(Page):
         output_lines = QVBoxLayout()
         output_lines.setSpacing(8)
         output_lines.addWidget(self.state_label)
-        output_lines.addLayout(error_row)
+        output_lines.addWidget(self.error_card)
         output_lines.addWidget(self.trace_label)
         output_lines.addWidget(self.syntax_label)
         output_lines.addStretch(1)
@@ -708,7 +746,7 @@ class CodePage(Page):
         output_scroll.setWidgetResizable(True)
         output_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         output_scroll.setWidget(output_page)
-        self.values = ValuesPanel(
+        self.values = ControlsPanel(
             self.window.builds, lambda text: self.window.statusBar().showMessage(text, 8000)
         )
         self.output = QTabWidget()  # the bottom panel: what the run said, and the object's values
@@ -739,11 +777,8 @@ class CodePage(Page):
         column = QVBoxLayout(right)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(theme.GUTTER)
-        self.preview_card = Card("Preview", clip=True)
-        self.preview_chip = Chip("", "neutral")
-        self.preview_chip.setObjectName("codePreviewState")
-        self.preview_chip.hide()
-        self.preview_card.add_title_widget(self.preview_chip)
+        # One card: the viewer has its own header (STAGE, size, zoom), so the card has none (ADR 0084).
+        self.preview_card = Card("Preview", header=False, clip=True)
         slot = QWidget()
         self._viewer_slot = QVBoxLayout(slot)
         self._viewer_slot.setContentsMargins(0, 0, 0, 0)
@@ -1471,6 +1506,7 @@ class CodePage(Page):
         if status is not None and layer_id != self.layer_id:  # another layer's render: time it too
             self._track(layer_id, status.state in ("queued", "rendering"))
         self._refresh_list()
+        self._refresh_farm()
         if layer_id == self.layer_id:
             self._refresh_output()
             self._refresh_status()
@@ -2021,19 +2057,29 @@ class CodePage(Page):
             self._failed = (self.layer_id, self.editor.text(), message)
             self._refresh_output()
 
-    def show_failure(self) -> None:
-        """Put the playhead where the layer's scene was when its code failed, on the stage (ADR 0067): the
-        frames drawn before the error are what to look at; the error stopped the scene after them."""
-        status = self.status(self.layer_id)
+    def _failure_time(self, status) -> float | None:
+        """The scene's time the error belongs to: the layer's start plus how far its scene got (ADR 0067),
+        no later than the end of the scene. None: unknown, or an error in a helper (no place on the
+        timeline)."""
         window = self.window
-        if status is None or status.seconds is None or self.layer_id is None or window.evaluator is None:
-            return
+        if status is None or status.seconds is None or self.layer_id is None or window.project is None:
+            return None
+        if status.where.startswith("helper:") or window.evaluator is None:
+            return None
         try:
             layer = window.project.layer(self.layer_id)
         except KeyError:  # a helper: it has no place on the timeline
+            return None
+        return min(window.evaluator.lifetime(layer)[0] + status.seconds, window.project.canvas.duration)
+
+    def show_failure(self) -> None:
+        """Put the playhead where the layer's scene was when its code failed, on the stage (ADR 0067): the
+        frames drawn before the error are what to look at; the error stopped the scene after them."""
+        moment = self._failure_time(self.status(self.layer_id))
+        if moment is None:
             return
-        window.seek(window.evaluator.lifetime(layer)[0] + status.seconds)
-        window.show_page("animate")
+        self.window.seek(moment)
+        self.window.show_page("animate")
 
     def go_to_error(self) -> None:
         """Move the cursor to the line the render error points at; an error raised in a helper opens
@@ -2261,8 +2307,20 @@ class CodePage(Page):
         self._refresh_running()
         self._refresh_values()
         self._refresh_chapters()
+        self._refresh_farm()
         if self.output.currentWidget() is self.history_panel:
             self.history_panel.refresh()
+
+    def _refresh_farm(self) -> None:
+        """The toolbar's *Farm n / m* chip: each code layer of the project and what its render is doing."""
+        project = self.window.project
+        entries = []
+        for layer in project.layers if project is not None else ():
+            if layer.spec is not None and layer.spec.type in CODE_TYPES:
+                status = self.window.code.status(layer.id)
+                entries.append(FarmEntry(layer.id, layer.label, status.state if status is not None else ""))
+        self.farm_chip.set_entries(entries)
+        self.farm_chip.setVisible(bool(entries))
 
     def _refresh_chapters(self) -> None:
         """The chapters card: where the scene in the editor can be cut, read from its last render."""
@@ -2356,8 +2414,9 @@ class CodePage(Page):
             self.error_label.show()
             self.error_type_chip.setText(status.error_type)
             self.error_type_chip.setVisible(bool(status.error_type))
-            if status.seconds is not None and not status.where.startswith("helper:"):
-                self.failure_button.setText(f"Show frame at {status.seconds:.1f} s")
+            moment = self._failure_time(status)
+            if moment is not None:
+                self.failure_button.setText(f"Go to layer at {clock_text(moment)}")
                 self.failure_button.show()
             self._show_hint(status.error_type, status.error, status.traceback)
             if dirty:
@@ -2398,8 +2457,11 @@ class CodePage(Page):
         self.error_count_label.setText("1 error")
         self.error_count_label.setVisible(has_error)
         target = self.error_label.line
-        self.goto_error_button.setText(f"Go to line {target}" if target else "Go to line")
+        self.goto_error_button.setToolTip(
+            f"Put the cursor on line {target}, where the error points" if target else ""
+        )
         self.goto_error_button.setVisible(bool(target) and not self.error_label.isHidden() and not failed)
+        self.error_card.setVisible(not self.error_label.isHidden())
         self._show_helper_hint()  # a helper the code imports that may not run yet (ADR 0058)
         self._sync_hint_card()
 

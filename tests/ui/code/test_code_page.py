@@ -737,7 +737,7 @@ def test_an_error_with_a_time_offers_the_frame_where_the_scene_stopped(window) -
     code = page(window)
     code.open_item("orbit")
     set_status(window, "orbit", CodeStatus("error", error="NameError: x", line=3, seconds=1.5))
-    assert code.failure_button.isVisibleTo(code.widget) and "1.5 s" in code.failure_button.text()
+    assert code.failure_button.isVisibleTo(code.widget) and "0:01.50" in code.failure_button.text()
     assert "after 1.5 s" in CodeStatus("error", error="NameError: x", line=3, seconds=1.5).text
     start = window.evaluator.lifetime(window.project.layer("orbit"))[0]
     code.failure_button.click()

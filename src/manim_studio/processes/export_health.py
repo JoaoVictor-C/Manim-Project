@@ -38,6 +38,8 @@ class Finding:
     title: str
     detail: str = ""
     seconds: float = 0.0  # time this adds to the export, 0 when it adds none or it is unknown
+    kind: str = ""  # what it is about, for the Deliver page's health chips: "code", "text", "untrusted", ...
+    layers: tuple[str, ...] = ()  # the layers it names, so a chip can open the first one
 
 
 @dataclass(frozen=True)
@@ -150,6 +152,8 @@ def _code_layers(sized: Project, options: RenderOptions, cache_dir: Path, trust:
                 WARNING,
                 f"{len(missing)} code layer(s) will be drawn as placeholders",
                 f"{names} not rendered at this size, and exporting does not run code without trust.",
+                kind="untrusted",
+                layers=tuple(missing),
             )
         ]
     runners = code_batch.plan(options.jobs, len(missing))
@@ -160,6 +164,8 @@ def _code_layers(sized: Project, options: RenderOptions, cache_dir: Path, trust:
             f"{len(missing)} code layer(s) must be rendered at this size",
             f"{names}; {runners} at a time. Exporting at the editor's own size reuses the editor's renders.",
             parallel,
+            kind="code",
+            layers=tuple(missing),
         )
     ]
 
@@ -190,6 +196,8 @@ def _text(sized: Project, cache_dir: Path) -> list[Finding]:
             "A LaTeX object not yet built takes a second or two the first time; the editor builds them "
             "as you edit, so this only matters for a project opened fresh.",
             LATEX_SECONDS * (len(objects) - warmed) / 2,
+            kind="text",
+            layers=tuple(layer.id for layer in objects),
         )
     ]
 
@@ -211,6 +219,8 @@ def _untrusted(sized: Project, trust: bool) -> list[Finding]:
             WARNING,
             f"{len(names)} Python object(s) will be drawn as placeholders",
             f"{', '.join(names[:4])}: their code is not trusted yet.",
+            kind="untrusted",
+            layers=tuple(names),
         )
     ]
 

@@ -551,6 +551,7 @@ class LayersPanel(QWidget):
     layerSelected = Signal(str)  # layer id, or "" for none
     layersPicked = Signal(list, str)  # several layers (Ctrl/Shift+click) and the current one (ADR 0043)
     message = Signal(str)  # errors for the status bar
+    countChanged = Signal(int)  # how many objects the list shows (the card header's count chip, ADR 0084)
     codeDropped = Signal(dict)  # a Code workspace drag dropped on the list (code_drag payload, P12.7)
     filesDropped = Signal(list)  # .py files dropped on the list from the desktop (P12.7)
 
@@ -775,9 +776,7 @@ class LayersPanel(QWidget):
         self._add_python_objects_menu(menu)
         menu.addSection("Scene")
         self.add_camera_action = menu.addAction("Camera", self.add_camera)
-        self.add_camera_action.setToolTip(
-            "Add the camera: key its position, scale (zoom) and rotation on the timeline to pan and zoom"
-        )
+        self.add_camera_action.setToolTip(self.CAMERA_TIP)
         self.library_menu = menu
         return menu
 
@@ -935,6 +934,7 @@ class LayersPanel(QWidget):
         elif target != selected:
             self.layerSelected.emit(target or "")
         self.update_buttons()
+        self.countChanged.emit(len(roots))
 
     def _item(self, layer: Layer, orphans: dict[str, str], index: LayerIndex) -> QTreeWidgetItem:
         item = QTreeWidgetItem([layer.label])
@@ -979,7 +979,19 @@ class LayersPanel(QWidget):
         self._select_new = False
         self.sync()
 
+    CAMERA_TIP = "Add the camera: key its position, scale (zoom) and rotation on the timeline to pan and zoom"
+    CAMERA_HAVE_TIP = "The project already has a camera (the first row): there is one per project"
+
+    def _sync_camera_action(self) -> None:
+        """Add object > Camera is off, with the reason as its tooltip, once the camera exists (ADR 0084)."""
+        action = getattr(self, "add_camera_action", None)
+        if action is not None:
+            have = self.project.camera_layer is not None
+            action.setEnabled(not have)
+            action.setToolTip(self.CAMERA_HAVE_TIP if have else self.CAMERA_TIP)
+
     def update_buttons(self) -> None:
+        self._sync_camera_action()
         layer_id = self.selected_id()
         layer = self.project.layer(layer_id) if layer_id else None
         roots = [root.id for root in self.project.roots()]

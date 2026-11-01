@@ -165,7 +165,7 @@ class TemplateCard(QPushButton):
         edge = c.accent_line if chosen else (c.line_strong if hovered else c.line)
         painter.setPen(QPen(theme.qcolor(edge), 1.5 if chosen else 1))
         painter.drawRoundedRect(rect, 12, 12)
-        thumb = QRectF(rect.left() + 8, rect.top() + 8, rect.width() - 16, 54)
+        thumb = QRectF(rect.left() + 8, rect.top() + 8, rect.width() - 16, 44)
         paint_thumbnail(painter, thumb, self.template.name if self.template.source else 4, 8.0)
         font = theme.font("label")
         font.setPixelSize(13)
@@ -176,7 +176,9 @@ class TemplateCard(QPushButton):
             self.text(), Qt.TextElideMode.ElideRight, int(rect.width() - 20)
         )
         painter.drawText(
-            QRectF(rect.left() + 10, thumb.bottom() + 4, rect.width() - 20, 34),
+            QRectF(
+                rect.left() + 10, thumb.bottom() + 2, rect.width() - 20, rect.bottom() - thumb.bottom() - 6
+            ),
             Qt.AlignmentFlag.AlignVCenter,
             text,
         )

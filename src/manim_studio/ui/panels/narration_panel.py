@@ -17,8 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QLocale, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QLocale, QMargins, QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QFont, QMouseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -27,14 +27,19 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
+    QLayoutItem,
     QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
+    QSlider,
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
@@ -58,12 +63,12 @@ SPACE = theme.SPACE
 
 
 def section_label(text: str) -> QLabel:
-    """An uppercase group label (Lumen's section label: 11 px, tracked, muted)."""
+    """An uppercase group label (Lumen's section label: tracked, faint)."""
     label = QLabel(text.upper())
     font = theme.font("section")
     font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 108)
     label.setFont(font)
-    label.setProperty("role", "muted")
+    label.setProperty("role", "hint")
     label.setAccessibleName(text)
     return label
 
@@ -71,15 +76,10 @@ def section_label(text: str) -> QLabel:
 def _rules(c: theme.Colours) -> str:
     top = theme.mix(c.accent, c.on_accent, 0.10)
     grad = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {top}, stop:1 {c.accent})"
+    warn_line = theme.css(c.warning + "73")
     return f"""
-QGroupBox#narrationPanel {{
-    background: {c.panel}; border: 1px solid {theme.css(c.line)}; border-radius: {theme.RADIUS_CARD}px;
-    margin-top: 0; padding-top: 0;
-}}
-QGroupBox#narrationPanel::title {{
-    subcontrol-origin: padding; subcontrol-position: top left; left: 14px; top: 10px; color: {c.text};
-    font-weight: 650;
-}}
+QGroupBox#narrationPanel {{ background: transparent; border: 0; margin: 0; padding: 0; }}
+QGroupBox#narrationPanel::title {{ height: 0; padding: 0; margin: 0; }}
 QToolButton#generateVoice {{
     background: {grad}; color: {c.on_accent}; border: 0; border-radius: {theme.RADIUS}px;
     padding: 6px 14px; font-weight: 600;
@@ -87,6 +87,26 @@ QToolButton#generateVoice {{
 QToolButton#generateVoice:hover {{ background: {theme.mix(c.accent, c.on_accent, 0.14)}; }}
 QToolButton#generateVoice:disabled {{ background: {c.surface_3}; color: {c.disabled}; }}
 QToolButton#generateVoice::menu-button {{ border: 0; width: 18px; }}
+QFrame[engine="true"] {{
+    background: {c.field}; border: 1px solid {theme.css(c.line)}; border-radius: 12px;
+}}
+QFrame[engine="true"]:hover {{ background: {c.surface_3}; }}
+QFrame[engine="true"][selected="true"] {{
+    background: {theme.css(c.accent_soft)}; border-color: {theme.css(c.accent_line)};
+}}
+QFrame[engine="true"][off="true"] {{ background: transparent; }}
+QLabel[role="engineName"] {{ color: {c.text}; font-weight: 650; background: transparent; border: 0; }}
+QLabel[role="engineNote"] {{ color: {c.muted}; background: transparent; border: 0; }}
+QFrame[cueRow="true"] {{
+    background: {c.raised}; border: 1px solid {theme.css(c.line)}; border-radius: 12px;
+}}
+QFrame[cueRow="true"]:hover {{ background: {c.surface_3}; }}
+QFrame[cueRow="true"][stale="true"] {{ border-color: {warn_line}; }}
+QFrame[cueRow="true"][current="true"] {{
+    background: {theme.css(c.accent_soft)}; border-color: {theme.css(c.accent_line)};
+}}
+QLabel[role="cueText"] {{ color: {c.text}; font-weight: 500; background: transparent; border: 0; }}
+QLabel[role="cueTime"] {{ color: {c.faint}; background: transparent; border: 0; }}
 """
 
 
@@ -97,6 +117,8 @@ SPEECH_COLUMN = tables.Column(
     "speech", "Speech", "Whether the sound made for this subtitle is current", editable=False
 )
 NARRATION_COLUMNS = (VOICE_COLUMN, SPEECH_COLUMN, tables.PAUSE_COLUMN)
+CUE_WORDS = {narration.READY: "ready", narration.STALE: "stale", narration.NEW: "no sound"}
+CUE_TONES = {narration.READY: "ok", narration.STALE: "warn", narration.NEW: "neutral"}
 
 
 def cue_cell(project: Project, cue: Cue, key: str) -> str:
@@ -113,6 +135,233 @@ def cue_cell(project: Project, cue: Cue, key: str) -> str:
     return "" if state in (narration.EMPTY, narration.NO_VOICE) else state
 
 
+def clock(t: float) -> str:
+    return f"{int(t // 60)}:{t % 60:05.2f}"
+
+
+class FlowLayout(QLayout):
+    """Widgets in rows that wrap when the width runs out (the pronunciation chips)."""
+
+    def __init__(self, parent: QWidget | None = None, spacing: int = 6) -> None:
+        super().__init__(parent)
+        self._items: list[QLayoutItem] = []
+        self.setSpacing(spacing)
+
+    def addItem(self, item: QLayoutItem) -> None:
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int) -> QLayoutItem | None:
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index: int) -> QLayoutItem | None:
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self) -> Qt.Orientation:
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._place(QRect(0, 0, width, 0), apply=False)
+
+    def setGeometry(self, rect: QRect) -> None:
+        super().setGeometry(rect)
+        self._place(rect, apply=True)
+
+    def sizeHint(self) -> QSize:
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+
+    def _place(self, rect: QRect, apply: bool) -> int:
+        margins: QMargins = self.contentsMargins()
+        area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
+        x, y, row = area.x(), area.y(), 0
+        gap = self.spacing()
+        for item in self._items:
+            hint = item.sizeHint()
+            if x + hint.width() > area.right() + 1 and row:
+                x, y, row = area.x(), y + row + gap, 0
+            if apply:
+                item.setGeometry(QRect(QPoint(x, y), hint))
+            x += hint.width() + gap
+            row = max(row, hint.height())
+        return y + row - rect.y() + margins.bottom()
+
+
+class Clickable(QFrame):
+    """A frame that says when it was pressed (an engine card, a cue row)."""
+
+    pressed = Signal()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.pressed.emit()
+        super().mousePressEvent(event)
+
+    def restyle(self, **properties: bool) -> None:
+        """Set style properties (``selected``, ``current`` ...) and draw the frame again."""
+        changed = False
+        for name, value in properties.items():
+            if self.property(name) != value:
+                self.setProperty(name, value)
+                changed = True
+        if changed:
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+
+class EngineCards(QWidget):
+    """The voice engines as cards, two across: the chosen one on the accent tint. The engines come from a
+    combo box (``source``), which stays the model; pressing a card reports it by ``chosen(name)``."""
+
+    chosen = Signal(str)
+
+    def __init__(self, source: QComboBox) -> None:
+        super().__init__()
+        self.source = source
+        self.cards: dict[str, Clickable] = {}
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setSpacing(8)
+        self._grid.setColumnStretch(0, 1)
+        self._grid.setColumnStretch(1, 1)
+
+    def rebuild(self) -> None:
+        """One card for each engine of the combo (call after it was filled)."""
+        for card in self.cards.values():
+            self._grid.removeWidget(card)
+            card.deleteLater()
+        self.cards = {}
+        providers = plugins.voice_providers()
+        for index in range(self.source.count()):
+            name = self.source.itemData(index)
+            provider = providers.get(name)
+            card = Clickable()
+            card.setProperty("engine", True)
+            card.setCursor(Qt.CursorShape.PointingHandCursor)
+            title = QLabel(self.source.itemText(index))
+            title.setProperty("role", "engineName")
+            title.setWordWrap(True)
+            note = QLabel(self.describe(provider))
+            note.setProperty("role", "engineNote")
+            note.setWordWrap(True)
+            column = QVBoxLayout(card)
+            column.setContentsMargins(12, 10, 12, 10)
+            column.setSpacing(1)
+            column.addWidget(title)
+            column.addWidget(note)
+            card.pressed.connect(lambda n=name: self.chosen.emit(n))
+            if provider is not None and provider.license_note:
+                card.setToolTip(provider.license_note)
+            self._grid.addWidget(card, index // 2, index % 2)
+            self.cards[name] = card
+        self.sync()
+
+    @staticmethod
+    def describe(provider) -> str:
+        if provider is None:
+            return ""
+        words = ["Online" if provider.online else "Offline"]
+        words.append("sends the text" if provider.online else "on this computer")
+        if not provider.supports_rate:
+            words.append("one speed")
+        return " · ".join(words)
+
+    def sync(self) -> None:
+        """Mark the card of the combo's current engine."""
+        current = self.source.currentData()
+        for name, card in self.cards.items():
+            card.restyle(selected=name == current)
+
+    def set_busy(self, busy: bool) -> None:
+        self.setEnabled(not busy)
+        for card in self.cards.values():
+            card.restyle(off=busy)
+
+
+class CueList(QWidget):
+    """The subtitles as rows (text, time, and a chip: ready, stale or no sound); a stale row also has a warn
+    outline. Pressing a row reports it by ``cueChosen(cue id)``. Rows are rebuilt only when what they show
+    changed."""
+
+    cueChosen = Signal(str)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._column = QVBoxLayout(self)
+        self._column.setContentsMargins(0, 0, 0, 0)
+        self._column.setSpacing(6)
+        self.rows: dict[str, Clickable] = {}
+        self._shown: tuple | None = None
+        self.empty = QLabel("No subtitles yet. Add one at the playhead, or import an .srt file.")
+        self.empty.setWordWrap(True)
+        self.empty.setProperty("role", "muted")
+        self._column.addWidget(self.empty)
+
+    def show_cues(self, project: Project | None, current: str | None) -> None:
+        cues = list(project.subtitles) if project is not None else []
+        states = {c.id: narration.state(project, c) for c in cues} if project is not None else {}
+        lengths = {c.id: self._seconds(project, c) for c in cues} if project is not None else {}
+        signature = tuple((c.id, c.text, c.start, c.end, states[c.id], lengths[c.id]) for c in cues)
+        if signature != self._shown:
+            self._shown = signature
+            for row in self.rows.values():
+                self._column.removeWidget(row)
+                row.deleteLater()
+            self.rows = {}
+            for cue in cues:
+                self.rows[cue.id] = self._row(cue, states[cue.id], lengths[cue.id])
+                self._column.addWidget(self.rows[cue.id])
+        self.empty.setVisible(not cues)
+        for cue_id, row in self.rows.items():
+            row.restyle(current=cue_id == current)
+
+    @staticmethod
+    def _seconds(project: Project, cue: Cue) -> float:
+        clip = next((c for c in project.audio if c.id == cue.audio_id), None)
+        return clip.duration if clip is not None else 0.0
+
+    def _row(self, cue: Cue, state: str, seconds: float) -> Clickable:
+        row = Clickable()
+        row.setProperty("cueRow", True)
+        row.setProperty("stale", state == narration.STALE)
+        row.setCursor(Qt.CursorShape.PointingHandCursor)
+        text = QLabel(" ".join(cue.text.split()) or "(empty)")
+        text.setProperty("role", "cueText")
+        text.setWordWrap(True)
+        times = f"{clock(cue.start)} – {clock(cue.end)}"
+        if state == narration.READY and seconds:
+            times += f" · {seconds:.1f} s"
+        elif state == narration.STALE:
+            times += " · edited since"
+        when = QLabel(times)
+        when.setProperty("role", "cueTime")
+        when.setFont(theme.mono_font())
+        chip = Chip(CUE_WORDS.get(state, state), CUE_TONES.get(state, "neutral"))
+        left = QVBoxLayout()
+        left.setSpacing(3)
+        left.addWidget(text)
+        left.addWidget(when)
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(12, 9, 10, 9)
+        layout.setSpacing(8)
+        layout.addLayout(left, 1)
+        layout.addWidget(chip, 0, Qt.AlignmentFlag.AlignTop)
+        row.pressed.connect(lambda i=cue.id: self.cueChosen.emit(i))
+        row.setToolTip(CUE_WORDS.get(state, state))
+        return row
+
+
 @dataclass
 class _Generation:
     jobs: list[narration.Job]  # to speak
@@ -126,8 +375,11 @@ class _Generation:
 
 
 class NarrationPanel(QGroupBox):
+    cueChosen = Signal(str)  # a cue row was pressed (it is selected; the page moves the playhead)
+
     def __init__(self, window, client: VoiceClient | None = None) -> None:
-        super().__init__("Narration")
+        super().__init__("")
+        self.setAccessibleName("Narration")
         self.window = window
         self.client = client if client is not None else VoiceClient(parent=self)
         self.voices: dict[str, list[dict]] = {}  # provider -> its voices, once listed
@@ -158,9 +410,15 @@ class NarrationPanel(QGroupBox):
         self.rate_spin.setRange(0.5, 2.0)
         self.rate_spin.setSingleStep(0.05)
         self.rate_spin.setDecimals(2)
-        self.rate_spin.setSuffix(" x")
+        self.rate_spin.setSuffix("×")
         self.rate_spin.setValue(1.0)
         self.rate_spin.setToolTip("Speaking speed; 1.00 is normal. Not every voice can change it.")
+        self.rate_slider = QSlider(Qt.Orientation.Horizontal)
+        self.rate_slider.setRange(
+            round(self.rate_spin.minimum() * 100), round(self.rate_spin.maximum() * 100)
+        )
+        self.rate_slider.setValue(100)
+        self.rate_slider.setToolTip(self.rate_spin.toolTip())
         self.provider_combo.setToolTip("The speech engine. Add one by putting a plugin in the plugin folder.")
         self.language_combo.setToolTip("Only the voices of this language")
         self.voice_combo.setToolTip("The voice")
@@ -173,10 +431,12 @@ class NarrationPanel(QGroupBox):
         self.preview_button.setToolTip("Hear this voice say the selected subtitle (or a sample)")
 
         self.generate_button = QToolButton()
-        self.generate_button.setText("Generate voice")
+        self.generate_button.setText("Generate speech")
         self.generate_button.setIcon(icons.icon("sound"))
         self.generate_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.generate_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.generate_button.setToolTip("Speak the new and changed subtitles (the arrow: choose which)")
+        self.generate_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         menu = QMenu(self.generate_button)
         self.generate_stale = menu.addAction("New and changed subtitles")
         self.generate_selected = menu.addAction("Selected subtitle")
@@ -191,7 +451,7 @@ class NarrationPanel(QGroupBox):
         self.progress = QProgressBar()
         self.progress.hide()
 
-        self.follow_check = QCheckBox("Follow speech")
+        self.follow_check = QCheckBox("Follow speech when generating")
         self.follow_check.setToolTip(
             "After generating, move the subtitles so each lasts as long as its speech, with a pause between"
         )
@@ -201,93 +461,111 @@ class NarrationPanel(QGroupBox):
         self.pause_spin.setDecimals(2)
         self.pause_spin.setValue(retime.PAUSE)
         self.pause_spin.setSuffix(" s pause")
-        self.follow_button = QPushButton("Follow speech now")
+        self.follow_button = QPushButton("Follow speech")
         self.follow_button.setToolTip("Move the subtitles and their sounds to the length of the speech")
         self.fit_button = QPushButton("Fit speech to subtitles")
         self.fit_button.setToolTip(
             "Set each subtitle's speed so its speech fits it (between 0.85x and 1.25x), then generate again"
         )
-        self.pronunciation_button = QPushButton("Pronunciation...")
+        self.pronunciation_button = QPushButton("+ Word")
         self.pronunciation_button.setToolTip("How written words are spoken (the subtitle keeps its text)")
         self.script_button = QPushButton(icons.icon("export"), "Export script...")
         self.script_button.setToolTip("Write the narration as plain text")
         self.status = QLabel()
         self.status.setWordWrap(True)
 
-        # Lumen: the controls in labelled groups on a card, the states as chips, one primary action.
+        # Lumen: the engines as cards, the controls in labelled groups, one primary action, the cues as rows.
         self.setObjectName("narrationPanel")
         self.generate_button.setObjectName("generateVoice")
         self.cancel_button.setProperty("role", "danger")
         for button in (self.pronunciation_button, self.script_button):
             button.setProperty("role", "ghost")
         self.status.setProperty("role", "muted")
-        self.chips = {
-            narration.READY: Chip("", "ok"),
-            narration.STALE: Chip("", "warn"),
-            narration.NEW: Chip("", "neutral"),
-        }
-        self.chips[narration.READY].setToolTip("Subtitles whose sound is current")
-        self.chips[narration.STALE].setToolTip("Subtitles changed since their sound was made: generate again")
-        self.chips[narration.NEW].setToolTip("Subtitles with no sound yet")
-        chips_row = QHBoxLayout()
-        chips_row.setSpacing(6)
-        for chip in self.chips.values():
-            chip.hide()
-            chips_row.addWidget(chip)
-        chips_row.addStretch(1)
+        self.engines = EngineCards(self.provider_combo)
+        self.engines.chosen.connect(self._engine_chosen)
+        self.cue_list = CueList()
+        self.cue_list.cueChosen.connect(self._cue_chosen)
+        self.provider_combo.setParent(self)  # the engines' model; the cards are what is shown
+        self.provider_combo.hide()
+        self._words_host = QWidget()
+        self._words = FlowLayout(self._words_host, spacing=6)
+        self._words_empty = QLabel("Words the voice reads differently (π, an acronym): add one with + Word.")
+        self._words_empty.setWordWrap(True)
+        self._words_empty.setProperty("role", "muted")
+        self._words_shown: tuple | None = None
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(2 * SPACE)
-        grid.setVerticalSpacing(5)
-        for column, (text, widget) in enumerate(
-            (("Provider", self.provider_combo), ("Language", self.language_combo))
-        ):
-            grid.addWidget(caption(text), 0, column)
-            grid.addWidget(widget, 1, column)
+        voice_grid = QGridLayout()
+        voice_grid.setHorizontalSpacing(2 * SPACE)
+        voice_grid.setVerticalSpacing(5)
         voice_row = QHBoxLayout()
         voice_row.setSpacing(SPACE)
         voice_row.addWidget(self.voice_combo, 1)
         voice_row.addWidget(self.load_button)
-        grid.addWidget(caption("Voice"), 2, 0)
-        grid.addLayout(voice_row, 3, 0)
-        grid.addWidget(caption("Speed"), 2, 1)
-        grid.addWidget(self.rate_spin, 3, 1)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 2)
+        voice_grid.addWidget(caption("Voice"), 0, 0)
+        voice_grid.addLayout(voice_row, 1, 0)
+        voice_grid.addWidget(caption("Language"), 0, 1)
+        voice_grid.addWidget(self.language_combo, 1, 1)
+        voice_grid.setColumnStretch(0, 3)
+        voice_grid.setColumnStretch(1, 2)
+        speed_row = QHBoxLayout()
+        speed_row.setSpacing(10)
+        self.rate_spin.setFixedWidth(78)
+        speed_row.addWidget(self.rate_slider, 1)
+        speed_row.addWidget(self.rate_spin)
         generate_row = QHBoxLayout()
-        generate_row.setSpacing(2 * SPACE)
-        for widget in (self.generate_button, self.cancel_button, self.preview_button):
-            generate_row.addWidget(widget)
-        generate_row.addWidget(self.progress, 1)
+        generate_row.setSpacing(SPACE)
+        generate_row.addWidget(self.generate_button, 1)
+        generate_row.addWidget(self.follow_button)
         follow_row = QHBoxLayout()
         follow_row.setSpacing(2 * SPACE)
-        for widget in (self.follow_check, self.pause_spin, self.follow_button, self.fit_button):
-            follow_row.addWidget(widget)
+        follow_row.addWidget(self.follow_check)
         follow_row.addStretch(1)
-        extras = QHBoxLayout()
-        extras.setSpacing(SPACE)
-        extras.addWidget(self.pronunciation_button)
-        extras.addWidget(self.script_button)
-        extras.addStretch(1)
+        follow_row.addWidget(self.pause_spin)
+        more_row = QHBoxLayout()
+        more_row.setSpacing(SPACE)
+        for widget in (self.preview_button, self.fit_button, self.cancel_button):
+            more_row.addWidget(widget)
+        more_row.addStretch(1)
+        words_head = QHBoxLayout()
+        words_head.addWidget(section_label("Pronunciation"))
+        words_head.addStretch(1)
+        words_head.addWidget(self.pronunciation_button)
+        script_row = QHBoxLayout()
+        script_row.addWidget(self.script_button)
+        script_row.addStretch(1)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 30, 14, 14)
+        layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(2 * SPACE)
-        layout.addLayout(chips_row)
-        layout.addWidget(section_label("Voice"))
-        layout.addLayout(grid)
-        layout.addWidget(self.scope_check)
+        layout.addWidget(section_label("Voice engine"))
+        layout.addWidget(self.engines)
         layout.addWidget(self.info)
-        layout.addWidget(section_label("Speech"))
-        for row in (generate_row, follow_row):
-            layout.addLayout(row)
-        layout.addWidget(section_label("More"))
-        layout.addLayout(extras)
+        layout.addLayout(voice_grid)
+        layout.addWidget(self.scope_check)
+        layout.addWidget(section_label("Speed"))
+        layout.addLayout(speed_row)
+        layout.addSpacing(SPACE)
+        layout.addLayout(generate_row)
+        layout.addWidget(self.progress)
+        layout.addLayout(follow_row)
+        layout.addLayout(more_row)
         layout.addWidget(self.status)
+        layout.addSpacing(SPACE)
+        layout.addWidget(section_label("Cues"))
+        layout.addWidget(self.cue_list)
+        layout.addSpacing(SPACE)
+        layout.addLayout(words_head)
+        layout.addWidget(self._words_host)
+        layout.addWidget(self._words_empty)
+        layout.addLayout(script_row)
 
         self.provider_combo.activated.connect(self._provider_chosen)
         self.language_combo.activated.connect(self._language_chosen)
         self.voice_combo.activated.connect(lambda _i: self._apply_choice())
         self.rate_spin.editingFinished.connect(self._apply_choice)
+        self.rate_spin.valueChanged.connect(self._spin_changed)
+        self.rate_slider.valueChanged.connect(self._slider_changed)
+        self.rate_slider.sliderReleased.connect(self._apply_choice)
         self.scope_check.toggled.connect(self._scope_toggled)
         self.load_button.clicked.connect(self._load_voices)
         self.cancel_button.clicked.connect(self.cancel)
@@ -297,6 +575,30 @@ class NarrationPanel(QGroupBox):
         self.pronunciation_button.clicked.connect(self.edit_pronunciations)
         self.script_button.clicked.connect(self.export_script)
         self._fill_providers()
+
+    def _spin_changed(self, value: float) -> None:
+        """The speed box changed (typed, or by refresh): the slider shows it."""
+        self.rate_slider.blockSignals(True)
+        self.rate_slider.setValue(round(value * 100))
+        self.rate_slider.blockSignals(False)
+
+    def _slider_changed(self, value: int) -> None:
+        """The slider moved: the box shows it; the choice is made when the drag ends (at once for a key)."""
+        self.rate_spin.setValue(value / 100)
+        if not self.rate_slider.isSliderDown():
+            self._apply_choice()
+
+    def _engine_chosen(self, name: str) -> None:
+        """A card was pressed: the same as choosing that engine in the list."""
+        index = self.provider_combo.findData(name)
+        if index < 0 or self.running:
+            return
+        self.provider_combo.setCurrentIndex(index)
+        self._provider_chosen(index)
+
+    def _cue_chosen(self, cue_id: str) -> None:
+        self.window.selection.set_subtitle(cue_id)
+        self.cueChosen.emit(cue_id)
 
     def _fill_providers(self) -> None:
         providers = plugins.voice_providers()
@@ -309,6 +611,7 @@ class NarrationPanel(QGroupBox):
                 self.provider_combo.addItem(provider.label, name)
         finally:
             self._syncing = False
+        self.engines.rebuild()
 
     # -- the project's voice, shown ---------------------------------------------------------
 
@@ -345,6 +648,25 @@ class NarrationPanel(QGroupBox):
             self._syncing = False
         self._show_provider()
         self._update_buttons()
+        self.cue_list.show_cues(project, cue.id if cue is not None else None)
+        self._show_words(project)
+
+    def _show_words(self, project: Project | None) -> None:
+        """The pronunciation chips (written -> spoken), rebuilt when the entries changed."""
+        entries = tuple(project.pronunciations.items()) if project is not None else ()
+        if entries != self._words_shown:
+            self._words_shown = entries
+            while self._words.count():
+                item = self._words.takeAt(0)
+                if item is not None and item.widget() is not None:
+                    item.widget().deleteLater()
+            for written, spoken in entries:
+                chip = Chip(f"{written} → {spoken}")
+                chip.setToolTip(f"Spoken as: {spoken}")
+                self._words.addWidget(chip)
+            self._words_host.updateGeometry()
+        self._words_host.setVisible(bool(entries))
+        self._words_empty.setVisible(not entries)
 
     def _default_provider(self) -> str | None:
         """The provider shown when the project has no voice: the first that can list its voices right
@@ -378,6 +700,7 @@ class NarrationPanel(QGroupBox):
                 self.client.list_voices(name)
         self._fill_voices(name)
         self._show_info(name)
+        self.engines.sync()
 
     def _fill_voices(self, name: str, language: str | None = None) -> None:
         """Show ``name``'s voices; ``language`` ("" for all) is the user's choice, else the voice's own."""
@@ -825,18 +1148,20 @@ class NarrationPanel(QGroupBox):
         for widget in (self.generate_button, self.preview_button, self.follow_button, self.fit_button):
             widget.setEnabled(not busy and project is not None)
         self.generate_button.setEnabled(not busy and has_cues)
-        for widget in (self.provider_combo, self.language_combo, self.voice_combo, self.rate_spin):
+        for widget in (
+            self.provider_combo,
+            self.language_combo,
+            self.voice_combo,
+            self.rate_spin,
+            self.rate_slider,
+        ):
             widget.setEnabled(not busy)
+        self.engines.set_busy(busy)
         self.generate_selected.setEnabled(self.selected_cue() is not None)
         counts = narration.counts(project) if project is not None else {}
         if project is not None:
             todo = counts.get(narration.NEW, 0) + counts.get(narration.STALE, 0)
             self.generate_stale.setText(f"New and changed subtitles ({todo})")
-        words = {narration.READY: "ready", narration.STALE: "stale", narration.NEW: "no sound"}
-        for state, chip in self.chips.items():
-            count = counts.get(state, 0)
-            chip.setText(f"{count} {words[state]}")
-            chip.setVisible(count > 0)
 
     def _say(self, text: str) -> None:
         self.status.setText(text)
