@@ -874,6 +874,18 @@ class Helper(BaseModel):
         return self
 
 
+def camera_first(layers: list[Layer]) -> list[Layer]:
+    """The layers with the camera (ADR 0072) last: the front, which is the first row of the Layers panel and
+    the Timeline (ADR 0086). It draws nothing, so the others keep their order and what is drawn is unchanged.
+    The same list when the camera is there already (or there is none)."""
+    if not layers or layers[-1].is_camera:
+        return layers
+    camera = next((x for x in layers if x.is_camera), None)
+    if camera is None:
+        return layers
+    return [*(x for x in layers if x is not camera), camera]
+
+
 class Project(BaseModel):
     schema_version: int = SCHEMA_VERSION
     canvas: Canvas = Field(default_factory=Canvas)
@@ -934,6 +946,7 @@ class Project(BaseModel):
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
         if sum(1 for layer in self.layers if layer.is_camera) > 1:
             raise ValueError("a project has at most one camera")
+        self.layers = camera_first(self.layers)
         self._code_folder_rules()
         self.subtitles = sorted(self.subtitles, key=lambda cue: cue.start)
         for a, b in itertools.pairwise(self.subtitles):

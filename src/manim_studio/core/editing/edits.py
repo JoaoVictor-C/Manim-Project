@@ -69,6 +69,9 @@ _SEVERITY: dict[EditKind, int] = {"timing": 0, "transform": 1, "clip": 2, "spec"
 _TIMING_FIELDS = {"start", "duration"}
 
 
+CAMERA_FIRST = "The camera always stays first"  # ADR 0086: the front row of the panel and the timeline
+
+
 class EditError(ValueError):
     """An edit referred to something that does not exist."""
 
@@ -188,7 +191,8 @@ def _set_code_folders(project: Project, folders: dict[str, list[str]]) -> Edit:
 def add_layer(
     project: Project, spec: Spec, *, index: int | None = None, name: str = "", layer_id: str | None = None
 ) -> Edit:
-    """Insert a new layer; by default on top (drawn last). Its id is ``<type>-<n>`` unless given."""
+    """Insert a new layer; by default on top (drawn last), under the camera, which stays first (ADR 0086).
+    Its id is ``<type>-<n>`` unless given."""
     layer = Layer(id=layer_id or new_layer_id(project, spec.type), name=name, spec=spec)
     layers = list(project.layers)
     layers.insert(len(layers) if index is None else index, layer)
@@ -323,14 +327,18 @@ def remove_layers(project: Project, layer_ids) -> Edit:
 def move_layer(project: Project, layer_id: str, index: int) -> Edit:
     """Change an object's z-order: ``index`` 0 is the back of the objects (roots), the last the front.
 
-    An object moves together with its parts, which always follow it (ADR 0012).
+    An object moves together with its parts, which always follow it (ADR 0012). Nothing goes above the
+    camera, which stays first: an index past the last object is the front under it (ADR 0086).
     """
     layer = _layer(project, layer_id)
+    if layer.is_camera:  # ADR 0086
+        raise EditError(CAMERA_FIRST)
     if layer.is_child:
         kind = "a part: parts" if layer.is_part else f"on {layer.parent_id!r}: children"
         raise EditError(f"{layer_id!r} is {kind} are drawn with their object")
     roots = [root for root in project.roots() if root.id != layer_id]
-    roots.insert(max(0, min(index, len(roots))), layer)
+    drawn = len(roots) - sum(root.is_camera for root in roots)  # the camera, if any, is the last root
+    roots.insert(max(0, min(index, drawn)), layer)
     return _replace_layers(project, [x for root in roots for x in (root, *project.descendants(root.id))])
 
 
@@ -346,6 +354,8 @@ def group_layers(project: Project, layer_ids: Iterable[str], name: str = "") -> 
         raise EditError("select the objects to group")
     for layer_id in picked:
         layer = _layer(project, layer_id)
+        if layer.is_camera:  # ADR 0086
+            raise EditError(f"{CAMERA_FIRST}: it is not put in a group")
         if layer.is_group:
             raise EditError(f"{layer.label!r} is a group: groups cannot be put in a group (not yet)")
         if layer.is_child:

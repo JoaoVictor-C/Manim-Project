@@ -1,7 +1,7 @@
 # 0072. Camera layer: the view pans, zooms and rolls by one layer's keys
 
 - **Status:** Accepted; extended by [ADR 0083](0083-unity-style-camera.md) (size, Scene and Game views,
-  background, follow)
+  background, follow) and [ADR 0086](0086-camera-always-first.md) (always the first row)
 - **Date:** 2026-10-31
 - **Deciders:** João Victor
 
