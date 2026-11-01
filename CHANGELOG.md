@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Camera tour example** and Esc to deselect. New Project > Camera tour is a wide scene seen through the camera
+  layer (pan, zoom in on a dot, roll); `examples/build_camera.py` writes it. Esc now deselects everything on the canvas.
 - **A camera like Unity's 2D camera** ([ADR 0083](docs/adr/0083-unity-style-camera.md)). The camera layer's
   Properties show Position, **Size** (half the height it sees; easing between size keys changes the size
   evenly) and Rotation, a **Background** colour for the whole video, and a layer to **Follow** with an offset.

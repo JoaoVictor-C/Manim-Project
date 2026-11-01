@@ -152,14 +152,15 @@ def test_the_canvas_moves_a_group_as_one_object(window, qt_app) -> None:
     assert drawn["b"].get_center()[:2] == pytest.approx((0.0, 1.0), abs=0.02)
 
 
-def test_double_click_enters_the_group_and_escape_backs_out(window, qt_app) -> None:
+def test_double_click_enters_the_group_and_escape_deselects(window, qt_app) -> None:
     group_id = grouped(window, qt_app)
     double_click(window, -3.0, 0.0, qt_app)
     assert window.selection.layer_id == "a"
     click(window, -1.0, 0.0, qt_app)  # inside the group: its other object
     assert window.selection.layer_id == "b"
     QApplication.sendEvent(window.canvas, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, NONE, ""))
-    assert window.selection.layer_id == group_id
+    assert window.selection.layer_id is None  # Esc deselects everything, even inside a group
+    assert group_id
 
 
 def test_ctrl_shift_g_ungroups_keeping_the_look(window, qt_app) -> None:

@@ -81,6 +81,12 @@ TEMPLATES: tuple[Template, ...] = (
         "Axes and function graphs: Create, a graph morph, poles of tan(x), a dot along a path.",
         EXAMPLES / "graphs.json",
     ),
+    Template(
+        "camera",
+        "Camera tour",
+        "A wide scene seen through the camera layer: a pan, a zoom to a dot and a roll.",
+        EXAMPLES / "camera.json",
+    ),
 )
 
 
@@ -108,7 +114,7 @@ def template_canvas(template: Template) -> dict:
     return {key: data.get(key, value) for key, value in fallback.items()}
 
 
-CARD_SIZE = QSize(176, 108)  # a template card; also the stylesheet's minimum for it
+CARD_SIZE = QSize(176, 84)  # a template card; also the stylesheet's minimum for it
 
 
 def _rules(c: theme.Colours) -> str:

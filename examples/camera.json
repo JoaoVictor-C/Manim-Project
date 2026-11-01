@@ -1,0 +1,517 @@
+{
+  "schema_version": 1,
+  "canvas": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "background": "#0b1020",
+    "frame_height": 8.0,
+    "duration": 10.0,
+    "grow_with_content": true
+  },
+  "layers": [
+    {
+      "id": "floor",
+      "name": "Floor",
+      "spec": {
+        "type": "Line",
+        "params": {
+          "start": [
+            -16.0,
+            -2.4
+          ],
+          "end": [
+            16.0,
+            -2.4
+          ]
+        },
+        "style": {
+          "stroke": "#334155",
+          "stroke_width": 3
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "label1",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Pan",
+          "font_size": 56
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -10.0,
+          2.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "hint1",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "station 1",
+          "font_size": 26
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -10.0,
+          1.5
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "label2",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Zoom",
+          "font_size": 56
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          2.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "hint2",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "station 2",
+          "font_size": 26
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          1.5
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "label3",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "Roll",
+          "font_size": 56
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          10.0,
+          2.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "hint3",
+      "name": "",
+      "spec": {
+        "type": "Text",
+        "params": {
+          "text": "station 3",
+          "font_size": 26
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          10.0,
+          1.5
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "square",
+      "name": "",
+      "spec": {
+        "type": "Square",
+        "params": {
+          "side_length": 2.2
+        },
+        "style": {
+          "fill": "#38bdf8",
+          "fill_opacity": 0.85,
+          "stroke": "#38bdf8"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -10.0,
+          -0.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "circle",
+      "name": "",
+      "spec": {
+        "type": "Circle",
+        "params": {
+          "radius": 1.1
+        },
+        "style": {
+          "fill": "#f472b6",
+          "fill_opacity": 0.85,
+          "stroke": "#f472b6"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          -1.8,
+          -0.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "dot",
+      "name": "",
+      "spec": {
+        "type": "Dot",
+        "params": {
+          "radius": 0.14
+        },
+        "style": {
+          "fill": "#facc15",
+          "fill_opacity": 0.85,
+          "stroke": "#facc15"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          1.8,
+          -0.6
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "tri",
+      "name": "",
+      "spec": {
+        "type": "Triangle",
+        "params": {},
+        "style": {
+          "fill": "#a3e635",
+          "fill_opacity": 0.85,
+          "stroke": "#a3e635"
+        }
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          10.0,
+          -0.6
+        ],
+        "scale": 1.3,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {},
+      "clips": []
+    },
+    {
+      "id": "camera-1",
+      "name": "Camera",
+      "spec": {
+        "type": "Camera",
+        "params": {
+          "background": "#101a3a"
+        },
+        "style": {}
+      },
+      "parent_id": null,
+      "part": null,
+      "base": {
+        "position": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "lifetime": {
+        "in": null,
+        "out": null
+      },
+      "tracks": {
+        "position": [
+          {
+            "t": 0.0,
+            "value": [
+              -10.0,
+              0.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 2.0,
+            "value": [
+              -10.0,
+              0.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.0,
+            "value": [
+              0.0,
+              0.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 5.5,
+            "value": [
+              1.8,
+              -0.6
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 6.5,
+            "value": [
+              0.0,
+              0.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 8.5,
+            "value": [
+              10.0,
+              0.0
+            ],
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ],
+        "scale": [
+          {
+            "t": 0.0,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 4.0,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 5.5,
+            "value": 2.857142857142857,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 6.5,
+            "value": 1.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ],
+        "rotation": [
+          {
+            "t": 0.0,
+            "value": 0.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 6.5,
+            "value": 0.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 7.5,
+            "value": -8.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          },
+          {
+            "t": 8.5,
+            "value": 0.0,
+            "ease": {
+              "name": "smooth",
+              "bezier": null
+            }
+          }
+        ]
+      },
+      "clips": []
+    }
+  ]
+}
