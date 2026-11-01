@@ -379,6 +379,29 @@ def _style_problem(style: dict[str, Any]) -> str | None:
     return None
 
 
+CAMERA_PARAM_NAMES = ("background", "follow", "follow_offset")  # ADR 0083; all optional
+
+
+def camera_params_problem(params: dict[str, Any]) -> str | None:
+    """Why a camera's ``spec.params`` are not acceptable (ADR 0083), or None. The follow target's existence is
+    the project's to check."""
+    unknown = sorted(set(params) - set(CAMERA_PARAM_NAMES))
+    if unknown:
+        return f"unknown camera settings {unknown} (known: {', '.join(CAMERA_PARAM_NAMES)})"
+    if "background" in params and not is_colour(params["background"]):
+        return f"the camera's background must be a colour like #ff0000, not {params['background']!r}"
+    if "follow" in params and not isinstance(params["follow"], str):
+        return "the camera follows a layer id"
+    offset = params.get("follow_offset", (0.0, 0.0))
+    if (
+        not isinstance(offset, (list, tuple))
+        or len(offset) != 2
+        or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in offset)
+    ):
+        return "the camera's follow offset must be two numbers (x, y)"
+    return None
+
+
 def _t2c_problem(t2c: Any) -> str | None:
     """Why a Text's ``t2c`` (substring -> colour, Manim's own parameter) is not acceptable."""
     if not isinstance(t2c, dict):
@@ -515,6 +538,14 @@ class Layer(BaseModel):
             or "scale_y" in self.tracks
         ):
             raise ValueError(f"layer {self.id!r}: a camera can only zoom uniformly")
+        if self.is_camera:
+            if self.base.scale <= 0 or any(
+                not isinstance(key.value, (int, float)) or key.value <= 0
+                for key in self.tracks.get("scale", ())
+            ):
+                raise ValueError(f"layer {self.id!r}: a camera's scale (its size) must be above 0")
+            if problem := camera_params_problem(self.spec.params):
+                raise ValueError(f"layer {self.id!r}: {problem}")
         if self.pin is not None:
             if self.spec is None or self.spec.type not in TEXT_TYPES:
                 raise ValueError(f"layer {self.id!r}: only a Text, MathTex or Tex label can be pinned")
@@ -919,6 +950,7 @@ class Project(BaseModel):
         self._trace_refs()
         self._connector_refs()
         self._pin_refs()
+        self._camera_refs()
         targeted: dict[str, str] = {}
         by_id = {layer.id: layer for layer in self.layers}  # once: a lookup per morph clip stays linear (B53)
         for layer in self.layers:
@@ -1119,6 +1151,39 @@ class Project(BaseModel):
                     raise ValueError(f"layer {layer.id!r}: its pins go round in a circle")
                 seen.add(node.id)
                 node = by_id[node.pin.target]
+
+    def _camera_refs(self) -> None:
+        """ADR 0083: the camera follows a layer that exists, is not itself and is not a part."""
+        camera = self.camera_layer
+        follow = camera.spec.params.get("follow") if camera is not None else None
+        if not follow:
+            return
+        target = next((x for x in self.layers if x.id == follow), None)
+        if target is None:
+            raise ValueError(f"layer {camera.id!r}: the layer the camera follows ({follow!r}) is missing")
+        if problem := follow_problem(camera, target):
+            raise ValueError(f"layer {camera.id!r}: {problem}")
+
+    @property
+    def camera_layer(self) -> Layer | None:
+        """The camera layer (ADR 0072), shown or hidden, or None."""
+        return next((x for x in self.layers if x.is_camera), None)
+
+    @property
+    def view_background(self) -> str:
+        """The colour behind everything in the video: the shown camera's background (ADR 0083), else the
+        canvas's. Canvas, preview and export all read it here."""
+        camera = self.camera_layer
+        if camera is not None and camera.visible and camera.spec.params.get("background"):
+            return str(camera.spec.params["background"])
+        return self.canvas.background
+
+    def follow_targets(self) -> list[Layer]:
+        """The layers the camera may follow (ADR 0083), in project order."""
+        camera = self.camera_layer
+        if camera is None:
+            return []
+        return [x for x in self.layers if follow_problem(camera, x) is None]
 
     def pin_targets(self, label_id: str) -> list[Layer]:
         """The layers the label ``label_id`` may be pinned to (ADR 0075), in project order."""
@@ -1323,6 +1388,15 @@ def pin_problem(by_id: dict[str, Layer], label: Layer, target: Layer) -> str | N
         return f"a label cannot be pinned to {target.spec.type if target.spec else target.id}"
     if _within(by_id, target, label.id):
         return "a label cannot be pinned to one of its own parts"
+    return None
+
+
+def follow_problem(camera: Layer, target: Layer) -> str | None:
+    """Why the camera cannot follow ``target`` (ADR 0083), or None."""
+    if target.id == camera.id or target.is_camera:
+        return "the camera cannot follow itself"
+    if target.is_part:
+        return "the camera follows a whole object, not a part of one"
     return None
 
 

@@ -45,7 +45,7 @@ def configure(project_json: str) -> Project:
     m.config.pixel_width, m.config.pixel_height = canvas.width_px, canvas.height_px
     m.config.frame_rate = canvas.fps
     m.config.frame_height, m.config.frame_width = canvas.frame_height, canvas.frame_width
-    m.config.background_color = m.ManimColor(canvas.background)
+    m.config.background_color = m.ManimColor(project.view_background)  # ADR 0083
     return project
 
 

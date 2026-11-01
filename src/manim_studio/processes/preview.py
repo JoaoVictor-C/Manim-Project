@@ -124,6 +124,7 @@ class Renderer:
             return
         try:
             t = frame_time(index, self.project.canvas.fps)
+            self.evaluator.set_through_camera(self.view.through_camera)  # Scene or Game view (ADR 0083)
             layers = [mob for _, mob in self.evaluator.frame_layers(t)]
             pixels = render_frame(self.camera, layers, self.evaluator.overlay(t))
         except Exception as exc:  # the editor renders that frame live instead

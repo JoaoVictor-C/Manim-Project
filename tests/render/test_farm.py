@@ -137,6 +137,29 @@ def test_a_label_pinned_to_a_moving_object_is_drawn_alike_by_the_processes(pools
 
 
 @pytest.mark.slow
+def test_a_following_camera_with_its_background_is_drawn_alike_by_the_processes(pools) -> None:
+    """ADR 0083: the camera's size keys, followed target and background reach every process."""
+    project = make_project()
+    moving = project.layers[0].model_copy(
+        update={
+            "tracks": {"position": [Keyframe(t=0.0, value=(-2.0, 0.0)), Keyframe(t=4.0, value=(2.0, 1.0))]}
+        }
+    )
+    camera = Layer(
+        id="camera",
+        spec=Spec(
+            type="Camera", params={"background": "#400000", "follow": "a", "follow_offset": [0.5, 0.0]}
+        ),
+        tracks={"scale": [Keyframe(t=0.0, value=1.0), Keyframe(t=4.0, value=2.0)]},
+    )
+    project = project.model_copy(update={"layers": [moving, project.layers[1], camera]})
+    serial = draw(project)
+    assert tuple(serial[0][0, 0, :3]) == (0x40, 0, 0)  # the camera's background, not the canvas's
+    assert same(draw(project, workers=2), serial)
+    assert len(pools) == 1 and pools[0].next_frame == 40
+
+
+@pytest.mark.slow
 def test_the_ring_is_reused_when_it_is_smaller_than_the_video(monkeypatch, pools) -> None:
     """Backpressure: workers wait for a free slot, the encoder frees them in order, and nothing is lost."""
     monkeypatch.setattr(farm, "RING_BYTES", 6 * FRAME_BYTES)

@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     views = [
         np.ndarray(shape, np.uint8, buffer=ring.buf, offset=k * frame_bytes) for k in range(hello["slots"])
     ]
-    camera = make_camera(canvas, project.camera)
+    camera = make_camera(canvas, project.camera, project.view_background)
     evaluator = Evaluator(project)
     _send(protocol, {"ready": True})
     for line in sys.stdin:

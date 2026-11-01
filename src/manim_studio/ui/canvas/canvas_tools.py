@@ -21,7 +21,10 @@
   object stays put ("Move anchor"; Shift snaps to the box's corners, edge
   midpoints and centre); Ctrl+double-click centres the anchor. Without Ctrl a
   press on the cross moves the object: the cross sits on the middle of every
-  new object, where people grab it.
+  new object, where people grab it;
+* the camera gizmo of the Scene view (ADR 0083): its icon selects the camera; with
+  it selected, a drag inside the rectangle moves it, a corner changes its size
+  (uniformly, about its centre) and the knob above its top edge rolls it.
 
 The stopwatch rule decides what a move edits: a layer with position keyframes
 gets a key at the playhead (snapped to the nearest frame first, so preview and
@@ -40,12 +43,12 @@ from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 
 from ...core.editing import edits
-from ...core.engine.evaluator import layer_transform
+from ...core.engine.evaluator import camera_scale, camera_size, camera_transform, layer_transform
 from ...core.model.schema import Layer, Project
 from ...render.hit_test import hit_layers
 from ..session.document import Document
 from ..session.selection import Selection
-from . import motion_overlay, param_handles, snap_guides
+from . import camera_gizmo, motion_overlay, param_handles, snap_guides
 from .canvas import CanvasWidget
 from .gizmo import (
     GRAB_PX,
@@ -112,6 +115,7 @@ VERBS = {
     "anchor": "Move anchor",
     "param": "Resize layer",
     "group": "Move layers",
+    "camera_size": "Change camera size",
 }
 CLICK_PX = 3.0  # a press that moves less than this is a click
 DEGREES = "\N{DEGREE SIGN}"
@@ -154,6 +158,10 @@ class MoveTool(QObject):
         if self.canvas.interaction_mode == "anchor":
             if current is not None:
                 self._start_drag(current, "anchor", point)
+            return
+        part = self._camera_part(point)
+        if part is not None:  # 0. the camera gizmo of the Scene view (ADR 0083)
+            self._start_camera_drag(part, point)
             return
         if modifiers & Qt.KeyboardModifier.ControlModifier and self._cross_under(point):
             self._start_drag(current, "anchor", point)  # 1. Ctrl on the pivot cross
@@ -377,6 +385,13 @@ class MoveTool(QObject):
         elif drag.prop == "scale":
             value = scale_from(drag.pivot, drag.press, point, drag.start, snap=shift)
             readout = f"{value * 100:.0f} %"
+        elif drag.prop == "camera_size":  # a corner of the camera gizmo (ADR 0083)
+            height = drag.base.canvas.frame_height
+            size = camera_gizmo.size_from(drag.pivot, drag.press, point, camera_size(drag.start, height))
+            if shift:
+                size = max(0.1, round(size * 2) / 2)
+            value = camera_scale(size, height)
+            readout = f"size {size:.2f}"
         elif drag.prop in ("scale_x", "scale_y"):
             axis = 0 if drag.prop == "scale_x" else 1
             value = scale_axis_from(
@@ -395,7 +410,8 @@ class MoveTool(QObject):
             value = snap_angle(drag.start + drag.turned, shift)
             readout = f"{value:.0f}{DEGREES}"
         self.canvas.readout = (pos, readout) if readout else None
-        self.document.preview(self._edit(drag.base, drag.layer_id, drag.prop, value, drag.key_time))
+        prop = "scale" if drag.prop == "camera_size" else drag.prop
+        self.document.preview(self._edit(drag.base, drag.layer_id, prop, value, drag.key_time))
 
     # -- keyboard ------------------------------------------------------------------
 
@@ -550,6 +566,40 @@ class MoveTool(QObject):
                     )
             self._drag.box, self._drag.targets = self._snapping_for([layer_id, *others])
         self.document.begin_preview()
+
+    # -- the camera gizmo (ADR 0083) --------------------------------------------------
+
+    def _camera_part(self, point: np.ndarray) -> camera_gizmo.Part | None:
+        """The part of the Scene view's camera gizmo under ``point``, or None."""
+        box = self.canvas.camera_box()
+        camera = self.project.camera_layer
+        if box is None or camera is None:
+            return None
+        ppu = self.canvas.px_per_unit()
+        selected = self.selection.layer_id == camera.id and not self.selection.many
+        return camera_gizmo.part_at(
+            box, point, GRAB_PX / ppu, KNOB_OFFSET_PX / ppu, camera_gizmo.ICON_PX / ppu, selected
+        )
+
+    def _start_camera_drag(self, part: camera_gizmo.Part, point: np.ndarray) -> None:
+        """Move, size or roll the camera from its gizmo: one undo step, keyed where its property is keyed
+        (or Auto-key is on), as any layer's drag (ADR 0016, 0018)."""
+        camera = self.project.camera_layer
+        if self.selection.layer_id != camera.id or self.selection.many:
+            self.selection.select_layer(camera.id)
+        centre = self.canvas.camera_box().centre
+        if part == "size":
+            key_time = self._key_time(camera, "scale")
+            at = key_time if key_time is not None else self.playhead()
+            start = camera_transform(camera, at).scale if camera.tracks.get("scale") else camera.base.scale
+            self._drag = _Drag(
+                camera.id, "camera_size", point, float(start), centre, key_time, self.project, np.eye(2)
+            )
+            self.document.begin_preview()
+            return
+        self._start_drag(camera.id, "rotation" if part == "rotate" else "position", point)
+        if self._drag is not None:
+            self._drag.pivot = centre  # it turns about the point it looks at, with a followed target's too
 
     # -- parameter handles and snapping (ADR 0043) ---------------------------------
 

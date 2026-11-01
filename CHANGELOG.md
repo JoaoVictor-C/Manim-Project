@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **A camera like Unity's 2D camera** ([ADR 0083](docs/adr/0083-unity-style-camera.md)). The camera layer's
+  Properties show Position, **Size** (half the height it sees; easing between size keys changes the size
+  evenly) and Rotation, a **Background** colour for the whole video, and a layer to **Follow** with an offset.
+  View > Game View (through the camera) can be turned off for the **Scene view**: the scene stays still and
+  editable while the camera moves, and the camera is drawn as the rectangle it sees - drag inside it to move
+  it, a corner to change its size, the knob to roll it, each one undo step that keys where it is keyed.
 - **Explain this moment** ([ADR 0082](docs/adr/0082-explain-a-moment.md)). Edit > Explain This Moment...
   (Ctrl+Alt+E) opens a window beside the editor that says, in plain sentences, what makes the frame at the
   playhead: the layers on screen and why, the clips running and how far through, the keyed properties moving

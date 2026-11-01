@@ -153,7 +153,19 @@ class Evaluator:
         # Builds that raised, by what was built: no LaTeX on this computer, a broken file... The
         # object is a placeholder and says why; nothing else stops (a raise here broke the editor).
         self._build_failed: dict[str, str] = {}
+        # Game view (the default): drawn through the camera layer. The editor's Scene view turns it off, so
+        # the picture is in flat scene units and the camera is a gizmo over it (ADR 0083).
+        self.through_camera = True
         self._index()
+
+    def set_through_camera(self, through: bool) -> None:
+        """Draw through the camera layer (Game view) or not (Scene view, ADR 0083)."""
+        if through == self.through_camera:
+            return
+        self.through_camera = through
+        self._camera_seen = None
+        self._traces.clear()  # sampled from drawings, which are in other units now
+        self._connectors.clear()
 
     def _index(self) -> None:
         self._morph_into: dict[str, tuple[Layer, Clip]] = {}
@@ -166,6 +178,7 @@ class Evaluator:
         camera = next((x for x in self.project.layers if x.is_camera and x.visible), None)
         self._camera_id = camera.id if camera is not None else None  # the view moves by it (ADR 0072)
         self._camera_seen: tuple[float, tuple[np.ndarray, np.ndarray] | None] | None = None
+        self._following = False  # finding a followed target's point: drawings in flat scene units (ADR 0083)
         self._visible: dict[str, bool] = {}
 
         def is_visible(layer_id: str) -> bool:
@@ -383,6 +396,7 @@ class Evaluator:
         and never keep it (canvas hit-testing and outlines, ADR 0016).
         """
         out: list[tuple[str, m.Mobject]] = []
+        self.camera_affine(t)  # first: following a target may evaluate it, which must not overwrite a drawing
         for layer in self.project.layers:
             if layer.parent_id is None:  # parts and child objects are drawn with their object
                 out.extend(self._object_at(layer, t))
@@ -392,6 +406,7 @@ class Evaluator:
         """The pairs ``frame_layers(t)`` yields for the object ``layer_id`` belongs to (its
         root, parts and child objects), evaluating nothing else: the selection outline over
         a cached frame (ADR 0028). The same buffer rules apply."""
+        self.camera_affine(t)
         return self._object_at(self._ltree.root_of(layer_id), t)
 
     def _object_at(self, root: Layer, t: float) -> list[tuple[str, m.Mobject]]:
@@ -949,11 +964,11 @@ class Evaluator:
     def camera_affine(self, t: float) -> tuple[np.ndarray, np.ndarray] | None:
         """``p -> a p + b`` from the scene to the view at ``t`` (ADR 0072): None while the camera rests - no
         camera, or at its start position, zoom 1 and no roll - so a project without one is drawn as ever."""
-        if self._camera_id is None:
+        if self._camera_id is None or not self.through_camera or self._following:
             return None
         if self._camera_seen is not None and self._camera_seen[0] == t:
             return self._camera_seen[1]
-        tr = layer_transform(self._layers[self._camera_id], t)
+        tr = self.camera_view(t)
         if tr.position == (0.0, 0.0) and tr.scale == 1.0 and tr.rotation == 0.0:
             result = None
         else:
@@ -963,6 +978,31 @@ class Evaluator:
             result = (a, -(a @ np.array(tr.position, dtype=float)))
         self._camera_seen = (t, result)
         return result
+
+    def camera_view(self, t: float) -> Transform2D | None:
+        """Where the shown camera is at ``t`` in scene units - its position (with a followed target's point,
+        ADR 0083), scale (eased as a size) and rotation - in Game and Scene view alike; None without one."""
+        if self._camera_id is None:
+            return None
+        camera = self._layers[self._camera_id]
+        tr = camera_transform(camera, t)
+        follow = self._layers.get(camera.spec.params.get("follow") or "")
+        if follow is None:
+            return tr
+        offset = camera.spec.params.get("follow_offset") or (0.0, 0.0)
+        point = self._follow_point(follow, t)
+        x = float(point[0]) + float(offset[0]) + tr.position[0]
+        y = float(point[1]) + float(offset[1]) + tr.position[1]
+        return tr.model_copy(update={"position": (x, y)})
+
+    def _follow_point(self, target: Layer, t: float) -> np.ndarray:
+        """The followed layer's pivot at ``t`` in scene units (where its gizmo's cross is): a pinned label's
+        pin reads drawings, so those are drawn flat meanwhile."""
+        following, self._following = self._following, True
+        try:
+            return self.layer_frame(target, t)[0]
+        finally:
+            self._following = following
 
     def camera_moved(self, t: float) -> bool:
         """Is the view not at rest at ``t``? Handles and clicks are in scene units, so they are off then."""
@@ -1455,6 +1495,28 @@ def layer_transform(layer: Layer, t: float) -> Transform2D:
         for name in ("position", "scale", "scale_x", "scale_y", "rotation", "opacity")
     }
     return Transform2D(**values, anchor=base.anchor)  # the anchor is never keyed (ADR 0021)
+
+
+def camera_transform(layer: Layer, t: float) -> Transform2D:
+    """The camera layer's own transform at ``t`` (ADR 0083): as ``layer_transform``, but its scale keys ease
+    as a *size* (half the height it sees, ``frame_height / 2 / scale``), as an orthographic camera's size is
+    animated: the eased value is the inverse of the scale, so a linear zoom changes the size evenly."""
+    tr = layer_transform(layer, t)
+    track = layer.tracks.get("scale")
+    if not track or len(track) < 2 or t <= track[0].t or t >= track[-1].t:
+        return tr  # at or outside the keys: the key's own value, exactly
+    inverse = [key.model_copy(update={"value": 1.0 / float(key.value)}) for key in track]
+    return tr.model_copy(update={"scale": 1.0 / float(_sample(inverse, t, 1.0))})
+
+
+def camera_size(scale: float, frame_height: float) -> float:
+    """The camera's size (half the height it sees, in scene units) at ``scale`` (ADR 0083)."""
+    return frame_height / 2.0 / scale
+
+
+def camera_scale(size: float, frame_height: float) -> float:
+    """The scale that makes the camera's size ``size`` (the inverse of ``camera_size``)."""
+    return frame_height / 2.0 / size
 
 
 def _affine(tr: Transform2D, pivot: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:

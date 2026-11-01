@@ -39,9 +39,10 @@ from ...core.code import helpers, python_object
 from ...core.editing import edits
 from ...core.engine import adapter
 from ...core.engine.adapter import Param
-from ...core.engine.evaluator import layer_transform
+from ...core.engine.evaluator import camera_scale, camera_size, camera_transform, layer_transform
 from ...core.model import glyph_colours, parts, scene_length, shape
 from ...core.model.schema import (
+    CAMERA_TYPES,
     CLIP_KIND_INFO,
     CODE_TYPES,
     DIRECTIONS,
@@ -166,6 +167,31 @@ def set_transform(
     return edits.set_property(project, layer_id, name, value, at(), auto_key=auto_key())
 
 
+def set_camera_size(
+    project: Project,
+    layer_id: str,
+    value: Any,
+    at: Callable[[], float],
+    auto_key: Callable[[], bool],
+    name: str = "scale",
+) -> edits.Edit:
+    """The camera's Size field (ADR 0083): half the height it sees, stored as its scale (the stored truth)."""
+    if value is None or float(value) <= 0:
+        raise edits.EditError("the size must be above 0")
+    scale = camera_scale(float(value), project.canvas.frame_height)
+    return set_transform(project, layer_id, "scale", scale, at, auto_key)
+
+
+def set_camera_param(project: Project, layer_id: str, name: str, value: Any) -> edits.Edit:
+    """A camera setting (ADR 0083): background, follow, follow offset; the default is not written."""
+    if value in (None, "") or (name == "follow_offset" and tuple(value) == (0.0, 0.0)):
+        value = None
+    if name == "follow" and value is None:  # following nothing: the offset goes too
+        edit = set_param(project, layer_id, "follow_offset", None)
+        return set_param(edit.project, layer_id, "follow", None)
+    return set_param(project, layer_id, name, value)
+
+
 def set_anchor(project: Project, layer_id: str, value: Any, at: Callable[[], float]) -> edits.Edit:
     """The anchor point field: moves the pivot, keeping the drawing at the playhead (ADR 0021)."""
     if not _has(project, layer_id):
@@ -214,6 +240,15 @@ def _is_last_key(layer: Layer, prop: str, t: float, fps: int) -> bool:
 def _set_key_value(project: Project, layer_id: str, value: Any, prop: str, t: float) -> edits.Edit:
     value = tuple(value) if isinstance(value, list) else value
     return edits.set_key(project, layer_id, prop, t, value)
+
+
+def _set_size_key(project: Project, layer_id: str, value: Any, t: float) -> edits.Edit:
+    """A camera's scale key, given as a size (ADR 0083)."""
+    if value is None or float(value) <= 0:
+        raise edits.EditError("the size must be above 0")
+    return edits.set_key(
+        project, layer_id, "scale", t, camera_scale(float(value), project.canvas.frame_height)
+    )
 
 
 def _set_key_ease(project: Project, layer_id: str, value: Easing, prop: str, t: float) -> edits.Edit:
@@ -589,6 +624,9 @@ class PropertiesPanel(QWidget):
         if layer.is_part:
             self._part_section()
             self._part_style_section()
+        elif layer.is_camera:  # Unity's 2D camera: Transform and Camera sections (ADR 0083)
+            self._shown_type = layer.spec.type
+            self._camera_layer_section()
         else:
             self._shown_type = layer.spec.type
             self._object_section(layer)
@@ -596,15 +634,16 @@ class PropertiesPanel(QWidget):
                 self._colour_characters_row(layer.id)
             self._freeze_row(layer)
             if (
-                layer.spec.type not in RASTER_TYPES | CODE_TYPES | GROUP_TYPES
-            ):  # no style on images, code, groups
+                layer.spec.type not in RASTER_TYPES | CODE_TYPES | GROUP_TYPES | CAMERA_TYPES
+            ):  # no style on images, code, groups, the camera
                 self._style_section()
             if layer.spec.type in PART_PARENT_TYPES:
                 self._colour_part_section(layer.id)
             elif layer.spec.type == "Text":
                 self._pieces_section(layer)
         self._transform_section(layer)
-        self._lifetime_section()
+        if not layer.is_camera:  # the camera is the view at every time
+            self._lifetime_section()
         self.body_layout.addStretch(1)
         self.refresh()
 
@@ -1046,13 +1085,24 @@ class PropertiesPanel(QWidget):
         self._register("keys.time", lambda layer: t)
         time_field = FloatField(self._retime_commit(t), 0, duration, 1 / fps, 3, suffix=" s")
         rows: list = [("Time", "keys.time", time_field)]
+        height = self.project.canvas.frame_height
         for prop in props:
             label = prop.capitalize()
             value_path, ease_path = f"keys.{prop}.value", f"keys.{prop}.ease"
-            self._register(value_path, lambda layer, p=prop: _key_at(layer, p, t, fps).value)
             self._register(ease_path, lambda layer, p=prop: _key_at(layer, p, t, fps).ease)
-            set_value = partial(_set_key_value, prop=prop, t=t)
-            value_field = _key_value_field(prop, self._op(value_path, set_value, f"Change {prop} key"))
+            if layer.is_camera and prop == "scale":  # shown and typed as its size (ADR 0083)
+                label = "Size"
+                self._register(
+                    value_path, lambda layer: camera_size(_key_at(layer, "scale", t, fps).value, height)
+                )
+                set_size = partial(_set_size_key, t=t)
+                value_field = FloatField(
+                    self._op(value_path, set_size, "Change size key"), 0.01, 10_000, 0.1, 3
+                )
+            else:
+                self._register(value_path, lambda layer, p=prop: _key_at(layer, p, t, fps).value)
+                set_value = partial(_set_key_value, prop=prop, t=t)
+                value_field = _key_value_field(prop, self._op(value_path, set_value, f"Change {prop} key"))
             set_ease = partial(_set_key_ease, prop=prop, t=t)
             ease_field = self._ease_field(
                 self._op(ease_path, set_ease, "Change easing"), ease_path, keys=True
@@ -1409,6 +1459,8 @@ class PropertiesPanel(QWidget):
         keyable = keyable_props(layer)  # a graph keeps only its opacity (ADR 0024)
         if layer.is_group:
             keyable = tuple(name for name in keyable if name not in ("scale_x", "scale_y"))
+        if layer.is_camera:  # Unity's Transform of a 2D camera: position, size, rotation (ADR 0083)
+            keyable = ("position", "scale", "rotation")
         for name, label, field_type in (
             ("position", "Position", lambda c: PointField(c)),
             ("scale", "Scale", lambda c: FloatField(c, 0.01, 100, 0.05, 3)),
@@ -1420,10 +1472,16 @@ class PropertiesPanel(QWidget):
             if name not in keyable:
                 continue
             path = f"base.{name}"
-            self._register(path, lambda layer, n=name: self._transform_value(layer, n))
-            op = partial(
-                set_transform, name=name, at=lambda: self.playhead(), auto_key=lambda: self.auto_key()
-            )
+            set_value = set_transform
+            if layer.is_camera and name == "scale":  # the size: half the height it sees (ADR 0083)
+                label = "Size"
+                field_type = lambda c: FloatField(c, 0.01, 10_000, 0.1, 3)  # noqa: E731
+                set_value = set_camera_size
+                self._tips[path] = "Half the height the camera sees, in scene units (an orthographic size)"
+                self._register(path, self._camera_size_value)
+            else:
+                self._register(path, lambda layer, n=name: self._transform_value(layer, n))
+            op = partial(set_value, name=name, at=lambda: self.playhead(), auto_key=lambda: self.auto_key())
             field = field_type(self._op(path, op, f"Change {label.lower()}"))
             key_path = f"keys.{name}"
             self._register(key_path, lambda layer, n=name: bool(layer.tracks.get(n)))
@@ -1434,7 +1492,7 @@ class PropertiesPanel(QWidget):
             )
             toggles.append((label, toggle))
             rows.append((label, [(path, field), (key_path, toggle)]))
-            if name == "position":
+            if name == "position" and not layer.is_camera:  # the camera has no pivot of its own
                 rows.append(self._anchor_row())
         section = self._section("Transform", rows)
         if section is not None and toggles:
@@ -1485,6 +1543,36 @@ class PropertiesPanel(QWidget):
             "Ctrl+drag the cross on the canvas to move it."
         )
         return ("Anchor point", [(path, field)])
+
+    def _camera_size_value(self, layer: Layer) -> float:
+        """The camera's size at the playhead: its scale eased as a size when keyed (ADR 0083)."""
+        scale = (
+            camera_transform(layer, self.playhead()).scale if layer.tracks.get("scale") else layer.base.scale
+        )
+        return camera_size(scale, self.project.canvas.frame_height)
+
+    def _camera_layer_section(self) -> None:
+        """The camera's own settings (ADR 0083): a background for the whole video, and a layer it follows."""
+        rows = []
+        background = "params.background"
+        self._register(background, lambda layer: layer.spec.params.get("background"))
+        commit = self._op(
+            background, partial(set_camera_param, name="background"), "Change camera background"
+        )
+        self._tips[background] = "The colour behind everything in the video; x uses the project's background"
+        rows.append(("Background", background, ColorField(commit)))
+        follow = "params.follow"
+        self._register(follow, lambda layer: layer.spec.params.get("follow") or None)
+        choices = [("Nothing", None)] + [(x.label, x.id) for x in self.project.follow_targets()]
+        commit = self._op(follow, partial(set_camera_param, name="follow"), "Change followed layer")
+        self._tips[follow] = "The camera looks at this layer, wherever it goes; its position keys add to that"
+        rows.append(("Follow", follow, ChoiceField(commit, choices)))
+        offset = "params.follow_offset"
+        self._register(offset, lambda layer: tuple(layer.spec.params.get("follow_offset") or (0.0, 0.0)))
+        commit = self._op(offset, partial(set_camera_param, name="follow_offset"), "Change follow offset")
+        self._tips[offset] = "Where the camera looks, from the followed layer's centre"
+        rows.append(("Follow offset", offset, PointField(commit)))
+        self._section("Camera", rows)
 
     def _transform_value(self, layer: Layer, name: str):
         """A keyed property shows its value at the playhead; otherwise its base value."""

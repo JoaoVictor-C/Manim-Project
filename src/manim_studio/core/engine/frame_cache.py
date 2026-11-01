@@ -73,6 +73,9 @@ def changed_spans(old: Project, new: Project) -> list[Span] | None:
     closure = changed_layers(old, new)
     if closure is None:
         return None
+    cameras = {x.id for p in (old, new) if (x := p.camera_layer) is not None}
+    if closure & cameras:
+        return None  # the view moved, zoomed or changed its background: every frame (ADR 0072, 0083)
     spans = _lifetimes(old, closure) + _lifetimes(new, closure) if closure else []
     return _merge(spans + subtitles.changed_spans(old, new))  # subtitles are drawn too (ADR 0035)
 
@@ -151,6 +154,9 @@ def _closure(project: Project, changed: set[str]) -> set[str]:
         grown |= project.connectors_of(grown)  # a connector ends at a changed layer (ADR 0036)
         holders = {by_id[i].parent_id for i in grown if i in by_id and by_id[i].parent_id is not None}
         grown |= project.pinned_to(grown | holders)  # a label sits by a changed layer or group (ADR 0075)
+        camera = project.camera_layer
+        if camera is not None and camera.spec.params.get("follow") in grown | holders:
+            grown.add(camera.id)  # the view follows a changed layer: every frame (ADR 0083)
         for layer_id in list(grown & ids):  # an object is evaluated whole (parts, child objects)
             grown |= whole_object(layer_id)
         grown &= ids

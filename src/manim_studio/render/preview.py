@@ -20,7 +20,8 @@ from ..core.model.schema import Camera
 
 @dataclass(frozen=True)
 class PreviewView:
-    """What a preview frame is framed by: device pixels, scene units, centre, background."""
+    """What a preview frame is framed by: device pixels, scene units, centre, background, and whether it is
+    drawn through the camera layer (Game view) or flat (the editor's Scene view, ADR 0083)."""
 
     pixel_width: int
     pixel_height: int
@@ -28,6 +29,7 @@ class PreviewView:
     frame_height: float
     centre: tuple[float, float]
     background: str
+    through_camera: bool = True
 
     def to_json(self) -> dict:
         return asdict(self)

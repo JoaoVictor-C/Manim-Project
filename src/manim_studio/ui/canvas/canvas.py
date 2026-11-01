@@ -30,7 +30,7 @@ from ...render.qt_paths import vmobject_path
 from ..session import code_drag
 from ..style import theme
 from ..style.render_activity import spinner
-from . import motion_overlay, param_handles, viewport
+from . import camera_gizmo, motion_overlay, param_handles, viewport
 from .gizmo import GRAB_PX, HANDLE_PX, KNOB_OFFSET_PX, MIN_BOX_PX, Box, affine_box
 
 OUTLINE_COLOR = theme.qcolor(theme.THEME.outline)
@@ -47,6 +47,7 @@ BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
 DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
+CAMERA_COLOR = theme.qcolor(theme.THEME.accent)  # the camera gizmo of the Scene view (ADR 0083)
 LAYOUT_GUIDE_ALPHA = 170  # layout guides (ADR 0074): the accent, a little see-through
 DOT_GAP = 18  # the dotted pasteboard (Lumen, ADR 0063)
 SHADOW_PX = 22  # how far the frame's shadow reaches
@@ -70,6 +71,7 @@ def refresh_colours() -> None:
     g["BADGE_TEXT"] = theme.qcolor(c.badge_text)
     g["GUIDE_COLOR"] = theme.qcolor(c.guide)
     g["DROP_COLOR"] = theme.qcolor(c.accent)
+    g["CAMERA_COLOR"] = theme.qcolor(c.accent)
 
 
 theme.signals.themeChanged.connect(lambda _name: refresh_colours())
@@ -78,9 +80,8 @@ PARAM_HANDLE_PX = 9.0  # parameter handles: round, drawn size (ADR 0043)
 CLEAR_OF_MIDDLE_PX = 14.0  # parameter handles nearer an object's middle or pivot than this are hidden
 WHEEL_PAN_PX = 48.0  # one wheel notch
 TURNED_NOTICE = "Camera turned: no handles or clicking objects here. Reset it in Properties > Camera."
-MOVED_NOTICE = (
-    "Camera moved here: no handles or clicking objects. Edit where the camera rests, or in Properties."
-)
+MOVED_NOTICE = "Game view: the camera moves the picture here. Switch to Scene view to edit (View menu)."
+CAMERA_LABEL = "Camera"
 
 
 @dataclass
@@ -137,6 +138,8 @@ class CanvasWidget(QWidget):
         self.show_edit_handles = True  # point and independent-width handles; corners stay available
         self.select_by_bounds = True  # let object bounds count as canvas hits (View toggle)
         self.show_layout_guides = False  # View > Layout Guides: drawn, and moves snap to them (ADR 0074)
+        # View > Game View off = Scene view (ADR 0083): the picture flat in scene units, the camera a gizmo
+        self.scene_view = False
         self.presenting = False  # full screen: what lies outside the frame is black, no border (P12)
         self.other_layers: tuple[str, ...] = ()  # also selected (ADR 0043): outlined, no handles
         self.other_outlines: list[tuple[str, QPainterPath]] = []  # theirs, in Manim units
@@ -163,6 +166,7 @@ class CanvasWidget(QWidget):
 
     def set_scene(self, canvas: Canvas, evaluator: Evaluator) -> None:
         self._canvas, self._evaluator = canvas, evaluator
+        evaluator.set_through_camera(not self.scene_view)
         self._camera = None
         self.view = viewport.View()  # a project opens at Fit
 
@@ -251,6 +255,19 @@ class CanvasWidget(QWidget):
             return
         if self.camera_turned:  # flat bounds would frame the wrong place (ADR 0048)
             self.fit()
+            return
+        camera_box = self.camera_box()
+        if camera_box is not None and self.camera_selected():  # the camera's rectangle (ADR 0083)
+            low, high = camera_box.corners.min(axis=0), camera_box.corners.max(axis=0)
+            self.set_view(
+                viewport.frame_box(
+                    self._canvas,
+                    self.width(),
+                    self.height(),
+                    (float(low[0]), float(low[1])),
+                    (float(high[0]), float(high[1])),
+                )
+            )
             return
         ids = [self.selected_layer, *self.other_layers] if self.selected_layer else []
         points = []
@@ -388,6 +405,35 @@ class CanvasWidget(QWidget):
         else:
             self.update()
 
+    def set_scene_view(self, scene: bool) -> None:
+        """Scene view (ADR 0083): the picture without the camera layer, the camera drawn as the rectangle it
+        sees; Game view (the default): the picture through the camera, as the video shows it."""
+        if scene == self.scene_view:
+            return
+        self.scene_view = scene
+        if self._evaluator is not None:
+            self._evaluator.set_through_camera(not scene)
+        if self._evaluator is not None and self._canvas is not None:
+            self.render_at(self._t)
+        else:
+            self.update()
+
+    def camera_box(self) -> Box | None:
+        """The camera gizmo in scene units (ADR 0083): only in Scene view, with a shown camera layer."""
+        if not self.scene_view or self._evaluator is None or self._canvas is None or not self.show_overlays:
+            return None
+        if self.presenting:
+            return None
+        view = self._evaluator.camera_view(self._t)
+        return camera_gizmo.camera_box(view, self._canvas) if view is not None else None
+
+    def camera_selected(self) -> bool:
+        """The selected layer is the camera (its gizmo shows its handles)."""
+        if self._evaluator is None or not self.selected_layer:
+            return False
+        camera = self._evaluator.project.camera_layer
+        return camera is not None and camera.id == self.selected_layer
+
     def set_select_by_bounds(self, enabled: bool) -> None:
         """Let clicks inside an object's bounds select it, even away from visible geometry."""
         self.select_by_bounds = enabled
@@ -397,7 +443,8 @@ class CanvasWidget(QWidget):
         """The project's camera is not the flat 2D view (ADR 0048): the picture is seen from an angle,
         so outlines, handles and clicking objects (all in flat scene units) are off until it is reset."""
         return self._evaluator is not None and (
-            not self._evaluator.project.camera.is_default or self._evaluator.camera_moved(self._t)
+            not self._evaluator.project.camera.is_default
+            or (not self.scene_view and self._evaluator.camera_moved(self._t))  # Scene view: flat (ADR 0083)
         )
 
     def _render_turned(self, t: float, view: PreviewView) -> None:
@@ -440,7 +487,10 @@ class CanvasWidget(QWidget):
             frame_width=self.width() / geo.ppu,
             frame_height=self.height() / geo.ppu,
             centre=(float(geo.centre[0]), float(geo.centre[1])),
-            background=self._canvas.background,
+            background=self._evaluator.project.view_background
+            if self._evaluator
+            else self._canvas.background,
+            through_camera=not self.scene_view,
         )
 
     def _motion(self, t: float) -> motion_overlay.MotionPath | None:
@@ -450,6 +500,8 @@ class CanvasWidget(QWidget):
         if not any(layer.id == self.selected_layer for layer in project.layers):
             return None
         layer = project.layer(self.selected_layer)
+        if layer.is_camera and layer.spec.params.get("follow"):
+            return None  # its keys are an offset from a moving point: no path of its own (ADR 0083)
         return motion_overlay.build(layer, *self._evaluator.position_frame(layer, t))
 
     def _param_handles(self, t: float) -> list[param_handles.ParamHandle]:
@@ -609,6 +661,9 @@ class CanvasWidget(QWidget):
                 self._paint_layout_guides(painter)
             if self.motion is not None:
                 self._paint_motion(painter)
+            camera_box = self.camera_box()
+            if camera_box is not None:
+                self._paint_camera(painter, camera_box)
             if self.outline is not None:
                 self._paint_outline(painter)
             if self.other_outlines:
@@ -689,6 +744,48 @@ class CanvasWidget(QWidget):
         painter.fillRect(box, BADGE)
         painter.setPen(BADGE_TEXT)
         painter.drawText(box, Qt.AlignmentFlag.AlignCenter, notice)
+        painter.restore()
+
+    def _paint_camera(self, painter: QPainter, box: Box) -> None:
+        """The camera gizmo (ADR 0083): the rectangle it sees, a camera icon and its name at the top-left
+        corner; with the camera selected, corner squares (its size), the rotate knob and its centre."""
+        to_px = self.units_transform()
+        ppu = self.px_per_unit()
+        corners = [to_px.map(QPointF(*c)) for c in box.corners]
+        selected = self.camera_selected()
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(CAMERA_COLOR, 2.0 if selected else 1.5)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPolygon(QPolygonF(corners))
+        icon = to_px.map(QPointF(*camera_gizmo.icon_point(box, camera_gizmo.ICON_PX / ppu)))
+        half = camera_gizmo.ICON_PX / 2
+        body = QRectF(icon.x() - half, icon.y() - half * 0.6, half * 1.3, half * 1.2)
+        painter.setBrush(CAMERA_COLOR)
+        painter.drawRoundedRect(body, 2, 2)
+        lens = QPolygonF(
+            [
+                QPointF(body.right(), body.center().y()),
+                QPointF(icon.x() + half, body.top()),
+                QPointF(icon.x() + half, body.bottom()),
+            ]
+        )
+        painter.drawPolygon(lens)
+        baseline = icon.y() + painter.fontMetrics().ascent() / 2 - 1
+        painter.drawText(QPointF(icon.x() + half + 4, baseline), CAMERA_LABEL)
+        if selected:
+            painter.setBrush(BADGE)
+            handle = HANDLE_PX / 2
+            for corner in corners:
+                painter.drawRect(QRectF(corner.x() - handle, corner.y() - handle, HANDLE_PX, HANDLE_PX))
+            knob = to_px.map(QPointF(*box.knob(KNOB_OFFSET_PX / ppu)))
+            painter.drawLine((corners[2] + corners[3]) / 2, knob)
+            painter.drawEllipse(knob, handle, handle)
+            centre = to_px.map(QPointF(*box.centre))
+            painter.drawLine(QPointF(centre.x() - 6, centre.y()), QPointF(centre.x() + 6, centre.y()))
+            painter.drawLine(QPointF(centre.x(), centre.y() - 6), QPointF(centre.x(), centre.y() + 6))
         painter.restore()
 
     def _paint_others(self, painter: QPainter) -> None:

@@ -761,6 +761,13 @@ class MainWindow(QMainWindow):
         )
         self.layout_guides_action.toggled.connect(self._set_layout_guides)
         view_menu.addAction(self.layout_guides_action)
+        self.game_view_action = QAction("&Game View (through the camera)", self, checkable=True, checked=True)
+        self.game_view_action.setToolTip(  # ADR 0083: off is the Scene view
+            "On: the canvas shows the picture through the camera layer, as the video does. "
+            "Off (Scene view): the scene unmoved, objects editable, the camera drawn as the rectangle it sees"
+        )
+        self.game_view_action.toggled.connect(lambda on: self.canvas.set_scene_view(not on))
+        view_menu.addAction(self.game_view_action)
         self.edit_guides_action = QAction("Layout &Guides...", self)
         self.edit_guides_action.setToolTip("Add, move and delete layout guides: margins, thirds, centre")
         self.edit_guides_action.triggered.connect(self.show_guides)
@@ -1123,6 +1130,7 @@ class MainWindow(QMainWindow):
         return (
             ("snap", self.snap_action, True),
             ("layout_guides", self.layout_guides_action, False),
+            ("game_view", self.game_view_action, True),
             ("stage_view_locked", self.stage_view_lock_action, False),
             ("object_edit_handles", self.edit_handles_action, True),
             ("select_by_bounds", self.select_by_bounds_action, True),

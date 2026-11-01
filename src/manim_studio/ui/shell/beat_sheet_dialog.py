@@ -29,7 +29,11 @@ def picture(project: Project, t: float) -> QPixmap:
     small = project.model_copy(
         update={"canvas": canvas.model_copy(update={"width_px": PICTURE_WIDTH, "height_px": height})}
     )
-    frame = np.ascontiguousarray(render_frame(make_camera(small.canvas), Evaluator(small).frame(t)))
+    frame = np.ascontiguousarray(
+        render_frame(
+            make_camera(small.canvas, small.camera, small.view_background), Evaluator(small).frame(t)
+        )
+    )
     rows, columns, _ = frame.shape
     return QPixmap.fromImage(
         QImage(frame.data, columns, rows, columns * 4, QImage.Format.Format_RGBA8888).copy()

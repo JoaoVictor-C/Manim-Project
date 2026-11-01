@@ -36,16 +36,17 @@ log = get_logger(__name__)
 AUDIO_SPAN = 10 * audio.RATE  # the mix is encoded 10 s at a time (B70)
 
 
-def make_camera(canvas: Canvas, camera: Camera | None = None) -> m.Camera:
+def make_camera(canvas: Canvas, camera: Camera | None = None, background: str | None = None) -> m.Camera:
     """The export's camera: the whole video frame, seen from ``camera`` (ADR 0048; None or the
-    default is Manim's 2D camera, as before)."""
+    default is Manim's 2D camera, as before), over ``background`` (``Project.view_background``: the camera
+    layer's, ADR 0083; None is the canvas's)."""
     view = PreviewView(
         pixel_width=canvas.width_px,
         pixel_height=canvas.height_px,
         frame_width=canvas.frame_width,
         frame_height=canvas.frame_height,
         centre=(0.0, 0.0),
-        background=canvas.background,
+        background=background or canvas.background,
     )
     return scene_camera(view, camera)
 
@@ -173,7 +174,7 @@ def farm_pays(project: Project, first: int, last: int) -> bool:
     scene for itself, so a short or light export is done before they are of use: three frames spread over the
     range are drawn here (each twice, the second time is the steady cost) and the whole is estimated."""
     canvas = project.canvas
-    camera = make_camera(canvas, project.camera)
+    camera = make_camera(canvas, project.camera, project.view_background)
     evaluator = Evaluator(project)
     costs = []
     for k in (1, 2, 3):
@@ -216,7 +217,7 @@ def rendered_frames(
             if pool is not None:
                 pool.close()
     canvas = project.canvas
-    camera = make_camera(canvas, project.camera)
+    camera = make_camera(canvas, project.camera, project.view_background)
     evaluator = Evaluator(project)
     for i in range(resume, last):
         t = i / canvas.fps

@@ -109,7 +109,7 @@ def measure(project: Project, options: RenderOptions) -> float:
     sized = apply_options(project, options)
     canvas = sized.canvas
     first, last = frame_window(canvas, options)
-    camera, evaluator = make_camera(canvas, sized.camera), Evaluator(sized)
+    camera, evaluator = make_camera(canvas, sized.camera, sized.view_background), Evaluator(sized)
     costs = []
     for k in (1, 2, 3):
         t = (first + (last - first) * k // 4) / canvas.fps

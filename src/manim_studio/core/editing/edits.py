@@ -504,11 +504,17 @@ def unpin_label(project: Project, label_id: str, position: Any = None) -> Edit:
 
 
 def _unpinned(layers: list[Layer], gone: set[str]) -> list[Layer]:
-    """``layers`` with the pins to ``gone`` layers taken off (their labels stay, at their offsets)."""
-    return [
-        x.model_copy(update={"pin": None}) if x.pin is not None and x.pin.target in gone else x
-        for x in layers
-    ]
+    """``layers`` with the pins to ``gone`` layers taken off (their labels stay, at their offsets), and a
+    camera following a ``gone`` layer stops following it (ADR 0083)."""
+    out = []
+    for x in layers:
+        if x.pin is not None and x.pin.target in gone:
+            x = x.model_copy(update={"pin": None})
+        if x.is_camera and x.spec.params.get("follow") in gone:
+            params = {k: v for k, v in x.spec.params.items() if k not in ("follow", "follow_offset")}
+            x = x.model_copy(update={"spec": x.spec.model_copy(update={"params": params})})
+        out.append(x)
+    return out
 
 
 def _validated(project: Project, layers: list[Layer], verb: str) -> Edit:
@@ -997,12 +1003,13 @@ def set_property(
 
 def clear_track(project: Project, layer_id: str, prop: str, at: float) -> Edit:
     """Remove ``prop``'s keyframes, keeping the value they give at ``at`` as the base."""
-    from ..engine.evaluator import layer_transform  # sampling rules live with the evaluator (imports Manim)
+    from ..engine.evaluator import camera_transform, layer_transform  # sampling rules live with the evaluator
 
     layer = _layer(project, layer_id)
     if prop not in layer.tracks:
         raise EditError(f"layer {layer_id!r} has no {prop} keyframes")
-    value = getattr(layer_transform(layer, at), prop)
+    sample = camera_transform if layer.is_camera else layer_transform  # a camera eases its size (ADR 0083)
+    value = getattr(sample(layer, at), prop)
     base = layer.base.model_dump()
     base[prop] = value
     tracks = {name: keys for name, keys in layer.tracks.items() if name != prop}
