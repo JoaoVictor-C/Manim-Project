@@ -116,6 +116,22 @@ def test_click_selects_the_front_most_object_and_outlines_it(window) -> None:
     assert window.document.undo_stack.count() == 0  # a click is not an edit
 
 
+def test_the_pivot_cross_of_a_line_snaps_to_its_ends_not_beside_them(window, qt_app) -> None:
+    """A line is flat, so its selection box is padded to a usable width; the snap points come from the
+    unpadded box, or the corners of the padding (as far from the line as the padding is wide, which depends
+    on the canvas size) were taken for the nearest end."""
+    from manim_studio.core.editing import edits
+
+    spec = Spec(type="Line", params={"start": [0.0, 1.5], "end": [0.0, -1.5]})
+    window.document.apply(edits.add_layer(window.project, spec, layer_id="vline"), "Add line")
+    window.selection.select_layer("vline")
+    qt_app.processEvents()
+    outline = window.canvas.outline
+    assert outline is not None and outline.box.corners[:, 0].max() - outline.box.corners[:, 0].min() > 1e-3
+    assert outline.snaps[:, 0] == pytest.approx(0.0, abs=1e-9)  # on the line, not at the padding's sides
+    assert {round(float(y), 6) for y in outline.snaps[:, 1]} == {-1.5, 0.0, 1.5}
+
+
 def test_stage_text_tool_places_an_object_at_the_click_and_returns_to_select(window) -> None:
     window.stage_tool_buttons["text"].click()
     pos = px(window, -2.0, 1.0)

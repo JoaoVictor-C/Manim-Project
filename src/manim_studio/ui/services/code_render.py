@@ -361,7 +361,8 @@ class CodeRenderService(QObject):
             return
         if spare.job is None or spare.cancelled:
             return
-        if "frame" in message:
+        # An error carries a "frame" too (how far the scene got, ADR 0067): it must not read as progress.
+        if "frame" in message and "error" not in message and not message.get("done"):
             spare.frames = int(message["frame"])
             self._set(spare.layer_id, CodeStatus("rendering", frames=spare.frames))
         elif message.get("done"):

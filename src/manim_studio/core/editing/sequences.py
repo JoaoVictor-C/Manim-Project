@@ -346,13 +346,18 @@ def _relayout(project: Project, found: Sequence, maps: dict[str, tuple[float, fl
         data = layer.model_dump(by_alias=True)
         ids = clip_ids.get(layer.id, set())
         life = dict(data["lifetime"])
-        for c in data["clips"]:
-            if c["id"] not in ids:
-                continue
-            if life.get("in") is not None and abs(life["in"] - c["start"]) < half:
-                life["in"] = scaled(life["in"])
-            if life.get("out") is not None and abs(life["out"] - (c["start"] + c["duration"])) < half:
-                life["out"] = scaled(life["out"])
+        members = [c for c in data["clips"] if c["id"] in ids]
+        # Decided from the lifetime as it was, once: a scaled "in" must not be taken for the edge of the next
+        # clip (with several clips on a layer it was scaled again and again).
+        scale_in = life.get("in") is not None and any(abs(life["in"] - c["start"]) < half for c in members)
+        scale_out = life.get("out") is not None and any(
+            abs(life["out"] - (c["start"] + c["duration"])) < half for c in members
+        )
+        if scale_in:
+            life["in"] = scaled(life["in"])
+        if scale_out:
+            life["out"] = scaled(life["out"])
+        for c in members:
             c["duration"] *= factor
             c["start"] = scaled(c["start"])
         data["lifetime"] = life

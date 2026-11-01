@@ -596,6 +596,32 @@ def test_the_python_preview_follows_edits_after_a_moment(window, qt_app) -> None
     assert not p._python_stale and p.python_code.toPlainText() != before
 
 
+def test_a_pending_preview_does_not_outlive_its_window(qt_app, tmp_path) -> None:
+    """An edit starts the 400 ms timer; a window deleted before it fires must take the timer with it (the
+    timer used to have no parent, so it fired on a page whose buttons were already gone)."""
+    import time
+
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    win = open_window(qt_app, tmp_path)  # not the fixture's: this test deletes its window
+    p = page(win)
+    p._python_timer.setInterval(30)
+    win.document.apply(edits.update_layer(win.project, "sq", name="Renamed square"), "Rename")
+    assert p._python_timer.isActive()
+    timer, button = p._python_timer, p.python_save
+    win.ask_stop_export = lambda: "stop"
+    win.close()
+    win.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+    assert not shiboken6.isValid(button)
+    assert not shiboken6.isValid(timer)  # gone with the window, not left to fire on its widgets
+    deadline = time.monotonic() + 0.3
+    while time.monotonic() < deadline:  # past the timer's interval: nothing may be left to run
+        qt_app.processEvents()
+        time.sleep(0.01)
+
+
 def test_a_stale_preview_is_refreshed_when_the_page_is_shown(window) -> None:
     win = window()
     p = page(win)

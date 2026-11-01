@@ -454,3 +454,19 @@ def test_the_readable_export_renders_what_the_editor_shows(trusted, tmp_path) ->
     export = to_python(project, "Proof")
     assert export.readable
     assert_matches_editor(project, rendered(export.code, "Proof", tmp_path))
+
+
+def test_each_test_starts_with_nothing_trusted_a() -> None:
+    """With the next test: what one test trusts is not trusted by the tests after it in the same process."""
+    from manim_studio.core.code import python_templates
+
+    code = next(iter(python_templates.LAYER_TEMPLATES.values()))
+    assert not python_object.is_trusted(code)
+    TrustStore().trust([code])  # the store every window of the editor writes to
+    assert python_object.is_trusted(code)
+
+
+def test_each_test_starts_with_nothing_trusted_b() -> None:
+    from manim_studio.core.code import python_templates
+
+    assert not python_object.is_trusted(next(iter(python_templates.LAYER_TEMPLATES.values())))

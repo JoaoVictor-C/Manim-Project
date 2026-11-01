@@ -237,7 +237,9 @@ class DeliverPage(Page):
         self._python_stale = True
         self._destination = DESTINATIONS[0]
         self._last: QueueJob | None = None  # what the queue panel shows once nothing is running
-        self._python_timer = QTimer(singleShot=True, interval=PYTHON_DELAY_MS)
+        # Owned by the window: a parentless timer outlives the page's widgets and, firing after the window is
+        # gone, ran refresh_python on buttons Qt had already deleted.
+        self._python_timer = QTimer(self.window, singleShot=True, interval=PYTHON_DELAY_MS)
         self._python_timer.timeout.connect(self.refresh_python)
 
         self.destinations: dict[str, DestinationCard] = {}

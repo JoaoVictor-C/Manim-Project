@@ -100,6 +100,16 @@ def _fresh_settings(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_trust_store(tmp_path_factory, monkeypatch):
+    """Every test starts with nothing trusted (ADR 0019). The session-wide trust file above is shared by all
+    the tests of a process: code one test trusted (an editor window trusts the library's own templates) made a
+    later test's Python object count as trusted, so its edit waited for a build worker that never answered."""
+    monkeypatch.setenv(
+        "MANIM_STUDIO_TRUST_FILE", str(tmp_path_factory.mktemp("manim-studio-trust") / "trusted.json")
+    )
+
+
+@pytest.fixture(autouse=True)
 def _fresh_preset_library(tmp_path_factory, monkeypatch):
     """Every test starts with an empty code preset library (only the built-in presets)."""
     monkeypatch.setenv(

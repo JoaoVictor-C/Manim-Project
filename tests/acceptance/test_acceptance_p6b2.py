@@ -34,7 +34,10 @@ X = graph_model.BY_NAME["x"]
 @pytest.fixture
 def window(qt_app):
     win = MainWindow()
-    win.resize(1400, 900)
+    # Wide enough for the Animate page (its minimum is 1470 px): in a narrower window Qt grows the window to
+    # that minimum a few events after the page appears, which widens the graph and moves every key under the
+    # test's feet.
+    win.resize(1600, 900)
     win.show()
     menu_action(win.menuBar(), "File", "New").trigger()
     menu_action(win.layers.library_menu, "Circle").trigger()

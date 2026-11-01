@@ -299,3 +299,83 @@ def test_sequences_change_no_frame_and_no_cached_span() -> None:
         after = render_frame(make_camera(grouped.canvas), Evaluator(grouped).frame(t))
         assert np.array_equal(before, after)
     assert to_python(plain, "Seq").code == to_python(grouped, "Seq").code
+
+
+def one_layer_sequence() -> Project:
+    """Several clips and keys on ONE layer, appearing at 1 s and disappearing at 4 s (the first clip's start
+    and the last one's end), with a key before the layer appears so the sequence starts before the layer."""
+    layer = Layer(
+        id="m",
+        spec=Spec(type="Square"),
+        lifetime=Lifetime(in_=1.0, out=4.0),
+        clips=[
+            Clip(id="c1", kind="FadeIn", start=1.0, duration=1.0),
+            Clip(id="c2", kind="Indicate", start=2.0, duration=1.0),
+            Clip(id="c3", kind="Indicate", start=3.0, duration=1.0),
+        ],
+        tracks={
+            "rotation": [
+                Keyframe(t=0.0, value=0.0),
+                Keyframe(t=2.0, value=45.0),
+                Keyframe(t=4.0, value=90.0),
+            ],
+        },
+    )
+    project = Project(canvas=Canvas(width_px=320, height_px=180, fps=10, duration=12.0), layers=[layer])
+    members = Members(
+        clips=(("m", "c1"), ("m", "c2"), ("m", "c3")),
+        keys=(("m", "rotation", 0.0), ("m", "rotation", 2.0), ("m", "rotation", 4.0)),
+    )
+    return make_sequence(project, "Run", members).project
+
+
+def lifetimes(project: Project) -> dict:
+    layer = project.layer("m")
+    return {
+        "in": layer.lifetime.in_,
+        "out": layer.lifetime.out,
+        "clips": [(c.id, c.start, c.duration) for c in layer.clips],
+        "keys": [(k.t, k.value) for k in layer.tracks["rotation"]],
+    }
+
+
+@pytest.mark.parametrize("length", [8.0, 2.0, 6.0])
+def test_retiming_several_clips_on_one_layer_scales_each_and_the_lifetime_once(length: float) -> None:
+    project = one_layer_sequence()
+    seq_id = project.sequences[0].id
+    before = project.model_dump(by_alias=True)
+    factor = length / 4.0  # the sequence lasts 0 s .. 4 s
+    edit = retime_sequence(project, seq_id, length)
+    assert project.model_dump(by_alias=True) == before  # the edit never touches the project it was given
+    after = lifetimes(edit.project)
+    assert after["clips"] == [
+        (cid, pytest.approx(start * factor), pytest.approx(factor))
+        for cid, start in (("c1", 1.0), ("c2", 2.0), ("c3", 3.0))
+    ]
+    # Appears at / Disappears at sat on the first clip's start and the last clip's end: scaled with them once
+    assert after["in"] == pytest.approx(1.0 * factor)
+    assert after["out"] == pytest.approx(4.0 * factor)
+    assert [t for t, _ in after["keys"]] == pytest.approx([0.0, 2.0 * factor, 4.0 * factor], abs=0.05)
+    seq = edit.project.sequences[0]
+    assert [r.t for r in seq.keys] == [k for k, _ in after["keys"]]  # the sequence follows its keys
+    assert span(edit.project, seq) == pytest.approx((0.0, length), abs=0.05)
+    # and the scaled sequence scales back to what it was (undo restores the snapshot; this checks the maths)
+    back = retime_sequence(edit.project, seq_id, 4.0).project
+    assert lifetimes(back)["in"] == pytest.approx(1.0) and lifetimes(back)["out"] == pytest.approx(4.0)
+    assert [c[1:] for c in lifetimes(back)["clips"]] == [
+        (pytest.approx(1.0), pytest.approx(1.0)),
+        (pytest.approx(2.0), pytest.approx(1.0)),
+        (pytest.approx(3.0), pytest.approx(1.0)),
+    ]
+
+
+def test_moving_several_clips_on_one_layer_carries_the_lifetime_once() -> None:
+    project = one_layer_sequence()
+    before = project.model_dump(by_alias=True)
+    edit = move_sequence(project, project.sequences[0].id, 2.0)
+    assert project.model_dump(by_alias=True) == before
+    after = lifetimes(edit.project)
+    assert [(cid, start) for cid, start, _ in after["clips"]] == [("c1", 3.0), ("c2", 4.0), ("c3", 5.0)]
+    assert (after["in"], after["out"]) == (3.0, 6.0)
+    assert [t for t, _ in after["keys"]] == [2.0, 4.0, 6.0]
+    assert span(edit.project, edit.project.sequences[0]) == (2.0, 6.0)

@@ -47,6 +47,11 @@ if "STRUCT" in code:
     print(json.dumps({"error": "NameError: name 'x' is not defined", "line": 3, "type": "NameError",
                       "where": "helper:geo", "traceback": "Traceback\n  line 3"}), flush=True)
     sys.exit(1)
+if "TIMED" in code:  # the real runner always says how many frames it had drawn (ADR 0067), even 0
+    frames = 5 if "LATE" in code else 0
+    print(json.dumps({"error": "NameError: name 'x' is not defined", "line": 4, "type": "NameError",
+                      "where": "code", "traceback": "", "frame": frames}), flush=True)
+    sys.exit(1)
 if "CRASH" in code:
     sys.exit(3)
 if "HELPER" in code:  # says which helpers it was sent, as an error in one of them (ADR 0058)
@@ -178,6 +183,16 @@ def test_structured_errors_keep_type_where_and_traceback(service, qt_app) -> Non
         "Traceback\n  line 3",
     )
     assert status.line == 3
+
+
+@pytest.mark.parametrize(("code", "seconds"), [("TIMED", None), ("TIMED LATE", 0.5)])
+def test_an_error_that_carries_its_frame_is_an_error_not_progress(service, qt_app, code, seconds) -> None:
+    """The runner's error message has a "frame" key like its progress messages do: the error wins."""
+    service.sync(trusted(service, project(c=code)))
+    wait_until(qt_app, lambda: service.status("c").state == "error")
+    status = service.status("c")
+    assert (status.error, status.line, status.seconds) == ("NameError: name 'x' is not defined", 4, seconds)
+    assert status.error_type == "NameError"
 
 
 def test_an_old_message_without_a_type_is_read_from_its_text(service, qt_app) -> None:

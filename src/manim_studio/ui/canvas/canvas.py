@@ -679,7 +679,9 @@ class CanvasWidget(QWidget):
         anchor = (float(pivot[0]), float(pivot[1]))
         a, b = self._evaluator.world_affine(layer, t)
         box = affine_box(points, anchor, a, b, MIN_BOX_PX / self.px_per_unit())
-        snaps = box.snap_points()  # a line snaps to its ends, not beside them
+        # A line snaps to its ends, not beside them: from the unpadded box (the padded one has corners
+        # MIN_BOX_PX/2 off a flat shape, so which snap point was nearest depended on the canvas size).
+        snaps = affine_box(points, anchor, a, b).snap_points()
         return Outline(path, path.boundingRect(), anchor, box, snaps)
 
     def paintEvent(self, event) -> None:
