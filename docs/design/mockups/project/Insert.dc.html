@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Insert</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>
+body{margin:0}
+.cap{position:absolute;color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
+.note{position:absolute;color:var(--muted);font-size:11.5px;line-height:1.5}
+</style>
+</helmet>
+<div class="lumen {{themeClass}}" style="width:1440px;height:900px;position:relative;background:var(--bg)">
+
+<!-- (a) Layers: the Add object popover, opened from the footer button (or the header plus, or Shift+A) -->
+<div class="cap" style="left:32px;top:24px">Add object popover (Shift+A) - search, recent, categories</div>
+<div class="card" style="position:absolute;left:32px;top:48px;width:288px;height:820px">
+  <div class="card-h"><h3>Layers</h3><span class="chip">12</span><div class="grow"></div>
+    <button class="ibtn sm" aria-label="Add layer"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="ibtn sm" aria-label="Layer options"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+  </div>
+  <div style="padding:10px 10px 4px"><div class="field"><svg class="i sm" style="color:var(--faint)" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span style="color:var(--faint)">Filter layers</span></div></div>
+  <div class="card-b" style="padding-top:6px">
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg></div><span class="nm">Camera</span><span class="chip" style="height:18px;font-size:10px">camera</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l9 18H3z"/></svg></div><span class="nm">tri</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></div><span class="nm">dot</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow sel"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></div><span class="nm">circle</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/></svg></div><span class="nm">square</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">station 3</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Roll</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">station 2</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Zoom</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Pan</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg></div><span class="nm">Floor</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+  </div>
+  <div style="padding:10px;border-top:1px solid var(--line);display:flex;gap:8px">
+    <button class="btn sm" style="flex:1;box-shadow:inset 0 0 0 1px var(--accent-line)"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add object</button>
+    <button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>Presets</button>
+  </div>
+</div>
+<div class="pop" style="left:36px;top:360px;height:452px">
+  <div class="field focus" style="height:32px"><svg class="i sm" style="color:var(--faint)" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span style="color:var(--faint)">Search objects</span></div>
+  <div class="recent"><h4>Recent</h4><span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg>Cube</span> <span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M6 7h6M9 4v6M14 8h5M6 17h6M14 15l5 4M19 15l-5 4"/></svg>MathTex</span> <span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M4 20L20 4M11 4h9v9"/></svg>Arrow</span> <span class="chip"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>Circle</span></div>
+  <div class="body">
+    <div class="cats">
+          <button class="ibtn on" aria-label="Shapes"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 7-3.5 11h-11L3 10z"/></svg></button>
+          <button class="ibtn" aria-label="Lines"><svg class="i" viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg></button>
+          <button class="ibtn" aria-label="Text"><svg class="i" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></button>
+          <button class="ibtn" aria-label="Math"><svg class="i" viewBox="0 0 24 24"><path d="M6 7h6M9 4v6M14 8h5M6 17h6M14 15l5 4M19 15l-5 4"/></svg></button>
+          <button class="ibtn" aria-label="Media"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 17l5-4 4 3 3-2 6 4"/></svg></button>
+          <button class="ibtn" aria-label="Graphs"><svg class="i" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15c3 0 3-8 6-8s3 8 7 8"/></svg></button>
+          <button class="ibtn" aria-label="3D"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
+          <button class="ibtn" aria-label="Simulation"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/></svg></button>
+          <button class="ibtn" aria-label="Code"><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg></button>
+    </div>
+    <div class="grid">
+      <h4>Shapes</h4>
+      <div class="tiles">
+            <div class="tile on"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>Circle</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="6"/></svg>Ellipse</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/></svg>Square</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12"/></svg>Rectangle</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="4"/></svg>Rounded rectangle</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 18H3z"/></svg>Triangle</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M4 4v16h16z"/></svg>Right triangle</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 7-3.5 11h-11L3 10z"/></svg>Regular polygon</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l-7 18 16-12H3l16 12z"/></svg>Star polygon</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 7-3.5 11h-11L3 10z"/></svg>Pentagon</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>Hexagon</div>
+            <div class="tile"><svg class="i" viewBox="0 0 24 24"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/></svg>Octagon</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>Presets...</button><span class="hint">Enter adds &nbsp; Esc closes</span></div>
+</div>
+
+<!-- (b) the tool rail with a flyout open on the Shape tool -->
+<div class="cap" style="left:380px;top:24px">Tool rail: groups, last-used variant, flyout of the group</div>
+<div class="card" style="position:absolute;left:380px;top:48px;width:620px;height:820px">
+  <div class="card-h"><h3>Stage</h3><span class="chip mono">1280 x 720</span><div class="grow"></div><div class="seg"><span>Scene</span><span class="on">Game</span></div></div>
+  <div class="card-b" style="position:relative">
+    <div class="stage"></div>
+    <div class="frame" style="left:56px;top:60px;width:500px;height:281px;background:radial-gradient(420px 240px at 50% 40%, #16224a, #0b1226)"></div>
+    <div class="pill rail" style="left:14px;top:60px">
+        <button class="ibtn" aria-label="Select (V)"><svg class="i" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></svg></button>
+        <button class="ibtn" aria-label="Hand (H)"><svg class="i" viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7a6 6 0 01-6 6H10a5 5 0 01-4-2l-2-3a1.5 1.5 0 012-2l2 2"/></svg></button>
+        <div class="rule"></div>
+        <button class="ibtn on fly" aria-label="Shape (R)"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></button>
+        <button class="ibtn fly" aria-label="Line (L)"><svg class="i" viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg></button>
+        <button class="ibtn fly" aria-label="Text (T)"><svg class="i" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></button>
+        <button class="ibtn fly" aria-label="Math (E)"><svg class="i" viewBox="0 0 24 24"><path d="M6 7h6M9 4v6M14 8h5M6 17h6M14 15l5 4M19 15l-5 4"/></svg></button>
+        <button class="ibtn fly" aria-label="Media (I)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 17l5-4 4 3 3-2 6 4"/></svg></button>
+        <button class="ibtn fly" aria-label="Graph (X)"><svg class="i" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15c3 0 3-8 6-8s3 8 7 8"/></svg></button>
+        <button class="ibtn fly" aria-label="3D (D)"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
+        <div class="rule"></div>
+        <button class="ibtn" aria-label="Anchor (P)"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></button>
+    </div>
+    <div class="menu" style="position:absolute;left:58px;top:92px;min-width:210px">
+          <div class="chk"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>Circle<span class="kbd">O</span></div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="6"/></svg>Ellipse</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/></svg>Square</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12"/></svg>Rectangle<span class="kbd">Shift+R</span></div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="4"/></svg>Rounded rectangle</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l9 18H3z"/></svg>Triangle</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><path d="M4 4v16h16z"/></svg>Right triangle</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l9 7-3.5 11h-11L3 10z"/></svg>Regular polygon</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l-7 18 16-12H3l16 12z"/></svg>Star polygon</div>
+          <div class=""><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>Hexagon</div>
+    </div>
+    <div class="tip" style="position:absolute;left:58px;top:60px">Shape: Circle &nbsp;<span class="kbd">R</span></div>
+  </div>
+</div>
+<div class="note" style="left:1032px;top:56px;width:384px">
+  <b style="color:var(--text)">Groups.</b> Select and Hand | the insert tools | Anchor, split by hairlines.<br>
+  <b style="color:var(--text)">Insert tools</b> show the glyph of the variant used last and a small corner triangle. A click arms the tool (the next click on the stage places the variant); the triangle, a right-click or a long press opens the flyout, with the keys at the right and the last-used variant marked in the accent.<br>
+  <b style="color:var(--text)">Keys</b> (canvas focused): V H P, R L T E I X D; O, Shift+R, Shift+L ... pick a variant at once. Esc goes back to Select.
+</div>
+
+<!-- (c) a short window folds the insert tools into one button -->
+<div class="cap" style="left:1032px;top:296px">Short window: the insert tools fold into one button</div>
+<div class="card" style="position:absolute;left:1032px;top:320px;width:384px;height:240px">
+  <div class="card-b" style="position:relative">
+    <div class="stage"></div>
+    <div class="pill rail" style="left:14px;top:14px">
+        <button class="ibtn" aria-label="Select (V)"><svg class="i" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></svg></button>
+        <button class="ibtn" aria-label="Hand (H)"><svg class="i" viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7a6 6 0 01-6 6H10a5 5 0 01-4-2l-2-3a1.5 1.5 0 012-2l2 2"/></svg></button>
+        <div class="rule"></div>
+        <button class="ibtn on fly" aria-label="Insert tools"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></button>
+        <div class="rule"></div>
+        <button class="ibtn" aria-label="Anchor (P)"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></button>
+    </div>
+    <div class="menu" style="position:absolute;left:58px;top:60px;min-width:150px">
+          <div><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>Shape</div><div><svg class="i sm" viewBox="0 0 24 24"><path d="M4 20L20 4"/></svg>Line</div><div><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Text</div><div><svg class="i sm" viewBox="0 0 24 24"><path d="M6 7h6M9 4v6M14 8h5M6 17h6M14 15l5 4M19 15l-5 4"/></svg>Math</div><div><svg class="i sm" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 17l5-4 4 3 3-2 6 4"/></svg>Media</div>
+    </div>
+  </div>
+</div>
+<div class="note" style="left:1032px;top:580px;width:384px">
+  The folded button stands for the group used last; its triangle lists every group, each with its variants.
+</div>
+
+</div>
+</x-dc>
+</body>
+</html>

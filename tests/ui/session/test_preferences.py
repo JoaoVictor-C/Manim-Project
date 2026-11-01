@@ -651,3 +651,26 @@ def test_sizes_saved_before_the_current_layout_are_dropped_once(tmp_path) -> Non
     assert prefs.window()[1] is None and prefs.window()[0] is not None  # the window's place stays
     prefs.set_page_sizes("compose", [QByteArray(b"new")])
     assert Preferences(path).page_sizes("compose") != []  # sizes saved now are kept on the next start
+
+
+def test_the_insert_tools_remember_the_recent_objects_and_the_variants(tmp_path) -> None:
+    """ADR 0087: the Add object card's Recent row and each insert tool's variant, kept across sessions."""
+    path = tmp_path / "insert.ini"
+    prefs = Preferences(path)
+    assert prefs.insert_recent() == [] and prefs.insert_variants() == {}
+    prefs.set_insert_recent([f"obj:T{i}" for i in range(9)])
+    prefs.set_insert_variants({"shape": "Star", "line": "Arrow"})
+    again = Preferences(path)
+    assert again.insert_recent() == [f"obj:T{i}" for i in range(6)]  # at most six
+    assert again.insert_variants() == {"shape": "Star", "line": "Arrow"}
+
+
+def test_unreadable_insert_settings_read_as_nothing_and_never_raise(tmp_path) -> None:
+    path = tmp_path / "bad.ini"
+    prefs = Preferences(path)
+    prefs._settings.setValue("insert/recent", "{not json")
+    prefs._settings.setValue("insert/variants", "[1, 2]")
+    assert prefs.insert_recent() == [] and prefs.insert_variants() == {}
+    prefs._settings.setValue("insert/recent", '["obj:Circle", 3, null]')
+    assert prefs.insert_recent() == ["obj:Circle"]
+    prefs.set_insert_recent([object()])  # not storable as JSON: ignored, not raised

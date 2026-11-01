@@ -54,6 +54,9 @@ CAMERA_FILL_ALPHA = 13  # its faint fill
 LAYOUT_GUIDE_ALPHA = 170  # layout guides (ADR 0074): the accent, a little see-through
 DOT_GAP = 18  # the dotted pasteboard (Lumen, ADR 0063)
 SHADOW_PX = 22  # how far the frame's shadow reaches
+# The Stage tools (the tool rail, ADR 0087): the insert tools place an object where the Stage is clicked.
+INSERT_MODES = frozenset({"shape", "line", "text", "math", "media", "graph", "solid"})
+TOOL_MODES = frozenset({"select", "hand", "anchor"}) | INSERT_MODES
 
 
 _colours_for = theme.THEME.name
@@ -107,13 +110,14 @@ class CanvasWidget(QWidget):
     resized = Signal()
     view_changed = Signal()  # zoom or pan: the window renders again and updates the readout
     draftChanged = Signal(bool)  # the picture is (True) or is no longer a draft: the Stage header's chip
-    addRequested = Signal(str, float, float)  # text/shape tool: kind and scene position in units
+    addRequested = Signal(str, float, float)  # an insert tool's click: tool, position in units
+    toolCancelled = Signal()  # Escape while an insert tool is armed: back to Select
     codeDropped = Signal(dict, float, float)  # a Code workspace drag (code_drag payload), x, y in units
     filesDropped = Signal(list, float, float)  # .py files dropped from the desktop, x, y in units
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        # 270 + the Stage's tool rail (44 px) and its gap (6) = the old 320 px stage minimum
+        # 270 + the Stage's tool rail column (48 px) = about the old 320 px stage minimum
         self.setMinimumSize(270, 180)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAcceptDrops(True)  # code from the Code workspace, .py files (P12.7)
@@ -152,7 +156,7 @@ class CanvasWidget(QWidget):
         self.outline: Outline | None = None
         self.readout: tuple[QPointF, str] | None = None  # a value shown next to the cursor while dragging
         self.tool = None  # receives mouse/key input (canvas_tools.MoveTool)
-        self.interaction_mode = "select"  # select, hand, anchor, text, or shape (Stage tool rail)
+        self.interaction_mode = "select"  # select, hand, anchor or an insert tool (Stage tool rail)
         self.view = viewport.View()  # editor state, remembered per project in Preferences (ADR 0023)
         self.view_locked = False  # stop accidental pan and zoom gestures on the stage
         self.motion: motion_overlay.MotionPath | None = None  # the selected layer's path (ADR 0026)
@@ -235,7 +239,7 @@ class CanvasWidget(QWidget):
             self._pan_from = None
 
     def set_interaction_mode(self, mode: str) -> None:
-        if mode not in {"select", "hand", "anchor", "text", "shape"}:
+        if mode not in TOOL_MODES:
             raise ValueError(f"unknown Stage tool {mode!r}")
         if self.interaction_mode != mode:
             self.interaction_mode = mode
@@ -243,7 +247,7 @@ class CanvasWidget(QWidget):
             self.unsetCursor()
             if mode == "hand":
                 self.setCursor(Qt.CursorShape.OpenHandCursor)
-            elif mode == "anchor" or mode in {"text", "shape"}:
+            elif mode == "anchor" or mode in INSERT_MODES:
                 self.setCursor(Qt.CursorShape.CrossCursor)
 
     def zoom(self, factor: float, pos: QPointF | None = None) -> None:
@@ -1151,7 +1155,8 @@ class CanvasWidget(QWidget):
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
             return
-        if event.button() == Qt.MouseButton.LeftButton and self.interaction_mode in {"text", "shape"}:
+        if event.button() == Qt.MouseButton.LeftButton and self.interaction_mode in INSERT_MODES:
+            self.setFocus()
             if self._tool_input():
                 point = self.to_units(event.position())
                 self.addRequested.emit(self.interaction_mode, float(point[0]), float(point[1]))
@@ -1206,6 +1211,9 @@ class CanvasWidget(QWidget):
             self.tool.release()
 
     def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape and self.interaction_mode in INSERT_MODES:
+            self.toolCancelled.emit()
+            return
         if self.tool is not None and self._canvas is not None and self.tool.key(event):
             return
         if event.key() == Qt.Key.Key_F and not event.modifiers():  # Unity's F (P7.4)

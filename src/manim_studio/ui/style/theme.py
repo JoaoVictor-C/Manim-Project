@@ -463,11 +463,12 @@ def palette(c: Colours | None = None) -> QPalette:
 
 def _svg_dir(c: Colours) -> Path:
     """The few images a stylesheet needs (a check mark, chevrons), drawn in this theme's colours."""
-    key = hashlib.sha1(f"{c.name}{c.text}{c.muted}{c.on_accent}".encode()).hexdigest()[:10]
+    key = hashlib.sha1(f"{c.name}{c.text}{c.muted}{c.on_accent}{c.accent_text}".encode()).hexdigest()[:10]
     folder = Path(tempfile.gettempdir()) / f"manim-studio-ui-{key}"
     folder.mkdir(parents=True, exist_ok=True)
     images = {
         "check.svg": f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="{c.on_accent[:7]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        "check-accent.svg": f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="{c.accent_text[:7]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         "chevron-down.svg": f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="{c.muted[:7]}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         "chevron-right.svg": f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" fill="none" stroke="{c.muted[:7]}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         "chevron-open.svg": f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="{c.muted[:7]}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -482,6 +483,12 @@ def _svg_dir(c: Colours) -> Path:
 
 def _url(path: Path) -> str:
     return "url(" + str(path).replace(chr(92), "/") + ")"
+
+
+def image_url(name: str, c: Colours | None = None) -> str:
+    """The stylesheet ``url(...)`` of one of the stylesheet's small images (``check.svg``, ``check-accent.svg``,
+    ``chevron-down.svg``...), drawn in the colours of ``c`` (the theme in use)."""
+    return _url(_svg_dir(c or THEME) / name)
 
 
 _RULES: list = []  # functions ``(Colours) -> str``: stylesheet rules a module owns (see ``register_rules``)

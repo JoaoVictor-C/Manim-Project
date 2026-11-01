@@ -50,6 +50,17 @@ GESTURES: tuple[Row, ...] = (
     Row("Canvas", "Select a part of an object; back out", "Double-click / Escape"),
     Row("Canvas", "Cancel a drag", "Escape"),
     Row("Canvas", "Zoom to the selected objects (the whole frame when none)", "F"),
+    Row("Canvas", "Select, Hand and Anchor tools", "V, H, P"),
+    Row(
+        "Canvas",
+        "Insert tools: Shape, Line, Text, Math, Media, Graph, 3D (Esc: Select)",
+        "R, L, T, E, I, X, D",
+    ),
+    Row(
+        "Canvas",
+        "Insert tool with a variant: Circle, Rectangle, Arrow, Number, Tex, SVG, Number line, Sphere",
+        "O, Shift+R, Shift+L, Shift+T, Shift+E, Shift+I, Shift+X, Shift+D",
+    ),
     Row("Canvas", "Zoom about the cursor / pan", "Ctrl+Wheel / Wheel, Middle-drag"),
     Row("Canvas", "Bend a motion path; smooth or straighten a key", "Drag a handle / Double-click a key"),
     Row("Timeline", "Move or trim a clip, move a key or a marker", "Drag (Alt: no snapping)"),

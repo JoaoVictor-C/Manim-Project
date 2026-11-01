@@ -22,17 +22,14 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QDesktopServices, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
-    QButtonGroup,
     QDialog,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QInputDialog,
     QMainWindow,
     QMessageBox,
     QSlider,
     QToolButton,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -55,9 +52,10 @@ from ..core.model.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.sound import audio, subtitles
 from ..logging_config import LOGGER_NAME, get_logger, log_dir, setup_logging
 from .canvas import arrange, snap_guides
-from .canvas.canvas import CanvasWidget
+from .canvas.canvas import INSERT_MODES, CanvasWidget
 from .canvas.canvas_tools import MoveTool
 from .canvas.stage_header import GAME_HINT, SCENE_HINT, StageHeader
+from .canvas.tool_rail import RailColumn, ToolRail
 from .canvas.viewport import ZOOM_STEP
 from .deliver.export_dialog import ExportDialog
 from .exchange.bundle_dialog import BundleProblemDialog, ExportBundleDialog
@@ -213,40 +211,18 @@ class MainWindow(QMainWindow):
         self.stage = QWidget()  # the canvas, with the transport floating over its bottom (ADR 0063)
         layout = QHBoxLayout(self.stage)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.stage_tools = QFrame(self.stage)
-        self.stage_tools.setObjectName("stageToolRail")
-        self.stage_tools.setFixedWidth(44)
-        rail = QVBoxLayout(self.stage_tools)
-        rail.setContentsMargins(4, 6, 4, 6)
-        rail.setSpacing(4)
-        self.stage_tool_buttons: dict[str, QToolButton] = {}
-        self.stage_tool_group = QButtonGroup(self.stage_tools)
-        self.stage_tool_group.setExclusive(True)
-        for mode, label, icon in (
-            ("select", "Select", "tool-select"),
-            ("hand", "Hand", "tool-hand"),
-            ("text", "Place text", "text"),
-            ("shape", "Place circle", "shape"),
-            ("anchor", "Move anchor", "anchor"),
-        ):
-            button = QToolButton(self.stage_tools)
-            button.setObjectName("iconButton")
-            button.setFixedSize(34, 34)
-            button.setAutoRaise(True)
-            button.setCheckable(True)
-            button.setIcon(icons.icon(icon))
-            button.setToolTip(
-                label if mode in {"select", "hand", "anchor"} else f"{label} by clicking on the Stage"
-            )
-            button.setAccessibleName(label)
-            self.stage_tool_group.addButton(button)
-            self.stage_tool_buttons[mode] = button
-            rail.addWidget(button)
-            button.clicked.connect(lambda _checked=False, selected=mode: self._set_stage_tool(selected))
-        rail.addStretch(1)
-        layout.addWidget(self.stage_tools)
+        # the tool rail (ADR 0087): a pill in a strip beside the canvas; insert tools keep their variant
+        self.stage_tools = ToolRail(self.prefs.insert_variants())
+        self.stage_tools.modeRequested.connect(self._set_stage_tool)
+        self.stage_tools.variantsChanged.connect(
+            lambda: self.prefs.set_insert_variants(self.stage_tools.variants)
+        )
+        self.stage_tools.bind_shortcuts(self.canvas)  # V, H, R, L, T... while the canvas has the keyboard
+        self.canvas.toolCancelled.connect(lambda: self._set_stage_tool("select"))
+        self.stage_tool_buttons = self.stage_tools.buttons
+        self.stage_tool_column = RailColumn(self.stage_tools)
+        layout.addWidget(self.stage_tool_column)
         layout.addWidget(self.canvas, 1)
-        self.stage_tool_buttons["select"].setChecked(True)
         self.transport = TransportPill(
             self.play_button,
             self.slider,
@@ -276,6 +252,8 @@ class MainWindow(QMainWindow):
         self.layers = LayersPanel(self.builds)
         self.canvas.addRequested.connect(self._add_from_stage)
         self.layers.playhead = lambda: self.t  # new objects are placed where they are free then (GP)
+        self.layers.set_recent_keys(self.prefs.insert_recent())  # the Add object card's Recent row (ADR 0087)
+        self.layers.recent_save = self.prefs.set_insert_recent
         self.layers.message.connect(lambda text: self.statusBar().showMessage(text, 10000))
         self.layers.trust_code = lambda code: self.trust.trust([code])
         self.layers.setEnabled(False)
@@ -510,6 +488,11 @@ class MainWindow(QMainWindow):
         )
         edit_menu.addAction(self.characters_action)
         edit_menu.addSeparator()
+        self.add_object_action = QAction("Add &Object...", self)  # the Add object card (ADR 0087)
+        self.add_object_action.setShortcut(QKeySequence("Shift+A"))
+        self.add_object_action.setToolTip("Search every object, add a recent one or browse by category")
+        self.add_object_action.triggered.connect(self.show_add_object)
+        edit_menu.addAction(self.add_object_action)
         add_subtitle = QAction("Add &Subtitle", self)
         add_subtitle.setShortcut(QKeySequence("Ctrl+T"))
         add_subtitle.setToolTip("A subtitle at the playhead (ADR 0035)")
@@ -1137,17 +1120,25 @@ class MainWindow(QMainWindow):
         if self._has_project:
             self.statusBar().showMessage(GAME_HINT if game else SCENE_HINT, 8000)
 
+    def show_add_object(self) -> None:
+        """Edit > Add Object (Shift+A): the Add object card, on the Compose page's Layers panel."""
+        if not self._has_project:
+            return
+        if not self.layers.isVisible():
+            self.show_page("compose")
+        button = self.layers.add_button
+        shown = button.isVisible()
+        self.layers.show_add_popover(button if shown else self.stage, below=not shown)
+
     def _set_stage_tool(self, mode: str) -> None:
         self.canvas.set_interaction_mode(mode)
-        button = self.stage_tool_buttons.get(mode)
-        if button is not None and not button.isChecked():
-            button.setChecked(True)
+        self.stage_tools.set_mode(mode)
 
     def _add_from_stage(self, mode: str, x: float, y: float) -> None:
-        type_name = {"text": "Text", "shape": "Circle"}.get(mode)
-        if type_name is None:
+        """An insert tool was clicked on the Stage: add the variant it holds there (ADR 0087)."""
+        if mode not in INSERT_MODES:
             return
-        self.layers.add_object(type_name, position=(x, y))
+        self.layers.add_object(self.stage_tools.variant(mode), position=(x, y))
         self._set_stage_tool("select")
 
     def _sync_stage_view_lock_button(self, locked: bool) -> None:

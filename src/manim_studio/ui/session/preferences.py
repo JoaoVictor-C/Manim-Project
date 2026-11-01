@@ -229,6 +229,45 @@ class Preferences:
         self._settings.setValue(f"options/{name}", value)
         self._settings.sync()
 
+    # -- the insert tools (ADR 0087) ---------------------------------------------------------------
+
+    MAX_INSERT_RECENT = 6
+
+    def insert_recent(self) -> list[str]:
+        """The entries last added with the Add object popover or the tool rail, newest first (keys of
+        ``insert_catalogue``); empty when nothing was saved or what was saved is unreadable."""
+        try:
+            value = json.loads(str(self._settings.value("insert/recent", "[]")))
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, str)][: self.MAX_INSERT_RECENT]
+
+    def set_insert_recent(self, keys: list[str]) -> None:
+        try:
+            self._settings.setValue("insert/recent", json.dumps(list(keys)[: self.MAX_INSERT_RECENT]))
+            self._settings.sync()
+        except (TypeError, ValueError):
+            pass  # a remembered convenience, never worth an error
+
+    def insert_variants(self) -> dict[str, str]:
+        """The variant each insert tool used last: group key -> library type."""
+        try:
+            value = json.loads(str(self._settings.value("insert/variants", "{}")))
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        return {k: v for k, v in value.items() if isinstance(k, str) and isinstance(v, str)}
+
+    def set_insert_variants(self, variants: dict[str, str]) -> None:
+        try:
+            self._settings.setValue("insert/variants", json.dumps(dict(variants)))
+            self._settings.sync()
+        except (TypeError, ValueError):
+            pass
+
     # -- the code editor's settings (P12) ----------------------------------------------------------
 
     def editor_settings(self) -> EditorSettings:

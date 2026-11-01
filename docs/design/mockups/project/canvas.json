@@ -17,7 +17,8 @@
     "Components.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1100, "title": "Components" },
     "Camera.dc.html": { "x": 0, "y": 5300, "w": 1440, "h": 900, "title": "Camera and Scene view" },
     "Tools.dc.html": { "x": 1520, "y": 5300, "w": 1440, "h": 900, "title": "Tools: code, deliver, timeline, welcome" },
-    "Dialogs.dc.html": { "x": 0, "y": 6320, "w": 1440, "h": 900, "title": "Dialogs" }
+    "Dialogs.dc.html": { "x": 0, "y": 6320, "w": 1440, "h": 900, "title": "Dialogs" },
+    "Insert.dc.html": { "x": 1520, "y": 6320, "w": 1440, "h": 900, "title": "Insert: tool rail and Add object" }
   },
   "order": [
     "Foundations.dc.html",
@@ -32,7 +33,8 @@
     "Light.dc.html",
     "Camera.dc.html",
     "Tools.dc.html",
-    "Dialogs.dc.html"
+    "Dialogs.dc.html",
+    "Insert.dc.html"
   ],
   "notes": {
     "title": { "x": 0, "y": -300, "text": "Lumen: the Manim Studio interface", "kind": "title1", "maxW": 2960 }

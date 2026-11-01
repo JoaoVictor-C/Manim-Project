@@ -8,6 +8,7 @@ adding a MathTex or a part never freezes the UI and each action is one undo step
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
@@ -35,7 +36,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -78,10 +78,11 @@ from ...core.model.schema import (
     Project,
     Spec,
 )
-from ..session import code_drag
+from ..session import code_drag, insert_catalogue
 from ..session.build_service import BuildService
 from ..style import icons, theme
 from ..style.fields import pick_colour
+from .add_popover import AddObjectPopover
 from .equation_steps_dialog import EquationStepsDialog, StepsRequest
 from .glyph_colours_dialog import ask_glyph_colours
 from .kinds import KINDS, kind_of, paint_chip
@@ -96,6 +97,7 @@ ROW_GAP = 1  # px above and below a row
 ROW_SIDE = 6  # px between a row and the list's sides
 CHIP = 22  # px: the kind chip
 CARET = 16  # px: the expand caret of a row with children
+RECENT_MAX = 6  # objects the Add object card remembers
 
 
 def _layer_rules(c: theme.Colours) -> str:
@@ -273,6 +275,18 @@ class LayerTree(QTreeWidget):
             event.acceptProposedAction()
             return
         super().dragMoveEvent(event)
+        if self._above_camera(event.position().toPoint()):  # nothing goes above the camera (ADR 0086)
+            event.ignore()
+
+    def _above_camera(self, pos: QPoint) -> bool:
+        """The drag is over the camera's row (the first), not on its lower half: that is above it."""
+        target = self.itemAt(pos)
+        return (
+            target is not None
+            and target.parent() is None
+            and target.data(0, KIND_ROLE) == "camera"
+            and self.dropIndicatorPosition() != QAbstractItemView.DropIndicatorPosition.BelowItem
+        )
 
     def dragLeaveEvent(self, event) -> None:
         self._set_code_hover(False)
@@ -301,7 +315,7 @@ class LayerTree(QTreeWidget):
             return
         item = self.currentItem()
         event.ignore()
-        if item is None or item.parent() is not None:
+        if item is None or item.parent() is not None or self._above_camera(event.position().toPoint()):
             return
         target = self.itemAt(event.position().toPoint())
         while target is not None and target.parent() is not None:
@@ -477,7 +491,7 @@ def add_placed(
     """Add an object where it does not cover the others (GP, ``core.placement``), or at ``position``
     and appearing at ``appear`` seconds when those are given (dropped on the scene or the timeline)."""
     edit = edits.add_layer(project, spec, name=name)
-    new = edit.project.layers[-1]
+    new = edit.project.layer(edits.new_layer_id(project, spec.type))  # not the last: the camera is (ADR 0086)
     where = position if position is not None else placement.position_for(project, spec, t)
     changes: dict = {}
     if tuple(where) != (0.0, 0.0):
@@ -622,15 +636,26 @@ class LayersPanel(QWidget):
         self.list.codeDropped.connect(self.codeDropped)
         self.list.filesDropped.connect(self.filesDropped)
 
-        self.add_button = QToolButton(
-            text="Add object", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup
-        )
-        self.add_button.setMenu(self._library_menu())
+        # Add object (ADR 0087): a card with a search, the recent objects and the categories opens from here,
+        # the header's "+" and Shift+A; the full menu stays on a right-click and in the context menu.
+        self._library_menu()
+        self._recent_keys: list[str] = []  # the last objects added, newest first (``insert_catalogue`` keys)
+        self.recent_save: Callable[[list[str]], None] = lambda keys: None  # set by the window: remembered
+        self.add_popover = AddObjectPopover(self.recent_keys, self._has_camera, self)
+        self.add_popover.picked.connect(self.insert_entry)
+        self.add_popover.presetsRequested.connect(lambda: self.browse_presets())
+        self.add_button = QToolButton(text="Add object")
         self.add_button.setIcon(icons.icon("add"))  # (ADR 0040)
         self.add_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.add_button.setToolTip("Browse every object type, including plugins")
-        self.add_button.setAccessibleName("All object types")
-        self.quick_add_buttons = self._quick_add_buttons()
+        self.add_button.setToolTip(
+            "Add an object: search, recent, categories (Shift+A). Right-click: all types"
+        )
+        self.add_button.setAccessibleName("Add object")
+        self.add_button.clicked.connect(lambda: self.show_add_popover(self.add_button))
+        self.add_button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.add_button.customContextMenuRequested.connect(
+            lambda pos: self.library_menu.popup(self.add_button.mapToGlobal(pos))
+        )
         self.delete_button = self._button(
             "Delete", self.delete_selected, QKeySequence.StandardKey.Delete, "delete"
         )
@@ -688,19 +713,6 @@ class LayersPanel(QWidget):
         top.setContentsMargins(10, 10, 10, 4)
         top.setSpacing(7)
         top.addWidget(self.filter)
-        quick_header = QLabel("QUICK ADD")
-        quick_header.setProperty("role", "section")
-        quick_header.setFont(theme.font("section"))
-        top.addWidget(quick_header)
-        quick_grid = QGridLayout()
-        quick_grid.setContentsMargins(0, 0, 0, 0)
-        quick_grid.setHorizontalSpacing(6)
-        quick_grid.setVerticalSpacing(5)
-        quick_grid.setColumnStretch(0, 1)
-        quick_grid.setColumnStretch(1, 1)
-        for i, button in enumerate(self.quick_add_buttons.values()):
-            quick_grid.addWidget(button, i // 2, i % 2)
-        top.addLayout(quick_grid)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -751,11 +763,13 @@ class LayersPanel(QWidget):
     def _header_buttons(self) -> None:
         """The card header's "+" (add an object: the library menu) and "..." (the layer options: delete,
         order and parts) as small icon buttons; the window puts them in the Layers card (ADR 0084)."""
-        self.header_add_button = QToolButton(popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.header_add_button = QToolButton()
         self.header_add_button.setObjectName("iconButton")
         self.header_add_button.setIcon(icons.icon("add"))
-        self.header_add_button.setMenu(self.library_menu)
-        self.header_add_button.setToolTip("Add an object to the scene")
+        self.header_add_button.clicked.connect(
+            lambda: self.show_add_popover(self.header_add_button, below=True)
+        )
+        self.header_add_button.setToolTip("Add an object to the scene  (Shift+A)")
         self.header_add_button.setAccessibleName("Add layer")
         self.options_menu = QMenu(self)
         self.options_menu.setToolTipsVisible(True)
@@ -817,77 +831,6 @@ class LayersPanel(QWidget):
             action = submenu.addAction(name, partial(self.add_python_object, code))
             action.setToolTip(f"Add the editable {name.lower()} Python object")
         return submenu
-
-    def _quick_add_buttons(self) -> dict[str, QToolButton]:
-        """A small, categorized front door to the full library (the footer keeps the full menu)."""
-        definitions = (
-            ("Shapes", "shape", ("Shapes",), None),
-            ("Lines", "line", ("Lines & Arrows", "Curves & Annotations"), None),
-            ("Text", "text", ("Text",), "plain"),
-            ("Math", "maths", ("Text",), "math"),
-            ("Media", "image", ("Media",), None),
-            ("Graphs", "axes", ("Graphing", "Coordinates"), None),
-            ("3D", "object", ("3D Solids",), None),
-            ("More", "more", None, None),  # simulations, code and plugin sections
-        )
-        buttons: dict[str, QToolButton] = {}
-        built_in_sections = {
-            "Shapes",
-            "Lines & Arrows",
-            "Curves & Annotations",
-            "Text",
-            "Media",
-            "Graphing",
-            "Coordinates",
-            "3D Solids",
-            "Simulation",
-            "Python",
-        }
-        for label, icon_name, sections, text_kind in definitions:
-            menu = QMenu(self)
-            menu.setToolTipsVisible(True)
-            for library_section, types in adapter.LIBRARY:
-                if sections is not None and library_section not in sections:
-                    continue
-                if (
-                    label == "More"
-                    and library_section in built_in_sections
-                    and library_section
-                    not in {
-                        "Simulation",
-                        "Python",
-                    }
-                ):
-                    continue
-                visible_types = types
-                if text_kind == "plain" and library_section == "Text":
-                    visible_types = tuple(t for t in types if t not in {"MathTex", "Tex"})
-                elif text_kind == "math" and library_section == "Text":
-                    visible_types = tuple(t for t in types if t in {"MathTex", "Tex"})
-                if not visible_types:
-                    continue
-                menu.addSection("Math" if label == "Math" and library_section == "Text" else library_section)
-                for type_name in visible_types:
-                    action = menu.addAction(adapter.LIBRARY_LABELS.get(type_name, type_name))
-                    action.triggered.connect(partial(self.add_object, type_name))
-                    if type_name == "MathTex":
-                        action.setToolTip("Build a LaTeX equation")
-                        steps = menu.addAction("Equation steps...", self.add_equation_steps)
-                        steps.setToolTip("Create a derivation with one equation per step")
-            if label == "More":
-                self._add_python_objects_menu(menu)
-            button = QToolButton(text=label, popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
-            button.setObjectName(f"quickAdd{label.replace(' ', '')}")
-            button.setMenu(menu)
-            button.setIcon(icons.icon(icon_name))
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            button.setProperty("role", "outlined")
-            button.setMinimumHeight(29)
-            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            button.setToolTip(f"Add {label.lower()} to the scene")
-            button.setAccessibleName(f"Add {label.lower()}")
-            buttons[label] = button
-        return buttons
 
     # -- state ----------------------------------------------------------------------
 
@@ -983,6 +926,9 @@ class LayersPanel(QWidget):
             count = len(index.children(layer.id))
             item.setToolTip(0, f"{layer.id} - group of {count} object{'s' if count != 1 else ''}")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        elif layer.is_camera:  # ADR 0086: always the first row, not dragged, nothing dropped above it
+            item.setToolTip(0, f"{layer.id} - {layer.spec.type}\n{edits.CAMERA_FIRST}")
+            item.setFlags((item.flags() | Qt.ItemFlag.ItemIsEditable) & ~Qt.ItemFlag.ItemIsDragEnabled)
         else:
             item.setToolTip(0, f"{layer.id} - {layer.spec.type}")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
@@ -1025,9 +971,17 @@ class LayersPanel(QWidget):
         layer = self.project.layer(layer_id) if layer_id else None
         roots = [root.id for root in self.project.roots()]
         index = roots.index(layer_id) if layer is not None and not layer.is_child else -1
+        front = len(roots) - 1 - (self.project.camera_layer is not None)  # the camera stays above (ADR 0086)
+        camera = layer is not None and layer.is_camera
         self.delete_button.setEnabled(layer is not None)
-        self.up_button.setEnabled(index >= 0 and index < len(roots) - 1)
-        self.down_button.setEnabled(index > 0)
+        self.up_button.setEnabled(0 <= index < front)
+        self.down_button.setEnabled(index > 0 and not camera)
+        for button, tip in (
+            (self.up_button, "Bring forward (Ctrl+])"),
+            (self.down_button, "Send backward (Ctrl+[)"),
+        ):
+            button.setToolTip(edits.CAMERA_FIRST if camera else tip)
+            button.defaultAction().setToolTip(edits.CAMERA_FIRST if camera else "")
         can_part = layer is not None and self.project.root_of(layer.id).spec.type in PART_PARENT_TYPES
         has_morph = layer is not None and (
             any(c.to_layer for c in layer.clips) or layer.id in self.project.morph_sources()
@@ -1049,6 +1003,42 @@ class LayersPanel(QWidget):
         self.parts_menu_action.setEnabled(self.part_button.isEnabled())
 
     # -- actions --------------------------------------------------------------------
+
+    # -- the Add object card (ADR 0087) ------------------------------------------------------------
+
+    def show_add_popover(self, anchor: QWidget | None = None, below: bool = False) -> None:
+        """Open the Add object card on ``anchor`` (the footer's button by default: above it)."""
+        self.add_popover.popup(anchor or self.add_button, below)
+
+    def _has_camera(self) -> bool:
+        return self.project.camera_layer is not None
+
+    def _has_camera(self) -> bool:
+        return self.project.camera_layer is not None
+
+    def recent_keys(self) -> list[str]:
+        return list(self._recent_keys)
+
+    def set_recent_keys(self, keys: list[str]) -> None:
+        self._recent_keys = [k for k in keys if isinstance(k, str)][:RECENT_MAX]
+
+    def note_recent(self, key: str) -> None:
+        """``key`` was added just now: it leads the Recent row (and is remembered across sessions)."""
+        self._recent_keys = [key, *(k for k in self._recent_keys if k != key)][:RECENT_MAX]
+        with contextlib.suppress(Exception):  # remembered for convenience: never an error mid-edit
+            self.recent_save(list(self._recent_keys))
+
+    def insert_entry(self, entry: insert_catalogue.Entry) -> None:
+        """Add what the card offered, by the same paths as the menus: the library, a Python template, the
+        equation steps dialog, the camera."""
+        if entry.kind == "python":
+            self.add_python_object(entry.code)
+        elif entry.kind == "steps":
+            self.add_equation_steps()
+        elif entry.kind == "camera":
+            self.add_camera()
+        else:
+            self.add_object(entry.type_name)
 
     def add_object(self, type_name: str, position: tuple[float, float] | None = None) -> None:
         extra = {}
@@ -1074,6 +1064,7 @@ class LayersPanel(QWidget):
         spec = adapter.default_spec(type_name, **extra)
         if type_name in CODE_TYPES:
             self.trust_code(str(spec.params["code"]))  # the library's own starter scene
+        self.note_recent(f"obj:{type_name}")
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead(), position=position), f"Add {type_name}")
 
@@ -1088,6 +1079,9 @@ class LayersPanel(QWidget):
         code = python_object.STARTER if code is None else code
         spec = Spec(type=PYTHON_TYPE, params={"code": code})
         self.trust_code(code)  # the editor's own template
+        for name, template in python_templates.LAYER_TEMPLATES.items():
+            if template == code:
+                self.note_recent(f"py:{name}")
         self._select_new = True
         self._submit(partial(add_placed, spec=spec, t=self.playhead()), "Add Python object")
 
@@ -1136,6 +1130,7 @@ class LayersPanel(QWidget):
         request = self.ask_steps(self.playhead())
         if request is None:
             return
+        self.note_recent("steps")
         builds = self.builds
         op = partial(
             add_steps_placed,
@@ -1328,7 +1323,10 @@ class LayersPanel(QWidget):
             return
         roots = [root.id for root in self.project.roots()]
         index = roots.index(layer_id) + steps
-        if 0 <= index < len(roots):
+        front = len(roots) - (self.project.camera_layer is not None)  # nothing above the camera (ADR 0086)
+        if self.project.layer(layer_id).is_camera:
+            self.message.emit(edits.CAMERA_FIRST)
+        elif 0 <= index < front:
             self._submit(partial(edits.move_layer, layer_id=layer_id, index=index), "Reorder layers")
 
     def rename(self, layer_id: str, name: str) -> None:
@@ -1417,6 +1415,11 @@ class LayersPanel(QWidget):
     def _on_row_dropped(self, layer_id: str, row: int) -> None:
         roots = [root.id for root in self.project.roots()]
         index = len(roots) - 1 - row  # the tree is front-to-back
+        if self.project.layer(layer_id).is_camera:  # ADR 0086
+            self.message.emit(edits.CAMERA_FIRST)
+            self.sync()
+            return
+        index = min(index, len(roots) - 1 - (self.project.camera_layer is not None))  # never above it
         if roots[index] == layer_id:
             self.sync()
             return

@@ -390,11 +390,12 @@ def test_a_closed_row_stays_closed_across_rebuilds(panel) -> None:
 
 
 def test_the_header_has_add_and_options_buttons_and_the_footer_is_add_object_and_presets(panel) -> None:
-    """ADR 0084 (the mock-up's Layers card): "+" opens the library, "..." the layer options, the footer
-    reads Add object and Presets, and Presets opens the presets browser."""
+    """ADR 0084 (the mock-up's Layers card): "+" opens the Add object card (ADR 0087), "..." the layer
+    options, the footer reads Add object and Presets, and Presets opens the presets browser."""
     assert panel.add_button.text() == "Add object" and panel.presets_button.text() == "Presets"
     add, options = panel.header_buttons
-    assert add.menu() is panel.library_menu and add.toolTip() and add.accessibleName() == "Add layer"
+    assert add.menu() is None and add.toolTip() and add.accessibleName() == "Add layer"
+    assert panel.add_button.menu() is None  # the card, not a menu: the full menu is on a right-click
     assert options.accessibleName() == "Layer options"
     titles = [a.text() for a in options.menu().actions() if not a.isSeparator()]
     assert titles == ["Delete", "Up", "Down", "Parts"]

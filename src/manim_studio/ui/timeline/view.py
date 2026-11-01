@@ -473,6 +473,8 @@ class LayerHeader(QWidget):
         if hover != self.hover:
             self.hover = hover
             self.update()
+            on_camera = hover is not None and hover[0] == "layer" and view.rows()[hover[1]].is_camera
+            self.setToolTip(edits.CAMERA_FIRST if on_camera else "")  # the first row, always (ADR 0086)
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event) -> None:
