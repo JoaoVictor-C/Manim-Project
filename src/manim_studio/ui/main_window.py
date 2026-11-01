@@ -40,7 +40,7 @@ from ..core.code import limits
 from ..core.code.code_cache import code_hash
 from ..core.code.trust import TrustStore
 from ..core.code.trust import label as trust_label
-from ..core.editing import edits, library, shift_timing
+from ..core.editing import edits, library, sequences, shift_timing
 from ..core.editing.edits import Edit, EditKind
 from ..core.engine import adapter, extract_code
 from ..core.engine.evaluator import Evaluator
@@ -544,6 +544,19 @@ class MainWindow(QMainWindow):
         beats_action.setShortcut(QKeySequence("Ctrl+Alt+B"))
         beats_action.triggered.connect(self.show_beat_sheet)
         edit_menu.addActions([scene_settings, fit_length, shift_action, ripple_action, beats_action])
+        edit_menu.addSeparator()  # sequences (ADR 0079)
+        self.make_sequence_action = QAction("Make Se&quence from Selection...", self)
+        self.make_sequence_action.setToolTip(
+            "Name the selected clips and keys as one sequence: its bar on the timeline moves them together"
+        )
+        self.make_sequence_action.triggered.connect(self.make_sequence_from_selection)
+        self.ask_sequence_name = self._ask_sequence_name  # tests and other front-ends answer here
+        self.dissolve_sequence_action = QAction("&Dissolve Sequence", self)
+        self.dissolve_sequence_action.setToolTip(
+            "Remove the sequence of the selected clip or key; its clips and keys stay where they are"
+        )
+        self.dissolve_sequence_action.triggered.connect(self.dissolve_selected_sequence)
+        edit_menu.addActions([self.make_sequence_action, self.dissolve_sequence_action])
         animate_menu = self.menuBar().addMenu("&Animate")  # presets (ADR 0039)
         self.apply_preset_menu = animate_menu.addMenu("Apply &Preset")
         self._preset_menu(self.apply_preset_menu, None, None)
@@ -1494,6 +1507,63 @@ class MainWindow(QMainWindow):
         new = [w for w in shift_timing.timing_warnings(edit.project) if w not in old]
         if new:
             self.statusBar().showMessage(f"Shift timing: {new[0]}", 15000)
+
+    def _selected_members(self) -> sequences.Members:
+        """The selected clips and keys (the timeline's picks, or the one selected), as sequence members."""
+        chosen = self._selected_timing()
+        if chosen is None:
+            return sequences.Members()
+        try:
+            return sequences.members_from_selection(self.project, chosen)
+        except edits.EditError:
+            return sequences.Members()
+
+    def make_sequence_from_selection(self) -> None:
+        """Edit > Make Sequence from Selection... (ADR 0079): the selected clips and keys, named, as one
+        sequence the timeline moves together. One undo step."""
+        if not self._has_project:
+            return
+        members = self._selected_members()
+        if members.empty:
+            self.statusBar().showMessage("Make sequence: select the clips and keys to put in it", 6000)
+            return
+        name = self.ask_sequence_name(sequences.new_sequence_name(self.project))
+        if name is None:
+            return
+        try:
+            edit = sequences.make_sequence(self.project, name, members)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Make sequence: {exc}", 10000)
+            return
+        self.document.apply(edit, "Make sequence")
+
+    def _ask_sequence_name(self, suggested: str) -> str | None:
+        text, ok = QInputDialog.getText(self, "Make Sequence", "Name of the sequence:", text=suggested)
+        return text if ok else None
+
+    def selected_sequence(self):
+        """The sequence holding a selected clip or key, if any (ADR 0079)."""
+        if not self._has_project:
+            return None
+        project = self.project
+        members = self._selected_members()
+        for layer_id, clip_id in members.clips:
+            if (found := sequences.sequence_of_clip(project, layer_id, clip_id)) is not None:
+                return found
+        for layer_id, track, t in members.keys:
+            if (found := sequences.sequence_of_key(project, layer_id, track, t)) is not None:
+                return found
+        return None
+
+    def dissolve_selected_sequence(self) -> None:
+        """Edit > Dissolve Sequence (ADR 0079): the selected clip's or key's sequence goes; they stay."""
+        found = self.selected_sequence()
+        if found is None:
+            if self._has_project:
+                self.statusBar().showMessage("Dissolve sequence: select a clip or key of a sequence", 6000)
+            return
+        self.document.apply(sequences.dissolve_sequence(self.project, found.id), "Dissolve sequence")
+        self.statusBar().showMessage(f"Dissolved {found.name!r}: its clips and keys stay", 6000)
 
     def show_ripple(self) -> None:
         """Edit > Ripple Edit...: time opened or closed at a point, or a beat given a length (ADR 0071)."""

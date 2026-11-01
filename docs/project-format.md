@@ -148,6 +148,18 @@ sounds, cues and markers.
 "markers": [{ "id": "marker-1", "t": 2.0, "name": "Formula", "colour": "#f59e0b" }]
 ```
 
+**Sequences** (ADR 0079): `sequences` lists named sets of clips and keys that the editor moves, retimes
+and copies together: `id` (unique among every id), `name`, an optional `colour` (`#rgb` or `#rrggbb`, the
+timeline's bar; the accent when absent), `clips` (`{ "layer", "clip" }`) and `keys` (`{ "layer", "track", "t" }`,
+one property's key on its frame). They draw nothing and are saved only when there are some. Members that do not
+exist are dropped when the file is read (a sequence left with none goes); a clip or key in two sequences is
+refused.
+
+```json
+"sequences": [{ "id": "sequence-1", "name": "Intro", "clips": [{ "layer": "title", "clip": "write-1" }],
+                "keys": [{ "layer": "dot", "track": "position", "t": 2.0 }] }]
+```
+
 **Morph matching** (ADR 0056): `morph_matching` is `"smart"` or `"classic"`: the matching the
 Transform clips added from now on start with (a clip's own `match` param decides how it draws).
 `"smart"`, the default, is not saved; a file without it has the default.

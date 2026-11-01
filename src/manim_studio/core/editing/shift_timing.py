@@ -143,6 +143,15 @@ def shift_timing(project: Project, selection: Selection, delta: float) -> Edit:
                 else c
                 for c in project.subtitles
             ]
+        half = 0.5 / fps
+
+        def moves(ref) -> bool:  # a sequence's key member that this shift moves (ADR 0079)
+            return ref.layer in whole or any(
+                abs(ref.t - t) < half and (props is None or ref.track in props)
+                for t, props in keys_of.get(ref.layer, ())
+            )
+
+        extra["sequences"] = edits.carried_keys(project, moves, on_grid)
         new = edits._rebuilt(project, layers=layers, **extra)
     except ValidationError as exc:
         raise EditError(str(exc.errors()[0]["msg"]).removeprefix("Value error, ")) from exc

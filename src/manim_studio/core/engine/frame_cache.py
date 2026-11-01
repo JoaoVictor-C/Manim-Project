@@ -20,8 +20,8 @@ from ..sound import subtitles
 
 Span = tuple[float, float]  # [start, end) in seconds
 # Parts of a project whose changes are not "every frame": layers, sounds (ADR 0034), subtitles (ADR 0035),
-# markers (ADR 0037) and layout guides (ADR 0074): no frame at all. Helpers (ADR 0058) change the frames of
-# the code layers and Python objects only, which ``changed_layers`` adds.
+# markers (ADR 0037), layout guides (ADR 0074) and sequences (ADR 0079): no frame at all. Helpers (ADR 0058)
+# change the frames of the code layers and Python objects only, which ``changed_layers`` adds.
 _NOT_CANVAS = {
     "layers",
     "audio",
@@ -29,6 +29,7 @@ _NOT_CANVAS = {
     "subtitle_style",
     "markers",
     "guides",
+    "sequences",
     "morph_matching",
     "helpers",
 }

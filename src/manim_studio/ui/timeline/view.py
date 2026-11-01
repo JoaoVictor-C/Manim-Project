@@ -74,7 +74,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core.editing import edits, shift_timing
+from ...core.editing import edits, sequences, shift_timing
 from ...core.engine import adapter
 from ...core.engine.evaluator import layer_transform
 from ...core.model import scene_length
@@ -154,6 +154,7 @@ PEAKS_PER_SECOND = 100
 SYNC_PEAKS_SECONDS = 60.0
 MARKER_GRAB_PX = 6.0  # how near a marker's line a ruler click picks it (ADR 0037)
 RUBBER_PX = 4  # a press on empty space moved further than this draws a rubber band
+SEQUENCE_BAR = 11.0  # a sequence's bar along the top of its first member row (ADR 0079)
 
 # Lumen (P17.4b): how the painted timeline looks. Colours are read from ``theme.THEME`` each time
 # something paints (never kept here), so a theme switch repaints in the new colours.
@@ -264,6 +265,49 @@ class BandItem(QGraphicsRectItem):
         else:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, r, r)
+
+
+class SequenceItem(QGraphicsRectItem):
+    """A sequence (ADR 0079): a thin bar with its name along the top of its member rows, over its span,
+    and a quiet outline round its members. Only the bar is hit: a click picks every member, a drag
+    moves them all (``move_sequence``)."""
+
+    def __init__(self, sequence_id: str, name: str, colour_hex: str | None, bar: QRectF, box: QRectF) -> None:
+        super().__init__(bar)
+        self.sequence_id, self.name, self.colour_hex, self.box = sequence_id, name, colour_hex, box
+        self.setPen(_shape_pen(1))
+        self.setZValue(4)  # above clips and keys: the bar is the sequence's handle
+
+    def boundingRect(self) -> QRectF:
+        return self.rect().united(self.box).adjusted(-1, -1, 1, 1)
+
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.addRect(self.rect())
+        return path
+
+    def tint(self) -> QColor:
+        return QColor(self.colour_hex) if self.colour_hex else colour("accent")
+
+    def paint(
+        self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None
+    ) -> None:
+        tint = self.tint()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        outline = QColor(tint)
+        outline.setAlphaF(0.55)
+        painter.setPen(QPen(outline, 1, Qt.PenStyle.DashLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(self.box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+        bar = self.rect()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(tint)
+        painter.drawRoundedRect(bar, 3, 3)
+        painter.setPen(QColor("#ffffff") if tint.lightnessF() < 0.6 else QColor("#0b1020"))
+        painter.setFont(_font("caption", weight=QFont.Weight.DemiBold))
+        painter.drawText(
+            bar.adjusted(4, -2, -4, 2), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.name
+        )
 
 
 class _PeaksLoader(QObject):
@@ -703,6 +747,17 @@ class _GroupDrag:
 
 
 @dataclass
+class _SequenceDrag:
+    """A sequence's bar dragged: every member moves by one snapped delta (ADR 0079)."""
+
+    sequence_id: str
+    press_x: float
+    base: Project
+    anchors: list[float]  # the sequence's start and end, which snap
+    refused: str | None = None
+
+
+@dataclass
 class _EmptyPress:
     """A press on empty row space: a click picks the row, a drag draws a rubber band (U4b)."""
 
@@ -786,6 +841,7 @@ class TimelineView(QGraphicsView):
         self.rubber: QRectF | None = None  # the rubber band being drawn, scene coordinates
         self._empty_press: _EmptyPress | None = None
         self._group_drag: _GroupDrag | None = None
+        self._sequence_drag: _SequenceDrag | None = None
         self.guide: float | None = None  # where a snapped drag rests (ADR 0037)
         self.drop_at: float | None = None  # where code dragged over the rows would land (P12.7)
         # Fills an "Apply preset" menu for a row and a time (ADR 0039); set by the window.
@@ -831,6 +887,7 @@ class TimelineView(QGraphicsView):
         self._drag = None
         self._key_drag = None
         self._group_drag = self._empty_press = self.rubber = None
+        self._sequence_drag = None
         self.picked_clips, self.picked_keys, self.picked_rows = set(), set(), ()
         self.expanded.clear()
         self._layout = None
@@ -1483,6 +1540,7 @@ class TimelineView(QGraphicsView):
                 scene.addItem(KeyItem(layer.id, t, props, center, selected))
             for i, prop in enumerate(layout.subs[row]):  # property rows (P7.3)
                 self._add_prop_row(layer, prop, top + ROW_HEIGHT + i * SUB_ROW_HEIGHT, fps)
+        self._add_sequences(scene, project, rows, layout)
         for i, clip in enumerate(project.audio):
             top = layout.bottom + (1 + i) * ROW_HEIGHT
             rect = QRectF(
@@ -1532,6 +1590,92 @@ class TimelineView(QGraphicsView):
         self.setScene(scene)
         old.deleteLater()
         return scene
+
+    def _add_sequences(
+        self, scene: QGraphicsScene, project: Project, rows: list[Layer], layout: _Layout
+    ) -> None:
+        """One bar per sequence (ADR 0079) over its span, along the top of its first member row, and an
+        outline down to the bottom of its last one."""
+        if not project.sequences:
+            return
+        top_of = {layer.id: layout.tops[i] for i, layer in enumerate(rows)}
+        for seq in project.sequences:
+            layer_ids = {r.layer for r in seq.clips} | {r.layer for r in seq.keys}
+            tops = [top_of[i] for i in layer_ids if i in top_of]
+            if not tops:
+                continue
+            start, end = sequences.span(project, seq)
+            x0 = self.scale.x(start) - KEY_HALF
+            x1 = max(self.scale.x(end) + KEY_HALF, x0 + 24.0)  # a keys-only span stays grabbable
+            bar = QRectF(x0, min(tops), x1 - x0, SEQUENCE_BAR)
+            box = QRectF(x0, min(tops), x1 - x0, max(tops) + ROW_HEIGHT - min(tops))
+            scene.addItem(SequenceItem(seq.id, seq.name, seq.colour, bar, box))
+
+    def sequence_items(self) -> list[SequenceItem]:
+        return [i for i in self.scene().items() if isinstance(i, SequenceItem)]
+
+    def _sequence_hit(self, pos: QPointF) -> SequenceItem | None:
+        return next((i for i in self.items(pos.toPoint()) if isinstance(i, SequenceItem)), None)
+
+    def select_sequence(self, sequence_id: str) -> None:
+        """Pick every member of the sequence (ADR 0079); its first clip (or key) becomes the primary."""
+        project = self.project
+        seq = next((s for s in project.sequences if s.id == sequence_id), None)
+        if seq is None:
+            return
+        fps = project.canvas.fps
+        self.selected_audio = self.selected_cue = self.selected_marker = None
+        self.picked_clips = {(r.layer, r.clip) for r in seq.clips}
+        self.picked_keys = {(r.layer, round(r.t * fps), r.track) for r in seq.keys}
+        if self.picked_clips:
+            self._make_primary(clip=min(self.picked_clips))
+        else:
+            self._make_primary(key=min(self.picked_keys))
+        self.message.emit(f"Sequence {seq.name!r}: {len(seq.clips)} clip(s), {len(seq.keys)} key(s)")
+
+    def _apply_sequence_drag(self) -> None:
+        """Move the dragged sequence by its snapped delta (``move_sequence``): never below 0 s, not past
+        what the timeline reaches; a refused move previews nothing and says why, once."""
+        scene_x, snapping = self._pending
+        self._pending = None
+        drag, base = self._sequence_drag, self._sequence_drag.base
+        selection = sequences.selection_of(sequences.sequence(base, drag.sequence_id))
+        fps = base.canvas.fps
+        exclude = [("clip", layer_id, clip_id) for layer_id, clip_id in selection.clips]
+        exclude += [("key", layer_id, t) for layer_id, t, _ in selection.keys]
+        candidates = snap_candidates(base, self.playhead, exclude=exclude)
+        raw = self.scale.seconds(scene_x - drag.press_x)
+        delta = group_delta(
+            drag.anchors, raw, fps=fps, scale=self.scale, candidates=candidates, snapping=snapping
+        )
+        delta = max(delta, -drag.anchors[0])
+        delta = min(delta, max(self.reach() - drag.anchors[1], 0.0))
+        try:
+            edit = sequences.move_sequence(base, drag.sequence_id, delta)
+        except edits.EditError as exc:
+            delta, edit = 0.0, edits.Edit(base, "timing", frozenset())
+            text = f"Move sequence: {exc}"
+            if text != drag.refused:
+                drag.refused = text
+                self.message.emit(text)
+        else:
+            drag.refused = None
+        moved = sequences.sequence(edit.project, drag.sequence_id)  # the picked keys follow the members
+        self.picked_keys = {(r.layer, round(r.t * fps), r.track) for r in moved.keys}
+        if self.selected is None and self.picked_keys:
+            layer_id, frame, prop = min(self.picked_keys)
+            self.selected_key, self.selected_key_prop = (layer_id, frame / fps), prop
+        self._guide_for(candidates, snapping, *(a + delta for a in drag.anchors))
+        self.document.preview(edit)
+
+    def _finish_sequence_drag(self) -> None:
+        """Drop the dragged sequence: one undo step."""
+        self.apply_pending()
+        drag, self._sequence_drag = self._sequence_drag, None
+        moved = self.project is not drag.base
+        self.document.commit_preview("Move sequence")
+        if moved and self.selected is None and self.selected_key is not None:
+            self.keySelected.emit(*self.selected_key)
 
     def _add_prop_row(self, layer: Layer, prop: str, top: float, fps: int) -> None:
         """A property row's keys (its band is drawn behind the items: ``drawBackground``)."""
@@ -1882,6 +2026,15 @@ class TimelineView(QGraphicsView):
             event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
         )
         many = self.picked_count() > 1
+        seq_item = self._sequence_hit(pos)
+        if seq_item is not None:  # a sequence's bar: pick its members, a drag moves them (ADR 0079)
+            self.select_sequence(seq_item.sequence_id)
+            seq = sequences.sequence(self.project, seq_item.sequence_id)
+            x = self.mapToScene(pos.toPoint()).x()
+            anchors = list(sequences.span(self.project, seq))
+            self._sequence_drag = _SequenceDrag(seq.id, x, self.project, anchors)
+            self.document.begin_preview()
+            return
         key = self._key_hit(pos)
         if key is not None and extend:  # add it to the picks, or take it out (U4b)
             self.toggle_key_pick(self._key_pick(key))
@@ -1982,6 +2135,7 @@ class TimelineView(QGraphicsView):
         if (
             self._drag is None
             and self._group_drag is None
+            and self._sequence_drag is None
             and self._key_drag is None
             and self._audio_drag is None
             and self._cue_drag is None
@@ -2013,6 +2167,9 @@ class TimelineView(QGraphicsView):
         self._set_guide(None)
         if self._group_drag is not None:
             self._finish_group_drag()
+            return
+        if self._sequence_drag is not None:
+            self._finish_sequence_drag()
             return
         if self._marker_drag is not None:
             self.apply_pending()
@@ -2521,6 +2678,9 @@ class TimelineView(QGraphicsView):
         self._apply_scheduled = False
         if self._group_drag is not None and self._pending is not None:
             self._apply_group_drag()
+            return
+        if self._sequence_drag is not None and self._pending is not None:
+            self._apply_sequence_drag()
             return
         if self._marker_drag is not None and self._pending is not None:
             self._apply_marker_drag()

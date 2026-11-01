@@ -1155,7 +1155,7 @@ def retime_keys(
     fps = project.canvas.fps
     t_to = round(t_to * fps) / fps
     wanted = set(props) if props is not None else None
-    tracks, moved = {}, False
+    tracks, moved = {}, set()
     for prop, track in layer.tracks.items():
         index = _key_index(track, t_from, fps)
         if index is None or (wanted is not None and prop not in wanted):
@@ -1166,10 +1166,32 @@ def retime_keys(
             raise EditError(f"{prop} already has a key at {t_to:g} s")
         key = track[index]
         tracks[prop] = [*others, key.model_copy(update={"t": t_to})]
-        moved = True
+        moved.add(prop)
     if not moved:
         raise EditError(f"layer {layer_id!r} has no keys at {t_from:g} s")
-    return _replace_layer(project, layer_id, {"tracks": tracks})
+    return _replace_layer(
+        project,
+        layer_id,
+        {"tracks": tracks},
+        sequences=carried_keys(
+            project,
+            lambda ref: ref.layer == layer_id and ref.track in moved and abs(ref.t - t_from) < 0.5 / fps,
+            lambda t: t_to,
+        ),
+    )
+
+
+def carried_keys(project: Project, moves, to) -> list:
+    """The project's sequences with the key members an edit moves following them (ADR 0079): each member
+    ``moves(ref)`` picks gets the time ``to(ref.t)``. Edits that move keys pass this to ``_rebuilt`` so
+    a key keeps its sequence; members of keys that are gone are dropped by the project's validator."""
+    if not project.sequences:
+        return project.sequences
+    out = []
+    for sequence in project.sequences:
+        keys = [ref.model_copy(update={"t": to(ref.t)}) if moves(ref) else ref for ref in sequence.keys]
+        out.append(sequence if keys == sequence.keys else sequence.model_copy(update={"keys": keys}))
+    return out
 
 
 def remove_keys(project: Project, layer_id: str, t: float, props: Iterable[str] | None = None) -> Edit:
@@ -1350,6 +1372,7 @@ def _rebuilt(project: Project, **parts: Any) -> Project:
         "code_folders": project.code_folders,
         "voice": project.voice,
         "pronunciations": project.pronunciations,
+        "sequences": project.sequences,
     }
     return Project.model_validate({**data, **parts})
 
@@ -1836,24 +1859,24 @@ def _clip(project: Project, layer_id: str, clip_id: str) -> Clip:
     raise EditError(f"layer {layer_id!r} has no clip {clip_id!r}")
 
 
-def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any]) -> Edit:
+def _replace_layer(project: Project, layer_id: str, fields: dict[str, Any], **parts: Any) -> Edit:
     old_layer = project.layer(layer_id)
     # Rebuilt from data so the layer's validators run; model_copy(update=) would skip them.
     data = {**old_layer.model_dump(by_alias=True), **_dump(fields)}
     new_layer = Layer.model_validate(data)
     return _replace_layers(
-        project, [new_layer if layer.id == layer_id else layer for layer in project.layers]
+        project, [new_layer if layer.id == layer_id else layer for layer in project.layers], **parts
     )
 
 
-def _replace_layers(project: Project, layers: list[Layer]) -> Edit:
+def _replace_layers(project: Project, layers: list[Layer], **parts: Any) -> Edit:
     # Unchanged layers are reused as-is; the project-level validator still runs.
     code_layer_ids = {layer.id for layer in layers if layer.spec is not None and layer.spec.type in RUNS_CODE}
     folders = {
         name: [layer_id for layer_id in layer_ids if layer_id in code_layer_ids]
         for name, layer_ids in project.code_folders.items()
     }
-    new_project = _rebuilt(project, layers=layers, code_folders=folders)
+    new_project = _rebuilt(project, layers=layers, code_folders=folders, **parts)
     kind, layer_ids = classify(project, new_project)
     return Edit(new_project, kind, layer_ids)
 

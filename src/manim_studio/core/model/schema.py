@@ -725,6 +725,56 @@ class Guide(BaseModel):
         return data
 
 
+class SequenceClip(BaseModel):
+    """A clip in a sequence (ADR 0079): clip ids are unique on their layer only."""
+
+    layer: str
+    clip: str
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+
+class SequenceKey(BaseModel):
+    """A key in a sequence (ADR 0079): one property's key on one layer, at ``t`` (on a frame)."""
+
+    layer: str
+    track: TrackName
+    t: float = Field(ge=0)
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+
+class Sequence(BaseModel):
+    """A named set of clips and keys that move and retime together (ADR 0079), like a compound clip.
+
+    It is an annotation over the layers' own clips and keys, never drawn and never rendered: the
+    frames are the same with or without it. Members that no longer exist are dropped when the
+    project is validated, and a sequence left with none goes (so a deletion keeps it valid, in the
+    same undo step). A clip or key is in at most one sequence.
+    """
+
+    id: str
+    name: str = Field(min_length=1)
+    colour: str | None = None  # the timeline's band; None: the theme's accent
+    clips: list[SequenceClip] = Field(default_factory=list)
+    keys: list[SequenceKey] = Field(default_factory=list)
+
+    model_config = {"extra": "forbid"}
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler):
+        data = handler(self)
+        if self.colour is None:
+            data.pop("colour", None)
+        return data
+
+    @model_validator(mode="after")
+    def _valid_colour(self) -> Sequence:
+        if self.colour is not None and not is_colour(self.colour):
+            raise ValueError(f"sequence {self.id!r}: colour {self.colour!r} is not #rgb or #rrggbb")
+        return self
+
+
 class SubtitleStyle(BaseModel):
     """How every subtitle looks (ADR 0035)."""
 
@@ -805,10 +855,13 @@ class Project(BaseModel):
     code_folders: dict[str, list[str]] = Field(default_factory=dict)  # Code page folders: name -> layer ids
     voice: VoiceChoice | None = None  # the narration's voice for cues without their own (ADR 0060)
     pronunciations: dict[str, str] = Field(default_factory=dict)  # written -> spoken, before synthesis
+    sequences: list[Sequence] = Field(default_factory=list)  # named clips and keys, never drawn (ADR 0079)
 
     @model_serializer(mode="wrap")
     def _omit_unused(self, handler):
         data = handler(self)
+        if not self.sequences:
+            data.pop("sequences", None)  # files without sequences save as before (ADR 0079)
         if self.voice is None:
             data.pop("voice", None)
         if not self.pronunciations:
@@ -839,7 +892,7 @@ class Project(BaseModel):
             raise ValueError(f"unsupported schema_version {self.schema_version} (expected {SCHEMA_VERSION})")
         ids = [layer.id for layer in self.layers] + [clip.id for clip in self.audio]
         ids += [cue.id for cue in self.subtitles] + [marker.id for marker in self.markers]
-        ids += [guide.id for guide in self.guides]
+        ids += [guide.id for guide in self.guides] + [sequence.id for sequence in self.sequences]
         duplicates = {i for i, count in Counter(ids).items() if count > 1}  # linear (B53)
         if duplicates:
             raise ValueError(f"duplicate layer ids: {sorted(duplicates)}")
@@ -892,7 +945,48 @@ class Project(BaseModel):
                         f"({targeted[clip.to_layer]!r} and {layer.id!r})"
                     )
                 targeted[clip.to_layer] = layer.id
+        self._sequence_rules()
         return self
+
+    def _sequence_rules(self) -> None:
+        """ADR 0079: members that are gone are dropped (a sequence left empty goes); a clip or key is in
+        one sequence only. Keys are matched within half a frame, as every key edit matches them."""
+        if not self.sequences:
+            return
+        clips = {(layer.id, clip.id) for layer in self.layers for clip in layer.clips}
+        fps = self.canvas.fps
+        frames = {
+            (layer.id, track, round(key.t * fps))
+            for layer in self.layers
+            for track, keys in layer.tracks.items()
+            for key in keys
+        }
+        owner: dict[tuple, str] = {}
+        kept: list[Sequence] = []
+        for sequence in self.sequences:
+            live_clips = list(dict.fromkeys(ref for ref in sequence.clips if (ref.layer, ref.clip) in clips))
+            live_keys: list[SequenceKey] = []
+            seen: set[tuple] = set()
+            for ref in sequence.keys:
+                frame = (ref.layer, ref.track, round(ref.t * fps))
+                if frame in frames and frame not in seen:
+                    seen.add(frame)
+                    live_keys.append(ref)
+            for member in [("clip", ref.layer, ref.clip) for ref in live_clips] + [
+                ("key", *frame) for frame in seen
+            ]:
+                if member in owner:
+                    raise ValueError(
+                        f"{member[0]} {member[2]!r} of layer {member[1]!r} is in two sequences "
+                        f"({owner[member]!r} and {sequence.id!r})"
+                    )
+                owner[member] = sequence.id
+            if not (live_clips or live_keys):
+                continue
+            if live_clips != sequence.clips or live_keys != sequence.keys:
+                sequence = sequence.model_copy(update={"clips": live_clips, "keys": live_keys})
+            kept.append(sequence)
+        self.sequences = kept
 
     def _code_folder_rules(self) -> None:
         """Code page folders are flat, uniquely named and contain only code layers."""

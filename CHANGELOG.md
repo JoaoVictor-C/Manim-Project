@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Compound sequences** ([ADR 0079](docs/adr/0079-compound-sequences.md)). Select clips and keys on one or more
+  layers and choose Edit > Make Sequence from Selection... to name them as one sequence: a bar with its name
+  over them on the timeline picks them all with a click and moves them together with a drag, in one undo step.
+  Edit > Dissolve Sequence removes it and leaves them where they are. Deleting a member keeps the sequence valid;
+  a sequence changes no frame of the video.
 - **Plugin manifests and permissions** ([ADR 0078](docs/adr/0078-plugin-manifest-and-permissions.md)). A plugin can
   ship `<name>.plugin.json` beside it with its name, version, author, description, the app versions it supports
   and the permissions it declares. A plugin for another app version is not loaded and says what it needs, a

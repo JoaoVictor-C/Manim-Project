@@ -182,6 +182,7 @@ def compare(old: Project, new: Project) -> Difference:
         ("subtitles", old.subtitles, new.subtitles),
         ("markers", old.markers, new.markers),
         ("guides", old.guides, new.guides),
+        ("sequences", old.sequences, new.sequences),
     ):
         if a != b:
             diff.scene.append(f"{label}: {len(a)} -> {len(b)}" if len(a) != len(b) else f"{label} changed")
