@@ -26,6 +26,7 @@ parallel.
 | P17.4c | Canvas: stage, pasteboard, frame shadow, floating tool and transport pills, overlays | `ui/canvas/*`, `ui/playback/*` |
 | P17.4d | Code page, Audio page, Deliver page, dialogs | `ui/pages/code.py` and others, `ui/code/*`, `ui/exchange/*`, `ui/deliver/*`, `ui/shell/*dialog*` |
 | P17.5 | Welcome, empty states, About, Preferences (theme, reduce motion), docs and screenshots, release notes | `ui/shell/welcome.py`, `docs/guide/*` |
+| P17.6 | **The tools added since the first design** ([ADR 0084](../adr/0084-lumen-covers-the-new-tools.md)): stage header with Scene/Game and Fit, camera on the stage, dialogs in one shape, Deliver health and resume, Code error card and farm | `ui/canvas/*`, `ui/pages/*`, `ui/shell/*dialog*` |
 
 ## Rules for every slice
 

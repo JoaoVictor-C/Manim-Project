@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dialogs</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>
+body{margin:0}
+.cell{width:437px;height:390px;position:relative}
+.cell .dlg{position:absolute;left:0;top:0;height:500px;transform:scale(.78);transform-origin:0 0}
+.cap{color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
+.beat{display:flex;gap:14px;height:108px}
+.pic{width:192px;height:108px;flex:none;position:relative;border-radius:8px;overflow:hidden;background:radial-gradient(160px 90px at 50% 40%,#16224a,#0b1226);box-shadow:0 0 0 1px rgba(255,255,255,.1);display:grid;place-items:center;color:#fff;font-family:var(--serif)}
+.bl{display:flex;gap:7px;align-items:center;font-size:11.5px;min-width:0}
+.bl i{width:7px;height:7px;border-radius:50%;flex:none}
+.bl b{width:46px;color:var(--muted);font-weight:600;flex:none}
+.bl span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.er{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.er .ty{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;color:#fff;flex:none}
+.snap{display:flex;align-items:center;gap:12px;padding:7px 10px;border-radius:12px;border:1px solid transparent}
+.snap .th{width:64px;height:36px;border-radius:6px;background:radial-gradient(60px 34px at 50% 40%,#16224a,#0b1226);box-shadow:0 0 0 1px rgba(255,255,255,.1);flex:none;display:grid;place-items:center;color:#fff;font:italic 10px var(--serif)}
+.pl{display:grid;grid-template-columns:140px 112px 1fr 84px;gap:10px;align-items:center;padding:9px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.pc{display:flex;gap:4px;flex-wrap:wrap}
+.pc .chip{height:18px;font-size:10px}
+.fr{display:flex;align-items:center;gap:10px;height:30px;padding:0 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px}
+.fr:last-child{border-bottom:0}
+.strip{position:relative;height:26px;border-radius:8px;background:var(--field);border:1px solid var(--line)}
+.strip .c{position:absolute;top:4px;height:16px;border-radius:5px}
+</style>
+</helmet>
+<div class="lumen {{themeClass}}" style="width:1440px;height:900px;padding:48px 40px;display:grid;grid-template-columns:repeat(3,437px);grid-template-rows:repeat(2,390px);gap:24px;justify-content:center;align-content:center">
+
+<!-- 1. Beat sheet -->
+<div class="cell"><div class="dlg">
+  <div class="dlg-h"><div class="ic"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M8 5v4M16 5v4"/></svg></div><div style="flex:1"><div class="t">Beat sheet</div><div class="s">Euler's identity: 4 beats between markers</div></div><span class="kbd">Ctrl Alt B</span></div>
+  <div class="dlg-b" style="display:flex;flex-direction:column;gap:9px">
+    <div class="beat"><div class="pic"><div style="font-style:italic;font-weight:500;font-size:20px">Euler's identity</div></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px"><div style="font-weight:650;font-size:13.5px">Title</div><div class="mono" style="color:var(--muted);font-size:11px;margin-bottom:3px">0:00.00 - 0:01.00</div>
+        <div class="bl"><i style="background:var(--c-content)"></i><b>Appears</b><span>Title fades in</span></div>
+        <div class="bl"><i style="background:var(--c-sound)"></i><b>Says</b><span style="color:var(--faint)">nothing yet</span></div>
+        <div class="bl"><i style="background:var(--c-motion)"></i><b>Sound</b><span>Music comes in</span></div></div></div>
+    <div class="beat" style="background:var(--surface-3);margin:0 -8px;padding:0 8px;width:calc(100% + 16px);border-radius:10px;height:108px"><div class="pic"><div style="font-style:italic;font-size:17px">e<sup style="font-size:10px">i&theta;</sup> = cos &theta; + <i>i</i> sin &theta;</div></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px"><div style="font-weight:650;font-size:13.5px">Euler's formula</div><div class="mono" style="color:var(--muted);font-size:11px;margin-bottom:3px">0:01.00 - 0:03.40</div>
+        <div class="bl"><i style="background:var(--c-content)"></i><b>Appears</b><span>e^i&theta; = cos &theta; + i sin &theta; writes on</span></div>
+        <div class="bl"><i style="background:var(--c-sound)"></i><b>Says</b><span>Euler found a bridge between</span></div>
+        <div class="bl"><i style="background:var(--c-motion)"></i><b>Sound</b><span>Narration, cue 1</span></div></div></div>
+    <div class="beat"><div class="pic"><div style="font-style:italic;font-size:22px">e<sup style="font-size:13px">i&pi;</sup> + 1 = 0</div></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px"><div style="font-weight:650;font-size:13.5px">The special case</div><div class="mono" style="color:var(--muted);font-size:11px;margin-bottom:3px">0:03.40 - 0:05.80</div>
+        <div class="bl"><i style="background:var(--c-content)"></i><b>Appears</b><span>e^i&pi; + 1 = 0 writes on</span></div>
+        <div class="bl"><i style="background:var(--c-sound)"></i><b>Says</b><span>Put theta equal to pi</span></div>
+        <div class="bl"><i style="background:var(--c-motion)"></i><b>Sound</b><span>A soft chime at 0:03.40</span></div></div></div>
+  </div>
+  <div class="dlg-f"><span style="color:var(--faint);font-size:11.5px;margin-right:auto">Double-click a beat to go there</span><button class="btn">Copy as Markdown</button><button class="btn primary">Close</button></div>
+</div></div>
+
+<!-- 2. Ripple edit -->
+<div class="cell"><div class="dlg">
+  <div class="dlg-h"><div class="ic"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h7M14 12h7M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></div><div style="flex:1"><div class="t">Ripple edit</div><div class="s">Move everything after the playhead at 0:02.40</div></div><span class="kbd">Ctrl Alt R</span></div>
+  <div class="dlg-b">
+    <div class="label" style="margin-top:0">Mode</div>
+    <div class="seg" style="display:flex"><span style="flex:1;text-align:center">Close the gap</span><span class="on" style="flex:1;text-align:center">Open space</span><span style="flex:1;text-align:center">Linked</span></div>
+    <div style="color:var(--muted);font-size:11.5px;margin-top:8px">Open space moves what follows later and leaves a gap; nothing is trimmed.</div>
+    <div class="row2" style="margin-top:6px"><div><div class="label">From</div><div class="field"><span class="v">0:02.40</span><span class="unit">playhead</span></div></div><div><div class="label">Amount</div><div class="field focus"><span class="lab" style="color:var(--accent)">+</span><span class="v">0.50</span><span class="unit">seconds</span></div></div></div>
+    <div style="margin-top:14px"><span class="chip accent" style="height:26px;padding:0 12px;font-size:12px"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>moves 5 clips, 3 keys, 2 markers</span></div>
+    <div style="display:flex;gap:22px;margin-top:14px"><div style="display:flex;align-items:center;gap:9px"><span class="toggle on"></span>Move keys</div><div style="display:flex;align-items:center;gap:9px"><span class="toggle on"></span>Move markers</div></div>
+    <div class="cap" style="margin:16px 0 6px">Before</div>
+    <div class="strip"><div class="c" style="left:2%;width:20%;background:var(--c-content)"></div><div class="c" style="left:30%;width:22%;background:var(--c-emphasis)"></div><div class="c" style="left:56%;width:26%;background:var(--c-morph)"></div></div>
+    <div class="cap" style="margin:10px 0 6px">After</div>
+    <div class="strip"><div style="position:absolute;left:27%;right:0;top:0;bottom:0;background:var(--accent-soft);border-left:1px solid var(--accent-line);border-radius:0 8px 8px 0"></div><div class="c" style="left:2%;width:20%;background:var(--c-content)"></div><div class="c" style="left:36%;width:22%;background:var(--c-emphasis)"></div><div class="c" style="left:62%;width:26%;background:var(--c-morph)"></div></div>
+  </div>
+  <div class="dlg-f"><button class="btn ghost">Cancel</button><button class="btn primary">Apply</button></div>
+</div></div>
+
+<!-- 3. Explain this moment -->
+<div class="cell"><div class="dlg">
+  <div class="dlg-h"><div class="ic"><svg class="i" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.7.7 1 1.3 1 2.5h6c0-1.2.3-1.8 1-2.5A6 6 0 0012 3z"/></svg></div><div style="flex:1"><div class="t">Explain this moment</div><div class="s">Euler's identity at 0:02.40</div></div><span class="kbd">Ctrl Alt E</span></div>
+  <div class="dlg-b" style="display:flex;flex-direction:column;gap:8px">
+    <div class="er"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><div style="flex:1;min-width:0"><div style="color:var(--faint);font-size:10.5px">Euler's identity</div><div style="font-weight:550">FadeIn is done; the title is fully visible.</div></div><span class="chip">FadeIn</span><button class="btn sm ghost">Go to</button></div>
+    <div class="er" style="background:var(--surface-3);border-color:var(--line-2)"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 7h14M5 17h14M8 7l8 10"/></svg></div><div style="flex:1;min-width:0"><div style="color:var(--faint);font-size:10.5px">e^i&theta; = cos &theta; + i sin &theta;</div><div style="font-weight:550">Write is 62 % through its run.</div></div><span class="chip">Write</span><button class="btn sm ghost">Go to</button></div>
+    <div class="er"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 7h14M5 17h14M8 7l8 10"/></svg></div><div style="flex:1;min-width:0"><div style="color:var(--faint);font-size:10.5px">e^i&pi; + 1 = 0</div><div style="font-weight:550">Write finished 0.02 s ago.</div></div><span class="chip">Write</span><button class="btn sm ghost">Go to</button></div>
+    <div class="er"><div class="ty" style="background:linear-gradient(135deg,#5d6685,#454d69)"><svg class="i sm" viewBox="0 0 24 24"><path d="M4 6h16v10H9l-5 4z"/></svg></div><div style="flex:1;min-width:0"><div style="color:var(--faint);font-size:10.5px">Subtitles</div><div style="font-weight:550">The cue "Euler found a bridge" is showing.</div></div><span class="chip">cue 1</span><button class="btn sm ghost">Go to</button></div>
+    <div class="er"><div class="ty" style="background:var(--c-sound)"><svg class="i sm" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/></svg></div><div style="flex:1;min-width:0"><div style="color:var(--faint);font-size:10.5px">Narration</div><div style="font-weight:550">The voice is 1.2 s into the cue.</div></div><span class="chip">Narration</span><button class="btn sm ghost">Go to</button></div>
+  </div>
+  <div class="dlg-f"><span class="mono" style="color:var(--faint);font-size:11.5px;margin-right:auto">moment 3 of 9</span><button class="btn"><svg class="i sm" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>Previous moment</button><button class="btn primary">Next moment<svg class="i sm" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button></div>
+</div></div>
+
+<!-- 4. Snapshots -->
+<div class="cell"><div class="dlg">
+  <div class="dlg-h"><div class="ic"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div><div style="flex:1"><div class="t">Snapshots</div><div class="s">Euler's identity: 4 saved versions</div></div></div>
+  <div class="dlg-b">
+    <div class="label" style="margin-top:0">Name for the next snapshot</div>
+    <div class="field focus" style="margin-bottom:14px"><span class="v" style="font-family:var(--ui)">Before the camera pass</span></div>
+    <div class="cap" style="margin-bottom:6px">Saved</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="snap" style="background:var(--surface-3);border-color:var(--line-2)"><div class="th">Euler</div><div style="flex:1;min-width:0"><div style="font-weight:600">First pass of the formulas</div><div style="color:var(--faint);font-size:11px">12 min ago</div></div><button class="btn sm">Restore</button><button class="btn sm">Compare</button><button class="btn sm danger">Delete</button></div>
+      <div class="snap"><div class="th">Euler</div><div style="flex:1;min-width:0"><div style="font-weight:600">Narration added</div><div style="color:var(--faint);font-size:11px">Yesterday</div></div></div>
+      <div class="snap"><div class="th">Euler</div><div style="flex:1;min-width:0"><div style="font-weight:600">First draft</div><div style="color:var(--faint);font-size:11px">3 days ago</div></div></div>
+      <div class="snap"><div class="th">Euler</div><div style="flex:1;min-width:0"><div style="font-weight:600">Before restore</div><div style="color:var(--faint);font-size:11px">5 days ago</div></div><span class="chip">automatic</span></div>
+    </div>
+    <div style="color:var(--faint);font-size:11px;margin-top:10px">Restore, Compare and Delete appear when you point at a row.</div>
+  </div>
+  <div class="dlg-f"><button class="btn ghost">Close</button><button class="btn primary"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Save snapshot</button></div>
+</div></div>
+
+<!-- 5. Plugins -->
+<div class="cell"><div class="dlg">
+  <div class="dlg-h"><div class="ic"><svg class="i" viewBox="0 0 24 24"><path d="M10 4a2 2 0 014 0v2h4v4h-2a2 2 0 000 4h2v4h-4v-2a2 2 0 00-4 0v2H6v-4H4a2 2 0 010-4h2V6h4z"/></svg></div><div style="flex:1"><div class="t">Plugins</div><div class="s">3 found in the plugins folder</div></div></div>
+  <div class="dlg-b" style="display:flex;flex-direction:column;gap:8px">
+    <div class="pl" style="background:none;border:0;padding:0 12px"><span class="cap">Name</span><span class="cap">Compatible</span><span class="cap">Asks for</span><span></span></div>
+    <div class="pl"><div><div style="font-weight:650">Fourier Tools</div><div class="mono" style="color:var(--faint);font-size:10.5px">v1.2.0</div><div style="color:var(--warn);font-size:11px;margin-top:2px">waiting for approval</div></div><span class="chip ok" style="justify-self:start">ok</span><div class="pc"><span class="chip">files</span><span class="chip warn">runs code</span></div><button class="btn sm primary">Approve</button></div>
+    <div class="pl"><div><div style="font-weight:650">Chalkboard Theme</div><div class="mono" style="color:var(--faint);font-size:10.5px">v0.9.1</div><div style="color:var(--ok);font-size:11px;margin-top:2px">on</div></div><span class="chip ok" style="justify-self:start">ok</span><div class="pc"><span class="chip">files</span></div><span class="chip ok" style="justify-self:start">Approved</span></div>
+    <div class="pl"><div><div style="font-weight:650">Cloud Sync</div><div class="mono" style="color:var(--faint);font-size:10.5px">v2.0.0</div><div style="color:var(--warn);font-size:11px;margin-top:2px">waiting for approval</div></div><span class="chip warn" style="justify-self:start">needs newer app</span><div class="pc"><span class="chip warn">network</span><span class="chip">files</span></div><button class="btn sm primary" disabled>Approve</button></div>
+    <div style="color:var(--faint);font-size:11px">A plugin stays off until you approve what it asks for.</div>
+  </div>
+  <div class="dlg-f"><button class="btn ghost">Open plugins folder</button><button class="btn">Close</button></div>
+</div></div>
+
+<!-- 6. Open bundle that failed its check -->
+<div class="cell"><div class="dlg">
+  <div class="dlg-h"><div class="ic" style="background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.500l8 4.5 8-4.5M12 12v9"/></svg></div><div style="flex:1"><div class="t">Open bundle</div><div class="s">euler-identity.bundle: failed its check</div></div></div>
+  <div class="dlg-b">
+    <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="chip bad">Checksum mismatch: narration.wav</span><span class="chip bad">Missing: Newsreader.ttf</span></div>
+    <div style="color:var(--muted);margin-top:10px">The bundle was not opened, and nothing was written to your projects folder.</div>
+    <div style="display:flex;align-items:center;margin:16px 0 6px"><span class="cap">Files in the bundle</span><div class="grow"></div><span class="chip">5 files</span></div>
+    <div style="border-radius:12px;background:var(--field);border:1px solid var(--line);overflow:hidden">
+      <div class="fr"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--ok)"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">project.json</span><span style="color:var(--faint)">12 KB</span></div>
+      <div class="fr" style="background:color-mix(in srgb,var(--bad) 8%,transparent)"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--bad)"><path d="M6 6l12 12M18 6L6 18"/></svg><span style="flex:1">media/narration.wav</span><span style="color:var(--bad)">checksum</span><span style="color:var(--faint)">2.1 MB</span></div>
+      <div class="fr"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--ok)"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">media/music.mp3</span><span style="color:var(--faint)">3.4 MB</span></div>
+      <div class="fr" style="background:color-mix(in srgb,var(--bad) 8%,transparent)"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--bad)"><path d="M6 6l12 12M18 6L6 18"/></svg><span style="flex:1">fonts/Newsreader.ttf</span><span style="color:var(--bad)">missing</span></div>
+      <div class="fr"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--ok)"><path d="M5 12l5 5 9-10"/></svg><span style="flex:1">thumbnail.png</span><span style="color:var(--faint)">48 KB</span></div>
+    </div>
+  </div>
+  <div class="dlg-f"><button class="btn ghost" style="margin-right:auto">Copy report</button><button class="btn">Choose another</button><button class="btn primary" disabled>Open</button></div>
+</div></div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: this.props.theme === 'light' ? 'light' : '' }; }
+}
+</script>
+</body>
+</html>

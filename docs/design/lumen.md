@@ -124,3 +124,106 @@ footer with the actions right-aligned, the primary last).
 Every control has a name and a tooltip; every colour pair meets the contrast above; focus is always
 visible; nothing is conveyed by hue alone (a stale sound also says "stale"); text scales with the system
 font size; **Reduce motion** and **High contrast** (Paper with 100 % lines) are in Preferences.
+
+## The tools added since the first design (0.5)
+
+Everything below was built after the first Lumen mock-ups, using the same tokens and components; this section is
+where each one lives so no feature is "somewhere in a menu". Mock-ups: [Camera.dc.html](mockups/project/Camera.dc.html),
+[Tools.dc.html](mockups/project/Tools.dc.html) and [Dialogs.dc.html](mockups/project/Dialogs.dc.html). Rule of thumb:
+a feature that changes *the picture* lives on the stage or timeline, one that *explains or checks* the project
+lives in a dialog or a card of its page, and every one of them is also a palette action (Ctrl K lists the menus).
+
+### Camera (ADR 0072, 0083)
+
+- **Layer row.** The camera is the first row of Layers and cannot be reordered or grouped: a rounded `camera`
+  icon tile in the accent-to-cyan gradient, the name, a `camera` chip, the eye. There is one per project; *Add
+  object > Camera* is disabled with a tooltip once it exists.
+- **Stage header** carries the view as a **segmented control: Scene | Game** (shortcut `G`), next to the Fit /
+  75 % / 100 % control. The text that used to float over the picture ("Game view: ...") is a tooltip of the
+  control and a one-line hint in the status bar, never a banner over the video. Game is the default.
+- **Scene view** draws the world flat. The camera is a **rectangle in the accent** (1.5 px, soft halo) with a
+  small camera glyph on its top-left corner, a dashed line to a followed layer, a centre cross, and four corner
+  handles that change Size, and a round handle on a stalk above it for Roll; dragging inside moves it. The
+  rectangle's own readout chip ("Size 4.0 - 16:9") is accent-filled, like the selection size chip.
+- **Properties.** Transform has Position, **Size** (instead of Scale) and Rotation, each with its keyframe
+  diamond; the **Camera** section has Background (colour field with swatch and a clear button), Follow (a layer
+  picker with an "x" and an Offset X / Y row). A scale key reads "Size" in the key popover.
+- **Timeline.** The camera lane is pinned under the ruler with its position / size / rotation keys; the value
+  curves ease the *size*, as Unity does.
+
+### Stage, guides and labels (ADR 0074, 0075)
+
+- **Layout guides** (View > Layout Guides, `Ctrl '`): thin accent lines at 30 % over the frame - rule-of-thirds,
+  centre cross, title-safe and action-safe boxes - plus draggable guides pulled from the rulers. The guides
+  dialog is meant to be a small popover on the stage header's guides button; today it is a restyled dialog (the
+  shell cannot import the canvas package), and the header button toggles the guides.
+- **Pinned labels:** a rounded label in the layer's own colour with a leader line to the object; they are drawn
+  by the same renderer as the video (they can be exported) and are edited in place.
+- **Esc** deselects everything; clicking on empty stage does the same and starts a marquee.
+
+### Timeline (ADR 0071, 0079, 0080)
+
+- **Sequences.** Clips and keys made into a sequence are drawn as one bar: the bracket glyph, the name, and the
+  member clips inside it as thin segments; the bar has a dashed outline in the clip kind's hue when its parts do
+  not all fit one hue. Double-click opens it; *Dissolve Sequence* puts the parts back. Moving the bar moves every
+  clip and key; the bar is a **recipe** once saved (Edit > Make Recipe from Sequence), and recipes appear in the
+  presets browser with a "recipe" chip and their parameters as a small form.
+- **Ripple edit** (Edit > Ripple Edit..., `Ctrl+Alt+R`): a dialog with the mode as a segmented control (*Close the
+  gap / Open space / Linked*), a number field with a unit, and a live line "moves 5 clips, 3 keys, 2 markers" in
+  a quiet chip; the timeline shows the moved range as a soft accent band while the dialog is open.
+- **Draft preview** (View): a chip *Draft* in the stage header while the preview shows a faster, lower-quality
+  frame during an edit; it turns to *Exact* when the real frame arrives.
+
+### Dialogs (ADR 0066, 0068, 0073, 0078, 0082)
+
+All use the dialog chrome of Components (icon header, body, footer with the primary last) at 560 x 520, and none
+take more than one task.
+
+- **Beat sheet** (Edit, `Ctrl+Alt+B`): one row per beat between markers - a 192 x 108 picture, the beat's name and
+  clock range in mono, then *Appears / Says / Sound* as three quiet lines with a coloured dot each. Double-click
+  goes there. Footer: *Copy as Markdown*, *Close*.
+- **Explain This Moment**: a card list ordered by layer; each row says in a sentence why it is visible now
+  ("Write is 62 % through its run"), with the clip chip and a *Go to* ghost button; *Previous / Next moment*
+  step through the scene and move the playhead.
+- **Snapshots** (File > Snapshots): named versions as rows with a thumbnail, name, age, and *Restore / Compare /
+  Delete* on hover; "Save snapshot" is the primary.
+- **Plugins**: a table with name, version, a compatibility chip (*ok / needs newer app*), and the permissions the
+  plugin asks for as chips (*files*, *network*, *runs code*); *Approve* is a primary button per row; unapproved
+  plugins stay off and say "waiting for approval".
+- **Extract selection as code**: a preview of the generated code in a code card with a *Same picture* ok chip
+  after the check, and the primary *Extract*.
+- **Bundles** (File > Export Bundle / Open Bundle): a progress ring and the list of files that went in; opening
+  a bundle that fails its check shows the failures as bad chips and never opens it half way.
+- **Import script**: the script on the left, the proposed timeline on the right (the structure as lanes), *Create*.
+
+### Code page (ADR 0067, 0076)
+
+- **Errors know where they are.** An error is a card under the editor: a bad chip with the exception, one
+  sentence, then two ghost buttons *Go to line* and *Go to layer at 0:04.20* (the playhead goes to the time the
+  error belongs to); the "Did you mean...?" card and the Fix button keep their place.
+- **Farm chip.** In the toolbar a chip *Farm 3 / 4* (running over total, accent when busy) opens a popover with
+  each Python layer's state (waiting, running, ready, failed) and the controls (run again, stop).
+- **Controls.** Parameters declared in the code appear in the Parameters tab as sliders, toggles and colour
+  swatches that rerun the scene as they move.
+
+### Deliver (ADR 0065, 0066, 0081)
+
+- **Health.** Above the settings a **health card**: a row of chips (*Fonts ok, Media ok, Python layers 2 slow,
+  Sound stale*), each warn or bad chip opens the thing it names; the estimate row keeps time, size, sound.
+- **Resume.** An export that was interrupted shows in the queue as a card with a segment strip (done segments
+  filled in the accent gradient, the next one pulsing), *Resume* as the primary and *Start over* as ghost;
+  the progress ring reads "6 of 9".
+- **Farm.** The queue row of a parallel export shows one thin bar per worker below the main ring. *Not built yet:*
+  the export reports only frame and total, so the bars wait for per-worker progress from the render processes.
+- **GPU.** *Encoder* is a segmented control (*Auto / GPU / CPU*) with a chip saying which was used after the run.
+
+### Welcome (ADR 0064)
+
+Templates are 176 x 84 cards with an icon tile, title and one line: *Blank*, *Euler's identity*, *Showcase*,
+*Camera tour*, ... The recent list keeps thumbnails.
+
+### Where the shortcuts live
+
+Every new command has a menu entry (so it is in the palette) and a shortcut when it is used often: Beat Sheet
+`Ctrl+Alt+B`, Ripple `Ctrl+Alt+R`, Game / Scene view `G`, Layout guides `Ctrl '`, Explain This Moment
+`Ctrl+Alt+E`; the rest are palette-only on purpose.

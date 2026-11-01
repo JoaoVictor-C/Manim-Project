@@ -14,7 +14,10 @@
     "Palette.dc.html": { "x": 0, "y": 4280, "w": 1440, "h": 900, "title": "Command palette" },
     "Light.dc.html": { "x": 1520, "y": 4280, "w": 1440, "h": 900, "title": "Paper (light theme)" },
     "Foundations.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1100, "title": "Foundations" },
-    "Components.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1100, "title": "Components" }
+    "Components.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1100, "title": "Components" },
+    "Camera.dc.html": { "x": 0, "y": 5300, "w": 1440, "h": 900, "title": "Camera and Scene view" },
+    "Tools.dc.html": { "x": 1520, "y": 5300, "w": 1440, "h": 900, "title": "Tools: code, deliver, timeline, welcome" },
+    "Dialogs.dc.html": { "x": 0, "y": 6320, "w": 1440, "h": 900, "title": "Dialogs" }
   },
   "order": [
     "Foundations.dc.html",
@@ -26,7 +29,10 @@
     "Deliver.dc.html",
     "Welcome.dc.html",
     "Palette.dc.html",
-    "Light.dc.html"
+    "Light.dc.html",
+    "Camera.dc.html",
+    "Tools.dc.html",
+    "Dialogs.dc.html"
   ],
   "notes": {
     "title": { "x": 0, "y": -300, "text": "Lumen: the Manim Studio interface", "kind": "title1", "maxW": 2960 }

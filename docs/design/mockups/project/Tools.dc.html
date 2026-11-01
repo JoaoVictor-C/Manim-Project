@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tools</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>
+body{margin:0}
+.code div{white-space:pre}
+.t32 span{height:32px !important}
+.cap{color:var(--faint);font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
+.tr7{background:repeating-linear-gradient(90deg,transparent 0 calc(14.2857% - 1px),var(--line) calc(14.2857% - 1px) 14.2857%)}
+.ghostclip{position:absolute;top:5px;height:24px;border-radius:8px;border:1px dashed var(--line-2)}
+.mini{padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+</style>
+</helmet>
+<div class="lumen {{themeClass}}" style="width:1440px;height:900px;padding:28px 32px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:16px">
+
+<!-- (a) Code page excerpt -->
+<div class="card">
+  <div class="card-h"><h3>Code page: errors and the farm</h3><div class="grow"></div><span class="chip">ADR 0067, 0076</span></div>
+  <div class="card-b" style="display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface);border-bottom:1px solid var(--line);flex:none">
+      <div class="tab on" style="height:30px;border-radius:9px"><svg class="i sm" viewBox="0 0 24 24" style="color:#ffd166"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>Orbit</div>
+      <div class="grow"></div>
+      <span class="chip accent"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M5 12H2M22 12h-3M7 7L5 5M19 19l-2-2M7 17l-2 2M19 5l-2 2"/></svg>Farm 3 / 4</span>
+      <div class="chip"><span class="toggle" style="width:22px;height:13px"></span>Live</div>
+      <button class="btn sm"><svg class="i sm" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9M3 4v5h5"/></svg>Revert</button>
+      <button class="btn sm primary"><svg class="i sm fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg>Run <span class="kbd" style="background:rgba(255,255,255,.18);border-color:transparent;color:#fff">Ctrl &crarr;</span></button>
+    </div>
+    <div class="code" style="background:var(--field);padding:6px 0;font-size:11.5px;line-height:1.7;flex:none">
+      <div><span class="ln">4</span>    <span class="k">def</span> <span class="f">construct</span>(self):</div>
+      <div><span class="ln">5</span>        sun = <span class="m">Dot</span>(color=<span class="m">YELLOW</span>)</div>
+      <div class="err"><span class="ln" style="color:var(--bad)">6</span>        planet = <span class="sq">Circl</span>(radius=<span class="n">0.2</span>)</div>
+      <div><span class="ln">7</span>        self.play(<span class="m">MoveAlongPath</span>(planet, path), run_time=<span class="n">4</span>)</div>
+    </div>
+    <!-- the error card under the editor -->
+    <div style="display:flex;gap:14px;padding:10px 12px;border-top:1px solid var(--line);flex:none">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="chip bad">NameError</span><span style="font-weight:600">Circl is not defined, in Orbit at line 6.</span></div>
+        <div style="color:var(--muted);font-size:11.5px;margin-bottom:8px">The error belongs to the moment the layer is drawn.</div>
+        <div style="display:flex;gap:4px"><button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Go to line</button><button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Go to layer at 0:04.20</button></div>
+      </div>
+      <div style="width:218px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent-line);padding:10px 12px;align-self:flex-start">
+        <div style="font-weight:650;margin-bottom:2px">Did you mean Circle?</div>
+        <div style="color:var(--muted);font-size:11.5px;margin-bottom:8px">Manim spells it with an e.</div>
+        <button class="btn sm primary">Fix</button>
+      </div>
+    </div>
+    <!-- Parameters tab -->
+    <div class="tabs t32" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-left:6px;flex:none"><span>Output</span><span>Values</span><span class="on">Parameters</span><span>History</span></div>
+    <div style="display:grid;grid-template-columns:1.3fr 1fr 1.1fr;gap:16px;padding:10px 14px;align-items:end">
+      <div><div class="label" style="margin-top:0">speed</div><div style="display:flex;align-items:center;gap:10px;height:30px"><div class="slider"><i style="width:55%"></i><b style="left:55%"></b></div><span class="mono" style="width:34px;text-align:right">1.5</span></div></div>
+      <div style="display:flex;align-items:center;gap:10px;height:30px"><span class="toggle on"></span>trail</div>
+      <div><div class="label" style="margin-top:0">planet colour</div><div class="field"><span class="swatch" style="background:#4cc9f0"></span><span class="v">#4CC9F0</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- (b) Deliver page excerpt -->
+<div class="card">
+  <div class="card-h"><h3>Deliver: health, resume, farm, GPU</h3><div class="grow"></div><span class="chip">ADR 0065, 0066, 0081</span></div>
+  <div class="card-b" style="padding:12px;display:grid;grid-template-columns:292px 1fr;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="mini">
+        <div style="display:flex;align-items:center;margin-bottom:10px"><span class="cap">Health</span><div class="grow"></div><span class="chip warn">2 to look at</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span class="chip ok"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px;stroke-width:3"><path d="M5 12l5 5 9-10"/></svg>Fonts ok</span>
+          <span class="chip ok"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px;stroke-width:3"><path d="M5 12l5 5 9-10"/></svg>Media ok</span>
+          <span class="chip warn">Python layers 2 slow<svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px"><path d="M9 6l6 6-6 6"/></svg></span>
+          <span class="chip warn">Sound stale<svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px"><path d="M9 6l6 6-6 6"/></svg></span>
+        </div>
+        <div style="color:var(--faint);font-size:11px;margin-top:10px">A warning opens the thing it names.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div class="mini" style="padding:9px 11px"><div style="color:var(--faint);font-size:10.5px">Time</div><div class="mono" style="font-weight:700;margin-top:2px;white-space:nowrap">1m 40s</div></div>
+        <div class="mini" style="padding:9px 11px"><div style="color:var(--faint);font-size:10.5px">Size</div><div class="mono" style="font-weight:700;margin-top:2px">14 MB</div></div>
+        <div class="mini" style="padding:9px 11px"><div style="color:var(--faint);font-size:10.5px">Sound</div><div class="mono" style="font-weight:700;margin-top:2px">AAC</div></div>
+      </div>
+      <div class="mini">
+        <div class="cap" style="margin-bottom:8px">Encoder</div>
+        <div class="seg" style="display:flex"><span class="on" style="flex:1;text-align:center">Auto</span><span style="flex:1;text-align:center">GPU</span><span style="flex:1;text-align:center">CPU</span></div>
+        <div style="margin-top:10px"><span class="chip ok">Last export used GPU</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <div style="display:flex;align-items:center"><span class="cap">Queue</span><div class="grow"></div><span class="chip warn">1 interrupted</span></div>
+      <!-- resumable job -->
+      <div class="mini" style="border-color:var(--accent-line)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <svg viewBox="0 0 52 52" style="width:52px;height:52px;flex:none"><circle cx="26" cy="26" r="21" fill="none" stroke="var(--surface-3)" stroke-width="4"/><circle cx="26" cy="26" r="21" fill="none" stroke="url(#rg2)" stroke-width="4" stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="44" transform="rotate(-90 26 26)"/><defs><linearGradient id="rg2" x1="0" x2="1"><stop offset="0" stop-color="#7b6cf6"/><stop offset="1" stop-color="#4cc9f0"/></linearGradient></defs><text x="26" y="29.5" text-anchor="middle" fill="var(--text)" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700">6 of 9</text></svg>
+          <div style="flex:1;min-width:0"><div style="font-weight:650">Euler's identity.mp4</div><div style="color:var(--muted);font-size:11.5px">Interrupted: 6 of 9 segments are done</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:3px;margin-top:12px">
+          <i style="height:8px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i><i style="height:8px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i><i style="height:8px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i><i style="height:8px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i><i style="height:8px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i><i style="height:8px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i>
+          <i class="pulse" style="height:8px;border-radius:3px;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)"></i><i style="height:8px;border-radius:3px;background:var(--surface-3)"></i><i style="height:8px;border-radius:3px;background:var(--surface-3)"></i>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn sm primary"><svg class="i sm fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg>Resume</button><button class="btn sm ghost">Start over</button></div>
+      </div>
+      <!-- parallel export -->
+      <div class="mini">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="flex:1;min-width:0"><div style="font-weight:650">Camera tour.mp4</div><div class="mono" style="color:var(--muted);font-size:11px">frame 211 / 300</div></div><span class="chip accent">Farm: 4 workers</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px"><span class="mono" style="width:18px;color:var(--faint);font-size:10px">w1</span><div class="slider" style="height:3px"><i style="width:78%"></i></div></div>
+          <div style="display:flex;align-items:center;gap:8px"><span class="mono" style="width:18px;color:var(--faint);font-size:10px">w2</span><div class="slider" style="height:3px"><i style="width:64%"></i></div></div>
+          <div style="display:flex;align-items:center;gap:8px"><span class="mono" style="width:18px;color:var(--faint);font-size:10px">w3</span><div class="slider" style="height:3px"><i style="width:71%"></i></div></div>
+          <div style="display:flex;align-items:center;gap:8px"><span class="mono" style="width:18px;color:var(--faint);font-size:10px">w4</span><div class="slider" style="height:3px"><i style="width:52%"></i></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- (c) Timeline and stage excerpt -->
+<div class="card">
+  <div class="card-h"><h3>Timeline and stage: ripple band, Draft and Exact</h3><div class="grow"></div><span class="chip">ADR 0071, 0079</span></div>
+  <div class="card-b" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:grid;grid-template-columns:1fr 26px 1fr;gap:0;align-items:center;flex:none">
+      <div class="mini" style="padding:0;overflow:hidden">
+        <div style="height:34px;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;border-bottom:1px solid var(--line)"><h3 style="margin:0;font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Stage</h3><div class="grow"></div><span style="color:var(--faint);font-size:11px">while you edit</span><span class="chip warn"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>Draft</span></div>
+        <div style="position:relative;height:92px"><div class="stage"></div><div class="frame" style="left:50%;margin-left:-62px;top:10px;width:124px;height:70px;background:radial-gradient(100px 60px at 50% 40%,#16224a,#0b1226)"><div style="position:absolute;top:9px;left:0;right:0;text-align:center;font:italic 500 9px var(--serif);color:#e9ecf6;filter:blur(.9px)">Euler's identity</div><div style="position:absolute;top:30px;left:0;right:0;text-align:center;font:italic 400 17px var(--serif);color:#fff;filter:blur(1.1px)">e<sup style="font-size:10px">i&pi;</sup> + 1 = 0</div></div></div>
+      </div>
+      <div style="display:grid;place-items:center;color:var(--faint)"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="mini" style="padding:0;overflow:hidden">
+        <div style="height:34px;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;border-bottom:1px solid var(--line)"><h3 style="margin:0;font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Stage</h3><div class="grow"></div><span style="color:var(--faint);font-size:11px">the real frame arrived</span><span class="chip ok"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px;stroke-width:3"><path d="M5 12l5 5 9-10"/></svg>Exact</span></div>
+        <div style="position:relative;height:92px"><div class="stage"></div><div class="frame" style="left:50%;margin-left:-62px;top:10px;width:124px;height:70px;background:radial-gradient(100px 60px at 50% 40%,#16224a,#0b1226)"><div style="position:absolute;top:9px;left:0;right:0;text-align:center;font:italic 500 9px var(--serif);color:#e9ecf6">Euler's identity</div><div style="position:absolute;top:30px;left:0;right:0;text-align:center;font:italic 400 17px var(--serif);color:#fff">e<sup style="font-size:10px">i&pi;</sup> + 1 = 0</div></div></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:none"><span class="cap">Ripple edit open</span><span style="color:var(--faint);font-size:11px">the moved range is a soft band; dashed outlines are where the clips were</span></div>
+    <!-- timeline excerpt -->
+    <div style="position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);flex:none">
+      <div class="ruler" style="margin-left:130px;width:518px"><span style="left:0%">0s</span><span style="left:14.28%">1s</span><span style="left:28.57%">2s</span><span style="left:42.85%">3s</span><span style="left:57.14%">4s</span><span style="left:71.42%">5s</span><span style="left:85.7%">6s</span><i style="left:14.28%"></i><i style="left:28.57%"></i><i style="left:42.85%"></i><i style="left:57.14%"></i><i style="left:71.42%"></i><i style="left:85.7%"></i></div>
+      <div class="lane" style="height:30px"><div class="hd" style="width:130px"><span class="nm" style="font-weight:500">Title</span></div><div class="tr tr7"><div class="clip" style="top:3px;height:24px;left:0;width:14.3%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">FadeIn</div></div></div>
+      <div class="lane" style="height:30px"><div class="hd" style="width:130px"><span class="nm" style="font-weight:500">e<sup>i&theta;</sup> = cos &theta; ...</span></div><div class="tr tr7">
+        <div class="clip" style="top:3px;height:24px;left:7%;width:21%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">Write</div>
+        <div class="ghostclip" style="top:3px;left:50%;width:12%"></div><div class="clip" style="top:3px;height:24px;left:53.6%;width:12%;background:linear-gradient(180deg,#ffb066,#f08a2c)">Indicate</div>
+        <div class="ghostclip" style="top:3px;left:64%;width:21%"></div><div class="clip" style="top:3px;height:24px;left:67.6%;width:21%;background:linear-gradient(180deg,#d59bff,#b25bf0)">Transform</div>
+      </div></div>
+      <div class="lane" style="height:30px"><div class="hd" style="width:130px"><span class="nm" style="font-weight:500">e<sup>i&pi;</sup> + 1 = 0</span></div><div class="tr tr7">
+        <div class="ghostclip" style="top:3px;left:30%;width:20%"></div><div class="clip" style="top:3px;height:24px;left:33.6%;width:20%;background:linear-gradient(180deg,#6f9bff,#4a78ee)">Write</div>
+        <div class="key" style="top:10px;left:calc(60% + 3.6% - 5px)"></div>
+      </div></div>
+      <div class="lane" style="height:30px;border-bottom:0"><div class="hd" style="width:130px"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M6 3v18M6 4h11l-2 4 2 4H6"/></svg><span class="nm" style="font-weight:500;color:var(--muted)">Markers</span></div><div class="tr tr7">
+        <div style="position:absolute;left:20%;top:5px;width:2px;height:20px;background:var(--c-emphasis)"></div>
+        <div style="position:absolute;left:calc(43% + 3.6%);top:5px;width:2px;height:20px;background:var(--c-emphasis)"></div>
+        <div style="position:absolute;left:calc(70% + 3.6%);top:5px;width:2px;height:20px;background:var(--c-emphasis)"></div>
+      </div></div>
+      <!-- the ripple band -->
+      <div style="position:absolute;top:0;bottom:0;left:calc(130px + 518px * .2857);right:0;background:var(--accent-soft);border-left:1px solid var(--accent-line);pointer-events:none;z-index:2"></div>
+      <span class="chip mono accent" style="position:absolute;left:calc(130px + 518px * .2857 + 6px);top:32px;height:20px;background:var(--accent);color:#fff;border:0;z-index:3">+0:00.50</span>
+    </div>
+  </div>
+</div>
+
+<!-- (d) Welcome templates -->
+<div class="card">
+  <div class="card-h"><h3>Welcome: templates</h3><div class="grow"></div><span class="chip">ADR 0064</span></div>
+  <div class="card-b" style="padding:16px 18px;display:grid;grid-template-columns:372px 1fr;gap:26px">
+    <div>
+      <div class="cap" style="margin-bottom:10px">Start from a template</div>
+      <div style="display:grid;grid-template-columns:176px 176px;gap:10px">
+        <div style="width:176px;height:84px;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center;color:var(--muted)"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div><span style="font-weight:600">Blank</span></div>
+          <div style="color:var(--faint);font-size:11px;margin-top:10px">An empty 16:9 canvas</div>
+        </div>
+        <div style="width:176px;height:84px;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#5b8cff,#7b6cf6);display:grid;place-items:center;color:#fff;font:italic 13px var(--serif)">e<sup style="font-size:8px">i&pi;</sup></div><span style="font-weight:600">Euler's identity</span></div>
+          <div style="color:var(--faint);font-size:11px;margin-top:10px">Write it, then morph it</div>
+        </div>
+        <div style="width:176px;height:84px;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#ff9f43,#ff6b8b);display:grid;place-items:center;color:#fff"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg></div><span style="font-weight:600">Showcase</span></div>
+          <div style="color:var(--faint);font-size:11px;margin-top:10px">Shapes, graphs and text</div>
+        </div>
+        <div style="width:176px;height:84px;padding:12px;border-radius:14px;background:var(--accent-soft);border:1px solid var(--accent-line)">
+          <div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff"><svg class="i" viewBox="0 0 24 24"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div><span style="font-weight:600">Camera tour</span></div>
+          <div style="color:var(--muted);font-size:11px;margin-top:10px">Pan, zoom and roll</div>
+        </div>
+      </div>
+      <div style="margin-top:12px"><button class="btn sm ghost">All templates<svg class="i sm" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button></div>
+    </div>
+    <div style="min-width:0">
+      <div class="cap" style="margin-bottom:10px">Recent</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="mini" style="display:flex;gap:12px;align-items:center;padding:10px 12px"><div style="width:76px;height:43px;border-radius:7px;background:radial-gradient(70px 40px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center;font:italic 13px var(--serif);color:#fff;border:1px solid var(--line-2)">e<sup style="font-size:8px">i&pi;</sup> + 1 = 0</div><div style="flex:1;min-width:0"><div style="font-weight:600">Euler's identity</div><div style="color:var(--faint);font-size:11px">Edited today &middot; 7 s</div></div></div>
+        <div class="mini" style="display:flex;gap:12px;align-items:center;padding:10px 12px"><div style="width:76px;height:43px;border-radius:7px;background:radial-gradient(70px 40px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center;border:1px solid var(--line-2)"><svg viewBox="0 0 76 43" style="width:70px"><rect x="8" y="9" width="40" height="22" fill="none" stroke="#7b6cf6" stroke-width="1.2"/><rect x="20" y="22" width="9" height="9" fill="#38bdf8"/><circle cx="52" cy="26" r="3" fill="#f472b6"/><path d="M62 31l4-8 4 8z" fill="#a3e635"/></svg></div><div style="flex:1;min-width:0"><div style="font-weight:600">Camera tour</div><div style="color:var(--faint);font-size:11px">Edited yesterday &middot; 10 s</div></div></div>
+        <div class="mini" style="display:flex;gap:12px;align-items:center;padding:10px 12px"><div style="width:76px;height:43px;border-radius:7px;background:radial-gradient(70px 40px at 50% 40%,#16224a,#0b1226);display:grid;place-items:center;border:1px solid var(--line-2)"><svg viewBox="0 0 76 43" style="width:70px"><path d="M4 21h68M38 4v35" stroke="#4cc9f0" stroke-opacity=".4"/><path d="M4 33C18 33 20 9 38 9s20 24 34 24" fill="none" stroke="#c77dff" stroke-width="1.6"/></svg></div><div style="flex:1;min-width:0"><div style="font-weight:600">Sine and cosine</div><div style="color:var(--faint);font-size:11px">3 days ago &middot; 12 s</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: this.props.theme === 'light' ? 'light' : '' }; }
+}
+</script>
+</body>
+</html>

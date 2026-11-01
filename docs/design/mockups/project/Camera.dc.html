@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Camera</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="lumen.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap">
+<style>
+body{margin:0}
+.tr10{background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--line) calc(10% - 1px) 10%) !important}
+.k8{position:absolute;width:8px;height:8px;background:var(--c-key);transform:rotate(45deg);border-radius:2px;box-shadow:0 0 0 1.5px rgba(0,0,0,.45)}
+.kl{position:absolute;height:1px;background:var(--accent-line)}
+</style>
+</helmet>
+<div class="lumen {{themeClass}}" style="width:1440px;height:900px">
+<div class="app">
+
+<div class="topbar">
+  <div class="mark"><svg class="i" viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M3 16c3 0 3-9 6-9s3 9 6 9 3-5 6-5"/></svg></div>
+  <div class="menus"><span>File</span><span>Edit</span><span>Animate</span><span>View</span><span>Arrange</span><span>Help</span></div>
+  <div class="pagebar">
+    <button class="on"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/></svg>Compose<kbd>1</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6"/></svg>Animate<kbd>2</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>Code<kbd>3</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg>Audio<kbd>4</kbd></button>
+    <button><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Deliver<kbd>5</kbd></button>
+  </div>
+  <div class="grow"></div>
+  <div class="right">
+    <button class="ibtn" aria-label="Undo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button class="ibtn" aria-label="Redo"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
+    <div class="searchbtn"><svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Search or run a command<kbd>Ctrl K</kbd></div>
+    <div class="vsep"></div>
+    <button class="ibtn on" aria-label="Layers panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Properties panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg></button>
+    <button class="ibtn on" aria-label="Timeline panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 14h18"/></svg></button>
+    <button class="btn primary" style="margin-left:6px"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Export</button>
+  </div>
+</div>
+
+<div class="body" style="grid-template-columns:288px 1fr 316px;grid-template-rows:1fr 286px">
+
+  <!-- Layers: the camera is the first row -->
+  <div class="card" style="grid-row:span 2">
+    <div class="card-h"><h3>Layers</h3><span class="chip">12</span><div class="grow"></div>
+      <button class="ibtn sm" aria-label="Add layer"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="ibtn sm" aria-label="Layer options"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+    </div>
+    <div style="padding:10px 10px 4px"><div class="field"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><span style="color:var(--faint)">Filter layers</span></div></div>
+    <div class="card-b" style="padding-top:6px">
+      <div class="lrow sel"><div class="ty" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))"><svg class="i sm" viewBox="0 0 24 24"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div><span class="nm">Camera</span><span class="chip accent" style="height:18px;font-size:10px">camera</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M3 12h18"/></svg></div><span class="nm">Floor</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Pan</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">station 1</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Zoom</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">station 2</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">Roll</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#5b8cff,#7b6cf6)"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></div><span class="nm">station 3</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></div><span class="nm">Square</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></div><span class="nm">Circle</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#ffd166,#ff9f43)"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/></svg></div><span class="nm">Dot</span><span class="chip accent" style="height:18px;font-size:10px">followed</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+      <div class="lrow"><div class="ty" style="background:linear-gradient(135deg,#34d1a0,#4cc9f0)"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5l8 14H4z"/></svg></div><span class="nm">Triangle</span><span class="acts"><svg class="i sm" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    </div>
+    <div style="padding:10px;border-top:1px solid var(--line);display:flex;gap:8px">
+      <button class="btn sm" style="flex:1"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add object</button>
+      <button class="btn sm ghost"><svg class="i sm" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>Presets</button>
+    </div>
+  </div>
+
+  <!-- Stage: Scene view -->
+  <div class="card">
+    <div class="card-h"><h3>Stage</h3><span class="chip mono">1280 &times; 720</span><span class="chip mono">30 fps</span><div class="grow"></div>
+      <div class="seg"><span class="on">Scene</span><span>Game</span></div>
+      <div class="seg"><span>Fit</span><span class="on">75%</span><span>100%</span></div>
+      <button class="ibtn sm on" aria-label="Layout guides"><svg class="i" viewBox="0 0 24 24"><path d="M3 8h18M3 16h18M8 3v18M16 3v18"/></svg></button>
+      <button class="ibtn sm" aria-label="Full screen"><svg class="i" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+    <div class="card-b" style="position:relative">
+      <div class="stage"></div>
+      <svg viewBox="0 0 802 480" style="position:absolute;inset:0;width:100%;height:100%" font-family="Inter, sans-serif">
+        <!-- the world: three stations, 10 units apart (18 px per unit) -->
+        <rect x="77" y="125" width="648" height="180" rx="3" fill="#0b1020" stroke="#ffffff" stroke-opacity=".1"/>
+        <path d="M113 258H689" stroke="#334155" stroke-width="2"/>
+        <g fill="#e9ecf6" font-size="14" font-weight="600" text-anchor="middle"><text x="221" y="172">Pan</text><text x="401" y="172">Zoom</text><text x="581" y="172">Roll</text></g>
+        <g fill="#94a3b8" font-size="7.5" text-anchor="middle"><text x="221" y="189">station 1</text><text x="401" y="189">station 2</text><text x="581" y="189">station 3</text></g>
+        <rect x="201.2" y="206.2" width="39.6" height="39.6" fill="#38bdf8" fill-opacity=".85" stroke="#38bdf8"/>
+        <circle cx="369" cy="226" r="19.8" fill="#f472b6" fill-opacity=".85" stroke="#f472b6"/>
+        <circle cx="433" cy="226" r="4" fill="#facc15"/>
+        <path d="M581 202.6L601.3 237.7H560.7z" fill="#a3e635" fill-opacity=".85" stroke="#a3e635"/>
+        <!-- layout guides (thirds) over the camera frame -->
+        <g stroke="var(--accent)" stroke-opacity=".3" stroke-width="1"><path d="M191 143V287M287 143V287M95 191H383M95 239H383"/></g>
+        <!-- follow line -->
+        <path d="M239 215L433 226" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 4" fill="none"/>
+        <circle cx="433" cy="226" r="8" fill="none" stroke="var(--accent)" stroke-width="1.2"/>
+        <!-- the camera rectangle -->
+        <rect x="95" y="143" width="288" height="144" rx="2" fill="var(--accent)" fill-opacity=".05" stroke="var(--accent)" stroke-width="1.5"/>
+        <rect x="93.5" y="141.5" width="291" height="147" rx="3" fill="none" stroke="var(--accent)" stroke-opacity=".25" stroke-width="3"/>
+        <path d="M233 215H245M239 209V221" stroke="var(--accent)" stroke-width="1.2"/>
+        <!-- roll handle on a stalk -->
+        <path d="M239 143V116" stroke="var(--accent)" stroke-width="1.5"/>
+        <circle cx="239" cy="110" r="6" fill="#fff" stroke="var(--accent)" stroke-width="1.5"/>
+        <!-- corner handles -->
+        <g fill="#fff" stroke="var(--accent)" stroke-width="1.5"><rect x="90.5" y="138.5" width="9" height="9" rx="3"/><rect x="378.5" y="138.5" width="9" height="9" rx="3"/><rect x="90.5" y="282.5" width="9" height="9" rx="3"/><rect x="378.5" y="282.5" width="9" height="9" rx="3"/></g>
+        <!-- camera glyph on the top-left corner -->
+        <rect x="95" y="125" width="26" height="16" rx="5" fill="var(--accent)"/>
+        <g transform="translate(101 126.5) scale(.58)" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></g>
+      </svg>
+      <div class="chip mono" style="position:absolute;left:95px;top:296px;background:var(--accent);color:#fff;border:0">Size 4.0 &middot; 16:9</div>
+      <div class="chip" style="position:absolute;left:268px;top:296px">following Dot</div>
+      <div class="tip" style="position:absolute;right:12px;top:10px;gap:8px;align-items:center">Game view shows what the camera sees<span class="kbd">G</span></div>
+      <!-- tools -->
+      <div class="pill" style="left:14px;top:50%;transform:translateY(-50%);flex-direction:column;border-radius:14px">
+        <button class="ibtn on" aria-label="Select"><svg class="i" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></svg></button>
+        <button class="ibtn" aria-label="Hand"><svg class="i" viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7a6 6 0 01-6 6H10a5 5 0 01-4-2l-2-3a1.5 1.5 0 012-2l2 2"/></svg></button>
+        <button class="ibtn" aria-label="Text"><svg class="i" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></button>
+        <button class="ibtn" aria-label="Shape"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></button>
+        <button class="ibtn" aria-label="Anchor"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></button>
+      </div>
+      <!-- transport -->
+      <div class="pill" style="left:50%;bottom:16px;transform:translateX(-50%);gap:6px;padding:6px 10px 6px 6px;border-radius:22px">
+        <button class="ibtn" aria-label="Start"><svg class="i fill" viewBox="0 0 24 24"><path d="M6 5h2v14H6zM19 5v14L9 12z"/></svg></button>
+        <div class="play"><svg class="i fill" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+        <button class="ibtn" aria-label="End"><svg class="i fill" viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5l10 7-10 7z"/></svg></button>
+        <div class="vsep"></div>
+        <span class="mono" style="font-size:13px;font-weight:600">0:02.40</span><span class="mono" style="color:var(--faint)">/ 0:10.00</span>
+        <div class="vsep"></div>
+        <button class="ibtn sm" aria-label="Repeat"><svg class="i" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"/></svg></button>
+        <span class="chip">1&times;</span>
+        <button class="ibtn sm" aria-label="Volume"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9a4 4 0 010 6"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Properties -->
+  <div class="card" style="grid-row:span 2">
+    <div class="card-h"><div class="tabs"><span class="on">Properties</span><span>Clip</span><span>Scene</span></div><div class="grow"></div>
+      <button class="ibtn sm" aria-label="More"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+    <div class="card-b" style="overflow:hidden">
+      <div class="section" style="padding-top:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="lrow" style="margin:0;padding:0;height:auto;width:auto;background:none"><div class="ty" style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2))"><svg class="i" viewBox="0 0 24 24"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div></div>
+          <div style="flex:1;min-width:0"><div style="font-weight:650;font-size:14px">Camera</div><div style="color:var(--muted);font-size:11.5px">One per project &middot; 7 keys</div></div>
+          <span class="chip accent">Auto-key</span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-h"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Transform</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:54px;color:var(--muted);font-size:11.5px">Position</span>
+          <div class="row2" style="flex:1"><div class="field"><span class="lab">X</span><span class="v">-9.00</span></div><div class="field"><span class="lab">Y</span><span class="v">0.00</span></div></div>
+          <button class="ibtn sm on" aria-label="Keyframe Position"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <span style="width:54px;color:var(--muted);font-size:11.5px">Size</span>
+          <div class="field" style="flex:1"><span class="lab">S</span><span class="v">4.00</span><span class="unit">half height</span></div>
+          <button class="ibtn sm on" aria-label="Keyframe Size"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <span style="width:54px;color:var(--muted);font-size:11.5px">Rotation</span>
+          <div class="field" style="flex:1"><span class="lab">R</span><span class="v">0.0</span><span class="unit">deg</span></div>
+          <button class="ibtn sm on" aria-label="Keyframe Rotation"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg></button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-h"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Camera</div>
+        <div class="label" style="margin-top:0">Background</div>
+        <div class="field"><span class="swatch" style="background:#101a3a"></span><span class="v">#101A3A</span><svg class="i sm" viewBox="0 0 24 24" style="margin-left:auto;color:var(--faint)"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="label">Follow</div>
+        <div class="field"><span class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#ffd166,#ff9f43);display:grid;place-items:center;color:#fff"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px"><circle cx="12" cy="12" r="3"/></svg></span><span style="font-family:var(--ui)">Dot</span><svg class="i sm" viewBox="0 0 24 24" style="margin-left:auto;color:var(--faint)"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="label">Offset</div>
+        <div class="row2"><div class="field"><span class="lab">X</span><span class="v">0.00</span></div><div class="field"><span class="lab">Y</span><span class="v">0.00</span></div></div>
+      </div>
+      <!-- key popover -->
+      <div style="margin:14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line-2);box-shadow:var(--shadow);padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><svg class="i sm fill" viewBox="0 0 24 24" style="color:var(--c-key)"><path d="M12 4l8 8-8 8-8-8z"/></svg><span style="font-weight:650">Size key</span><span class="mono" style="color:var(--muted)">0:04.00</span><div class="grow"></div><svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="row2"><div class="field"><span class="lab">S</span><span class="v">4.00</span></div><div class="field"><span class="v" style="font-family:var(--ui)">Smooth</span><svg class="i sm" viewBox="0 0 24 24" style="margin-left:auto;color:var(--faint)"><path d="M6 9l6 6 6-6"/></svg></div></div>
+        <div style="color:var(--faint);font-size:11px;margin-top:8px">Easing runs on the size, not on the picture.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card">
+    <div class="card-h"><h3>Timeline</h3>
+      <div class="chip accent"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 15a7 7 0 0014 0V5h-4v10a3 3 0 01-6 0V5H5z"/></svg>Snap</div>
+      <div class="chip"><span style="width:7px;height:7px;border-radius:50%;background:var(--bad)"></span>Auto-key</div>
+      <div class="grow"></div>
+      <button class="btn sm"><svg class="i sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Clip</button>
+      <svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4M8 11h6"/></svg>
+      <div class="slider" style="flex:none;width:90px"><i style="width:45%"></i><b style="left:45%"></b></div>
+      <svg class="i sm" viewBox="0 0 24 24" style="color:var(--faint)"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4M8 11h6M11 8v6"/></svg>
+    </div>
+    <div class="card-b" style="position:relative">
+      <div class="ruler" style="width:594px"><span style="left:0%">0s</span><span style="left:10%">1s</span><span style="left:20%">2s</span><span style="left:30%">3s</span><span style="left:40%">4s</span><span style="left:50%">5s</span><span style="left:60%">6s</span><span style="left:70%">7s</span><span style="left:80%">8s</span><span style="left:90%">9s</span><i style="left:10%"></i><i style="left:20%"></i><i style="left:30%"></i><i style="left:40%"></i><i style="left:50%"></i><i style="left:60%"></i><i style="left:70%"></i><i style="left:80%"></i><i style="left:90%"></i></div>
+      <!-- camera lane, pinned under the ruler: position / size / roll keys -->
+      <div class="lane" style="height:50px;background:var(--accent-soft)">
+        <div class="hd" style="background:transparent"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff"><svg class="i sm" viewBox="0 0 24 24" style="width:11px;height:11px"><path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div><span class="nm" style="font-weight:600">Camera</span><svg class="i sm" viewBox="0 0 24 24" style="color:var(--accent);margin-left:auto"><path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/></svg></div>
+        <div class="tr tr10">
+          <div class="kl" style="left:0;width:85%;top:12px"></div>
+          <div class="k8" style="left:2px;top:8px"></div><div class="k8" style="left:calc(20% - 4px);top:8px"></div><div class="k8" style="left:calc(40% - 4px);top:8px"></div><div class="k8" style="left:calc(55% - 4px);top:8px"></div><div class="k8" style="left:calc(65% - 4px);top:8px"></div><div class="k8" style="left:calc(85% - 4px);top:8px"></div>
+          <div class="kl" style="left:0;width:65%;top:25px"></div>
+          <div class="k8" style="left:2px;top:21px"></div><div class="k8" style="left:calc(40% - 4px);top:21px"></div><div class="k8" style="left:calc(55% - 4px);top:21px"></div><div class="k8" style="left:calc(65% - 4px);top:21px"></div>
+          <div class="kl" style="left:0;width:85%;top:38px"></div>
+          <div class="k8" style="left:2px;top:34px"></div><div class="k8" style="left:calc(65% - 4px);top:34px"></div><div class="k8" style="left:calc(75% - 4px);top:34px"></div><div class="k8" style="left:calc(85% - 4px);top:34px"></div>
+          <span style="position:absolute;right:6px;top:3px;font:9.5px var(--mono);color:var(--faint)">position</span>
+          <span style="position:absolute;right:6px;top:17px;font:9.5px var(--mono);color:var(--faint)">size</span>
+          <span style="position:absolute;right:6px;top:30px;font:9.5px var(--mono);color:var(--faint)">roll</span>
+        </div>
+      </div>
+      <!-- a compound sequence on its own lane -->
+      <div class="lane"><div class="hd"><svg class="i sm" viewBox="0 0 24 24" style="color:var(--accent)"><path d="M8 4H5v16h3M16 4h3v16h-3"/></svg><span class="nm" style="font-weight:500">Labels</span></div>
+        <div class="tr tr10">
+          <div style="position:absolute;left:0;width:56%;top:3px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--c-content) 18%,transparent);border:1px dashed color-mix(in srgb,var(--c-emphasis) 70%,transparent);">
+            <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;font-weight:600;font-size:11px"><svg class="i sm" viewBox="0 0 24 24" style="width:12px;height:12px;color:var(--accent)"><path d="M8 4H5v16h3M16 4h3v16h-3"/></svg>Station labels</div>
+            <div style="position:absolute;left:6px;right:6px;bottom:4px;height:5px">
+              <div style="position:absolute;left:0;width:26%;height:5px;border-radius:3px;background:var(--c-content)"></div>
+              <div style="position:absolute;left:30%;width:30%;height:5px;border-radius:3px;background:var(--c-content)"></div>
+              <div style="position:absolute;left:64%;width:36%;height:5px;border-radius:3px;background:var(--c-emphasis)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="lane"><div class="hd"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#34d1a0,#4cc9f0)"></div><span class="nm" style="font-weight:500">Floor</span></div><div class="tr tr10"><div class="clip" style="left:0;width:100%;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-2)">visible 0:00 - 0:10</div></div></div>
+      <div class="lane"><div class="hd"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#34d1a0,#4cc9f0)"></div><span class="nm" style="font-weight:500">Square</span></div><div class="tr tr10"><div class="clip" style="left:0;width:100%;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-2)">visible 0:00 - 0:10</div></div></div>
+      <div class="lane"><div class="hd"><div class="ty" style="width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,#ffd166,#ff9f43)"></div><span class="nm" style="font-weight:500">Dot</span></div><div class="tr tr10"><div class="clip" style="left:0;width:100%;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-2)">visible 0:00 - 0:10</div></div></div>
+      <div class="playhead" style="left:353px"><em>0:02.40</em></div>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar"><span class="dot"></span><span style="color:var(--muted)">Saved</span><span>Camera tour</span><div class="grow"></div><span>Scene view: drag the rectangle, press G for Game view</span><span class="mono">Size 4.0 &middot; 16:9</span><span class="chip ok">Preview ready</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return { themeClass: this.props.theme === 'light' ? 'light' : '' }; }
+}
+</script>
+</body>
+</html>

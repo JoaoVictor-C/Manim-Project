@@ -112,3 +112,4 @@ need one.
 | [0081](0081-resumable-exports.md) | Resumable exports: long videos rendered in segments that an interrupted export resumes from | Accepted |
 | [0082](0082-explain-a-moment.md) | Explain a moment: which layers, clips and keys make the frame, stepped through | Accepted |
 | [0083](0083-unity-style-camera.md) | A 2D camera as in Unity: size, Scene and Game views, a background, a followed layer | Accepted |
+| [0084](0084-lumen-covers-the-new-tools.md) | Lumen covers the tools added after the first design: where each one lives and the rules for it | Accepted |
