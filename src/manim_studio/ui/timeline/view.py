@@ -303,7 +303,7 @@ class SequenceItem(QGraphicsRectItem):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(tint)
         painter.drawRoundedRect(bar, 3, 3)
-        painter.setPen(QColor("#ffffff") if tint.lightnessF() < 0.6 else QColor("#0b1020"))
+        painter.setPen(colour("on_accent") if tint.lightnessF() < 0.6 else colour("window"))
         painter.setFont(_font("caption", weight=QFont.Weight.DemiBold))
         painter.drawText(
             bar.adjusted(4, -2, -4, 2), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.name
