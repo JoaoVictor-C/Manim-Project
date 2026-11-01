@@ -108,7 +108,7 @@ def test_double_click_drills_in_then_clicks_pick_parts_and_escape_backs_out(wind
     click(window, px(window, *glyph(window, "c")))
     assert window.selection.layer_id == "c"
     key(window, Qt.Key.Key_Escape)
-    assert window.selection.layer_id == "eq"
+    assert window.selection.layer_id is None  # Esc deselects everything
 
 
 def test_dragging_a_part_moves_only_it_in_its_parents_frame(qt_app, tmp_path) -> None:

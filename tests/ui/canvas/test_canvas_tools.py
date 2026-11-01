@@ -467,3 +467,14 @@ def test_moving_the_anchor_with_rotation_keyed_warns(window, qt_app) -> None:
     drag(window, px(window, 0.0, 0.0), px(window, 0.5, 0.5), qt_app, Qt.KeyboardModifier.ControlModifier)
     assert window.messages[-1] == SHIFTS_ELSEWHERE
     assert "rotation" in window.project.layer("big").tracks
+
+
+def test_clicking_on_nothing_and_escape_both_deselect_everything(window, qt_app) -> None:
+    window.selection.set("dot")
+    qt_app.processEvents()
+    click(window, px(window, 5.0, -3.0))  # empty canvas
+    qt_app.processEvents()
+    assert window.selection.layer_id is None and not window.selection.layer_ids
+    window.selection.set("dot")
+    key(window, Qt.Key.Key_Escape)
+    assert window.selection.layer_id is None and not window.selection.layer_ids

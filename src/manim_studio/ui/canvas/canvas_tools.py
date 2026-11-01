@@ -426,14 +426,10 @@ class MoveTool(QObject):
         if event.key() == Qt.Key.Key_Escape and self._drag is not None:
             self.cancel()
             return True
-        current = self.selection.layer_id
-        layer = self.project.layer(current) if current is not None else None
-        in_group = (
-            layer is not None and layer.parent_id is not None and self.project.layer(layer.parent_id).is_group
-        )
-        if event.key() == Qt.Key.Key_Escape and layer is not None and (layer.is_part or in_group):
-            self.selection.select_layer(layer.parent_id)  # back out of a part, or of a group's object
-            return True
+        if event.key() == Qt.Key.Key_Escape:  # nothing selected, however deep the selection went
+            had = self.selection.layer_ids or self.selection.layer_id is not None
+            self.selection.clear()
+            return bool(had)
         if event.key() == Qt.Key.Key_Delete and self.selection.layer_ids and self._drag is None:
             chosen = self.selection.layer_ids
             verb = "Delete layers" if len(chosen) > 1 else "Delete layer"
