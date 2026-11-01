@@ -161,6 +161,23 @@ lives in a dialog or a card of its page, and every one of them is also a palette
   by the same renderer as the video (they can be exported) and are edited in place.
 - **Esc** deselects everything; clicking on empty stage does the same and starts a marquee.
 
+### Adding objects (ADR 0086)
+
+Modelled on the insert tools of Figma and Photoshop; mock-up: [Insert.dc.html](mockups/project/Insert.dc.html).
+
+- **Tool rail.** The floating rail at the stage's left is grouped by hairlines: *Move* (V) and *Hand* (H); the
+  *insert tools* - shape, line, text, math, media, graph, 3D - where each button shows the icon of the variant
+  used last and a small corner triangle that says "there is a flyout"; then *Anchor*. A click uses the last
+  variant, the triangle, a long press or a right-click opens the flyout (variants, their shortcut at the right,
+  a check on the last used). The active tool has the accent halo; tooltips read "Name (key)".
+- **Add object popover.** The Layers header "+" and the footer *Add object* open one card: a search field
+  (type to filter every object, Enter inserts, arrows move), a *Recent* row of chips, a column of category
+  icons (Shapes, Lines, Text, Math, Media, Graphs, 3D, Simulation, Code, Camera) and a grid of tiles - a drawn
+  glyph and a name - with *Presets...* and the key hints in its footer. The old Quick Add grid is gone, so the
+  list of layers keeps the room.
+- **The camera is always the first row** of Layers and Timeline (ADR 0086): it cannot be dragged, grouped or
+  moved, and nothing can be dropped above it.
+
 ### Timeline (ADR 0071, 0079, 0080)
 
 - **Sequences.** Clips and keys made into a sequence are drawn as one bar: the bracket glyph, the name, and the
