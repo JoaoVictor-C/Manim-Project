@@ -106,6 +106,13 @@ def test_every_handle_lands_under_the_cursor_on_a_turned_scaled_object(kind, _, 
         found = list(win.canvas.param_handles)
         assert found, f"{kind} shows no handles"
         for handle in found:
+            if any(
+                other is not handle
+                and np.allclose(other.world, handle.world, atol=1e-6)
+                and found.index(other) < found.index(handle)
+                for other in found
+            ):
+                continue  # under an earlier handle at the same spot (an axis length sits on its range end)
             before = win.project
             start = handle.world
             end = start + outward(handle)
@@ -114,9 +121,16 @@ def test_every_handle_lands_under_the_cursor_on_a_turned_scaled_object(kind, _, 
             qt_app.processEvents()
             after = win.project.layer("it").spec.params[handle.param]
             assert after != handle.start, (kind, handle.param)
-            now = next(h for h in win.canvas.param_handles if h.param == handle.param)
+            now = next(
+                h
+                for h in win.canvas.param_handles
+                if h.param == handle.param and h.range_end == handle.range_end
+            )
             reach = 0.08 if handle.mode == "ratio" else 0.03  # font sizes round to whole points
-            assert now.world == pytest.approx(end, abs=reach), (kind, handle.param)
+            if handle.mode == "range":  # the axes keep their box: the range changes, the endpoint stays put
+                assert now.world == pytest.approx(start, abs=reach), (kind, handle.param)
+            else:
+                assert now.world == pytest.approx(end, abs=reach), (kind, handle.param)
             if kind not in ("Line", "Arrow"):
                 assert win.project.layer("it").base == layer.base  # sizes grow about the centre
             assert win.document.undo_stack.undoText() == f"Change {handle.title}"
