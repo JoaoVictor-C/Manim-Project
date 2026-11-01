@@ -313,6 +313,9 @@ class MainWindow(QMainWindow):
         self.layers_count.setToolTip("Objects in the scene")
         self.layers.countChanged.connect(lambda n: self.layers_count.setText(str(n)))
         self.layers_card.add_title_widget(self.layers_count)
+        for button in self.layers.header_buttons:  # "+" and "..." (ADR 0084)
+            self.layers_card.add_action(button)
+        self.layers.browse_presets = lambda: self.show_presets_browser()
         self.properties_card = Card("Properties")
         self.properties_card.set_body(self.properties)
         self.properties_card.title_label.hide()  # the tabs say it: Properties | Clip | Scene
@@ -782,6 +785,7 @@ class MainWindow(QMainWindow):
         )
         self.layout_guides_action.setShortcut(QKeySequence("Ctrl+'"))
         self.layout_guides_action.toggled.connect(self._set_layout_guides)
+        self.stage_header.bind_guides(self.layout_guides_action)
         view_menu.addAction(self.layout_guides_action)
         self.game_view_action = QAction("&Game View (through the camera)", self, checkable=True, checked=True)
         self.game_view_action.setToolTip(  # ADR 0083: off is the Scene view

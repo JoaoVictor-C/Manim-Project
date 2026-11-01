@@ -310,9 +310,12 @@ def test_the_buttons_drop_their_captions_when_the_panel_is_narrow(panel, qt_app)
     panel.resize(panel.minimumSizeHint().width(), 400)
     qt_app.processEvents()
     assert panel.compact and panel.part_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
-    for button in (panel.add_button, panel.part_button, panel.down_button):
+    for button in (panel.add_button, panel.presets_button):  # the footer: Add object and Presets (ADR 0084)
         assert button.geometry().right() <= panel.width()  # every button still fits
         assert button.toolTip()  # and says what it does
+    assert all(
+        button.toolTip() for button in (panel.part_button, panel.down_button)
+    )  # the "..." menu's items
     panel.resize(panel._full_width + 40, 400)
     qt_app.processEvents()
     assert not panel.compact
@@ -384,3 +387,18 @@ def test_a_closed_row_stays_closed_across_rebuilds(panel) -> None:
     panel.items()[0].setExpanded(False)
     panel.sync()
     assert not panel.items()[0].isExpanded()
+
+
+def test_the_header_has_add_and_options_buttons_and_the_footer_is_add_object_and_presets(panel) -> None:
+    """ADR 0084 (the mock-up's Layers card): "+" opens the library, "..." the layer options, the footer
+    reads Add object and Presets, and Presets opens the presets browser."""
+    assert panel.add_button.text() == "Add object" and panel.presets_button.text() == "Presets"
+    add, options = panel.header_buttons
+    assert add.menu() is panel.library_menu and add.toolTip() and add.accessibleName() == "Add layer"
+    assert options.accessibleName() == "Layer options"
+    titles = [a.text() for a in options.menu().actions() if not a.isSeparator()]
+    assert titles == ["Delete", "Up", "Down", "Parts"]
+    asked = []
+    panel.browse_presets = lambda: asked.append(True)
+    panel.presets_button.click()
+    assert asked == [True]

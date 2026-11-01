@@ -622,7 +622,9 @@ class LayersPanel(QWidget):
         self.list.codeDropped.connect(self.codeDropped)
         self.list.filesDropped.connect(self.filesDropped)
 
-        self.add_button = QToolButton(text="Add", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.add_button = QToolButton(
+            text="Add object", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup
+        )
         self.add_button.setMenu(self._library_menu())
         self.add_button.setIcon(icons.icon("add"))  # (ADR 0040)
         self.add_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -659,24 +661,29 @@ class LayersPanel(QWidget):
 
         self.add_button.setProperty("role", "outlined")
         self.part_button.setProperty("role", "outlined")
-        for button in (
-            self.add_button,
-            self.part_button,
-            self.delete_button,
-            self.up_button,
-            self.down_button,
-        ):
+        self.presets_button = QToolButton(text="Presets")  # the presets browser (Animate > Browse Presets)
+        self.presets_button.setIcon(icons.icon("presets"))
+        self.presets_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.presets_button.setToolTip("Browse the animation presets by their moving preview (Ctrl+Shift+P)")
+        self.presets_button.setAccessibleName("Presets")
+        self.presets_button.clicked.connect(lambda: self.browse_presets())
+        self.browse_presets: Callable[[], object] = lambda: None  # set by the window (ADR 0084)
+        for button in (self.add_button, self.presets_button):
             button.setMinimumHeight(26)
+        # Delete, order and Parts live in the header's "..." menu (the mock-up's footer is Add object and
+        # Presets); their buttons stay as the actions' widgets, out of the layout.
+        for button in (self.part_button, self.delete_button, self.up_button, self.down_button):
+            button.setParent(self)
+            button.hide()
         self.footer = QFrame()
         self.footer.setObjectName("layersFooter")
         self.buttons = QHBoxLayout(self.footer)
         self.buttons.setContentsMargins(10, 10, 10, 10)
-        self.buttons.setSpacing(theme.SPACE)
+        self.buttons.setSpacing(theme.GUTTER)
         self.add_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.buttons.addWidget(self.add_button, 1)
-        self.buttons.addWidget(self.part_button)
-        for button in (self.delete_button, self.up_button, self.down_button):
-            self.buttons.addWidget(button)
+        self.buttons.addWidget(self.presets_button)
+        self._header_buttons()
         top = QVBoxLayout()
         top.setContentsMargins(10, 10, 10, 4)
         top.setSpacing(7)
@@ -701,7 +708,7 @@ class LayersPanel(QWidget):
         layout.addSpacing(6)
         layout.addWidget(self.list, 1)
         layout.addWidget(self.footer)
-        self.labelled = (self.add_button,)  # icons only when the panel is narrow (P6d.4)
+        self.labelled = (self.add_button, self.presets_button)  # icons only when the panel is narrow (P6d.4)
         self._full_width = self._row_width()
 
         self.document.changed.connect(lambda *_: self.sync())
@@ -715,13 +722,7 @@ class LayersPanel(QWidget):
         icon_only = self.delete_button.sizeHint().width()
         widths = [
             icon_only if compact and button in self.labelled else button.sizeHint().width()
-            for button in (
-                self.add_button,
-                self.part_button,
-                self.delete_button,
-                self.up_button,
-                self.down_button,
-            )
+            for button in (self.add_button, self.presets_button)
         ]
         margins = self.buttons.contentsMargins()
         sides = margins.left() + margins.right()
@@ -746,6 +747,34 @@ class LayersPanel(QWidget):
                 button.setToolButtonStyle(style)
 
     # -- building the widget ------------------------------------------------------
+
+    def _header_buttons(self) -> None:
+        """The card header's "+" (add an object: the library menu) and "..." (the layer options: delete,
+        order and parts) as small icon buttons; the window puts them in the Layers card (ADR 0084)."""
+        self.header_add_button = QToolButton(popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.header_add_button.setObjectName("iconButton")
+        self.header_add_button.setIcon(icons.icon("add"))
+        self.header_add_button.setMenu(self.library_menu)
+        self.header_add_button.setToolTip("Add an object to the scene")
+        self.header_add_button.setAccessibleName("Add layer")
+        self.options_menu = QMenu(self)
+        self.options_menu.setToolTipsVisible(True)
+        for button in (self.delete_button, self.up_button, self.down_button):
+            self.options_menu.addAction(button.defaultAction())
+        self.options_menu.addSeparator()
+        self.parts_menu_action = self.options_menu.addMenu(self.part_button.menu())
+        self.parts_menu_action.setText("Parts")
+        self.parts_menu_action.setIcon(icons.icon("parts"))
+        self.header_options_button = QToolButton(popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.header_options_button.setObjectName("iconButton")
+        self.header_options_button.setIcon(icons.icon("more"))
+        self.header_options_button.setMenu(self.options_menu)
+        self.header_options_button.setToolTip("Layer options: delete, bring forward, send backward, parts")
+        self.header_options_button.setAccessibleName("Layer options")
+        self.header_buttons = (self.header_add_button, self.header_options_button)
+        for button in self.header_buttons:
+            button.setFixedSize(26, 26)
+            button.setAutoRaise(True)
 
     def _button(self, text: str, slot: Callable[[], None], shortcut, icon_name: str) -> QToolButton:
         """An icon button for an action that keeps ``text`` (menus, accessibility, tests)."""
@@ -1017,6 +1046,7 @@ class LayersPanel(QWidget):
             needs_graph = any(p.kind == "graph" for p in adapter.MOBJECT_PARAMS[type_name])
             action.setEnabled(can_graph and (has_graph or not needs_graph))
         self.part_button.setEnabled((can_part and not has_morph) or can_graph)
+        self.parts_menu_action.setEnabled(self.part_button.isEnabled())
 
     # -- actions --------------------------------------------------------------------
 

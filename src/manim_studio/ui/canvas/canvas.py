@@ -43,14 +43,14 @@ DRAFT_ABOVE_MS = 60.0  # a render slower than this, again and again, is a heavy 
 DRAFT_BURST_S = 0.3  # renders closer than this belong to one interaction
 DRAFT_SETTLE_MS = 350  # without a render for this long the interaction is over: full quality again
 DRAFT_SCALE = 0.5
-DRAFT_LABEL = "DRAFT"
 BADGE = theme.qcolor(theme.THEME.badge)  # handle squares, key squares
 BADGE_TEXT = theme.qcolor(theme.THEME.badge_text)
 GUIDE_COLOR = theme.qcolor(theme.THEME.guide)  # snapping guides (ADR 0043)
 DROP_COLOR = theme.qcolor(theme.THEME.accent)  # where dragged code would land (P12.7)
 CAMERA_COLOR = theme.qcolor(theme.THEME.accent)  # the camera gizmo of the Scene view (ADR 0083)
 CAMERA_TEXT = theme.qcolor(theme.THEME.on_accent)  # on its size chip
-CAMERA_HALO_ALPHA = 56  # the soft halo around the rectangle (ADR 0084)
+CAMERA_HALO_ALPHA = 64  # the soft halo around the rectangle (ADR 0084)
+CAMERA_FILL_ALPHA = 13  # its faint fill
 LAYOUT_GUIDE_ALPHA = 170  # layout guides (ADR 0074): the accent, a little see-through
 DOT_GAP = 18  # the dotted pasteboard (Lumen, ADR 0063)
 SHADOW_PX = 22  # how far the frame's shadow reaches
@@ -106,6 +106,7 @@ class CanvasWidget(QWidget):
 
     resized = Signal()
     view_changed = Signal()  # zoom or pan: the window renders again and updates the readout
+    draftChanged = Signal(bool)  # the picture is (True) or is no longer a draft: the Stage header's chip
     addRequested = Signal(str, float, float)  # text/shape tool: kind and scene position in units
     codeDropped = Signal(dict, float, float)  # a Code workspace drag (code_drag payload), x, y in units
     filesDropped = Signal(list, float, float)  # .py files dropped from the desktop, x, y in units
@@ -163,6 +164,19 @@ class CanvasWidget(QWidget):
         self.guides: list[tuple[tuple[float, float], tuple[float, float]]] = []  # snapped edges, units
         self._rest: dict[str, np.ndarray] = {}  # built drawings' points by spec, for the handles
         self._rest_origin: dict[str, np.ndarray] = {}  # their pre-centre origins in parameter space
+
+    _draft = False
+
+    @property
+    def draft(self) -> bool:
+        """The frame shown is a half-size draft of an edit in progress (ADR 0070)."""
+        return self._draft
+
+    @draft.setter
+    def draft(self, value: bool) -> None:
+        if bool(value) != self._draft:
+            self._draft = bool(value)
+            self.draftChanged.emit(self._draft)
 
     @property
     def evaluator(self) -> Evaluator | None:
@@ -692,8 +706,6 @@ class CanvasWidget(QWidget):
                 pos, text = self.readout
                 painter.setPen(BADGE_TEXT)
                 painter.drawText(pos + QPointF(14, -10), text)
-            if self.draft:
-                self._paint_draft(painter)
             if self.busy_text:
                 self._paint_busy(painter)
         if self.drop_point is not None:
@@ -737,16 +749,6 @@ class CanvasWidget(QWidget):
         painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
         painter.restore()
 
-    def _paint_draft(self, painter: QPainter) -> None:
-        """The frame is a draft, drawn small while the edit goes on (ADR 0070)."""
-        painter.save()
-        metrics = painter.fontMetrics()
-        box = QRectF(8, 8, metrics.horizontalAdvance(DRAFT_LABEL) + 16, metrics.height() + 8)
-        painter.fillRect(box, BADGE)
-        painter.setPen(BADGE_TEXT)
-        painter.drawText(box, Qt.AlignmentFlag.AlignCenter, DRAFT_LABEL)
-        painter.restore()
-
     def camera_chip_text(self, view) -> str:
         """The rectangle's readout: its size (half the height it sees) and the frame's aspect ratio."""
         canvas = self._canvas
@@ -767,9 +769,10 @@ class CanvasWidget(QWidget):
         return float(point[0]), float(point[1])
 
     def _paint_camera(self, painter: QPainter, box: Box) -> None:
-        """The camera gizmo (ADR 0083, 0084): the rectangle it sees in the accent with a soft halo, a camera
-        icon and its name at the top-left corner, a centre cross, a dashed line to the layer it follows and
-        its size chip; with the camera selected, corner squares (its size) and the roll knob on a stalk."""
+        """The camera gizmo (ADR 0083, 0084; Camera.dc.html): the rectangle it sees in the accent with a
+        faint fill and a soft halo, a camera tag on its top-left corner, a centre cross, a dashed line and a
+        ring to the layer it follows, its size chip and a "following" chip; with the camera selected, white
+        corner handles (its size) and the roll handle on a stalk."""
         to_px = self.units_transform()
         ppu = self.px_per_unit()
         corners = [to_px.map(QPointF(*c)) for c in box.corners]
@@ -777,69 +780,99 @@ class CanvasWidget(QWidget):
         centre = to_px.map(QPointF(*box.centre))
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
         halo_colour = QColor(CAMERA_COLOR)
         halo_colour.setAlpha(CAMERA_HALO_ALPHA)
-        halo = QPen(halo_colour, 6.0)
+        halo = QPen(halo_colour, 4.0)
         halo.setCosmetic(True)
         halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(halo)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPolygon(QPolygonF(corners))
+        fill = QColor(CAMERA_COLOR)
+        fill.setAlpha(CAMERA_FILL_ALPHA)
         pen = QPen(CAMERA_COLOR, 2.0 if selected else 1.5)
         pen.setCosmetic(True)
         painter.setPen(pen)
+        painter.setBrush(fill)
         painter.drawPolygon(QPolygonF(corners))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         follow = self.camera_follow_point()
-        if follow is not None:  # a dashed line to the followed layer's pivot, and a dot there
+        if follow is not None:  # a dashed line to the followed layer's pivot, and a ring round it
             target = to_px.map(QPointF(*follow))
-            dashed = QPen(CAMERA_COLOR, 1.0, Qt.PenStyle.DashLine)
+            dashed = QPen(CAMERA_COLOR, 1.2, Qt.PenStyle.DashLine)
             dashed.setCosmetic(True)
             painter.setPen(dashed)
             painter.drawLine(centre, target)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(CAMERA_COLOR)
-            painter.drawEllipse(target, 3.0, 3.0)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(pen)
+            painter.drawEllipse(target, 8.0, 8.0)
         painter.setPen(pen)
         painter.drawLine(QPointF(centre.x() - 6, centre.y()), QPointF(centre.x() + 6, centre.y()))
         painter.drawLine(QPointF(centre.x(), centre.y() - 6), QPointF(centre.x(), centre.y() + 6))
         icon = to_px.map(QPointF(*camera_gizmo.icon_point(box, camera_gizmo.ICON_PX / ppu)))
-        half = camera_gizmo.ICON_PX / 2
-        body = QRectF(icon.x() - half, icon.y() - half * 0.6, half * 1.3, half * 1.2)
+        tag = QRectF(icon.x() - 8, icon.y() - 8, 26, 16)  # the camera tag above the top-left corner
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(CAMERA_COLOR)
-        painter.drawRoundedRect(body, 2, 2)
-        lens = QPolygonF(
-            [
-                QPointF(body.right(), body.center().y()),
-                QPointF(icon.x() + half, body.top()),
-                QPointF(icon.x() + half, body.bottom()),
-            ]
+        painter.drawRoundedRect(tag, 5, 5)
+        glyph = QPen(CAMERA_TEXT, 1.4)
+        glyph.setCosmetic(True)
+        painter.setPen(glyph)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        body = QRectF(tag.left() + 5, tag.top() + 4.5, 10, 7)
+        painter.drawRoundedRect(body, 1.5, 1.5)
+        painter.drawPolyline(
+            QPolygonF(
+                [
+                    QPointF(body.right(), body.center().y() - 2),
+                    QPointF(tag.right() - 4, body.top()),
+                    QPointF(tag.right() - 4, body.bottom()),
+                    QPointF(body.right(), body.center().y() + 2),
+                ]
+            )
         )
-        painter.drawPolygon(lens)
-        baseline = icon.y() + painter.fontMetrics().ascent() / 2 - 1
-        painter.drawText(QPointF(icon.x() + half + 4, baseline), CAMERA_LABEL)
         view = self._evaluator.camera_view(self._t) if self._evaluator is not None else None
         if view is not None:  # the readout chip under the bottom-left corner, filled like the selection's
-            text = self.camera_chip_text(view)
             metrics = painter.fontMetrics()
+            text = self.camera_chip_text(view)
             chip = QRectF(
-                corners[0].x(), corners[0].y() + 8, metrics.horizontalAdvance(text) + 16, metrics.height() + 6
+                corners[0].x(), corners[0].y() + 9, metrics.horizontalAdvance(text) + 16, metrics.height() + 6
             )
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(CAMERA_COLOR)
             painter.drawRoundedRect(chip, chip.height() / 2, chip.height() / 2)
             painter.setPen(CAMERA_TEXT)
             painter.drawText(chip, Qt.AlignmentFlag.AlignCenter, text)
+            followed = self.camera_follow_label()
+            if followed:  # a plain chip next to it: whom the camera follows
+                note = f"following {followed}"
+                plain = QRectF(
+                    chip.right() + 8, chip.top(), metrics.horizontalAdvance(note) + 16, chip.height()
+                )
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(BADGE)
+                painter.drawRoundedRect(plain, plain.height() / 2, plain.height() / 2)
+                painter.setPen(BADGE_TEXT)
+                painter.drawText(plain, Qt.AlignmentFlag.AlignCenter, note)
         if selected:
             painter.setPen(pen)
-            painter.setBrush(BADGE)
-            handle = HANDLE_PX / 2
+            painter.setBrush(CAMERA_TEXT)  # white handles with an accent edge
+            handle = HANDLE_PX / 2 + 0.5
             for corner in corners:
-                painter.drawRect(QRectF(corner.x() - handle, corner.y() - handle, HANDLE_PX, HANDLE_PX))
+                painter.drawRoundedRect(
+                    QRectF(corner.x() - handle, corner.y() - handle, 2 * handle, 2 * handle), 3, 3
+                )
             knob = to_px.map(QPointF(*box.knob(KNOB_OFFSET_PX / ppu)))
             painter.drawLine((corners[2] + corners[3]) / 2, knob)
-            painter.drawEllipse(knob, handle, handle)
+            painter.drawEllipse(knob, 6.0, 6.0)
         painter.restore()
+
+    def camera_follow_label(self) -> str:
+        """The name of the layer the camera follows ("" when it follows nothing)."""
+        if self._evaluator is None:
+            return ""
+        camera = self._evaluator.project.camera_layer
+        target_id = camera.spec.params.get("follow") if camera is not None else None
+        target = next((x for x in self._evaluator.project.layers if x.id == target_id), None)
+        return target.label if target is not None else ""
 
     def _paint_others(self, painter: QPainter) -> None:
         """The other selected objects: their outline and box, no handles (ADR 0043)."""

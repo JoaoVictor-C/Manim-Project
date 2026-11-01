@@ -630,7 +630,6 @@ class PropertiesPanel(QWidget):
             self._part_style_section()
         elif layer.is_camera:  # Unity's 2D camera: Transform and Camera sections (ADR 0083)
             self._shown_type = layer.spec.type
-            self._camera_layer_section()
         else:
             self._shown_type = layer.spec.type
             self._object_section(layer)
@@ -646,6 +645,8 @@ class PropertiesPanel(QWidget):
             elif layer.spec.type == "Text":
                 self._pieces_section(layer)
         self._transform_section(layer)
+        if layer.is_camera and not layer.is_part:
+            self._camera_layer_section()
         if not layer.is_camera:  # the camera is the view at every time
             self._lifetime_section()
         self.body_layout.addStretch(1)
@@ -944,6 +945,9 @@ class PropertiesPanel(QWidget):
             orphans = parts.resolve(self.project, self.project.root_of(layer.id).id).orphans
             note = f"<br><i>Not drawn: {orphans[layer.id]}</i>" if layer.id in orphans else ""
             self.title.setText(f"<b>{name}</b> - part of {parent.label}{note}")
+        elif self.clip_id is None and layer.is_camera:
+            keys = sum(len(track) for track in layer.tracks.values())
+            self.title.setText(f"<b>{name}</b> - One per project · {keys} key{'s' * (keys != 1)}")
         elif self.clip_id is None:
             more = ""
             if self.others_selected:  # several objects (ADR 0043): this panel shows the primary one
@@ -1517,7 +1521,7 @@ class PropertiesPanel(QWidget):
             set_value = set_transform
             if layer.is_camera and name == "scale":  # the size: half the height it sees (ADR 0083)
                 label = "Size"
-                field_type = lambda c: FloatField(c, 0.01, 10_000, 0.1, 3)  # noqa: E731
+                field_type = lambda c: FloatField(c, 0.01, 10_000, 0.1, 3, suffix=" half height")  # noqa: E731
                 set_value = set_camera_size
                 self._tips[path] = "Half the height the camera sees, in scene units (an orthographic size)"
                 self._register(path, self._camera_size_value)
@@ -1613,7 +1617,7 @@ class PropertiesPanel(QWidget):
         self._register(offset, lambda layer: tuple(layer.spec.params.get("follow_offset") or (0.0, 0.0)))
         commit = self._op(offset, partial(set_camera_param, name="follow_offset"), "Change follow offset")
         self._tips[offset] = "Where the camera looks, from the followed layer's centre"
-        rows.append(("Follow offset", offset, PointField(commit)))
+        rows.append(("Offset", offset, PointField(commit)))
         self._section("Camera", rows)
 
     def _transform_value(self, layer: Layer, name: str):

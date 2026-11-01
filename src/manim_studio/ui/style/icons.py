@@ -140,6 +140,7 @@ NAMES: dict[str, str] = {
     # the stage and timeline headers (P17.6)
     "zoom-out": "magnifying-glass-minus",
     "camera": "video-camera",
+    "guides": "ruler",
 }
 
 # icons drawn in another theme colour than the text: Record's red dot, the Python logos, the helpers

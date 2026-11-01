@@ -152,3 +152,39 @@ def test_the_camera_rectangle_has_a_size_chip_and_a_follow_point(window, qt_app)
     window.selection.set("camera")
     qt_app.processEvents()
     window.canvas.grab()
+
+
+def test_the_draft_chip_is_in_the_header_and_nothing_is_painted_over_the_picture(window, qt_app) -> None:
+    header, canvas = window.stage_header, window.canvas
+    assert header.draft_chip.isHidden() and header.draft_state is None
+    canvas.draft = True
+    qt_app.processEvents()
+    assert not header.draft_chip.isHidden() and header.draft_chip.text() == "Draft"
+    assert not hasattr(canvas, "_paint_draft")
+    canvas.draft = False  # the real frame arrived: Exact for a moment, then nothing
+    qt_app.processEvents()
+    assert not header.draft_chip.isHidden() and header.draft_chip.text() == "Exact"
+    header._exact_timer.timeout.emit()
+    assert header.draft_chip.isHidden() and header.draft_state is None
+
+
+def test_the_layout_guides_button_in_the_header_follows_the_menu_item(window) -> None:
+    button = window.stage_header.guides_button
+    assert not button.isChecked() and not window.layout_guides_action.isChecked()
+    button.click()
+    assert window.layout_guides_action.isChecked() and window.canvas.show_layout_guides
+    window.layout_guides_action.setChecked(False)
+    assert not button.isChecked()
+
+
+def test_the_camera_panel_and_gizmo_follow_the_camera_mock_up(window, qt_app) -> None:
+    window.game_view_action.setChecked(False)
+    window.selection.set("camera")
+    qt_app.processEvents()
+    panel = window.properties
+    assert panel.title.text().startswith("<b>Camera</b> - One per project")
+    titles = list(panel.sections)
+    assert titles.index("Transform") < titles.index("Camera")  # Transform, then the Camera section
+    assert panel.fields["base.scale"].widget.inside.unit.text() == "half height"  # the Size field's unit
+    assert window.canvas.camera_follow_label() == ""
+    window.canvas.grab()
