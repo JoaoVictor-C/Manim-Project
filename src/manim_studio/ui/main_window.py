@@ -46,9 +46,10 @@ from ..core.engine import adapter, extract_code
 from ..core.engine.evaluator import Evaluator
 from ..core.engine.frame_cache import frame_index, frame_time
 from ..core.engine.python_export import PythonExport, class_name, to_python
+from ..core.exchange import bundle
 from ..core.exchange.preset_library import PresetLibrary
 from ..core.exchange.scene_import import import_scene, scene_classes
-from ..core.model import parts, recovery, shape
+from ..core.model import parts, recovery, shape, snapshots
 from ..core.model.new_project import NewProjectSettings
 from ..core.model.schema import CODE_TYPES, MEDIA_TYPES, TEXT_TYPES, Project
 from ..core.sound import audio, subtitles
@@ -58,6 +59,7 @@ from .canvas.canvas import CanvasWidget
 from .canvas.canvas_tools import MoveTool
 from .canvas.viewport import ZOOM_STEP
 from .deliver.export_dialog import ExportDialog
+from .exchange.bundle_dialog import ExportBundleDialog
 from .exchange.code_importer import CodeImporter
 from .exchange.script_dialog import ScriptDialog
 from .exchange.snapshots_dialog import SnapshotsDialog
@@ -181,6 +183,7 @@ class MainWindow(QMainWindow):
         self.scene_importer.failed.connect(self._on_scene_failed)
         self._scene_job: dict | None = None  # what the running import is for
         self.import_report: ImportReport | None = None
+        self.last_bundle: bundle.BundleReport | None = None  # the last File > Export Bundle (ADR 0077)
 
         self.canvas = CanvasWidget()
         self.canvas.resized.connect(self.refresh)
@@ -383,6 +386,20 @@ class MainWindow(QMainWindow):
                 "Render the whole video with Manim to an MP4 file",
             ),
             ("Export &Python...", QKeySequence(), self.export_python, "Write the scene as a Manim script"),
+            (
+                "Export &Bundle...",
+                QKeySequence(),
+                self.export_bundle,
+                "Write one file with the project and every sound, image and SVG it uses, to open on another "
+                "computer",
+            ),
+            (
+                "Open B&undle...",
+                QKeySequence(),
+                self.open_bundle_dialog,
+                "Unpack a bundle into a new folder beside it and open its project (its code is asked about "
+                "before it runs)",
+            ),
             (
                 "Import &Script...",
                 QKeySequence(),
@@ -2158,6 +2175,89 @@ class MainWindow(QMainWindow):
             return
         dialog = SnapshotsDialog(self.path, lambda: self.document.project, self.restore_snapshot, self)
         dialog.exec()
+
+    def export_bundle(self) -> None:
+        """File > Export Bundle...: the project and every file it uses in one ``.msbundle`` (ADR 0077)."""
+        if self.project is None:
+            self.statusBar().showMessage("Create or open a project first.", 5000)
+            return
+        project = self.document.project
+        references = bundle.external_references(project)
+        missing = bundle.missing_paths(references, self.path)
+        count = len(snapshots.listing(self.path)) if self.path is not None else 0
+        include = self.ask_bundle_options(references, missing, count)
+        if include is None:
+            return
+        name = self.path.stem if self.path else "untitled"
+        folder = self.path.parent if self.path else self.default_folder()
+        target = self.ask_bundle_save_path(folder / f"{name}{bundle.EXTENSION}")
+        if not target:
+            return
+        target = Path(target)
+        if not target.name.lower().endswith((bundle.EXTENSION, ".zip")):
+            target = target.with_name(target.name + bundle.EXTENSION)
+        try:
+            report = bundle.build_bundle(
+                project, target, name=name, project_path=self.path, include_snapshots=include
+            )
+        except (bundle.BundleError, OSError) as error:
+            log.exception("could not write the bundle %s", target)
+            QMessageBox.critical(self, "Could not export the bundle", str(error))
+            return
+        carried = sum(1 for entry in report.files if not entry["missing"])
+        log.info("bundle %s (%d files, %d missing)", target, carried, len(report.missing))
+        self.last_bundle = report
+        self.statusBar().showMessage(f"Wrote {target.name}: the project and {carried} files", 10000)
+        if report.missing:
+            QMessageBox.warning(
+                self,
+                "Some files were not found",
+                "These files were not found and are not in the bundle; they show a placeholder where it is "
+                "opened:\n\n" + "\n".join(f"  - {ref.label}: {ref.path}" for ref in report.missing[:12]),
+            )
+
+    def ask_bundle_options(self, references: list, missing: set[str], snapshot_count: int) -> bool | None:
+        """Whether to include the snapshots, or None when cancelled (tests answer here, not the dialog)."""
+        dialog = ExportBundleDialog(references, missing, snapshot_count, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.include_snapshots.isChecked()
+
+    def ask_bundle_save_path(self, start: Path) -> str:
+        name, _ = QFileDialog.getSaveFileName(
+            self, "Export Bundle", str(start), f"Manim Studio bundle (*{bundle.EXTENSION})"
+        )
+        return name
+
+    def ask_bundle_open_path(self, start: Path) -> str:
+        name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Bundle",
+            str(start),
+            f"Manim Studio bundle (*{bundle.EXTENSION} *.zip);;All files (*)",
+        )
+        return name
+
+    def open_bundle_dialog(self) -> None:
+        """File > Open Bundle...: unpack into a new folder beside the bundle and open it (ADR 0077). Its code
+        is not trusted by being in a bundle: ``_on_reset`` asks about it as for any file."""
+        if not self.confirm_discard():
+            return
+        name = self.ask_bundle_open_path(self.path.parent if self.path else self.default_folder())
+        if not name:
+            return
+        try:
+            opened = bundle.open_bundle(Path(name))
+        except (bundle.BundleError, OSError) as error:
+            log.exception("could not open the bundle %s", name)
+            QMessageBox.critical(self, "Could not open the bundle", str(error))
+            return
+        log.info("unpacked %s into %s", name, opened.folder)
+        self.load(opened.project_path)
+        text = f"Unpacked {Path(name).name} into {opened.folder}"
+        if opened.missing:
+            text += f" - {len(opened.missing)} files were missing when it was made"
+        self.statusBar().showMessage(text, 15000)
 
     def restore_snapshot(self, restored: Project, text: str) -> None:
         """One undo step that replaces the project with a snapshot's."""

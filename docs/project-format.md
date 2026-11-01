@@ -409,6 +409,25 @@ dialog in the editor):
 - Canvas sizes, fps, `frame_height` and `duration` are positive; `opacity` in `base` is in [0, 1].
 - Cubic-bezier `x1`, `x2` are in [0, 1] (y may overshoot).
 
+## Bundles (ADR 0077)
+
+File > Export Bundle... writes a project and the files it uses as one zip file with the extension `.msbundle`:
+
+| entry | what |
+|---|---|
+| `manifest.json` | `{"format": "manim-studio-bundle", "version": 1, "app_version", "name", "created", "project", "files", "snapshots"}` |
+| `project.json` | the project; every carried file's path is `assets/<name>` |
+| `assets/<name>` | each file the project uses (a sound's `path`, an `ImageMobject`/`SVGMobject`'s `params.path`), once |
+| `snapshots/<id>.json`, `snapshots/<id>.meta.json` | optional: the project's snapshots (ADR 0068), paths rewritten the same way |
+
+`project` is `{"path": "project.json", "sha256", "size"}`. Each entry of `files` is `{"path": "assets/<name>" or
+null, "sha256", "size", "original": the path in the project, "used_by": [{"kind": "audio" or the layer type, "id",
+"name", "snapshot"?}], "missing": bool}`; a missing file has no `path` and keeps its original path in the project.
+`snapshots` entries are `{"path", "sha256", "size"}`. Opening a bundle refuses entries that are absolute or contain
+`..`, entries the manifest does not list, a newer `version`, more than 4 GB unpacked, and any sha256 that does not
+match; it unpacks into a new folder and rewrites the paths to the unpacked files (absolute, as in any project). A
+bundle carries no code trust.
+
 ## Library files (ADR 0039)
 
 Presets, themes and templates are JSON files: the built-ins in

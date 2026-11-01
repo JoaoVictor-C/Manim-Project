@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Portable project bundles** ([ADR 0077](docs/adr/0077-portable-project-bundles.md)). File > Export Bundle... writes
+  one `.msbundle` file with the project and every sound, image and SVG it uses (and its snapshots, if you tick
+  the box), and lists any missing file first. File > Open Bundle... unpacks it into a new folder beside it, never
+  over existing files, checks every file against the bundle's manifest and opens the project; its code is asked
+  about before it runs, as for any file.
 - **Extract selection as code** ([ADR 0076](docs/adr/0076-extract-selection-as-code.md)). Edit > Extract Selection as
   Code (or right-click in Layers) replaces the selected objects with one code layer that draws the same frames, in
   their place and time, and opens it on the Code page to go on by hand. Undo brings the layers back; what plain

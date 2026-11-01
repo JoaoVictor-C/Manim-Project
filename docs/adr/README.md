@@ -105,3 +105,4 @@ need one.
 | [0074](0074-layout-guides.md) | Layout guides: lines on the canvas that moves snap to, never drawn in the video | Accepted |
 | [0075](0075-pinned-labels.md) | Pinned labels: a label follows an object through every move, at a fixed offset | Accepted |
 | [0076](0076-extract-selection-as-code.md) | Extract selection as code: selected layers become one code layer that draws the same | Accepted |
+| [0077](0077-portable-project-bundles.md) | Portable project bundles: one file with the project and every file it uses | Accepted |
