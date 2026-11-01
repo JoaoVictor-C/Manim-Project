@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Editable animation recipes** ([ADR 0080](docs/adr/0080-editable-animation-recipes.md)). Animate > Make Recipe
+  from Sequence... saves the selected sequence's animation, one role per layer, with your presets. Animate >
+  Apply Recipe plays it on the selected layers (in the order you picked them) at the playhead, as a new
+  sequence; a one-role recipe repeats over any number of layers. Animate > Recipe Parameters... then changes
+  its whole length and the delay between layers, each in one undo step. A layer that cannot take a clip, or the
+  wrong number of layers, is refused with the reason.
 - **Compound sequences** ([ADR 0079](docs/adr/0079-compound-sequences.md)). Select clips and keys on one or more
   layers and choose Edit > Make Sequence from Selection... to name them as one sequence: a bar with its name
   over them on the timeline picks them all with a click and moves them together with a drag, in one undo step.

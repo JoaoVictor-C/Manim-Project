@@ -160,6 +160,7 @@ Paths are under `src/manim_studio/`; tests under `tests/`.
 | `model/scene_length.py` | the scene's length: by hand or growing with its content | `core/model/test_scene_length.py` |
 | `editing/shift_timing.py` | moving layers, clips, keys, sounds, cues, markers by one delta | `core/editing/test_shift_timing.py` |
 | `editing/sequences.py` | compound sequences: named clips and keys moved, retimed, copied together (ADR 0079) | `core/editing/test_sequences.py` |
+| `editing/recipes.py` | editable animation recipes: a sequence's animation applied to other layers as a new sequence (ADR 0080) | `core/editing/test_recipes.py` |
 | `editing/clipboard.py` | copy, paste, duplicate: subtrees with fresh ids | `core/editing/test_clipboard.py` |
 | `editing/library.py` | presets, themes, templates: library files and applying them | `core/editing/test_library.py` |
 | `engine/warm.py` | which edits build cold text objects (the warm gate) | `core/engine/test_warm.py` |

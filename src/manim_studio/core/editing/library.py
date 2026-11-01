@@ -2,7 +2,8 @@
 
 A **preset** is a bundle of clips and keys applied to one layer at the playhead;
 a **theme** recolours layers and the background; a **template** is a group of
-layers inserted at the playhead. Built-ins ship in ``manim_studio/data/library/``,
+layers inserted at the playhead; a **recipe** (ADR 0080, ``recipes.py``) is a
+sequence's animation applied to other layers. Built-ins ship in ``manim_studio/data/library/``,
 the user's own in a user folder (``MANIM_STUDIO_LIBRARY``, default
 ``~/.manim-studio/library``). A file that cannot be read, or that was written
 by a newer version, is skipped with a message, as plugins are (ADR 0032).
@@ -138,8 +139,58 @@ class Template(BaseModel):
         return self
 
 
-Item = Preset | Theme | Template
-_KINDS: dict[str, type[BaseModel]] = {"preset": Preset, "theme": Theme, "template": Template}
+class RecipeSlot(BaseModel):
+    """One role of a recipe (ADR 0080): what one layer does, starting ``offset`` s after the recipe's
+    start. Clip offsets and key times are from the role's own start; key values are relative to the
+    layer's transform there, as a preset's are."""
+
+    offset: float = Field(default=0.0, ge=0)
+    clips: list[PresetClip] = Field(default_factory=list)
+    keys: dict[TrackName, list[PresetKey]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _something(self) -> RecipeSlot:
+        if not self.clips and not any(self.keys.values()):
+            raise ValueError("a role of a recipe has no clips and no keys")
+        for prop, track in self.keys.items():
+            for key in track:
+                if (prop == "position") != isinstance(key.value, tuple):
+                    raise ValueError(f"{prop} keys must be {_shape(prop)}")
+        return self
+
+    @property
+    def length(self) -> float:
+        """From the role's start to its last clip's end or last key."""
+        ends = [c.offset + c.duration for c in self.clips] + [k.dt for t in self.keys.values() for k in t]
+        return max(ends, default=0.0)
+
+
+class Recipe(BaseModel):
+    """A reusable animation made from a sequence (ADR 0080): ordered roles, one per layer, applied to
+    as many layers as it has roles (a one-role recipe to any number of them) as a new sequence whose
+    length and delay between layers stay editable. ``length`` and ``stagger`` are the defaults when it
+    is applied (None: as it was made)."""
+
+    kind: Literal["recipe"] = "recipe"
+    name: str = Field(min_length=1)
+    description: str = ""
+    slots: list[RecipeSlot] = Field(min_length=1)
+    length: PositiveFloat | None = None
+    stagger: float | None = Field(default=None, ge=0)
+
+    @property
+    def natural_length(self) -> float:
+        """How long it lasts as it was made."""
+        return max(s.offset + s.length for s in self.slots)
+
+
+Item = Preset | Theme | Template | Recipe
+_KINDS: dict[str, type[BaseModel]] = {
+    "preset": Preset,
+    "theme": Theme,
+    "template": Template,
+    "recipe": Recipe,
+}
 
 
 # -- loading ---------------------------------------------------------------------------------------
@@ -150,6 +201,7 @@ class Library:
     presets: list[Preset] = field(default_factory=list)
     themes: list[Theme] = field(default_factory=list)
     templates: list[Template] = field(default_factory=list)
+    recipes: list[Recipe] = field(default_factory=list)  # ADR 0080
     problems: list[str] = field(default_factory=list)  # files skipped, and why
 
     def presets_in(self, category: Category) -> list[Preset]:
@@ -157,7 +209,12 @@ class Library:
 
     def add(self, item: Item) -> None:
         """Add ``item``, replacing one of the same kind and name (the user's wins over a built-in)."""
-        items = {"preset": self.presets, "theme": self.themes, "template": self.templates}[item.kind]
+        items = {
+            "preset": self.presets,
+            "theme": self.themes,
+            "template": self.templates,
+            "recipe": self.recipes,
+        }[item.kind]
         items[:] = [x for x in items if x.name != item.name] + [item]
 
 

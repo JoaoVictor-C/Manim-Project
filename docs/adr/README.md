@@ -108,3 +108,4 @@ need one.
 | [0077](0077-portable-project-bundles.md) | Portable project bundles: one file with the project and every file it uses | Accepted |
 | [0078](0078-plugin-manifest-and-permissions.md) | Plugin manifests: declared metadata, app compatibility and approved permissions | Accepted |
 | [0079](0079-compound-sequences.md) | Compound sequences: named clips and keys that move, retime and copy together | Accepted |
+| [0080](0080-editable-animation-recipes.md) | Editable animation recipes: a sequence's animation reused on other layers, its parameters kept | Accepted |

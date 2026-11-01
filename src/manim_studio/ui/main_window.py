@@ -40,7 +40,7 @@ from ..core.code import limits
 from ..core.code.code_cache import code_hash
 from ..core.code.trust import TrustStore
 from ..core.code.trust import label as trust_label
-from ..core.editing import edits, library, sequences, shift_timing
+from ..core.editing import edits, library, recipes, sequences, shift_timing
 from ..core.editing.edits import Edit, EditKind
 from ..core.engine import adapter, extract_code
 from ..core.engine.evaluator import Evaluator
@@ -94,6 +94,7 @@ from .shell.guides_dialog import GuidesDialog
 from .shell.new_project_dialog import NewProjectDialog, available_templates, template_by_key
 from .shell.palette import CommandPalette, collect_items
 from .shell.plugins_dialog import PluginsDialog, startup_message
+from .shell.recipe_dialog import RecipeParametersDialog
 from .shell.ripple_dialog import RippleDialog
 from .shell.shortcuts_help import ShortcutsDialog
 from .shell.topbar import TopBar
@@ -573,6 +574,24 @@ class MainWindow(QMainWindow):
         save_template.setToolTip("The selected object with everything under it, as a template of your own")
         save_template.triggered.connect(self.save_template)
         animate_menu.addAction(save_template)
+        animate_menu.addSeparator()  # recipes (ADR 0080)
+        self.make_recipe_action = QAction("Make &Recipe from Sequence...", self)
+        self.make_recipe_action.setToolTip(
+            "The selected clip's or key's sequence as a recipe of your own, to apply to other layers"
+        )
+        self.make_recipe_action.triggered.connect(self.make_recipe_from_sequence)
+        animate_menu.addAction(self.make_recipe_action)
+        self.ask_recipe_name = self._ask_recipe_name  # tests and other front-ends answer here
+        self.apply_recipe_menu = animate_menu.addMenu("Apply Re&cipe")
+        self.apply_recipe_menu.setToolTipsVisible(True)
+        self._fill_recipes_menu()
+        self.recipe_parameters_action = QAction("Recipe Parame&ters...", self)
+        self.recipe_parameters_action.setToolTip(
+            "The length and the delay between layers of the selected clip's or key's sequence"
+        )
+        self.recipe_parameters_action.triggered.connect(self.edit_recipe_parameters)
+        animate_menu.addAction(self.recipe_parameters_action)
+        self.ask_recipe_parameters = self._ask_recipe_parameters  # tests answer here
         animate_menu.addSeparator()
         steps_action = QAction("&Equation Steps...", self)  # P11 (ADR 0054)
         steps_action.setToolTip(
@@ -1868,6 +1887,85 @@ class MainWindow(QMainWindow):
         titles = ["Entrance", "Emphasis", "Exit", "Motion"]
         category, ok = QInputDialog.getItem(self, "Save Preset", "Category:", titles, 0, False)
         return (name.strip(), category.lower()) if ok else None
+
+    # -- recipes (ADR 0080) --------------------------------------------------------------------
+
+    def _fill_recipes_menu(self) -> None:
+        """Animate > Apply Recipe: each recipe of the library, applied to the selected layers."""
+        menu = self.apply_recipe_menu
+        menu.clear()
+        for recipe in self.library.recipes:
+            action = menu.addAction(recipe.name, lambda r=recipe: self.apply_recipe(r))
+            action.setToolTip(recipe.description)
+        menu.setEnabled(bool(menu.actions()))
+
+    def make_recipe_from_sequence(self) -> None:
+        """Animate > Make Recipe from Sequence...: the selected clip's or key's sequence, saved with the
+        user's presets as a recipe."""
+        found = self.selected_sequence()
+        if found is None:
+            if self._has_project:
+                self.statusBar().showMessage("Make recipe: select a clip or key of a sequence", 6000)
+            return
+        name = self.ask_recipe_name(found.name)
+        if not name:
+            return
+        try:
+            recipe = recipes.make_recipe(self.project, found.id, name)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Make recipe: {exc}", 10000)
+            return
+        path = library.save_item(recipe)
+        self.library.add(recipe)
+        self._fill_recipes_menu()
+        self.statusBar().showMessage(f"Saved the recipe {recipe.name} ({path.name})", 6000)
+
+    def _ask_recipe_name(self, suggested: str) -> str | None:
+        text, ok = QInputDialog.getText(self, "Make Recipe", "Name of the recipe:", text=suggested)
+        return text.strip() if ok and text.strip() else None
+
+    def apply_recipe(self, recipe: library.Recipe) -> bool:
+        """Animate > Apply Recipe: ``recipe`` on the selected layers (in the order they were picked) at the
+        playhead, as a new sequence; one undo step. A refusal is shown in the status bar."""
+        targets = list(self.selection.layer_ids)
+        if self.project is None or not targets:
+            self.statusBar().showMessage("Select the layers to animate first", 6000)
+            return False
+        try:
+            edit = recipes.apply_recipe(self.project, recipe, targets, self.t)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Apply recipe: {exc}", 10000)
+            return False
+        self.document.apply(edit, f"Apply recipe {recipe.name}")
+        self.statusBar().showMessage(f"{recipe.name} at {self.t:.2f} s", 4000)
+        return True
+
+    def edit_recipe_parameters(self) -> None:
+        """Animate > Recipe Parameters...: the selected sequence's length and delay between layers."""
+        found = self.selected_sequence()
+        if found is None:
+            if self._has_project:
+                self.statusBar().showMessage("Recipe parameters: select a clip or key of a sequence", 6000)
+            return
+        length, stagger = recipes.recipe_parameters(self.project, found.id)
+        layers = len(sequences.member_layers(self.project, found))
+        answer = self.ask_recipe_parameters(found.name, length, stagger, layers)
+        if answer is None:
+            return
+        new_length, new_stagger = answer
+        try:
+            edit = sequences.reparameterise_sequence(self.project, found.id, new_length, new_stagger)
+        except edits.EditError as exc:
+            self.statusBar().showMessage(f"Recipe parameters: {exc}", 10000)
+            return
+        if edit.project is not self.project:
+            self.document.apply(edit, "Recipe parameters")
+
+    def _ask_recipe_parameters(
+        self, name: str, length: float, stagger: float | None, layers: int
+    ) -> tuple[float, float | None] | None:
+        dialog = RecipeParametersDialog(name, length, stagger, layers, self)
+        return dialog.answer() if dialog.exec() == QDialog.DialogCode.Accepted else None
 
     def _fill_templates_menu(self) -> None:
         """The Templates section of the Layers panel's Add menu (ADR 0039)."""

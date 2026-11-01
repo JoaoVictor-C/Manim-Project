@@ -747,6 +747,8 @@ class SequenceKey(BaseModel):
 class Sequence(BaseModel):
     """A named set of clips and keys that move and retime together (ADR 0079), like a compound clip.
 
+    One applied from a recipe (ADR 0080) names it in ``recipe``.
+
     It is an annotation over the layers' own clips and keys, never drawn and never rendered: the
     frames are the same with or without it. Members that no longer exist are dropped when the
     project is validated, and a sequence left with none goes (so a deletion keeps it valid, in the
@@ -758,6 +760,7 @@ class Sequence(BaseModel):
     colour: str | None = None  # the timeline's band; None: the theme's accent
     clips: list[SequenceClip] = Field(default_factory=list)
     keys: list[SequenceKey] = Field(default_factory=list)
+    recipe: str | None = None  # the recipe it was applied from (ADR 0080); None: made by hand
 
     model_config = {"extra": "forbid"}
 
@@ -766,6 +769,8 @@ class Sequence(BaseModel):
         data = handler(self)
         if self.colour is None:
             data.pop("colour", None)
+        if self.recipe is None:
+            data.pop("recipe", None)  # files without recipes save as before (ADR 0080)
         return data
 
     @model_validator(mode="after")

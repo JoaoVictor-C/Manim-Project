@@ -160,6 +160,10 @@ refused.
                 "keys": [{ "layer": "dot", "track": "position", "t": 2.0 }] }]
 ```
 
+A sequence applied from a recipe (ADR 0080) names it in `recipe` (`"recipe": "Pop pair"`); a sequence made by
+hand has none and saves as before. The recipe itself lives in the user's library (`recipe-<name>.json`, kind
+`"recipe"`), not in the project.
+
 **Morph matching** (ADR 0056): `morph_matching` is `"smart"` or `"classic"`: the matching the
 Transform clips added from now on start with (a clip's own `match` param decides how it draws).
 `"smart"`, the default, is not saved; a file without it has the default.
@@ -458,11 +462,20 @@ same kind and name.
 - `theme`: `background`, `text`, `shape`, `accent` colours.
 - `template`: `layers` (a valid project fragment: ids and references inside it,
   times from 0).
+- `recipe` (ADR 0080): optional `description`, `slots` (the roles, one per layer, in
+  order: each an `offset` from the recipe's start and a preset's `clips` and `keys`,
+  times from the role's own start), and optional defaults `length` (the whole, in
+  seconds) and `stagger` (the delay between consecutive layers); absent, the recipe
+  is applied as it was made.
 
 ```json
 { "format": "manim-studio-library", "version": 1, "kind": "preset", "name": "Pulse",
   "category": "emphasis", "keys": { "scale": [ { "dt": 0, "value": 1.0 },
   { "dt": 0.25, "value": 1.15 }, { "dt": 0.5, "value": 1.0 } ] } }
+{ "format": "manim-studio-library", "version": 1, "kind": "recipe", "name": "Pop pair",
+  "stagger": 0.5, "slots": [
+  { "offset": 0.0, "clips": [ { "kinds": ["FadeIn"], "offset": 0.0, "duration": 1.0 } ] },
+  { "offset": 0.5, "clips": [ { "kinds": ["Create"], "offset": 0.0, "duration": 1.0 } ] } ] }
 ```
 
 ## Clipboard (ADR 0038)

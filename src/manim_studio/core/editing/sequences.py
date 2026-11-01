@@ -17,13 +17,15 @@ The API, for the timeline and for what builds on it (editable animation recipes)
 * ``sequence_of_clip`` / ``sequence_of_key`` - which sequence holds a member, if any.
 * edits (each one ``Edit``, one undo step): ``make_sequence``, ``dissolve_sequence``, ``rename_sequence``,
   ``set_sequence_colour``,
-  ``move_sequence``, ``retime_sequence``, ``duplicate_sequence``.
+  ``move_sequence``, ``retime_sequence``, ``duplicate_sequence``; per layer (ADR 0080, recipes):
+  ``restagger_sequence`` and ``reparameterise_sequence`` (``member_layers``, ``stagger_of``, ``fit_factor``).
 
 No Qt, no Manim.
 """
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -129,9 +131,12 @@ def new_sequence_name(project: Project) -> str:
 # -- edits ------------------------------------------------------------------------------------------
 
 
-def make_sequence(project: Project, name: str, members: Members, colour: str | None = None) -> Edit:
-    """A new sequence of ``members``, appended to ``project.sequences``. Refused when there are no members,
-    when one does not exist, or when one is already in another sequence."""
+def make_sequence(
+    project: Project, name: str, members: Members, colour: str | None = None, recipe: str | None = None
+) -> Edit:
+    """A new sequence of ``members``, appended to ``project.sequences`` (``recipe``: the recipe it is an
+    instance of, ADR 0080). Refused when there are no members, when one does not exist, or when one is
+    already in another sequence."""
     name = str(name).strip()
     if not name:
         raise EditError("a sequence needs a name")
@@ -162,7 +167,9 @@ def make_sequence(project: Project, name: str, members: Members, colour: str | N
                 f"the {track} key of {_label(project, layer_id)} at {key.t:g} s is in {other.name!r} already"
             )
         key_refs.append(SequenceKey(layer=layer_id, track=track, t=key.t))
-    seq = Sequence(id=_free_sequence_id(project), name=name, colour=colour, clips=clip_refs, keys=key_refs)
+    seq = Sequence(
+        id=_free_sequence_id(project), name=name, colour=colour, clips=clip_refs, keys=key_refs, recipe=recipe
+    )
     return _with_sequences(project, [*project.sequences, seq])
 
 
@@ -214,14 +221,115 @@ def retime_sequence(project: Project, sequence_id: str, new_length: float) -> Ed
     factor = new_length / (end - start)
     if abs(factor - 1.0) < EPS:
         return Edit(project, "timing", frozenset())
+    return _relayout(
+        project, found, {layer: (start, start, factor) for layer in member_layers(project, found)}
+    )
+
+
+# -- per layer: stagger and recipe parameters (ADR 0080) --------------------------------------------
+
+
+def member_layers(project: Project, seq: Sequence) -> list[str]:
+    """The layers with members, in the order they start (ties: the order the members are listed)."""
+    order = list(dict.fromkeys([ref.layer for ref in seq.clips] + [ref.layer for ref in seq.keys]))
+    starts = {layer: layer_span(project, seq, layer)[0] for layer in order}
+    return sorted(order, key=lambda layer: (round(starts[layer], 9), order.index(layer)))
+
+
+def layer_span(project: Project, seq: Sequence, layer_id: str) -> tuple[float, float]:
+    """When the sequence's members on one layer start and end."""
+    part = seq.model_copy(
+        update={
+            "clips": [r for r in seq.clips if r.layer == layer_id],
+            "keys": [r for r in seq.keys if r.layer == layer_id],
+        }
+    )
+    return span(project, part)
+
+
+def stagger_of(project: Project, seq: Sequence) -> float | None:
+    """The delay between consecutive layers' starts when it is the same for all (within half a frame),
+    else None; 0 for a sequence on one layer."""
+    starts = [layer_span(project, seq, layer)[0] for layer in member_layers(project, seq)]
+    if len(starts) < 2:
+        return 0.0
+    gaps = [b - a for a, b in itertools.pairwise(starts)]
+    half = 0.5 / project.canvas.fps
+    return round(gaps[0], 6) if all(abs(g - gaps[0]) < half for g in gaps) else None
+
+
+def fit_factor(offsets: list[float], lengths: list[float], total: float) -> float:
+    """How much to stretch each layer's part (``lengths``, starting ``offsets`` after the start, kept) so
+    the latest one ends ``total`` after the start. ``EditError`` when it cannot."""
+    if total <= EPS:
+        raise EditError("the length must be above 0 s")
+    if max(lengths, default=0.0) <= EPS:
+        raise EditError("it lasts no time: there is nothing to stretch")
+    if any(o > total + EPS for o in offsets):
+        raise EditError(f"the delays between layers alone take more than {total:g} s")
+    factor = min((total - o) / length for o, length in zip(offsets, lengths, strict=True) if length > EPS)
+    if factor <= EPS:
+        raise EditError(f"the delays between layers leave no time in {total:g} s")
+    return factor
+
+
+def restagger_sequence(
+    project: Project, sequence_id: str, stagger: float, order: list[str] | None = None
+) -> Edit:
+    """Move each layer's members so consecutive layers start ``stagger`` s apart, the first where the
+    sequence starts; ``order`` (default: the order they start in) is the layers' order. Nothing is
+    stretched. Refused as ``retime_sequence`` is."""
+    return reparameterise_sequence(project, sequence_id, None, stagger, order)
+
+
+def reparameterise_sequence(
+    project: Project,
+    sequence_id: str,
+    length: float | None = None,
+    stagger: float | None = None,
+    order: list[str] | None = None,
+) -> Edit:
+    """A recipe's parameters on a sequence (ADR 0080): consecutive layers start ``stagger`` s apart (None:
+    as they are), and each layer's part is stretched by one factor so the whole lasts ``length`` (None:
+    unstretched) with the delays kept. ``order`` lists the member layers in their new order."""
+    found = sequence(project, sequence_id)
+    if stagger is not None and stagger < -EPS:
+        raise EditError("the delay between layers cannot be below 0 s")
+    layers = member_layers(project, found)
+    if order is not None:
+        if sorted(order) != sorted(layers):
+            raise EditError(f"the order must list the layers of {found.name!r}, each once")
+        layers = list(order)
+    start, _end = span(project, found)
+    spans = [layer_span(project, found, layer) for layer in layers]
+    offsets = (
+        [i * stagger for i in range(len(layers))] if stagger is not None else [s - start for s, _ in spans]
+    )
+    lengths = [e - s for s, e in spans]
+    factor = 1.0 if length is None else fit_factor(offsets, lengths, length)
+    maps = {
+        layer: (s, start + offset, factor)
+        for layer, (s, _e), offset in zip(layers, spans, offsets, strict=True)
+    }
+    if all(abs(old - new) < EPS and abs(f - 1.0) < EPS for old, new, f in maps.values()):
+        return Edit(project, "timing", frozenset())
+    return _relayout(project, found, maps)
+
+
+def _relayout(project: Project, found: Sequence, maps: dict[str, tuple[float, float, float]]) -> Edit:
+    """Each member layer's members mapped ``t -> new + (t - old) * factor`` (``maps[layer]``): clip starts
+    and durations, keys on frames, an explicit Appears at / Disappears at on a member clip's edge. Refused
+    when two keys of one property would share a frame or the schema refuses the result."""
     fps = project.canvas.fps
     half = 0.5 / fps
 
-    def scaled(t: float) -> float:
-        return start + (t - start) * factor
+    def mapper(layer_id: str):
+        old, new, factor = maps[layer_id]
+        return lambda t: new + (t - old) * factor
 
-    def on_grid(t: float) -> float:
-        return round(scaled(t) * fps) / fps
+    def on_grid(layer_id: str):
+        scaled = mapper(layer_id)
+        return lambda t: round(scaled(t) * fps) / fps
 
     clip_ids: dict[str, set[str]] = {}
     for ref in found.clips:
@@ -231,9 +339,10 @@ def retime_sequence(project: Project, sequence_id: str, new_length: float) -> Ed
         key_refs.setdefault(ref.layer, []).append(ref)
     layers = []
     for layer in project.layers:
-        if layer.id not in clip_ids and layer.id not in key_refs:
+        if layer.id not in maps:
             layers.append(layer)
             continue
+        scaled, grid, factor = mapper(layer.id), on_grid(layer.id), maps[layer.id][2]
         data = layer.model_dump(by_alias=True)
         ids = clip_ids.get(layer.id, set())
         life = dict(data["lifetime"])
@@ -251,7 +360,7 @@ def retime_sequence(project: Project, sequence_id: str, new_length: float) -> Ed
         for ref in key_refs.get(layer.id, []):
             for k in data["tracks"].get(ref.track, []):
                 if abs(k["t"] - ref.t) < half and not k.get("_moved"):
-                    k["t"], k["_moved"] = on_grid(k["t"]), True
+                    k["t"], k["_moved"] = grid(k["t"]), True
                     break
         for track, keys in data["tracks"].items():
             for k in keys:
@@ -264,8 +373,9 @@ def retime_sequence(project: Project, sequence_id: str, new_length: float) -> Ed
                     "make it longer or move them apart first"
                 )
         layers.append(_validated_layer(data))
-    moved = {(ref.layer, ref.track, ref.t) for ref in found.keys}
-    sequences = edits.carried_keys(project, lambda ref: (ref.layer, ref.track, ref.t) in moved, on_grid)
+    # a key is in one sequence only: the moved key members are this sequence's own
+    keys = [ref.model_copy(update={"t": on_grid(ref.layer)(ref.t)}) for ref in found.keys]
+    sequences = [s.model_copy(update={"keys": keys}) if s.id == found.id else s for s in project.sequences]
     return _rebuilt(project, layers=layers, sequences=sequences)
 
 
@@ -324,6 +434,7 @@ def duplicate_sequence(project: Project, sequence_id: str, at: float) -> Edit:
         colour=found.colour,
         clips=clip_refs,
         keys=key_refs,
+        recipe=found.recipe,
     )
     return _rebuilt(project, layers=layers, sequences=[*project.sequences, copy])
 
