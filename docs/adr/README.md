@@ -114,3 +114,4 @@ need one.
 | [0083](0083-unity-style-camera.md) | A 2D camera as in Unity: size, Scene and Game views, a background, a followed layer | Accepted |
 | [0084](0084-lumen-covers-the-new-tools.md) | Lumen covers the tools added after the first design: where each one lives and the rules for it | Accepted |
 | [0086](0086-camera-always-first.md) | The camera is always the first row of the Layers panel and the Timeline | Accepted |
+| [0087](0087-slides.md) | Slides are marker stops: present them full screen or export them as an HTML deck | Accepted |

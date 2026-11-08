@@ -988,3 +988,17 @@ Core 5 210H (4P + 4E cores, 12 threads), RTX 4050 Laptop, PyAV 19 (NVENC listed,
   it is memoized.
 - **Not measured yet:** the cold export with the code layers rendered side by side end to end (the baseline above is
   the serial one).
+
+### B76 - Slides: one export per slide, and a deck opened from disk · 2026-11-08
+Decision session 45 ([ADR 0087](../adr/0087-slides.md)). Scratch script, `export_video` called in one process.
+
+- **Per-slide windows against one export** (`examples/graphs.json`, 7 s at 30 fps, 640x360, `jobs=1`, caches warm,
+  six equal windows rendered first, then the whole scene, two rounds): windows 6.27 s / 5.84 s, whole 4.05 s /
+  4.13 s, so about **0.3 s more per window**, which does not grow with the scene. On `examples/explainer.json` (95 s)
+  the cold whole export took 171.6 s and six windows afterwards 143.8 s (warm): the overhead is lost in the frames.
+- **A deck page from disk**: two windows written to `probe_files/slide-01.mp4` (0-3 s) and `slide-02.mp4` (3-7 s); a
+  page opened as `file:///.../probe.html` in headless Microsoft Edge loaded the first (3.000 s) and, after switching
+  `src`, the second (4.000 s). Sibling-folder videos play without a server, and windows are exact.
+- **Not measured**: playing with sound after a click in a desktop browser (headless virtual time does not advance
+  media) - checked by hand after D4.
+
