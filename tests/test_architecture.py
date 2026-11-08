@@ -256,7 +256,7 @@ def test_a_module_name_means_one_file() -> None:
     for name, path in modules().items():
         if path.name != "__init__.py":
             seen[path.stem].append(name)
-    # pairs told apart by their folder: core / ui, camera / process
-    twins = {"preview": 2, "scene_import": 2, "audio": 2}
+    # pairs told apart by their folder: core / ui, camera / process, the deck's page / its render (ADR 0087)
+    twins = {"preview": 2, "scene_import": 2, "audio": 2, "slide_deck": 2}
     clashes = {leaf: names for leaf, names in seen.items() if len(names) > twins.get(leaf, 1)}
     assert clashes == {}

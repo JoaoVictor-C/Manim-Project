@@ -2,8 +2,9 @@
 
 A job holds the project as it was when it was added (documents replace their project on
 every edit, so this is a reference), its render options, its output path and whether code
-layers may run. ``RenderQueue`` only decides *which* job is next and what state each is in;
-the page runs the job (an ``ExportJob``, one at a time) and reports back.
+layers may run, and whether it makes an HTML slide deck (ADR 0087) rather than a video.
+``RenderQueue`` only decides *which* job is next and what state each is in; the page runs the job (an
+``ExportJob``, one at a time) and reports back.
 
 States: ``queued`` -> ``rendering`` -> ``done`` | ``failed`` | ``cancelled`` (a queued job can
 also be cancelled). ``start()`` makes the queue run its queued jobs in order; ``advance()``
@@ -17,6 +18,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+from ...core.editing.slides import windows
 from ...core.model.schema import Project
 from ...render.options import RenderOptions, apply_options, frame_window
 
@@ -40,6 +42,7 @@ class QueueJob:
     output: Path
     trust: bool = False  # may code layers run? Fixed when the job is added, like the project
     fresh: bool = False  # start again rather than resume an interrupted export of it (ADR 0081)
+    deck: bool = False  # an HTML slide deck, a video per slide (ADR 0087)
     status: Status = Status.QUEUED
     frame: int = 0
     total: int = 0
@@ -57,8 +60,13 @@ class QueueJob:
 
     @property
     def summary(self) -> str:
-        """'1920x1080 30 fps, 0.0-2.5 s' - what the job renders, from its own snapshot."""
+        """'1920x1080 30 fps, 0.0-2.5 s' (a deck: '1920x1080 30 fps, 4 slides') - what the job renders, from
+        its own snapshot."""
         canvas = apply_options(self.project, self.options).canvas
+        if self.deck:
+            count = len(windows(self.project, canvas.fps))
+            size = f"{canvas.width_px}x{canvas.height_px} {canvas.fps} fps"
+            return f"{size}, {count} slide{'s' if count != 1 else ''}"
         first, last = frame_window(canvas, self.options)
         text = f"{canvas.width_px}x{canvas.height_px} {canvas.fps} fps"
         return f"{text}, {first / canvas.fps:.2f}-{last / canvas.fps:.2f} s"
@@ -81,18 +89,22 @@ class RenderQueue:
     active: bool = False  # Start was pressed and queued jobs remain
     _next_id: int = 1
 
-    def add(self, project: Project, options: RenderOptions, output: Path, trust: bool = False) -> QueueJob:
+    def add(
+        self, project: Project, options: RenderOptions, output: Path, trust: bool = False, deck: bool = False
+    ) -> QueueJob:
         """Queue an export. A pending job with the same output path makes this one ``name (2).mp4``."""
-        job = QueueJob(self._next_id, project, options, self.output_for(output), trust)
+        job = QueueJob(self._next_id, project, options, self.output_for(output, deck), trust, deck=deck)
         self._next_id += 1
         self.jobs.append(job)
         return job
 
-    def output_for(self, output: Path) -> Path:
-        """Where an export to ``output`` added now would be written (an .mp4, not a pending job's path)."""
+    def output_for(self, output: Path, deck: bool = False) -> Path:
+        """Where an export to ``output`` added now would be written (an .mp4, or an .html page for a ``deck``;
+        not a pending job's path)."""
         output = Path(output)
-        if output.suffix.lower() != ".mp4":
-            output = output.with_suffix(".mp4")
+        suffix = ".html" if deck else ".mp4"
+        if output.suffix.lower() != suffix:
+            output = output.with_suffix(suffix)
         return unique_output(output, {job.output for job in self.jobs if not job.finished})
 
     def get(self, job_id: int) -> QueueJob | None:
