@@ -139,8 +139,12 @@ class PlayerBar(QWidget):
         self.end_button = self._button("player-end", "To the end (End)", self.endRequested.emit)
         self.loop_button = self._button("player-loop", "Repeat (L)", None, checkable=True)
         self.loop_button.toggled.connect(self._on_loop)
+        self.slide = QLabel("")  # "Slide 2 of 8" while presenting slides (ADR 0087)
+        self.slide.hide()
         left = QHBoxLayout()
         left.addWidget(self.title)
+        left.addSpacing(12)
+        left.addWidget(self.slide)
         left.addStretch(1)
         centre = QHBoxLayout()
         for button in (
@@ -216,6 +220,11 @@ class PlayerBar(QWidget):
 
     def set_title(self, text: str) -> None:
         self.title.setText(text)
+
+    def set_slide(self, text: str | None) -> None:
+        """Which slide is showing; None hides it (no slides)."""
+        self.slide.setText(text or "")
+        self.slide.setVisible(text is not None)
 
     def set_loop(self, on: bool) -> None:
         self.loop_button.blockSignals(True)
