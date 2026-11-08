@@ -10,12 +10,15 @@ it renders first, ADR 0065), and ``how`` names what drew and encoded the video o
 command (ADR 0042, 0065). ``cancel()`` kills the process and removes the partial video; the
 snapshot file is always removed when the job ends. A long export resumes from the segments an interrupted one
 left in its work folder, which a cancel keeps; ``fresh`` starts it again from the first frame (ADR 0081).
+``deck`` makes an HTML slide deck instead of one video (``--deck``, ADR 0087); a cancelled or failed one
+leaves no work folder, and an earlier deck at that path stays as it was.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import uuid
 from pathlib import Path
@@ -27,6 +30,7 @@ from ...core.model.schema import Project
 from ...logging_config import get_logger
 from ...render.cairo_export import partial_path
 from ...render.options import RenderOptions
+from ...render.slide_deck import work_folder
 from ..services import children
 
 log = get_logger(__name__)
@@ -50,6 +54,7 @@ class ExportJob(QObject):
         trust_code: bool = False,
         options: RenderOptions | None = None,
         fresh: bool = False,
+        deck: bool = False,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -57,6 +62,7 @@ class ExportJob(QObject):
         self.project, self.output, self.cache_dir = project, Path(output), Path(cache_dir)
         self.options = options or RenderOptions()  # size, fps, range, quality, subtitles (ADR 0042)
         self.fresh = fresh  # discard the segments of an interrupted export instead of resuming (ADR 0081)
+        self.deck = deck  # an HTML slide deck at ``output`` (ADR 0087)
         self._program = program
         self._snapshot: Path | None = None
         self._process: QProcess | None = None
@@ -91,6 +97,7 @@ class ExportJob(QObject):
                 "json",
                 *(["--trust-code"] if self.trust_code else []),
                 *(["--fresh"] if self.fresh else []),
+                *(["--deck"] if self.deck else []),
                 *self.options.to_args(),
             ]
         )
@@ -178,3 +185,5 @@ class ExportJob(QObject):
             self._snapshot.unlink(missing_ok=True)
         if remove_partial:
             partial_path(self.output).unlink(missing_ok=True)
+            if self.deck:
+                shutil.rmtree(work_folder(self.output), ignore_errors=True)

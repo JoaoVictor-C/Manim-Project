@@ -15,9 +15,10 @@ pytest.importorskip("PySide6")
 
 from manim_studio import lifeline
 from manim_studio.core.engine import adapter
-from manim_studio.core.model.schema import Canvas, Clip, Layer, Project, Spec
+from manim_studio.core.model.schema import Canvas, Clip, Layer, Marker, Project, Spec
 from manim_studio.render.cairo_export import partial_path
 from manim_studio.render.options import RenderOptions
+from manim_studio.render.slide_deck import work_folder
 from manim_studio.ui.deliver.export_job import ExportJob
 
 pytestmark = [pytest.mark.ui, pytest.mark.slow]  # starts real processes
@@ -162,3 +163,34 @@ def test_a_cancelled_long_export_resumes_and_fresh_starts_again(qt_app, tmp_path
     events = run(qt_app, fresh, lambda e, j: e["progress"] or e["failed"])
     assert events["progress"][0][0] == (1, 600) and not events["stage"]
     fresh.cancel()
+
+
+def test_a_deck_job_renders_a_page_and_its_slides(qt_app, tmp_path) -> None:
+    """ADR 0087: ``deck`` adds --deck; progress counts every slide's frames; the page is the result."""
+    talk = project().model_copy(update={"markers": [Marker(id="m", t=0.4, slide="stop", loop=0.2)]})
+    out = tmp_path / "talk.html"
+    job = ExportJob(talk, out, CACHE, deck=True, options=RenderOptions(jobs=1, encoder="cpu"))
+    events = run(qt_app, job, lambda e, j: e["finished"] or e["failed"])
+    assert events["failed"] == [] and events["finished"] == [(str(out), "")]
+    assert [args for args, _ in events["progress"]][-1] == (12, 12)  # 5 + 5 frames and a 2-frame loop
+    files = tmp_path / "talk_files"
+    assert sorted(p.name for p in files.iterdir()) == [
+        "slide-01-end.png",
+        "slide-01-loop.mp4",
+        "slide-01.mp4",
+        "slide-02-end.png",
+        "slide-02.mp4",
+    ]
+    assert job.how.startswith("2 slides")
+
+
+def test_cancelling_a_deck_leaves_the_old_deck_and_no_work_folder(qt_app, tmp_path) -> None:
+    out = tmp_path / "talk.html"
+    out.write_text("previous deck", encoding="utf-8")
+    long = project(duration=60.0).model_copy(update={"markers": [Marker(id="m", t=30.0, slide="stop")]})
+    job = ExportJob(long, out, CACHE, deck=True, options=RenderOptions(jobs=1, encoder="cpu"))
+    run(qt_app, job, lambda e, j: len(e["progress"]) >= 3)
+    assert work_folder(out).is_dir()
+    job.cancel()
+    assert out.read_text(encoding="utf-8") == "previous deck"
+    assert not work_folder(out).exists()

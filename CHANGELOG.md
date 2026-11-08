@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Slides** ([ADR 0087](docs/adr/0087-slides.md), [guide](docs/guide/slides.md)). A marker can be a **slide stop**
+  (Edit > Add Slide Stop, `Shift+M`, or *Slide stop* in Properties), optionally **looping** its last seconds while
+  it waits. Full screen then presents the slides: click, `Right` or a remote's `Page Down` plays the next slide (or
+  jumps to the stop of the one playing), `Left` / `Page Up` goes back, and the bar shows "Slide 2 of 8". Deliver's
+  **Slide deck (HTML)** and `manim-studio render x.json talk.html --deck` export the same slides as a page with one
+  video per slide that plays offline in any browser.
+
 ## [1.0.0] - 2026-11-01
 
 First release of the editor. Everything under this heading and under 0.3.0 below ships in 1.0.0; there was

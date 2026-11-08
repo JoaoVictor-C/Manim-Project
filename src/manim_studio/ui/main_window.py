@@ -127,6 +127,7 @@ class MainWindow(QMainWindow):
     playheadMoved = Signal(float)  # every seek and playback tick: pages' own views follow it
     codePresetsChanged = Signal()  # the code preset library changed (P12)
     playingChanged = Signal(bool)  # playback started or stopped (the full-screen player follows it)
+    playUntilReached = Signal()  # playback stopped on ``play_until`` (a slide's stop, ADR 0087)
 
     def __init__(self) -> None:
         super().__init__()
@@ -158,6 +159,10 @@ class MainWindow(QMainWindow):
         self.t = 0.0
         self.loop_playback = False  # play again from the start at the end (the full-screen player's repeat)
         self.play_speed = 1.0  # a silent scene may play slower or faster
+        # Presenting slides (ADR 0087): playing stops exactly here, or goes round (a, b) silently. Any pause
+        # clears both, so they belong to one play.
+        self.play_until: float | None = None
+        self.play_loop: tuple[float, float] | None = None
         self._play_origin: tuple[float, float] | None = None  # (wall clock, t) at play start
         # The project's sound plays through this; its played time is the clock (ADR 0034).
         self.audio_player = make_audio_player(self)
@@ -514,6 +519,12 @@ class MainWindow(QMainWindow):
             action.setToolTip(tip)
             action.triggered.connect(slot)
             edit_menu.addAction(action)
+            if key == "M":  # the stop that cuts the scene into slides (ADR 0087)
+                stop = QAction("Add Slide Stop", self)
+                stop.setShortcut(QKeySequence("Shift+M"))
+                stop.setToolTip("A slide stop at the playhead: present mode waits here")
+                stop.triggered.connect(self.add_slide_stop)
+                edit_menu.addAction(stop)
         edit_menu.addSeparator()
         self.auto_key_action = QAction("&Auto-key", self, checkable=True)
         self.auto_key_action.setToolTip("Changing an object's transform sets keyframes at the playhead")
@@ -1867,6 +1878,11 @@ class MainWindow(QMainWindow):
         if self.project is not None:
             self.timeline.add_marker_at(self.t)
 
+    def add_slide_stop(self) -> None:
+        """Edit > Add Slide Stop (Shift+M): a slide stop at the playhead (ADR 0087)."""
+        if self.project is not None:
+            self.timeline.add_slide_stop_at(self.t)
+
     def jump_to_marker(self, direction: int) -> None:
         """Edit > Previous / Next Marker ([ and ]): the playhead to the nearest marker that way."""
         if self.project is None:
@@ -2695,7 +2711,23 @@ class MainWindow(QMainWindow):
             self._audio_signature = audio.mix_signature(project)
         self._play_origin = (time.perf_counter(), self.t)
 
+    def play_silent_loop(self, start: float, end: float) -> None:
+        """Go round ``start``..``end`` on the wall clock with no sound until paused (a looping slide stop)."""
+        if self.project is None:
+            return
+        self.pause()
+        self.play_loop = (start, end)
+        self.seek(start)
+        self._play_origin = (time.perf_counter(), start)
+        self.play_timer.start(int(1000 / self.project.canvas.fps))
+        self.play_button.setText("Pause")
+        self.play_button.setIcon(icons.icon("pause"))
+        self.canvas.playing = True
+        self.playingChanged.emit(True)
+
     def pause(self) -> None:
+        self.play_until = None
+        self.play_loop = None
         self.play_timer.stop()
         if self._audio_signature is not None:
             self.audio_player.stop()
@@ -2717,6 +2749,20 @@ class MainWindow(QMainWindow):
             t = t0 + (time.perf_counter() - wall0) * self.play_speed
         fps = self.project.canvas.fps
         t = frame_time(frame_index(t, fps), fps)  # the frames the export has (ADR 0028)
+        if self.play_loop is not None:  # a looping slide stop: round again, never past its end (ADR 0087)
+            start, end = self.play_loop
+            if t > end + 1e-9:
+                self.seek(start)
+                self._play_origin = (time.perf_counter(), start)
+                return
+            self.seek(t)
+            return
+        if self.play_until is not None and t >= self.play_until - 1e-9:  # a slide's stop: exactly there
+            stop = self.play_until
+            self.pause()
+            self.seek(stop)
+            self.playUntilReached.emit()
+            return
         if t >= self.project.canvas.duration:
             if self.loop_playback:  # again from the start, the sound with it
                 self.seek(0.0)

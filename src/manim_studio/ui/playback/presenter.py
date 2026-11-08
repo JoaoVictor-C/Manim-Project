@@ -23,6 +23,7 @@ from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
 from PySide6.QtGui import QCursor, QKeyEvent
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from ...core.editing import slides
 from ..canvas import viewport
 from ..style import theme
 from .player_bar import PlayerBar
@@ -31,6 +32,9 @@ if TYPE_CHECKING:
     from ..main_window import MainWindow
 
 HINT = "Space: play / pause    ← →: frame (Shift: ten)    L: repeat    M: mute    Esc: leave"
+SLIDES_HINT = "→ Page Down Space or click: next    ← Page Up: previous    Shift ← →: frame    Esc: leave"
+KEYS_NEXT = (Qt.Key.Key_PageDown, Qt.Key.Key_Right, Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter)
+KEYS_PREVIOUS = (Qt.Key.Key_PageUp, Qt.Key.Key_Left, Qt.Key.Key_Backspace)
 IDLE_MS = 2500  # the pointer and the bar go away after this long without mouse movement (while playing)
 HINT_MS = 3500  # the keys are listed for this long when full screen starts
 POLL_MS = 100  # how often the pointer is looked at
@@ -52,7 +56,10 @@ class _CanvasGuard(QObject):
             self.presenter.wake()
             return True
         if kind == QEvent.Type.MouseButtonRelease:
-            self.presenter.window_.toggle_play()
+            if self.presenter.slides_mode:
+                self.presenter.next_slide()
+            else:
+                self.presenter.window_.toggle_play()
             return True
         if kind == QEvent.Type.MouseButtonDblClick:
             self.presenter.finish()
@@ -75,6 +82,11 @@ class Presenter(QWidget):
         self.setStyleSheet("background: black;")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.active = False
+        # Slides (ADR 0087): on when the project has slide stops. ``current`` is the slide shown; ``waiting`` is
+        # True while it rests (or loops) on its stop, False while it plays or before it has played.
+        self.slides_mode = False
+        self.current = 0
+        self.waiting = False
         self._saved: tuple | None = None
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -108,6 +120,7 @@ class Presenter(QWidget):
         bar = self.bar
         window.playheadMoved.connect(lambda _t: self._update_time())
         window.playingChanged.connect(self._on_playing)
+        window.playUntilReached.connect(self._on_stop_reached)
         bar.seekRequested.connect(window.seek)
         bar.playToggled.connect(window.toggle_play)
         bar.skipRequested.connect(self._skip)
@@ -137,7 +150,13 @@ class Presenter(QWidget):
         canvas.presenting = True
         canvas.show()
         self.active = True
+        self.slides_mode = bool(slides.stops(window.project))
+        self.hint.setText(SLIDES_HINT if self.slides_mode else HINT)
         self._show_state()
+        if self.slides_mode:
+            self.first_slide()
+        else:
+            self.bar.set_slide(None)
         self.showFullScreen()
         canvas.set_view(viewport.View())  # Fit: the whole frame on the screen
         self.setFocus()
@@ -159,6 +178,9 @@ class Presenter(QWidget):
         canvas = window.canvas
         view, overlays, focus = self._saved
         self.active = False
+        if self.slides_mode:  # a talk left half way leaves nothing playing or looping in the editor
+            window.pause()
+            self.slides_mode = self.waiting = False
         self._idle.stop()
         self._poll.stop()
         self._hint_timer.stop()
@@ -262,7 +284,98 @@ class Presenter(QWidget):
         if player is not None:
             player.set_muted(muted)
 
+    # -- slides (ADR 0087) ---------------------------------------------------------------------
+
+    def _slides(self) -> list[slides.Slide]:
+        return slides.windows(self.window_.project)
+
+    def _show_slide_number(self) -> None:
+        self.bar.set_slide(f"Slide {self.current + 1} of {len(self._slides())}")
+
+    def _playing_a_slide(self) -> bool:
+        window = self.window_
+        return window.play_timer.isActive() and window.play_loop is None
+
+    def first_slide(self) -> None:
+        """The start of the talk: the first frame, paused (a title slide waits on it)."""
+        first = self._slides()[0]
+        if first.stop is not None and first.frames == 1:
+            self._wait_at(0)
+            return
+        window = self.window_
+        window.pause()
+        window.seek(first.start)
+        self.current, self.waiting = 0, False
+        self._show_slide_number()
+
+    def last_slide(self) -> None:
+        """The end of the talk: the last slide, done."""
+        self._wait_at(len(self._slides()) - 1)
+
+    def next_slide(self) -> None:
+        """Click, Right, Page Down, Space: finish the slide playing, or play the next one."""
+        found = self._slides()
+        if self._playing_a_slide():
+            self._wait_at(self.current)
+        elif not self.waiting:  # before it has played (the start, or the bar moved the playhead)
+            here = slides.slide_at(self.window_.project, self.window_.t)
+            self._play(here.index, self.window_.t)
+        elif self.current + 1 < len(found):
+            self._play(self.current + 1, found[self.current + 1].start)
+
+    def previous_slide(self) -> None:
+        """Left, Page Up: the stop before this slide, paused (before the first: the start)."""
+        if self.current == 0:
+            self.first_slide()
+        else:
+            self._wait_at(self.current - 1, loop=False)
+
+    def _play(self, index: int, start: float) -> None:
+        window = self.window_
+        slide = self._slides()[index]
+        window.pause()
+        window.seek(start)
+        self.current, self.waiting = index, False
+        window.play_until = slide.stop_time
+        window.play()
+        self._show_slide_number()
+
+    def _wait_at(self, index: int, loop: bool = True) -> None:
+        """Rest on slide ``index``'s stop; a looping stop goes round its last moment silently."""
+        window = self.window_
+        slide = self._slides()[index]
+        window.pause()
+        window.seek(slide.stop_time)
+        self.current, self.waiting = index, True
+        frames = slides.loop_window(slide) if loop else None
+        if frames is not None and frames[1] - frames[0] > 1:
+            window.play_silent_loop(frames[0] / slide.fps, (frames[1] - 1) / slide.fps)
+        self._show_slide_number()
+
+    def _on_stop_reached(self) -> None:
+        if self.active and self.slides_mode:
+            self._wait_at(self.current)
+
     # -- keys ---------------------------------------------------------------------------------
+
+    def _slide_key(self, event: QKeyEvent) -> bool:
+        """Present mode's keys; False for a key it leaves to the player's own."""
+        key = event.key()
+        shift = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        if shift and key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            self.window_.step(-1 if key == Qt.Key.Key_Left else 1)
+            self.waiting = False
+        elif key in KEYS_NEXT:
+            self.next_slide()
+        elif key in KEYS_PREVIOUS:
+            self.previous_slide()
+        elif key == Qt.Key.Key_Home:
+            self.first_slide()
+        elif key == Qt.Key.Key_End:
+            self.last_slide()
+        else:
+            return False
+        return True
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         window = self.window_
@@ -272,6 +385,8 @@ class Presenter(QWidget):
         self.wake()
         if key in KEYS_LEAVE:
             self.finish()
+        elif self.slides_mode and self._slide_key(event):
+            return
         elif key == Qt.Key.Key_Space:
             window.toggle_play()
         elif key == Qt.Key.Key_Left:

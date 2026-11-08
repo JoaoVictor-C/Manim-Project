@@ -819,10 +819,15 @@ class PropertiesPanel(QWidget):
             def apply(value: Any) -> None:
                 if generation != self._generation:
                     return
+                changes = {name: value}
                 if name == "name":
-                    value = value.strip()
+                    changes = {name: value.strip()}
+                elif name == "slide":  # off also clears the loop, which only a stop has
+                    changes = {"slide": "stop"} if value else {"slide": None, "loop": None}
+                elif name == "loop":  # 0 or empty: hold still
+                    changes = {"loop": value if value and value > 0 else None}
                 try:
-                    self.document.apply(edits.update_marker(self.project, marker_id, **{name: value}), text)
+                    self.document.apply(edits.update_marker(self.project, marker_id, **changes), text)
                 except (edits.EditError, ValidationError) as exc:
                     self.message.emit(f"{text}: {_first_error(exc)}")
                     self.refresh(force=True)
@@ -830,10 +835,21 @@ class PropertiesPanel(QWidget):
             return apply
 
         seconds = {"minimum": 0.0, "maximum": 36000.0, "step": 1 / self.project.canvas.fps, "suffix": " s"}
+        def slide_stop(value: Any) -> None:
+            commit("slide", "Make slide stop" if value else "Remove slide stop")(value)
+
         rows = [
             ("Name", "marker.name", TextField(commit("name", "Rename marker"), marker_id)),
             ("Time", "marker.t", FloatField(commit("t", "Move marker"), **seconds, decimals=3)),
             ("Colour", "marker.colour", ColorField(commit("colour", "Marker colour"))),
+            ("Slide stop", "marker.slide", BoolField(slide_stop, "Wait here when presenting")),
+            (
+                "Loop",
+                "marker.loop",
+                FloatField(
+                    commit("loop", "Slide loop"), **{**seconds, "minimum": 0.0}, decimals=2, none_text="Hold still"
+                ),
+            ),
         ]
         self._section("Marker", rows)
         self.body_layout.addStretch(1)
@@ -845,10 +861,13 @@ class PropertiesPanel(QWidget):
             self.show_nothing()
             return
         self.title.set_kind(KINDS["marker"])
-        self.title.setText(f"<b>{marker.name or marker.id}</b> - marker at {marker.t:g} s")
+        what = "slide stop" if marker.slide == "stop" else "marker"
+        self.title.setText(f"<b>{marker.name or marker.id}</b> - {what} at {marker.t:g} s")
         for path, field in self.fields.items():
             if not field.has_focus() or force:
-                field.set_value(getattr(marker, path.split(".", 1)[1]))
+                value = getattr(marker, path.split(".", 1)[1])
+                field.set_value(value == "stop" if path == "marker.slide" else value)
+        self.fields["marker.loop"].widget.setEnabled(marker.slide == "stop")  # only a stop waits
 
     def _refresh_subtitle(self, force: bool) -> None:
         cue = next((c for c in self.project.subtitles if c.id == self.subtitle_id), None)

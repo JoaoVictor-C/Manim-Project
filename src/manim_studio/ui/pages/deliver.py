@@ -1,7 +1,8 @@
 """The Deliver page (P6b.5, ADR 0041, ADR 0042; Lumen, ADR 0063): destinations, render settings, a queue.
 
 Three cards. At the left, **where is it going?**: large selectable destinations (a video for the web, a quick
-draft, Full HD, an archive master - each starts the form from a size and a quality - and the Python scene).
+draft, Full HD, an archive master - each starts the form from a size and a quality - an HTML slide deck cut at
+the slide stops, ADR 0087, and the Python scene).
 In the middle, the shared viewer beside (in a narrow window, over) the chosen destination's **settings**
 (file, size, frame rate, range, quality, subtitles, with estimate tiles) and *Render video* / *Add to queue*;
 for the Python destination, the readable/exact scene with *Save as...*. At the right, the **queue** of
@@ -41,6 +42,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...core.editing import slides
 from ...core.engine import adapter
 from ...core.engine.python_export import PythonExport, class_name, to_python
 from ...core.model.schema import Project
@@ -113,10 +115,10 @@ def open_folder(path: Path) -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
 
-def default_output(path: Path | None, folder: Path | None = None) -> Path:
-    """Next to the project in ``out/``; a never-saved one in ``folder`` (GP)."""
+def default_output(path: Path | None, folder: Path | None = None, suffix: str = ".mp4") -> Path:
+    """Next to the project in ``out/``; a never-saved one in ``folder`` (GP). ``suffix`` ".html": a deck."""
     name = path.stem if path else "untitled"
-    return (path.parent if path else folder or Path.cwd()) / "out" / f"{name}.mp4"
+    return (path.parent if path else folder or Path.cwd()) / "out" / f"{name}{suffix}"
 
 
 class Destination:
@@ -131,9 +133,15 @@ class Destination:
         gradient: tuple[str, str] | None,
         size: str | None = None,
         crf: int | None = None,
+        deck: bool = False,
     ) -> None:
         self.key, self.title, self.summary, self.icon, self.gradient = key, title, summary, icon, gradient
         self.size, self.crf = size, crf  # None: leave the form as it is
+        self.deck = deck  # an HTML slide deck, cut at the slide stops (ADR 0087)
+
+    @property
+    def suffix(self) -> str:
+        return ".html" if self.deck else ".mp4"
 
 
 DESTINATIONS = (
@@ -164,6 +172,14 @@ DESTINATIONS = (
         ("morph", "accent"),
         "2160p",
         QUALITIES["Archive"],
+    ),
+    Destination(
+        "deck",
+        "Slide deck (HTML)",
+        "Plays to each slide stop and waits, in a browser",
+        "marker",
+        ("accent_2", "key"),
+        deck=True,
     ),
     Destination("python", "Manim Python", "A scene you can run with manim", "python", None),
 )
@@ -458,6 +474,11 @@ class DeliverPage(Page):
         self.summary = QLabel()
         self.summary.setProperty("role", "readout")
         self.summary.setWordWrap(True)
+        self.deck_hint = QLabel()  # a deck: how many slides, or that it has one (ADR 0087)
+        self.deck_hint.setObjectName("deckHint")
+        self.deck_hint.setProperty("role", "hint")
+        self.deck_hint.setWordWrap(True)
+        self.deck_hint.hide()
         self.health = QLabel()  # what will be slow or will not work (ADR 0066)
         self.health.setProperty("role", "hint")
         self.health.setWordWrap(True)
@@ -490,6 +511,7 @@ class DeliverPage(Page):
         column.addLayout(tiles)
         column.addLayout(form)
         column.addWidget(self.summary)
+        column.addWidget(self.deck_hint)
         column.addWidget(self.health)
         column.addWidget(self.error)
         column.addLayout(actions)
@@ -628,6 +650,14 @@ class DeliverPage(Page):
             if self._python_stale:
                 self.refresh_python()
             return
+        deck = destination.deck  # a deck is the whole scene, cut at the slide stops (ADR 0087)
+        self.range.setEnabled(not deck)
+        self.range.setToolTip(
+            "A slide deck is always the whole scene, cut at the slide stops" if deck else ""
+        )
+        self.render_button.setText("Render deck" if deck else "Render video")
+        self._follow_default_output()
+        self._on_range_choice()
         if apply and destination.size is not None:
             index = self.size.findData(destination.size)
             if index >= 0:
@@ -756,10 +786,15 @@ class DeliverPage(Page):
         self._refresh_summary()
 
     def _follow_default_output(self, force: bool = False) -> None:
-        """The path field offers ``out/<project>.mp4`` until the user types another."""
-        new = str(default_output(self.window.path, self.window.default_folder()))
-        if force or not self.path.text() or self.path.text() == self._default_output:
+        """The path field offers ``out/<project>.mp4`` (a deck: ``.html``) until the user types another; a
+        path the user typed keeps its name and takes the destination's suffix."""
+        suffix = self._destination.suffix
+        new = str(default_output(self.window.path, self.window.default_folder(), suffix))
+        text = self.path.text().strip()
+        if force or not text or text == self._default_output:
             self.path.setText(new)
+        elif Path(text).suffix.lower() in (".mp4", ".html") and Path(text).suffix.lower() != suffix:
+            self.path.setText(str(Path(text).with_suffix(suffix)))
         self._default_output = new
 
     # -- the settings -----------------------------------------------------------------------
@@ -782,7 +817,7 @@ class DeliverPage(Page):
         self._refresh_summary()
 
     def _on_range_choice(self, *_args) -> None:
-        mode = self.range.currentData()
+        mode = None if self._destination.deck else self.range.currentData()  # a deck: the whole scene
         self.start.setEnabled(mode == "times")
         self.end.setEnabled(mode == "times")
         self.marker_from.setEnabled(mode == "markers")
@@ -802,7 +837,7 @@ class DeliverPage(Page):
             width, height = self.width.value(), self.height.value()
         fps = self.fps.value() if self.fps.value() != canvas.fps else None
         start, end = 0.0, None
-        mode = self.range.currentData()
+        mode = None if self._destination.deck else self.range.currentData()  # a deck: the whole scene
         if mode == "times":
             start, end = self.start.value(), self.end.value()
         elif mode == "markers":
@@ -829,6 +864,7 @@ class DeliverPage(Page):
         if not hasattr(self, "summary"):
             return
         project = self.window.document.project
+        self._refresh_deck_hint(project)
         try:
             options = self.options()
             canvas = apply_options(project, options).canvas
@@ -848,6 +884,20 @@ class DeliverPage(Page):
         self.preset_chip.set_tone("accent" if edited else "neutral")
         self._refresh_resume()
 
+    def _refresh_deck_hint(self, project: Project) -> None:
+        """A deck says how many slides it makes; with no slide stops, that it has one and how to cut it."""
+        if not self._destination.deck:
+            self.deck_hint.hide()
+            return
+        if not slides.stops(project):
+            text = "No slide stops: the deck has one slide. Mark stops on the ruler."
+        else:
+            count = len(slides.windows(project, self.fps.value()))
+            plural = "s" if count != 1 else ""
+            text = f"{count} slide{plural}, cut at the slide stops. The deck is the whole scene."
+        self.deck_hint.setText(text)
+        self.deck_hint.show()
+
     def _open_health_target(self, page: str, layer_id: str) -> None:
         """A warn or bad health chip was pressed: show the page that has what it names, on that layer."""
         window = self.window
@@ -864,7 +914,7 @@ class DeliverPage(Page):
             return
         project, text = self.window.project, self.path.text().strip()
         found = None
-        if project is not None and text and self.queue.current is None:
+        if project is not None and text and self.queue.current is None and not self._destination.deck:
             try:
                 options = self.options()
                 trust = not self.window.trust.untrusted(project)
@@ -930,9 +980,11 @@ class DeliverPage(Page):
         self.tile_sound.set_value(f"{sounds} sound{'s' if sounds != 1 else ''}" if sounds else "None")
 
     def _browse(self) -> None:
-        name, _ = QFileDialog.getSaveFileName(
-            self.widget, "Export video", self.path.text(), "MP4 video (*.mp4)"
-        )
+        if self._destination.deck:
+            title, kinds = "Export slide deck", "HTML slide deck (*.html)"
+        else:
+            title, kinds = "Export video", "MP4 video (*.mp4)"
+        name, _ = QFileDialog.getSaveFileName(self.widget, title, self.path.text(), kinds)
         if name:
             self.path.setText(name)
 
@@ -958,13 +1010,14 @@ class DeliverPage(Page):
         self.error.clear()
         trust = not self.window.trust.untrusted(project)  # fixed now, like the snapshot (ADR 0019)
         fresh = False
-        pending = resume.pending(project, options, self.queue.output_for(Path(text)), trust)
+        deck = self._destination.deck  # made afresh each time: nothing to resume (ADR 0087)
+        pending = None if deck else resume.pending(project, options, self.queue.output_for(Path(text)), trust)
         if pending is not None:  # an interrupted export of this project and settings (ADR 0081)
             choice = resume_choice or self.ask_resume(pending)
             if choice is None:
                 return None
             fresh = choice == "fresh"
-        job = self.queue.add(project, options, Path(text), trust)
+        job = self.queue.add(project, options, Path(text), trust, deck=deck)
         job.fresh = fresh
         self._add_row(job)
         self.queue_status.setText(f"Added {job.output.name}.")
@@ -1020,6 +1073,7 @@ class DeliverPage(Page):
             parent=self.widget,
         )
         export.fresh = job.fresh
+        export.deck = job.deck  # an HTML slide deck (ADR 0087)
         export.progress.connect(lambda frame, total: self._on_progress(job, frame, total))
         export.stage.connect(lambda text: self._on_stage(job, text))
         export.finished.connect(lambda path, warning: self._on_finished(job, path, warning))

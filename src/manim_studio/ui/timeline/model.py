@@ -20,8 +20,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from ...core.editing import slides
 from ...core.model.layer_index import LayerIndex
-from ...core.model.schema import Clip, Layer, Project
+from ...core.model.schema import Clip, Layer, Marker, Project
 
 SNAP_RADIUS_PX = 8.0
 MIN_PX_PER_SECOND = 0.5  # a 15-minute scene fits 1600 px (P7.2), an hour 1800 px
@@ -108,6 +109,26 @@ def snap_candidates(project: Project, playhead: float, exclude: Iterable[SnapIte
     points.update(t for c in project.subtitles if ("cue", c.id) not in skip for t in (c.start, c.end))
     points.update(m.t for m in project.markers if ("marker", m.id) not in skip)
     return sorted(points)
+
+
+def loop_band(project: Project, marker: Marker) -> tuple[float, float] | None:
+    """The times a looping slide stop repeats over (ADR 0087), from the first frame that loops to the stop's
+    own frame; None for a marker that is not a stop and for a stop that holds still."""
+    if marker.slide != "stop" or marker.loop is None:
+        return None
+    for slide in slides.windows(project):
+        if slide.stop is not None and slide.stop.id == marker.id:
+            window = slides.loop_window(slide)
+            return None if window is None else (window[0] / slide.fps, slide.stop_time)
+    return None
+
+
+def marker_tip(marker: Marker) -> str:
+    """What hovering a flag on the ruler says."""
+    if marker.slide != "stop":
+        return f"{marker.name or 'Marker'} at {marker.t:g} s"
+    what = "Slide stop - holds still" if marker.loop is None else f"Slide stop - loops {marker.loop:g} s"
+    return f"{marker.name}: {what}" if marker.name else what
 
 
 def snapped(t: float, candidates: Iterable[float]) -> bool:

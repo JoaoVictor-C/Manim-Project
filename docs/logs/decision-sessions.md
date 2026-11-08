@@ -869,3 +869,20 @@ left open, so ADRs can cite it.
   clamped as a whole at 0.
 - **Answered by the lead after the stop:** Group v1 is transform-only (its transform tracks and opacity); clips
   on a whole group are a later step.
+
+## Session 45 - P18 slides · 2026-11-08
+
+- **Tool / profile:** Terza, `balanced`; 4 iterations, halted at confidence 0.90 (one pivot probe).
+- **Input:** the user's choice (present mode with click / arrows / remote and looping slides, plus an HTML deck that
+  plays offline); markers (ADR 0037), the full-screen player, `export_video` windows, schema v1 frozen.
+- **Decisions:** stops are markers with optional `slide` and `loop`; one pure `core/editing/slides.py`; present mode
+  in the full-screen player through a play end and a silent loop range in the one playing tick; the deck is a folder
+  of one mp4 per slide, an end png and loop mp4s. Plan: [../plans/p18-slides.md](../plans/p18-slides.md),
+  [ADR 0087](../adr/0087-slides.md).
+- **Measured during the session (B76):** about 0.3 s per extra export window; a page opened from disk plays videos
+  from a sibling folder; the playing tick is one method; ripple and Shift Timing move markers and keep their fields.
+- **Critiques that changed the plan:** the loop range is explicit on the stop (taking it from the previous marker
+  would let an unrelated marker change a talk); a stop on frame 0 is a title slide and empty slides are dropped; a
+  coarse clock must not show a frame past a stop; Next during a slide shows the end still before the loop (the loop
+  starts earlier than the stop).
+
