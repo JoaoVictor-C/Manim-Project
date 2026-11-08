@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import sys
 import time
@@ -91,6 +92,14 @@ def build_parser() -> argparse.ArgumentParser:
         "resumes (default: 10; ADR 0081)",
     )
 
+    render.add_argument(
+        "--deck",
+        action="store_true",
+        help="write an HTML slide deck instead of one video: OUTPUT.html and OUTPUT_files/ with a video "
+        "per slide (cut at the slide stops), its last frame and its loop; --start and --end are ignored "
+        "(ADR 0087)",
+    )
+
     python = sub.add_parser("python", help="write a project.json as a Manim scene file (ADR 0031)")
     python.add_argument("project", type=Path)
     python.add_argument("output", type=Path)
@@ -176,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         options,
         args.check,
         args.fresh,
+        args.deck,
     )
 
 
@@ -188,6 +198,7 @@ def _render(
     options=None,
     check: bool = False,
     fresh: bool = False,
+    deck: bool = False,
 ) -> int:
     from .core.engine import adapter
     from .core.model.schema import Project
@@ -227,7 +238,15 @@ def _render(
         sized, trust_code, mode, options.jobs
     )  # at the size being exported (ADR 0042)
     warnings += _untrusted_objects(sized)
-    pending = None if fresh else resume.pending(project, options, output, python_object.trusts_everything())
+    if deck:  # an HTML slide deck: a video per slide, made afresh (ADR 0087)
+        from .render.slide_deck import export_deck
+
+        export, pending = export_deck, None
+    else:
+        export = functools.partial(export_video, fresh=fresh)
+        pending = (
+            None if fresh else resume.pending(project, options, output, python_object.trusts_everything())
+        )
     if pending is not None:  # an interrupted export of the same project and options (ADR 0081)
         text = f"Resuming: {pending.done} of {pending.total} segments already rendered"
         if mode == "json":
@@ -235,7 +254,7 @@ def _render(
         else:
             print(f"{text} (in {pending.work.name}; --fresh starts again)", flush=True)
     try:
-        result = export_video(project, output, progress, options=options, fresh=fresh)
+        result = export(project, output, progress, options=options)
     except OSError as exc:
         return _fail(f"cannot write {output}: {exc.strerror or exc}")
     except KeyboardInterrupt:
