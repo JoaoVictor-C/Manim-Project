@@ -726,12 +726,27 @@ class Cue(BaseModel):
 
 
 class Marker(BaseModel):
-    """A named moment on the ruler (ADR 0037): it changes no frame, drags snap to it."""
+    """A named moment on the ruler (ADR 0037): it changes no frame, drags snap to it.
+
+    A marker with ``slide="stop"`` is a slide stop (ADR 0087): presenting waits there, and the last ``loop``
+    seconds before it play again silently while it waits (unset: the stop's frame holds still). Both are
+    saved only when set, so files without slides save as before.
+    """
 
     id: str
     t: float = Field(ge=0)
     name: str = ""
     colour: str = "#f59e0b"
+    slide: Literal["stop"] | None = None
+    loop: float | None = Field(default=None, gt=0)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_slide(self, handler):
+        data = handler(self)
+        for key in ("slide", "loop"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
 
 
 class Guide(BaseModel):

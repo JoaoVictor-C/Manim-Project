@@ -1605,6 +1605,19 @@ def update_marker(project: Project, marker_id: str, **fields: Any) -> Edit:
     return _replace_markers(project, markers)
 
 
+def add_slide_stop(project: Project, t: float) -> Edit:
+    """A slide stop at the frame nearest ``t`` (ADR 0087): a marker already there becomes one."""
+    existing = marker_at(project, t)
+    if existing is None:
+        added = add_marker(project, t).project
+        existing = marker_at(added, t)
+        assert existing is not None
+        return update_marker(added, existing.id, slide="stop")
+    if existing.slide == "stop":
+        raise EditError(f"a slide stop is already at {existing.t:g} s")
+    return update_marker(project, existing.id, slide="stop")
+
+
 def remove_marker(project: Project, marker_id: str) -> Edit:
     _marker(project, marker_id)
     return _replace_markers(project, [m for m in project.markers if m.id != marker_id])
