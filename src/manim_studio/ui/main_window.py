@@ -514,6 +514,12 @@ class MainWindow(QMainWindow):
             action.setToolTip(tip)
             action.triggered.connect(slot)
             edit_menu.addAction(action)
+            if key == "M":  # the stop that cuts the scene into slides (ADR 0087)
+                stop = QAction("Add Slide Stop", self)
+                stop.setShortcut(QKeySequence("Shift+M"))
+                stop.setToolTip("A slide stop at the playhead: present mode waits here")
+                stop.triggered.connect(self.add_slide_stop)
+                edit_menu.addAction(stop)
         edit_menu.addSeparator()
         self.auto_key_action = QAction("&Auto-key", self, checkable=True)
         self.auto_key_action.setToolTip("Changing an object's transform sets keyframes at the playhead")
@@ -1866,6 +1872,11 @@ class MainWindow(QMainWindow):
         """Edit > Add Marker (M): a marker at the playhead, or the one already there selected."""
         if self.project is not None:
             self.timeline.add_marker_at(self.t)
+
+    def add_slide_stop(self) -> None:
+        """Edit > Add Slide Stop (Shift+M): a slide stop at the playhead (ADR 0087)."""
+        if self.project is not None:
+            self.timeline.add_slide_stop_at(self.t)
 
     def jump_to_marker(self, direction: int) -> None:
         """Edit > Previous / Next Marker ([ and ]): the playhead to the nearest marker that way."""

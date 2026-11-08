@@ -15,6 +15,7 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Save | `Ctrl+S` |
 | Save As | `Ctrl+Shift+S` |
 | Export Video | `Ctrl+E` |
+| Snapshots | `Ctrl+Alt+S` |
 
 ## Edit menu
 
@@ -28,11 +29,16 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Duplicate | `Ctrl+D` |
 | Group | `Ctrl+G` |
 | Ungroup | `Ctrl+Shift+G` |
+| Add Object | `Shift+A` |
 | Add Subtitle | `Ctrl+T` |
 | Add Marker | `M` |
+| Add Slide Stop | `Shift+M` |
 | Previous Marker | `[` |
 | Next Marker | `]` |
 | Shift Timing | `Ctrl+Shift+T` |
+| Ripple Edit | `Ctrl+Alt+R` |
+| Beat Sheet | `Ctrl+Alt+B` |
+| Explain This Moment | `Ctrl+Alt+E` |
 
 ## Animate menu
 
@@ -49,6 +55,7 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Pages > Code | `Ctrl+3`, `Shift+3` |
 | Pages > Audio | `Ctrl+4`, `Shift+4` |
 | Pages > Deliver | `Ctrl+5`, `Shift+5` |
+| Command Palette | `Ctrl+K` |
 | Full Screen | `F11` |
 | Zoom In | `Ctrl+=`, `Ctrl++` |
 | Zoom Out | `Ctrl+-` |
@@ -56,6 +63,8 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Actual Size (100 %) | `Ctrl+Shift+0` |
 | Fit Timeline | `Shift+F` |
 | Snap to Objects | `Ctrl+;` |
+| Layout Guides | `Ctrl+'` |
+| Game View (through the camera) | `G` |
 | Reload Media | `F5` |
 
 ## Arrange menu
@@ -109,6 +118,9 @@ table with a search field. Keys are written as on Windows; Ctrl is Cmd on macOS.
 | Select a part of an object; back out | Double-click / Escape |
 | Cancel a drag | Escape |
 | Zoom to the selected objects (the whole frame when none) | F |
+| Select, Hand and Anchor tools | V, H, P |
+| Insert tools: Shape, Line, Text, Math, Media, Graph, 3D (Esc: Select) | R, L, T, E, I, X, D |
+| Insert tool with a variant: Circle, Rectangle, Arrow, Number, Tex, SVG, Number line, Sphere | O, Shift+R, Shift+L, Shift+T, Shift+E, Shift+I, Shift+X, Shift+D |
 | Zoom about the cursor / pan | Ctrl+Wheel / Wheel, Middle-drag |
 | Bend a motion path; smooth or straighten a key | Drag a handle / Double-click a key |
 

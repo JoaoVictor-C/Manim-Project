@@ -50,7 +50,7 @@ from pathlib import Path
 
 import numpy as np
 from pydantic import ValidationError
-from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -71,6 +71,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QMenu,
     QStyleOptionGraphicsItem,
+    QToolTip,
     QWidget,
 )
 
@@ -113,6 +114,8 @@ from .model import (
     fit_scale,
     group_delta,
     key_times,
+    loop_band,
+    marker_tip,
     obstacles,
     place_new_clip,
     snap,
@@ -1883,25 +1886,45 @@ class TimelineView(QGraphicsView):
             line.setAlphaF(0.45)
             painter.setPen(QPen(line, 1))
             painter.drawLine(QPointF(x, RULER_HEIGHT), QPointF(x, height))
+            stop = marker.slide == "stop"
+            band = loop_band(project, marker)
+            if band is not None:  # the part of the slide that repeats while it waits (ADR 0087)
+                x0, x1 = self._viewport_x(band[0]), x
+                shade_ = QColor(ink)
+                shade_.setAlphaF(0.28)
+                painter.fillRect(QRectF(x0, 2, max(x1 - x0, 2.0), RULER_HEIGHT - 3), shade_)
             painter.setPen(QPen(ink, 1.5))
             painter.drawLine(QPointF(x, 3), QPointF(x, RULER_HEIGHT - 1))
             flag = QPainterPath()
-            flag.addRoundedRect(QRectF(x - 0.75, 2, 9, 8), 2.5, 2.5)
+            flag.addRoundedRect(QRectF(x - 0.75, 2, 12 if stop else 9, 11 if stop else 8), 2.5, 2.5)
             painter.setPen(
                 QPen(colour("bar_selected") if selected else colour("key_edge"), 1.5 if selected else 1)
             )
             painter.setBrush(ink)
             painter.drawPath(flag)
+            if stop:  # a pause glyph on the flag: two bars (a plain marker's is flat)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(colour("raised"))
+                for bar_x in (x + 2.5, x + 6.5):
+                    painter.drawRect(QRectF(bar_x, 4.5, 2, 6))
             if marker.name:
                 painter.setFont(_font("caption", weight=QFont.Weight.DemiBold if selected else None))
                 text_width = painter.fontMetrics().horizontalAdvance(marker.name)
-                box = QRectF(x + 11, 1, text_width + 10, 13)
+                box = QRectF(x + (14 if stop else 11), 1, text_width + 10, 13)
                 painter.setPen(QPen(colour("accent_line") if selected else colour("line"), 1))
                 painter.setBrush(colour("raised"))
                 painter.drawRoundedRect(box, 6.5, 6.5)
                 painter.setPen(colour("text") if selected else ink)
                 painter.drawText(box, Qt.AlignmentFlag.AlignCenter, marker.name)
         painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    def viewportEvent(self, event) -> bool:
+        """Hovering a flag on the ruler says what it is (a slide stop: its loop, ADR 0087)."""
+        if event.type() == QEvent.Type.ToolTip and self.project is not None:
+            if event.pos().y() < RULER_HEIGHT and (marker := self.marker_at(event.pos().x())) is not None:
+                QToolTip.showText(event.globalPos(), marker_tip(marker), self.viewport())
+                return True
+        return super().viewportEvent(event)
 
     def _viewport_x(self, t: float) -> float:
         return self.mapFromScene(QPointF(self.scale.x(t), 0)).x()
@@ -2580,6 +2603,18 @@ class TimelineView(QGraphicsView):
             before = {m.id for m in self.project.markers}
             self._apply(lambda p: edits.add_marker(p, t), "Add marker")
             marker = next((m for m in self.project.markers if m.id not in before), None)
+        return self._select_marker(marker)
+
+    def add_slide_stop_at(self, t: float) -> str | None:
+        """Edit > Add Slide Stop (ADR 0087): a stop on the frame of ``t`` (a marker there becomes one) and
+        select it; a stop already there is refused, with the reason in the status bar."""
+        if self.project is None:
+            return None
+        self._apply(lambda p: edits.add_slide_stop(p, t), "Add slide stop")
+        marker = edits.marker_at(self.project, t)
+        return self._select_marker(marker if marker is not None and marker.slide == "stop" else None)
+
+    def _select_marker(self, marker: Marker | None) -> str | None:
         if marker is not None:
             self.selected = self.selected_key = self.selected_audio = self.selected_cue = None
             self.selected_marker = marker.id
