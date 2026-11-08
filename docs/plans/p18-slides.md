@@ -1,6 +1,6 @@
 # P18 - Slides: present mode and HTML deck
 
-- **Status:** in progress
+- **Status:** Done (2026-11-08) - acceptance `tests/acceptance/test_acceptance_p18.py`
 - **Date:** 2026-11-08
 - **Decided in:** [decision session 45](../logs/decision-sessions.md) (Terza, `balanced`, confidence 0.90)
 - **ADR:** [0087 slides are marker stops](../adr/0087-slides.md); evidence [B76](../logs/benchmarks.md)
@@ -47,3 +47,14 @@ adds a menu action, D3 only the tick and a menu action; merge D3 first).
 - A single-file deck (videos inlined as base64).
 - Speaker notes, a presenter view on a second screen, a timer.
 - Export to PowerPoint.
+
+## Results
+
+- D1 model and rules: 19 tests, 13/13 mutants killed. D3 present mode: 13 tests, 15/15 killed.
+- D2 marking (Shift+M, Properties fields, ruler flag and loop band): 11 tests, 12/13 killed (the survivor is
+  equivalent: only stops have slide windows).
+- D4 deck (page builder, `export_deck`, CLI `--deck`, Deliver destination): 28 tests, 33/33 killed. Headless Edge
+  played a three-slide deck with a loop through Next, the loop and End.
+- Still to check by eye in a desktop browser: sound after the click, no black flash between slides, preloading,
+  full screen.
+

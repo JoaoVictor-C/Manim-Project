@@ -14,6 +14,7 @@ version 1.0.0.
 | [Animation](animation.md) | animate with clips, presets, keyframes, curves, motion paths and markers; retime many things at once |
 | [Sound and subtitles](sound-and-subtitles.md) | add sounds, mix them, write subtitles and use `.srt` files |
 | [Exporting](exporting.md) | render MP4 videos, use the render queue, export a Python scene, render from the command line |
+| [Slides](slides.md) | mark slide stops, present full screen with a clicker, export an HTML deck |
 | [Keyboard shortcuts](shortcuts.md) | every shortcut and mouse gesture (generated from the editor) |
 | [Troubleshooting](troubleshooting.md) | fix missing LaTeX, trust prompts, slow previews; find logs and recovery copies |
 

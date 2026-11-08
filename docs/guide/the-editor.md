@@ -31,7 +31,7 @@ a double-click leave.
 The Code page also has its own buttons for its explorer (`Ctrl+B`) and output (`Ctrl+J`). In the explorer,
 **Folder...** creates a project folder. Right-click a folder to rename or remove it; right-click a code layer
 or Python object to move it into a folder or back to the root, or drag it onto a folder or the project heading.
-Folders and their contents are saved with the project.
+Folders and their contents are saved with the project. With slide stops it presents them one by one ([Slides](slides.md)).
 
 ## The viewer: canvas and transport
 
